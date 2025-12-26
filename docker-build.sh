@@ -8,17 +8,23 @@ IMAGE_TAG="latest"
 
 echo "🏗️  Building Service Foundation Docker Image..."
 
-# Check if JAR file exists
-if ! ls target/service_foundation-*.jar 1> /dev/null 2>&1; then
-    echo "❌ Error: JAR file not found in target/ directory"
-    echo "   Please build the application first:"
-    echo "   mvn clean package -DskipTests"
+# Check if requirements.txt exists
+if [ ! -f "requirements.txt" ]; then
+    echo "❌ Error: requirements.txt not found"
+    echo "   Please ensure requirements.txt exists in the project root"
     exit 1
 fi
 
-# Get the JAR file name
-JAR_FILE=$(ls target/service_foundation-*.jar | head -n1)
-echo "📦 Using JAR file: $JAR_FILE"
+echo "📦 Using requirements.txt for dependencies"
+
+# Check if manage.py exists
+if [ ! -f "manage.py" ]; then
+    echo "❌ Error: manage.py not found"
+    echo "   Please ensure this is a Django project"
+    exit 1
+fi
+
+echo "✅ Django project detected"
 
 # Build Docker image
 echo "🐳 Building Docker image: $IMAGE_NAME:$IMAGE_TAG"
@@ -35,4 +41,4 @@ echo "✅ Docker image built successfully!"
 echo "   Image: $IMAGE_NAME:$IMAGE_TAG"
 echo ""
 echo "🚀 Run with:"
-echo "   docker-compose -f docker-compose.yml up -d"
+echo "   docker-compose up -d"
