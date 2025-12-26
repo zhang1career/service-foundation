@@ -1,0 +1,1 @@
+APP_KNOWLEDGE = 1

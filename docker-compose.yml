@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  service_foundation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: service_foundation
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVICE_FOUNDATION_ENV: PROD
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: zhang
+      MYSQL_PASS: 123456
+      MYSQL_ROOT_PASSWORD: rootpw
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD:
+      REDIS_DB: 0
+      KAFKA_HOST: kafka
+      KAFKA_PORT: 9093
+      LOG_LEVEL: INFO
+      LOG_DIR: /var/log/service_foundation
+    ports:
+      - "10000:8080"
+    volumes:
+      - ./docker/log:/var/log/service_foundation
+    networks:
+      - infrastructure_infrastructure
+
+networks:
+  infrastructure_infrastructure:
+    external: true

@@ -1,0 +1,23 @@
+# Django and related packages
+# Django 4.1 supports MySQL 5.7 (Django 4.2+ requires MySQL 8.0.11+)
+Django==4.1.13
+djangorestframework>=3.14.0
+django-cors-headers>=4.0.0
+django-crontab>=0.7.1
+django-environ>=0.11.0
+
+# Database
+mysqlclient==2.2.1
+
+# Other dependencies
+django-log-request-id>=1.4.0
+
+
+pandas~=2.2.2
+matplotlib~=3.8.4
+imageio~=2.33.1
+pillow~=10.3.0
+requests~=2.32.2
+numpy~=1.26.4
+botocore~=1.34.69
+pymysql~=1.1.2

@@ -1,0 +1,67 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.run/
+.vscode/
+.classpath
+.project
+.settings/
+*.swp
+*.swo
+*~
+.cursorrules
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+log/
+*.log
+
+# Compiled class files
+*.class
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Docker
+docker/
+
+# Data
+data/
+
+# Library directories
+lib/
+
+# Enviroment
+.env*
+
+# Scripts
+scripts/mock/
+!scripts/mock/README.md
+!scripts/mock/example.mock
+scripts/out/
+*__pycache__/
+

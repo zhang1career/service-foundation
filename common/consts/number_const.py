@@ -1,0 +1,1 @@
+NUMBER_ONE = 1
