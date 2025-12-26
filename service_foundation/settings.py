@@ -97,7 +97,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.mysql",
         "NAME": env("DB_DEFAULT_NAME", default="service_foundation"),
         "USER": env("DB_DEFAULT_USER", default="root"),
-        "PASSWORD": env("DB_DEFAULT_PASSWORD", default=""),
+        "PASSWORD": env("DB_DEFAULT_PASS", default=""),
         "HOST": env("DB_DEFAULT_HOST", default="127.0.0.1"),
         "PORT": env("DB_DEFAULT_PORT", default=3306),
         "OPTIONS": {
@@ -108,7 +108,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.mysql",
         "NAME": env("DB_SNOWFLAKE_NAME", default="sf_snowflake"),
         "USER": env("DB_SNOWFLAKE_USER", default="zhang"),
-        "PASSWORD": env("DB_SNOWFLAKE_PASSWORD", default=""),
+        "PASSWORD": env("DB_SNOWFLAKE_PASS", default=""),
         "HOST": env("DB_SNOWFLAKE_HOST", default="127.0.0.1"),
         "PORT": env("DB_SNOWFLAKE_PORT", default=3306),
         "OPTIONS": {
