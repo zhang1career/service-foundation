@@ -33,7 +33,7 @@ def load_env(base_dir: Path) -> environ.Env:
     
     # Then, load environment-specific file if ENVIRONMENT is set
     # Check both os.environ (system env) and the .env file we just loaded
-    environment = os.environ.get("ENVIRONMENT", "").lower()
+    environment = os.environ.get("RUN_ENV", "").lower()
     
     if environment == "test":
         test_env_file = base_dir / ".env.test"
