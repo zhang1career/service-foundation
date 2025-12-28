@@ -2,6 +2,13 @@
 
 本文档介绍如何使用Docker部署Service Foundation应用（Python 3.12 + Django 4.1），支持test和prod环境，并允许外部配置MySQL连接信息。
 
+## 架构说明
+
+本Docker配置使用Django内置的开发服务器（`runserver`）运行应用。负载均衡、健康检查、限流和熔断等功能由外部网关处理。这种架构适合：
+- 已有外部网关/API网关（如Kong、Nginx、Envoy等）
+- 网关负责负载均衡、探活、限流和熔断
+- 容器内只需运行单个Django实例
+
 ## 目录结构
 
 ```
@@ -35,7 +42,7 @@
 ### 3. 启动服务
 
 ```bash
-# 启动所有服务（包括MySQL）
+# 启动服务
 docker-compose up -d
 
 # 查看日志
@@ -64,31 +71,30 @@ DB_DEFAULT_PORT=3306
 
 #### 数据库配置
 
-**使用内置MySQL（默认）**：
-- MySQL 5.7（兼容Django 4.1）
-- 数据库名：`service_foundation`
-- 用户名：`zhang`
-- 密码：`123456`
-- 端口：`3306`
+数据库配置通过 `.env.prod` 文件或环境变量设置。确保在 `docker/.env.prod` 文件中配置正确的数据库连接信息。
 
-**使用外部MySQL**：
-如果已有MySQL服务，可以：
-1. 在 `docker-compose.yml` 中注释掉 `mysql` 服务
-2. 修改环境变量中的 `DB_DEFAULT_HOST` 和 `DB_SNOWFLAKE_HOST` 为外部MySQL地址
-3. 确保外部MySQL已创建相应的数据库
+#### Django服务器配置
 
-#### Gunicorn配置
+容器内使用Django的开发服务器运行，可通过环境变量配置：
+- `HOST`: 监听地址（默认：0.0.0.0）
+- `PORT`: 监听端口（默认：8000）
 
-可以通过环境变量调整Gunicorn参数：
-- `GUNICORN_WORKERS`: worker进程数（默认：4）
-- `GUNICORN_THREADS`: 每个worker的线程数（默认：2）
-- `GUNICORN_TIMEOUT`: 超时时间（默认：30秒）
+**注意**：Django开发服务器是单线程的，适合配合外部网关使用。外部网关负责：
+- 负载均衡：将请求分发到多个容器实例
+- 健康检查：定期检查容器健康状态
+- 限流：控制请求速率
+- 熔断：在服务异常时快速失败
 
 ### 5. 访问应用
 
 应用启动后，可以通过以下地址访问：
-- 应用地址：http://localhost:10000
-- MySQL端口：localhost:3306
+- 应用地址：http://localhost:8000（直接访问容器）
+- 或通过外部网关访问（推荐）
+
+**网关配置建议**：
+- 将网关的upstream指向容器的8000端口
+- 配置健康检查端点（如 `/` 或自定义健康检查路径）
+- 根据实际负载配置限流和熔断策略
 
 ### 6. 常用操作
 
@@ -125,21 +131,31 @@ docker-compose down -v
    - 配置 `ALLOWED_HOSTS`
 
 2. **数据库**：
-   - 使用外部MySQL数据库时，修改 `DB_DEFAULT_HOST` 和 `DB_SNOWFLAKE_HOST`
+   - 确保数据库配置正确（通过 `.env.prod` 文件）
    - 确保数据库已创建并运行迁移
 
 3. **静态文件**：
-   - 生产环境建议使用Nginx等反向代理服务器
-   - 或配置Django的静态文件服务
+   - 静态文件会在容器启动时自动收集
+   - 生产环境建议通过外部网关/Nginx提供静态文件服务
 
-4. **日志**：
-   - 日志文件位于 `./docker/log/` 目录
-   - 可通过 `docker-compose.yml` 中的 `volumes` 配置持久化
+4. **网关配置**：
+   - 确保外部网关正确配置了upstream指向容器
+   - 配置合适的健康检查间隔和超时时间
+   - 根据业务需求配置限流和熔断策略
 
-5. **网络**：
-   - 如果使用内置MySQL，可以移除 `networks` 配置或创建新的网络
-   - 如果使用外部MySQL，确保网络配置正确，或移除 `depends_on` 和网络配置
+5. **日志**：
+   - Django的日志会输出到stdout/stderr，可通过 `docker-compose logs` 查看
+   - 日志目录 `./docker/log/` 用于其他日志文件
 
-6. **首次启动**：
+6. **网络**：
+   - 确保容器能够访问外部MySQL数据库
+   - 确保外部网关能够访问容器
+
+7. **首次启动**：
    - 首次启动时，容器会自动运行数据库迁移
    - 如果需要创建超级用户，使用：`docker-compose exec service_foundation python manage.py createsuperuser`
+
+8. **性能考虑**：
+   - Django开发服务器是单线程的，不适合高并发场景
+   - 通过外部网关的负载均衡，可以启动多个容器实例来提升性能
+   - 如果需要更高性能，可以考虑使用Gunicorn（需要修改 `docker-entrypoint.sh`）

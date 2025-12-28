@@ -26,8 +26,7 @@ RUN groupadd -r service_foundation && useradd -r -g service_foundation service_f
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir gunicorn
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY --chown=service_foundation:service_foundation . .

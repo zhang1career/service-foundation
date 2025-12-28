@@ -16,6 +16,10 @@ from common.utils.env_util import load_env
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 # Load environment variables with layered support (.env, .env.test, .env.prod)
 env = load_env(BASE_DIR)
 
