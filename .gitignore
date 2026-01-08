@@ -63,5 +63,5 @@ scripts/mock/
 !scripts/mock/README.md
 !scripts/mock/example.mock
 scripts/out/
-*__pycache__/
+__pycache__/
 

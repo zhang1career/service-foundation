@@ -17,15 +17,11 @@ services:
       HOST: 0.0.0.0
       PORT: 8000
       ALLOWED_HOSTS: "*"
-      # gunicorn configuration
-      GUNICORN_WORKERS: 4
-      GUNICORN_THREADS: 2
-      GUNICORN_TIMEOUT: 30
       # logging
       LOG_LEVEL: INFO
       LOG_DIR: /var/log/service_foundation
     ports:
-      - "10000:8000"
+      - "8000:8000"
     volumes:
       - ./docker/log:/var/log/service_foundation
       - ./docker/.env.prod:/app/.env.prod:ro

@@ -12,14 +12,7 @@ python manage.py collectstatic --noinput || echo "Warning: collectstatic failed 
 echo "Running database migrations..."
 python manage.py migrate --noinput || echo "Warning: migrations failed"
 
-# Start Gunicorn
-echo "Starting Gunicorn..."
-exec gunicorn \
-    --bind 0.0.0.0:8000 \
-    --workers ${GUNICORN_WORKERS:-4} \
-    --threads ${GUNICORN_THREADS:-2} \
-    --timeout ${GUNICORN_TIMEOUT:-30} \
-    --access-logfile ${LOG_DIR}/access.log \
-    --error-logfile ${LOG_DIR}/error.log \
-    service_foundation.wsgi:application
-
+# Start Django development server
+# Note: Using Django's runserver for container deployment
+echo "Starting Django development server..."
+exec python manage.py runserver ${HOST:-0.0.0.0}:${PORT:-8000}

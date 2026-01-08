@@ -9,12 +9,18 @@ https://docs.djangoproject.com/en/4.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.1/ref/settings/
 """
+import logging
+import os
 from pathlib import Path
 
 from common.utils.env_util import load_env
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Load environment variables with layered support (.env, .env.test, .env.prod)
 env = load_env(BASE_DIR)
@@ -28,7 +34,22 @@ SECRET_KEY = "django-insecure-l7qc5yniq$_0fe*%e_6zzxw=4k@1q=))v25=q%4w7rj@0-vv5(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=['localhost', '127.0.0.1'])
+# Handle ALLOWED_HOSTS configuration
+# Support '*' to allow all hosts (useful for Docker containers)
+# Also handle comma-separated string format from .env files
+allowed_hosts_raw = os.environ.get("ALLOWED_HOSTS") or env("ALLOWED_HOSTS", default="localhost,127.0.0.1")
+if allowed_hosts_raw == "*":
+    ALLOWED_HOSTS = ["*"]
+else:
+    # Parse comma-separated string into list
+    if isinstance(allowed_hosts_raw, str):
+        ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_raw.split(",") if host.strip()]
+    else:
+        ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=['localhost', '127.0.0.1'])
+
+# Log ALLOWED_HOSTS configuration at startup (for debugging)
+# Use print() to ensure output is visible in Docker logs (stdout)
+print(f"[Django Settings] ALLOWED_HOSTS configured as: {ALLOWED_HOSTS} (from env: {allowed_hosts_raw})", flush=True)
 
 # Local Info
 HOST = env("HOST", default="127.0.0.1")
@@ -54,6 +75,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
+    "common.middleware.host_validation_middleware.HostValidationMiddleware",  # Must be before SecurityMiddleware
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
