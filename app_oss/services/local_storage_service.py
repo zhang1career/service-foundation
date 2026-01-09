@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from app_oss.exceptions.object_not_found_exception import ObjectNotFoundException
+from app_oss.models.metadata import Metadata
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,6 @@ class LocalStorageService:
         object_path = bucket_path / object_key.lstrip('/')
         return object_path
     
-    def _get_metadata_path(self, bucket_name: str, object_key: str) -> Path:
-        """Get path for object metadata file"""
-        object_path = self._get_object_path(bucket_name, object_key)
-        return object_path.parent / f"{object_path.name}.metadata"
-    
     def _ensure_bucket_exists(self, bucket_name: str):
         """Ensure bucket directory exists"""
         bucket_path = self._get_bucket_path(bucket_name)
@@ -62,20 +58,17 @@ class LocalStorageService:
         return hash_md5.hexdigest()
     
     def _save_metadata(self, bucket_name: str, object_key: str, metadata: Dict[str, Any]):
-        """Save object metadata to a JSON file"""
-        metadata_path = self._get_metadata_path(bucket_name, object_key)
-        metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, default=str)
+        """Save object metadata to MySQL database"""
+        try:
+            Metadata.save_metadata_dict(bucket_name, object_key, metadata)
+        except Exception as e:
+            logger.error(f"Failed to save metadata for {bucket_name}/{object_key}: {e}")
+            raise
     
     def _load_metadata(self, bucket_name: str, object_key: str) -> Optional[Dict[str, Any]]:
-        """Load object metadata from JSON file"""
-        metadata_path = self._get_metadata_path(bucket_name, object_key)
-        if not metadata_path.exists():
-            return None
+        """Load object metadata from MySQL database"""
         try:
-            with open(metadata_path, 'r') as f:
-                return json.load(f)
+            return Metadata.get_metadata_dict(bucket_name, object_key)
         except Exception as e:
             logger.warning(f"Failed to load metadata for {bucket_name}/{object_key}: {e}")
             return None
@@ -194,15 +187,17 @@ class LocalStorageService:
             Dictionary with delete result
         """
         object_path = self._get_object_path(bucket_name, object_key)
-        metadata_path = self._get_metadata_path(bucket_name, object_key)
         
         deleted = False
         if object_path.exists():
             object_path.unlink()
             deleted = True
         
-        if metadata_path.exists():
-            metadata_path.unlink()
+        # Delete metadata from database
+        try:
+            Metadata.delete_metadata(bucket_name, object_key)
+        except Exception as e:
+            logger.warning(f"Failed to delete metadata for {bucket_name}/{object_key}: {e}")
         
         logger.info(f"[delete_object] Deleted {bucket_name}/{object_key}")
         
@@ -283,8 +278,6 @@ class LocalStorageService:
         if prefix_path.exists() and prefix_path.is_dir():
             for root, dirs, files in os.walk(prefix_path):
                 for file in files:
-                    if file.endswith('.metadata'):
-                        continue
                     file_path = Path(root) / file
                     rel_path = file_path.relative_to(bucket_path)
                     object_key = str(rel_path).replace('\\', '/')
