@@ -23,12 +23,16 @@ RUN groupadd -r service_foundation && useradd -r -g service_foundation service_f
     && chown -R service_foundation:service_foundation /var/log/service_foundation \
     && chown -R service_foundation:service_foundation /app
 
-# Copy requirements and install Python dependencies
+# Copy requirements first to leverage Docker layer caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Install Python dependencies with pip cache mounting
+# This allows pip to reuse downloaded packages between builds
+RUN --mount=type=cache,target=/root/.cache/pip,uid=0,gid=0 \
+    pip install --upgrade pip \
+    && pip install -r requirements.txt
+
+# Copy application code (this layer will only rebuild when code changes)
 COPY --chown=service_foundation:service_foundation . .
 
 # Copy and set permissions for entrypoint script

@@ -138,10 +138,22 @@ DATABASES = {
             "charset": "utf8mb4",
         },
     },
+    "oss_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_OSS_NAME", default="sf_oss"),
+        "USER": env("DB_OSS_USER", default="zhang"),
+        "PASSWORD": env("DB_OSS_PASS", default=""),
+        "HOST": env("DB_OSS_HOST", default="127.0.0.1"),
+        "PORT": env("DB_OSS_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+    },
 }
 
 DATABASE_ROUTERS = [
     "app_snowflake.db_routers.ReadWriteRouter",
+    "app_oss.db_routers.ReadWriteRouter",
 ]
 
 # Password validation

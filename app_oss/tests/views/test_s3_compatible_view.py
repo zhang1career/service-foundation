@@ -21,6 +21,8 @@ from app_oss.services.oss_client import OSSClient
 class TestS3PutObjectView(TestCase):
     """测试S3PutObjectView，包括上传和复制功能"""
 
+    databases = {'default', 'oss_rw'}
+
     def setUp(self):
         """每个测试前设置临时存储目录"""
         import os

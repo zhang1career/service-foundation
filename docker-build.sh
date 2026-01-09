@@ -37,6 +37,10 @@ if [ ! -z "$1" ]; then
     echo "🏷️  Tagged image as: $IMAGE_NAME:$VERSION_TAG"
 fi
 
+# Clean up dangling images
+echo "🧹 Cleaning up dangling Docker images..."
+docker image prune -f
+
 echo "✅ Docker image built successfully!"
 echo "   Image: $IMAGE_NAME:$IMAGE_TAG"
 echo ""
