@@ -9,13 +9,9 @@ This view handles all S3 operations based on HTTP method:
 - GET /{bucket}?list-type=2&prefix=... - List objects
 """
 import logging
-from typing import Optional
-
-from django.http import HttpResponse, StreamingHttpResponse
+from django.http import HttpResponse
 from rest_framework.views import APIView
 
-from app_oss.services.oss_client import OSSClient
-from app_oss.exceptions.object_not_found_exception import ObjectNotFoundException
 from app_oss.views.s3_compatible_view import (
     S3PutObjectView,
     S3GetObjectView,
@@ -61,4 +57,3 @@ class S3UnifiedView(APIView):
             return HttpResponse("Method not allowed", status=405)
         
         return view(request, bucket=kwargs.get('bucket'), key=kwargs.get('key'))
-

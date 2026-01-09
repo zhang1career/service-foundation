@@ -5,14 +5,15 @@ This module provides a local file system implementation that mimics
 AWS S3 API behavior, allowing seamless switching between local storage
 and AWS S3.
 """
+import hashlib
+import json
 import logging
 import os
-import shutil
-from pathlib import Path
-from typing import Optional, Dict, Any, List, BinaryIO
 from datetime import datetime
-import json
-import hashlib
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+from app_oss.exceptions.object_not_found_exception import ObjectNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -150,12 +151,12 @@ class LocalStorageService:
             Dictionary with object data and metadata
             
         Raises:
-            FileNotFoundError: If object does not exist
+            ObjectNotFoundException: If object does not exist
         """
         object_path = self._get_object_path(bucket_name, object_key)
         
         if not object_path.exists():
-            raise FileNotFoundError(f"Object {bucket_name}/{object_key} not found")
+            raise ObjectNotFoundException(f"Object {bucket_name}/{object_key} not found")
         
         # Load metadata
         metadata = self._load_metadata(bucket_name, object_key) or {}
@@ -225,12 +226,12 @@ class LocalStorageService:
             Dictionary with object metadata
             
         Raises:
-            FileNotFoundError: If object does not exist
+            ObjectNotFoundException: If object does not exist
         """
         object_path = self._get_object_path(bucket_name, object_key)
         
         if not object_path.exists():
-            raise FileNotFoundError(f"Object {bucket_name}/{object_key} not found")
+            raise ObjectNotFoundException(f"Object {bucket_name}/{object_key} not found")
         
         # Load metadata
         metadata = self._load_metadata(bucket_name, object_key) or {}
@@ -291,30 +292,14 @@ class LocalStorageService:
                     # Check prefix match
                     if prefix and not object_key.startswith(prefix.lstrip('/')):
                         continue
-                    
-                    stat = file_path.stat()
-                    metadata = self._load_metadata(bucket_name, object_key) or {}
-                    
-                    objects.append({
-                        'Key': object_key,
-                        'Size': stat.st_size,
-                        'LastModified': datetime.fromtimestamp(stat.st_mtime),
-                        'ETag': metadata.get('ETag', self._calculate_etag(file_path)),
-                    })
+
+                    self._append_result(objects, file_path, bucket_name, object_key)
         elif prefix_path.exists() and prefix_path.is_file():
             # Single file match
             rel_path = prefix_path.relative_to(bucket_path)
             object_key = str(rel_path).replace('\\', '/')
-            stat = prefix_path.stat()
-            metadata = self._load_metadata(bucket_name, object_key) or {}
-            
-            objects.append({
-                'Key': object_key,
-                'Size': stat.st_size,
-                'LastModified': datetime.fromtimestamp(stat.st_mtime),
-                'ETag': metadata.get('ETag', self._calculate_etag(prefix_path)),
-            })
-        
+            self._append_result(objects, prefix_path, bucket_name, object_key)
+
         # Sort by key
         objects.sort(key=lambda x: x['Key'])
         
@@ -343,7 +328,17 @@ class LocalStorageService:
         logger.info(f"[list_objects_v2] Found {len(paginated_objects)} objects in {bucket_name}")
         
         return result
-    
+
+    def _append_result(self, objects, file_path, bucket_name, object_key):
+        stat = file_path.stat()
+        metadata = self._load_metadata(bucket_name, object_key) or {}
+        objects.append({
+            'Key': object_key,
+            'Size': stat.st_size,
+            'LastModified': datetime.fromtimestamp(stat.st_mtime),
+            'ETag': metadata.get('ETag', self._calculate_etag(file_path)),
+        })
+
     def object_exists(
         self,
         bucket_name: str,
@@ -361,4 +356,3 @@ class LocalStorageService:
         """
         object_path = self._get_object_path(bucket_name, object_key)
         return object_path.exists() and object_path.is_file()
-

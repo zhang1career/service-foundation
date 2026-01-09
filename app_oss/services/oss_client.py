@@ -36,4 +36,3 @@ class OSSClient(Singleton):
     def get_default_bucket(self):
         """Get the default bucket name"""
         return self.default_bucket
-
