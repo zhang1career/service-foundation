@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "app_snowflake",
+    "app_oss",
 ]
 
 MIDDLEWARE = [
