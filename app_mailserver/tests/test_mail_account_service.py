@@ -276,7 +276,7 @@ class TestMailAccountService(TransactionTestCase):
             dt=int(time.time() * 1000)
         )
 
-        original_dt = account.dt
+        original_dt = account.ut
 
         # 等待一小段时间确保 dt 会改变
         time.sleep(0.01)

@@ -246,7 +246,7 @@ class TestMailAccountRepo(TransactionTestCase):
         self.assertEqual(account.domain, 'example.com')
         self.assertTrue(account.is_active)
         self.assertGreater(account.ct, 0)
-        self.assertGreater(account.dt, 0)
+        self.assertGreater(account.ut, 0)
         
         # 验证数据库中已创建
         db_account = MailAccount.objects.using('mailserver_rw').get(username='new@example.com')
@@ -274,7 +274,7 @@ class TestMailAccountRepo(TransactionTestCase):
             dt=int(time.time() * 1000)
         )
         
-        original_dt = account.dt
+        original_dt = account.ut
         
         # 等待一小段时间确保 dt 会改变
         time.sleep(0.01)
@@ -292,7 +292,7 @@ class TestMailAccountRepo(TransactionTestCase):
         self.assertEqual(updated.password, 'updatedpass')
         self.assertEqual(updated.domain, 'updated.com')
         self.assertFalse(updated.is_active)
-        self.assertGreater(updated.dt, original_dt)  # dt 应该更新
+        self.assertGreater(updated.ut, original_dt)  # dt 应该更新
         
         # 验证数据库已更新
         db_account = MailAccount.objects.using('mailserver_rw').get(id=account.id)

@@ -204,7 +204,7 @@ def update_account(
             update_fields.append('is_active')
 
         if update_fields:
-            account.dt = int(time.time() * 1000)
+            account.ut = int(time.time() * 1000)
             update_fields.append('dt')
             # 显式指定数据库以确保更新操作在正确的数据库上执行
             account.save(using='mailserver_rw', update_fields=update_fields)

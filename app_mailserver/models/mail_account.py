@@ -21,7 +21,7 @@ class MailAccount(models.Model):
     ct = models.BigIntegerField(default=0, db_index=True)
     
     # 更新时间（UNIX时间戳，毫秒）
-    dt = models.BigIntegerField(default=0, db_index=True)
+    ut = models.BigIntegerField(default=0, db_index=True)
     
     class Meta:
         db_table = "mail_account"
