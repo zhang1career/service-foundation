@@ -26,7 +26,7 @@ class TestOSSIntegrationService(TestCase):
         from common.components.singleton import _Singleton
         if hasattr(_Singleton, '_instances') and OSSIntegrationService in _Singleton._instances:
             del _Singleton._instances[OSSIntegrationService]
-        
+
         # Mock 配置
         self.mock_config = {
             'oss_bucket': 'test-bucket',

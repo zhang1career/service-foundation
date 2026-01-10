@@ -27,7 +27,7 @@ def create_mail_message(
         size: int = 0,
         raw_message: str = '',
         ct: int = 0,
-        dt: int = 0,
+        ut: int = 0,
         is_read: bool = False,
         is_flagged: bool = False
 ) -> MailMessage:
@@ -49,7 +49,7 @@ def create_mail_message(
         size: Message size in bytes
         raw_message: Raw email message
         ct: Create timestamp (milliseconds)
-        dt: Update timestamp (milliseconds)
+        ut: Update timestamp (milliseconds)
         is_read: Whether message is read
         is_flagged: Whether message is flagged
         
@@ -57,13 +57,13 @@ def create_mail_message(
         Created MailMessage instance
     """
     try:
-        # Set current timestamp if ct or dt is 0
+        # Set current timestamp if ct or ut is 0
         now = get_now_timestamp_ms()
         if ct == 0:
             ct = now
-        if dt == 0:
-            dt = now
-        
+        if ut == 0:
+            ut = now
+
         return MailMessage.objects.using('mailserver_rw').create(
             account_id=account_id,
             mailbox_id=mailbox_id,
@@ -79,7 +79,7 @@ def create_mail_message(
             size=size,
             raw_message=raw_message,
             ct=ct,
-            dt=dt,
+            ut=ut,
             is_read=is_read,
             is_flagged=is_flagged
         )

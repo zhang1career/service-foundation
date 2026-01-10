@@ -35,7 +35,7 @@ class MailAccountListView(APIView):
         - limit: Pagination limit (default: 20, max: 1000)
         - domain: Filter by domain (optional)
         - is_active: Filter by active status (optional, true/false)
-        - search: Search keyword for username (optional)
+        - username: Search keyword for username (optional)
         """
         try:
             # Get query parameters
@@ -43,7 +43,7 @@ class MailAccountListView(APIView):
             limit = with_type(request.GET.get("limit", LIMIT_PAGE))
             domain = request.GET.get("domain", EMPTY_STRING)
             is_active_str = request.GET.get("is_active", EMPTY_STRING)
-            search = request.GET.get("search", EMPTY_STRING)
+            username = request.GET.get("username", EMPTY_STRING)
 
             # Parse is_active
             is_active = None
@@ -57,7 +57,7 @@ class MailAccountListView(APIView):
                 limit=limit,
                 domain=domain,
                 is_active=is_active,
-                search=search
+                username=username
             )
 
             return resp_ok(page_data)
@@ -72,7 +72,7 @@ class MailAccountListView(APIView):
         
         Request body (JSON):
         {
-            "username": "user@example.com",  # Required
+            "username": "user@example.com",   # Required
             "password": "password123",        # Optional, defaults to empty string
             "domain": "example.com",          # Optional, auto-extracted from username if not provided
             "is_active": true                 # Optional, defaults to true

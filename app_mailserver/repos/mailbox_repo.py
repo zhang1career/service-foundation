@@ -54,7 +54,7 @@ def get_or_create_mailbox(
         path: str,
         name: str = None,
         ct: int = 0,
-        dt: int = 0
+        ut: int = 0
 ) -> Tuple[Mailbox, bool]:
     """
     Get or create mailbox for account
@@ -64,8 +64,8 @@ def get_or_create_mailbox(
         path: Mailbox path (e.g., 'INBOX')
         name: Mailbox name (defaults to last part of path)
         ct: Create timestamp (milliseconds)
-        dt: Update timestamp (milliseconds)
-        
+        ut: Update timestamp (milliseconds)
+
     Returns:
         Tuple of (Mailbox instance, created flag)
     """
@@ -79,7 +79,7 @@ def get_or_create_mailbox(
             defaults={
                 'name': name,
                 'ct': ct,
-                'dt': dt
+                'ut': ut
             }
         )
     except Exception as e:

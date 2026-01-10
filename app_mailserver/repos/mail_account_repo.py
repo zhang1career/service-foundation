@@ -72,7 +72,7 @@ def list_accounts(
         limit: int = 20,
         domain: Optional[str] = None,
         is_active: Optional[bool] = None,
-        search: Optional[str] = None
+        username: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     List mail accounts with pagination and filtering
@@ -82,8 +82,8 @@ def list_accounts(
         limit: Limit for pagination
         domain: Filter by domain (optional)
         is_active: Filter by active status (optional)
-        search: Search keyword for username (optional)
-        
+        username: Search keyword for username (optional)
+
     Returns:
         Dictionary with 'accounts' (list) and 'total' (int)
     """
@@ -97,8 +97,8 @@ def list_accounts(
         if is_active is not None:
             query = query.filter(is_active=is_active)
 
-        if search:
-            query = query.filter(username__icontains=search)
+        if username:
+            query = query.filter(username__icontains=username)
 
         # Get total count
         total = query.count()
@@ -121,7 +121,7 @@ def create_account(
         domain: str = 'localhost',
         is_active: bool = True,
         ct: int = 0,
-        dt: int = 0
+        ut: int = 0
 ) -> MailAccount:
     """
     Create a new mail account
@@ -132,16 +132,16 @@ def create_account(
         domain: Domain name
         is_active: Whether account is active
         ct: Create timestamp (milliseconds)
-        dt: Update timestamp (milliseconds)
-        
+        ut: Update timestamp (milliseconds)
+
     Returns:
         Created MailAccount instance
     """
     try:
         if ct == 0:
             ct = int(time.time() * 1000)
-        if dt == 0:
-            dt = ct
+        if ut == 0:
+            ut = ct
 
         # Extract domain from username if not provided
         if domain == 'localhost' and '@' in username:
@@ -153,7 +153,7 @@ def create_account(
             domain=domain,
             is_active=is_active,
             ct=ct,
-            dt=dt
+            ut=ut
         )
     except Exception as e:
         logger.exception(f"[create_account] Error creating account: {e}")
@@ -204,10 +204,11 @@ def update_account(
             update_fields.append('is_active')
 
         if update_fields:
-            account.dt = int(time.time() * 1000)
-            update_fields.append('dt')
-            # 显式指定数据库以确保更新操作在正确的数据库上执行
-            account.save(using='mailserver_rw', update_fields=update_fields)
+            account.ut = int(time.time() * 1000)
+            update_fields.append('ut')
+
+        # 显式指定数据库以确保更新操作在正确的数据库上执行
+        account.save(using='mailserver_rw', update_fields=update_fields)
 
         return account
     except Exception as e:

@@ -119,13 +119,16 @@ WSGI_APPLICATION = "service_foundation.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": env("DB_DEFAULT_NAME", default="service_foundation"),
+        "NAME": env("DB_DEFAULT_NAME", default="sf"),
         "USER": env("DB_DEFAULT_USER", default="root"),
         "PASSWORD": env("DB_DEFAULT_PASS", default=""),
         "HOST": env("DB_DEFAULT_HOST", default="127.0.0.1"),
         "PORT": env("DB_DEFAULT_PORT", default=3306),
         "OPTIONS": {
             "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_DEFAULT_TEST_NAME", default="sf_test"),
         },
     },
     "mailserver_rw": {
@@ -138,6 +141,9 @@ DATABASES = {
         "OPTIONS": {
             "charset": "utf8mb4",
         },
+        "TEST": {
+            "NAME": env("DB_MAILSERVER_TEST_NAME", default="sf_mailserver_test"),
+        },
     },
     "oss_rw": {
         "ENGINE": "django.db.backends.mysql",
@@ -149,6 +155,9 @@ DATABASES = {
         "OPTIONS": {
             "charset": "utf8mb4",
         },
+        "TEST": {
+            "NAME": env("DB_OSS_TEST_NAME", default="sf_oss_test"),
+        },
     },
     "snowflake_rw": {
         "ENGINE": "django.db.backends.mysql",
@@ -159,6 +168,9 @@ DATABASES = {
         "PORT": env("DB_SNOWFLAKE_PORT", default=3306),
         "OPTIONS": {
             "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_SNOWFLAKE_TEST_NAME", default="sf_snowflake_test"),
         },
     }
 }
@@ -207,7 +219,6 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-
 LOGGING = {
     "version": 1,
     "formatters": {
@@ -233,7 +244,7 @@ LOGGING = {
             "level": env("LOG_LEVEL", default="INFO"),
             "filters": ["request_id"],
             "class": "logging.handlers.TimedRotatingFileHandler",
-            "filename": env("LOG_FILE_PATH", default="log/app.log"),
+            "filename": env("LOG_DIR", default="log") + '/' + env("LOG_FILE", default="app.log"),
             "when": "D",
             "interval": 1,
             "backupCount": 14,
