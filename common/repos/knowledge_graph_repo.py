@@ -1,6 +1,6 @@
 import logging
 
-from common.consts.string_const import STRING_EMPTY
+from common.consts.string_const import EMPTY_STRING
 from common.utils.string_util import implode
 from data_analyzer import settings
 
@@ -193,7 +193,7 @@ def build_props_str(props: dict) -> str:
     {"foo": "bar"} -> {foo: \'bar\'}
     """
     if not props:
-        return STRING_EMPTY
+        return EMPTY_STRING
     prop_list = []
     for key, value in props.items():
         if isinstance(value, int):
@@ -214,7 +214,7 @@ def build_props_cypher(owner: str, props: dict) -> str:
     {"foo": "bar"} -> owner.foo = \'bar\'
     """
     if not props:
-        return STRING_EMPTY
+        return EMPTY_STRING
     prop_list = []
     for key, value in props.items():
         if isinstance(value, int):

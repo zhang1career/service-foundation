@@ -41,7 +41,11 @@ RUN chmod +x /app/docker-entrypoint.sh
 
 USER service_foundation:service_foundation
 
-EXPOSE 8000
+# Expose ports:
+# 8000: Django web server (HTTP API)
+# 25: SMTP server (mail receiving)
+# 143: IMAP server (mail access)
+EXPOSE 8000 25 143
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8000/ || exit 1

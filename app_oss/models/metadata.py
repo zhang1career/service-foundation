@@ -1,7 +1,7 @@
 import json
 from django.db import models
 
-from app_oss.enums.content_type_enum import ContentTypeEnum
+from common.enums.content_type_enum import ContentTypeEnum
 
 
 class Metadata(models.Model):

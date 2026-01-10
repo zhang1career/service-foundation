@@ -56,7 +56,11 @@ data/
 lib/
 
 # Enviroment
-.env*
+.env
+.env.dev
+.env.test
+.env.gray
+.env.prod
 
 # Scripts
 scripts/mock/

@@ -1,13 +1,15 @@
 import logging
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
 import requests
 from django.conf import settings
 from rest_framework import status as http_status
-from rest_framework.response import Response
+from rest_framework.response import Response as DRFResponse
 
-from common.consts.http_const import RET_CODE_OK
+from common.consts.response_const import RET_OK
 from common.exceptions.http_exception import HttpException
+from common.pojo.response import Response as Response
 from common.utils.date_util import get_date_str_of_datetime
 from common.utils.url_util import url_decode
 
@@ -48,31 +50,35 @@ def with_type(data):
         logger.error(f"Error processing data: {data}, error: {e}")
         raise
 
+
 def resp_ok(data=None):
-    response = Response({
-        "data": data,
-        "code": RET_CODE_OK,
-        "errmsg": ""
-    }, status=http_status.HTTP_200_OK)
+    response_obj = Response(
+        errorCode=RET_OK,
+        data=data,
+        message=""
+    )
+    response = DRFResponse(asdict(response_obj), status=http_status.HTTP_200_OK)
     response["Expires"] = get_date_str_of_datetime((datetime.now(timezone.utc) + timedelta(seconds=5)),
                                                    "%a, %d %b %Y %H:%M:%S %Z")
     return response
 
 
 def resp_warn(message):
-    return Response({
-        "data": None,
-        "code": RET_CODE_OK,
-        "errmsg": message
-    }, status=http_status.HTTP_200_OK)
+    response_obj = Response(
+        errorCode=RET_OK,
+        data=None,
+        message=message
+    )
+    return DRFResponse(asdict(response_obj), status=http_status.HTTP_200_OK)
 
 
 def resp_err(message, code=-1, status=http_status.HTTP_200_OK):
-    return Response({
-        "data": None,
-        "code": code,
-        "errmsg": message
-    }, status=status)
+    response_obj = Response(
+        errorCode=code,
+        data=None,
+        message=message
+    )
+    return DRFResponse(asdict(response_obj), status=status)
 
 
 def resp_exception(e: Exception, code=-1, status=http_status.HTTP_200_OK):
@@ -80,11 +86,12 @@ def resp_exception(e: Exception, code=-1, status=http_status.HTTP_200_OK):
         message = repr(e)
     else:
         message = str(e)
-    return Response({
-        "data": None,
-        "code": code,
-        "errmsg": message
-    }, status=status)
+    response_obj = Response(
+        errorCode=code,
+        data=None,
+        message=message
+    )
+    return DRFResponse(asdict(response_obj), status=status)
 
 
 def get(url):

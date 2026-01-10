@@ -70,8 +70,9 @@ INSTALLED_APPS = [
     "django_crontab",
     "rest_framework",
     "corsheaders",
-    "app_snowflake",
+    "app_mailserver",
     "app_oss",
+    "app_snowflake",
 ]
 
 MIDDLEWARE = [
@@ -127,13 +128,13 @@ DATABASES = {
             "charset": "utf8mb4",
         },
     },
-    "snowflake_rw": {
+    "mailserver_rw": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": env("DB_SNOWFLAKE_NAME", default="sf_snowflake"),
-        "USER": env("DB_SNOWFLAKE_USER", default="zhang"),
-        "PASSWORD": env("DB_SNOWFLAKE_PASS", default=""),
-        "HOST": env("DB_SNOWFLAKE_HOST", default="127.0.0.1"),
-        "PORT": env("DB_SNOWFLAKE_PORT", default=3306),
+        "NAME": env("DB_MAILSERVER_NAME", default="sf_mailserver"),
+        "USER": env("DB_MAILSERVER_USER", default="zhang"),
+        "PASSWORD": env("DB_MAILSERVER_PASS", default=""),
+        "HOST": env("DB_MAILSERVER_HOST", default="127.0.0.1"),
+        "PORT": env("DB_MAILSERVER_PORT", default=3306),
         "OPTIONS": {
             "charset": "utf8mb4",
         },
@@ -149,6 +150,17 @@ DATABASES = {
             "charset": "utf8mb4",
         },
     },
+    "snowflake_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_SNOWFLAKE_NAME", default="sf_snowflake"),
+        "USER": env("DB_SNOWFLAKE_USER", default="zhang"),
+        "PASSWORD": env("DB_SNOWFLAKE_PASS", default=""),
+        "HOST": env("DB_SNOWFLAKE_HOST", default="127.0.0.1"),
+        "PORT": env("DB_SNOWFLAKE_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+    }
 }
 
 DATABASE_ROUTERS = [
@@ -196,6 +208,69 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
+LOGGING = {
+    "version": 1,
+    "formatters": {
+        "verbose": {
+            "format": "[{levelname}] {asctime} [{request_id}] {module:15.15} [{process:d}|{thread:d}] {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "[{levelname}] {message}",
+            "style": "{",
+        },
+    },
+    "filters": {
+        'request_id': {
+            '()': 'log_request_id.filters.RequestIDFilter'
+        },
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
+        }
+    },
+    "handlers": {
+        "logfile": {
+            "level": env("LOG_LEVEL", default="INFO"),
+            "filters": ["request_id"],
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "filename": env("LOG_FILE_PATH", default="log/app.log"),
+            "when": "D",
+            "interval": 1,
+            "backupCount": 14,
+            "formatter": "verbose",
+            "encoding": "utf8",
+        },
+        "console": {
+            "level": "DEBUG",
+            "filters": ["request_id", "require_debug_true"],
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        }
+    },
+    "loggers": {
+        "django.db.backends": {
+            "level": env("LOG_LEVEL_DJANGO_DB", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
+        "service_foundation": {
+            "level": env("LOG_LEVEL_APP_SERV_FD", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
+        "app_mailserver": {
+            "level": env("LOG_LEVEL_APP_MAILSERVER", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
+        "app_oss": {
+            "level": env("LOG_LEVEL_APP_OSS", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
+        "app_snowflake": {
+            "level": env("LOG_LEVEL_APP_SNOWFLAKE", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
+    }
+}
+
 # traceid
-LOG_REQUEST_ID_HEADER = "HTTP_X_REQUEST_ID"
-REQUEST_ID_RESPONSE_HEADER = "trace-id"
+LOG_REQUEST_ID_HEADER = "X_Request_Id"
+REQUEST_ID_RESPONSE_HEADER = "X_Request_Id"

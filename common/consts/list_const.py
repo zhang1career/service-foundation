@@ -1,1 +1,1 @@
-LIST_EMPTY = []
+EMPTY_LIST = []
