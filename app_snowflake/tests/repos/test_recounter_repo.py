@@ -6,6 +6,9 @@ from app_snowflake.consts.recounter_const import DEFAULT_RECOUNTER
 
 
 class TestRecounterRepo(TestCase):
+
+    databases = {'default', 'snowflake_rw'}
+
     def setUp(self):
         """Set up test fixtures"""
         self.datacenter_id = 1
@@ -16,8 +19,13 @@ class TestRecounterRepo(TestCase):
         """Test create_recounter function"""
         # Mock the Recounter model class
         mock_recounter_instance = Mock()
-        mock_recounter_instance.save = Mock()
-        mock_recounter_class = Mock(return_value=mock_recounter_instance)
+        mock_create = Mock(return_value=mock_recounter_instance)
+        mock_using = Mock()
+        mock_using.create = mock_create
+        mock_objects = Mock()
+        mock_objects.using = Mock(return_value=mock_using)
+        mock_recounter_class = Mock()
+        mock_recounter_class.objects = mock_objects
         
         # Create a mock module for the models
         mock_model_module = MagicMock()
@@ -34,21 +42,26 @@ class TestRecounterRepo(TestCase):
                 result = create_recounter(self.datacenter_id, self.machine_id)
 
         # Assert
-        mock_recounter_class.assert_called_once_with(
+        mock_objects.using.assert_called_once_with('snowflake_rw')
+        mock_create.assert_called_once_with(
             dcid=self.datacenter_id,
             mid=self.machine_id,
             rc=DEFAULT_RECOUNTER,
             ct=self.timestamp,
             ut=self.timestamp,
         )
-        mock_recounter_instance.save.assert_called_once()
         self.assertEqual(result, mock_recounter_instance)
 
     def test_create_recounter_with_different_ids(self):
         """Test create_recounter with different datacenter and machine IDs"""
         mock_recounter_instance = Mock()
-        mock_recounter_instance.save = Mock()
-        mock_recounter_class = Mock(return_value=mock_recounter_instance)
+        mock_create = Mock(return_value=mock_recounter_instance)
+        mock_using = Mock()
+        mock_using.create = mock_create
+        mock_objects = Mock()
+        mock_objects.using = Mock(return_value=mock_using)
+        mock_recounter_class = Mock()
+        mock_recounter_class.objects = mock_objects
         test_dcid = 5
         test_mid = 500
 
@@ -63,14 +76,15 @@ class TestRecounterRepo(TestCase):
                 from app_snowflake.repos.recounter_repo import create_recounter
                 result = create_recounter(test_dcid, test_mid)
 
-        mock_recounter_class.assert_called_once_with(
+        mock_objects.using.assert_called_once_with('snowflake_rw')
+        mock_create.assert_called_once_with(
             dcid=test_dcid,
             mid=test_mid,
             rc=DEFAULT_RECOUNTER,
             ct=self.timestamp,
             ut=self.timestamp,
         )
-        mock_recounter_instance.save.assert_called_once()
+        self.assertEqual(result, mock_recounter_instance)
 
     def test_update_recounter_with_recount(self):
         """Test update_recounter function with recount in data_dict"""
@@ -84,9 +98,15 @@ class TestRecounterRepo(TestCase):
         origin.ct = self.timestamp
 
         data_dict = {"recount": 20}
-        mock_recounter_instance = Mock()
-        mock_recounter_instance.save = Mock()
-        mock_recounter_class = Mock(return_value=mock_recounter_instance)
+        mock_update = Mock(return_value=1)  # update returns number of rows updated
+        mock_filter = Mock()
+        mock_filter.update = mock_update
+        mock_using = Mock()
+        mock_using.filter = Mock(return_value=mock_filter)
+        mock_objects = Mock()
+        mock_objects.using = Mock(return_value=mock_using)
+        mock_recounter_class = Mock()
+        mock_recounter_class.objects = mock_objects
 
         mock_model_module = MagicMock()
         mock_model_module.Recounter = mock_recounter_class
@@ -99,7 +119,9 @@ class TestRecounterRepo(TestCase):
                 from app_snowflake.repos.recounter_repo import update_recounter
                 result = update_recounter(origin, data_dict)
 
-        mock_recounter_class.assert_called_once_with(
+        mock_objects.using.assert_called_once_with('snowflake_rw')
+        mock_using.filter.assert_called_once_with(id=origin.id)
+        mock_update.assert_called_once_with(
             id=origin.id,
             dcid=origin.dcid,
             mid=origin.mid,
@@ -107,8 +129,7 @@ class TestRecounterRepo(TestCase):
             ct=origin.ct,
             ut=new_timestamp,
         )
-        mock_recounter_instance.save.assert_called_once()
-        self.assertEqual(result, mock_recounter_instance)
+        self.assertEqual(result, 1)
 
     def test_update_recounter_without_recount(self):
         """Test update_recounter function without recount in data_dict"""
@@ -122,9 +143,15 @@ class TestRecounterRepo(TestCase):
         origin.ct = self.timestamp
 
         data_dict = {}  # No recount key
-        mock_recounter_instance = Mock()
-        mock_recounter_instance.save = Mock()
-        mock_recounter_class = Mock(return_value=mock_recounter_instance)
+        mock_update = Mock(return_value=1)  # update returns number of rows updated
+        mock_filter = Mock()
+        mock_filter.update = mock_update
+        mock_using = Mock()
+        mock_using.filter = Mock(return_value=mock_filter)
+        mock_objects = Mock()
+        mock_objects.using = Mock(return_value=mock_using)
+        mock_recounter_class = Mock()
+        mock_recounter_class.objects = mock_objects
 
         mock_model_module = MagicMock()
         mock_model_module.Recounter = mock_recounter_class
@@ -137,7 +164,9 @@ class TestRecounterRepo(TestCase):
                 from app_snowflake.repos.recounter_repo import update_recounter
                 result = update_recounter(origin, data_dict)
 
-        mock_recounter_class.assert_called_once_with(
+        mock_objects.using.assert_called_once_with('snowflake_rw')
+        mock_using.filter.assert_called_once_with(id=origin.id)
+        mock_update.assert_called_once_with(
             id=origin.id,
             dcid=origin.dcid,
             mid=origin.mid,
@@ -145,14 +174,16 @@ class TestRecounterRepo(TestCase):
             ct=origin.ct,
             ut=new_timestamp,
         )
-        mock_recounter_instance.save.assert_called_once()
-        self.assertEqual(result, mock_recounter_instance)
+        self.assertEqual(result, 1)
 
     def test_get_recounter(self):
         """Test get_recounter function"""
         mock_instance = Mock()
+        mock_get = Mock(return_value=mock_instance)
+        mock_using = Mock()
+        mock_using.get = mock_get
         mock_objects = Mock()
-        mock_objects.get = Mock(return_value=mock_instance)
+        mock_objects.using = Mock(return_value=mock_using)
         mock_recounter_class = Mock()
         mock_recounter_class.objects = mock_objects
 
@@ -166,7 +197,8 @@ class TestRecounterRepo(TestCase):
             from app_snowflake.repos.recounter_repo import get_recounter
             result = get_recounter(self.datacenter_id, self.machine_id)
 
-        mock_objects.get.assert_called_once_with(
+        mock_objects.using.assert_called_once_with('snowflake_rw')
+        mock_get.assert_called_once_with(
             dcid=self.datacenter_id,
             mid=self.machine_id,
         )
@@ -175,8 +207,11 @@ class TestRecounterRepo(TestCase):
     def test_get_recounter_with_different_ids(self):
         """Test get_recounter with different datacenter and machine IDs"""
         mock_instance = Mock()
+        mock_get = Mock(return_value=mock_instance)
+        mock_using = Mock()
+        mock_using.get = mock_get
         mock_objects = Mock()
-        mock_objects.get = Mock(return_value=mock_instance)
+        mock_objects.using = Mock(return_value=mock_using)
         mock_recounter_class = Mock()
         mock_recounter_class.objects = mock_objects
         test_dcid = 10
@@ -192,7 +227,8 @@ class TestRecounterRepo(TestCase):
             from app_snowflake.repos.recounter_repo import get_recounter
             result = get_recounter(test_dcid, test_mid)
 
-        mock_objects.get.assert_called_once_with(
+        mock_objects.using.assert_called_once_with('snowflake_rw')
+        mock_get.assert_called_once_with(
             dcid=test_dcid,
             mid=test_mid,
         )

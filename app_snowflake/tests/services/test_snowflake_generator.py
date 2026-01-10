@@ -15,6 +15,8 @@ from app_snowflake.services.snowflake_generator import SnowflakeGenerator
 class TestSnowflakeGenerator(TransactionTestCase):
     """测试 SnowflakeGenerator，使用 TransactionTestCase 以支持真正的事务测试和数据库操作"""
 
+    databases = {'default', 'snowflake_rw'}
+
     def setUp(self):
         """每个测试前清理数据"""
         # 设置测试用的 datacenter_id 和 machine_id
@@ -25,11 +27,11 @@ class TestSnowflakeGenerator(TransactionTestCase):
         self.start_timestamp = int(time.time() * 1000)
 
         # 清理测试数据
-        Recounter.objects.filter(dcid=self.datacenter_id, mid=self.machine_id).delete()
+        Recounter.objects.using('snowflake_rw').filter(dcid=self.datacenter_id, mid=self.machine_id).delete()
 
     def tearDown(self):
         """每个测试后清理数据"""
-        Recounter.objects.filter(
+        Recounter.objects.using('snowflake_rw').filter(
             dcid=self.datacenter_id,
             mid=self.machine_id
         ).delete()
@@ -50,7 +52,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
         self.assertEqual(generator.last_timestamp, -1)
 
         # 验证数据库中有记录被创建（通过 recount 调用）
-        recounter = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         self.assertIsNotNone(recounter)
 
     def test_init_with_invalid_datacenter_id(self):
@@ -97,7 +99,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
         self.assertGreaterEqual(parsed['timestamp'], self.start_timestamp)
 
         # 验证数据库中有记录（通过 recount 调用）
-        recounter = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         self.assertIsNotNone(recounter)
 
     def test_generate_multiple_ids_are_unique(self):
@@ -155,7 +157,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
         self.assertIn('timestamp', parsed)
         self.assertIn('datacenter_id', parsed)
         self.assertIn('machine_id', parsed)
-        self.assertIn('restart_counter', parsed)
+        self.assertIn('recount', parsed)
         self.assertIn('business_id', parsed)
         self.assertIn('sequence', parsed)
 
@@ -211,11 +213,19 @@ class TestSnowflakeGenerator(TransactionTestCase):
         self.assertEqual(parsed1.get("sequence"), 0)
 
         # 记录第一次的 recounter 值
-        recounter1 = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter1 = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         initial_rc = recounter1.rc
 
-        # 模拟重启：创建新的生成器实例
+        # 模拟重启：清除 Singleton 缓存，然后创建新的生成器实例
         # __init__ 会调用一次 recount()
+        # 清除该类的所有缓存实例，以便重新创建
+        # Singleton 的 _instances 存储在元类上，格式为 _instances[clazz][args_hash] = instance
+        # 通过元类访问 _instances
+        metaclass = type(SnowflakeGenerator)
+        if hasattr(metaclass, '_instances'):
+            instances_dict = getattr(metaclass, '_instances')
+            if SnowflakeGenerator in instances_dict:
+                instances_dict[SnowflakeGenerator].clear()
         generator2 = SnowflakeGenerator(
             datacenter_id=self.datacenter_id,
             machine_id=self.machine_id,
@@ -224,7 +234,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
         )
 
         # 验证 __init__ 后 recounter 已更新（真正操作数据库）
-        recounter_after_init = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter_after_init = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         expected_rc_after_init = (initial_rc + 1) & 3  # MASK_RECOUNT = 3
         self.assertEqual(recounter_after_init.rc, expected_rc_after_init,
                          "第二个生成器 __init__ 后 recounter 应该递增")
@@ -240,7 +250,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
 
         # 验证 generate(self.business_id) 后 recounter 值已更新（真正操作数据库）
         # __init__ 调用一次 recount，generate(self.business_id) 再调用一次 recount，所以总共递增 2 次
-        recounter2 = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter2 = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         expected_rc = (initial_rc + 2) & 3  # MASK_RECOUNT = 3
         self.assertEqual(recounter2.rc, expected_rc,
                          "第二个生成器 generate(self.business_id) 后 recounter 应该再递增一次")
@@ -290,7 +300,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
         generator.generate(self.business_id)
 
         # 记录初始 recounter 值
-        recounter1 = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter1 = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         initial_rc = recounter1.rc
 
         # 模拟时钟回退（超过阈值）
@@ -306,7 +316,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
             self.assertGreater(id_value, 0)
 
         # 验证 recounter 值已更新（真正操作数据库）
-        recounter2 = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter2 = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         expected_rc = (initial_rc + 1) & 3  # MASK_RECOUNT = 3
         self.assertEqual(recounter2.rc, expected_rc)
 
@@ -343,7 +353,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
             id_value = generator.generate(self.business_id)
 
             # 验证数据库中有记录
-            recounter = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+            recounter = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
             self.assertIsNotNone(recounter)
 
             # 验证ID可以解析
@@ -383,7 +393,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
         self.assertEqual(len(ids), len(set(ids)))
 
         # 验证数据库中有记录（真正操作数据库）
-        recounter = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         self.assertIsNotNone(recounter)
 
     def test_different_datacenter_machine_ids(self):
@@ -397,7 +407,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
 
         for dcid, mid, bid in test_cases:
             # 清理数据
-            Recounter.objects.filter(dcid=dcid, mid=mid).delete()
+            Recounter.objects.using('snowflake_rw').filter(dcid=dcid, mid=mid).delete()
 
             generator = SnowflakeGenerator(
                 datacenter_id=dcid,
@@ -413,16 +423,16 @@ class TestSnowflakeGenerator(TransactionTestCase):
             self.assertEqual(parsed['business_id'], bid)
 
             # 验证数据库中有对应的记录（真正操作数据库）
-            recounter = Recounter.objects.get(dcid=dcid, mid=mid)
+            recounter = Recounter.objects.using('snowflake_rw').get(dcid=dcid, mid=mid)
             self.assertIsNotNone(recounter)
 
             # 清理
-            Recounter.objects.filter(dcid=dcid, mid=mid).delete()
+            Recounter.objects.using('snowflake_rw').filter(dcid=dcid, mid=mid).delete()
 
     def test_recounter_wraps_around(self):
         """测试 recounter 回绕（从3回到0）"""
         # 创建初始记录，rc=3
-        Recounter.objects.create(
+        Recounter.objects.using('snowflake_rw').create(
             dcid=self.datacenter_id,
             mid=self.machine_id,
             rc=3,
@@ -438,7 +448,7 @@ class TestSnowflakeGenerator(TransactionTestCase):
         )
 
         # 验证 __init__ 后数据库中的 recounter 值已回绕（真正操作数据库）
-        recounter_after_init = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter_after_init = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         self.assertEqual(recounter_after_init.rc, 0, "recounter 应该从 3 回绕到 0")
 
         # 生成ID，由于 last_timestamp == -1，会再次调用 recount，rc 应该从 0 变为 1
@@ -446,5 +456,5 @@ class TestSnowflakeGenerator(TransactionTestCase):
         self.assertGreater(id_value, 0)
 
         # 验证 generate(self.business_id) 后数据库中的 recounter 值（真正操作数据库）
-        recounter_after_generate = Recounter.objects.get(dcid=self.datacenter_id, mid=self.machine_id)
+        recounter_after_generate = Recounter.objects.using('snowflake_rw').get(dcid=self.datacenter_id, mid=self.machine_id)
         self.assertEqual(recounter_after_generate.rc, 1, "generate(self.business_id) 后 recounter 应该从 0 变为 1")

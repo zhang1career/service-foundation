@@ -19,7 +19,7 @@ def get_recounter(
     return recounter.rc if recounter else None
 
 
-@transaction.atomic
+@transaction.atomic(using='snowflake_rw')
 def create_or_update_recount(
         datacenter_id: int,
         machine_id: int,
@@ -31,11 +31,13 @@ def create_or_update_recount(
     recounter = get_recounter(datacenter_id, machine_id)
     # record not exists, create new one
     if not recounter:
-        create_recounter(
+        result = create_recounter(
             datacenter_id=datacenter_id,
             machine_id=machine_id,
         )
-        return 0
+        if not result:
+            raise Exception(f"failed to create recounter record, datacenter={datacenter_id}, machine={machine_id}")
+        return result.rc
 
     # record exists, update counter
     new_count = (recounter.rc + 1) & MASK_RECOUNT  # wrap around by bit masking

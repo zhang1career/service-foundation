@@ -8,9 +8,10 @@ from app_snowflake.consts.snowflake_const import MASK_DATACENTER_ID, MASK_MACHIN
     MASK_SEQUENCE, TIMESTAMP_SHIFT, DATACENTER_SHIFT, MACHINE_SHIFT, RECOUNT_SHIFT, BUSINESS_SHIFT, DATACENTER_BITS, \
     MACHINE_BITS, RECOUNT_BITS, BUSINESS_BITS, CLOCK_BACKWARD_THRESHOLD
 from app_snowflake.services.recounter_service import create_or_update_recount
+from common.components.singleton import Singleton
 
 
-class SnowflakeGenerator:
+class SnowflakeGenerator(Singleton):
     """Snowflake ID generator
     
     Bit allocation (64 bits total):
@@ -53,7 +54,7 @@ class SnowflakeGenerator:
         self.start_timestamp = start_timestamp
 
         self.recount = create_or_update_recount(self.datacenter_id, self.machine_id)
-        self.last_timestamp = self._current_timestamp()
+        self.last_timestamp = -1  # -1 indicates restart scenario, no ID generated yet
         self.sequence = 0
 
         self.lock = threading.Lock()
@@ -79,6 +80,11 @@ class SnowflakeGenerator:
         business_id = business_id & MASK_BUSINESS_ID  # ensure business_id is within bounds
 
         with self.lock:
+            # restart scenario: if last_timestamp is -1, this is the first generation after restart
+            # need to call recount again
+            if self.last_timestamp == -1:
+                self.recount = create_or_update_recount(self.datacenter_id, self.machine_id)
+
             timestamp = self._current_timestamp()
 
             # clock backward detection

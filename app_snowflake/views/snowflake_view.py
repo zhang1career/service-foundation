@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 
 from app_snowflake.exceptions.clock_backward_exception import ClockBackwardException
 from app_snowflake.services.snowflake_service import generate_id
-from common.consts.string_const import STRING_EMPTY
+from common.consts.string_const import EMPTY_STRING
 from common.utils.http_util import resp_ok, with_type, resp_exception, resp_err
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class SnowflakeDetailView(APIView):
     def get(self, request, *args, **kwargs):
         try:
             # get param
-            business_id = with_type(request.GET.get("bid", STRING_EMPTY))
+            business_id = with_type(request.GET.get("bid", EMPTY_STRING))
             # query
             result = generate_id(business_id)
             # return
