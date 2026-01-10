@@ -166,21 +166,84 @@ class TestMailAccountListView(TestCase):
         for account in page_data['data']:
             self.assertTrue(account['is_active'])
     
-    def test_list_accounts_with_search(self):
-        """测试搜索功能"""
-        request = self.factory.get('/api/mail/accounts', {'search': 'user0'})
+    def test_list_accounts_with_username(self):
+        """测试按 username 搜索功能（多个账户包含相同的子字符串）"""
+        # 清理测试数据
+        MailAccount.objects.using('mailserver_rw').all().delete()
+        
+        # 创建多个账户，其中几个账户的 username 包含 "zzz"
+        MailAccount.objects.using('mailserver_rw').create(
+            username='zzz_user1@example.com',
+            password='pass1',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 1,
+            ut=int(time.time() * 1000) + 1
+        )
+        MailAccount.objects.using('mailserver_rw').create(
+            username='zzz_user2@example.com',
+            password='pass2',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 2,
+            ut=int(time.time() * 1000) + 2
+        )
+        MailAccount.objects.using('mailserver_rw').create(
+            username='admin_zzz@example.com',
+            password='pass3',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 3,
+            ut=int(time.time() * 1000) + 3
+        )
+        # 创建一个不包含 "zzz" 的账户
+        MailAccount.objects.using('mailserver_rw').create(
+            username='normal_user@example.com',
+            password='pass4',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 4,
+            ut=int(time.time() * 1000) + 4
+        )
+        # 创建另一个不包含 "zzz" 的账户
+        MailAccount.objects.using('mailserver_rw').create(
+            username='other_user@example.com',
+            password='pass5',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 5,
+            ut=int(time.time() * 1000) + 5
+        )
+        
+        # 使用 username 参数搜索包含 "zzz" 的账户
+        request = self.factory.get('/api/mail/accounts', {'username': 'zzz'})
         response = self.view(request)
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # For DRF Response objects, render before accessing content
         response.render()
         response_data = json.loads(response.content)
+        self.assertEqual(response_data['errorCode'], RET_OK)
         page_data = response_data['data']
         
-        # 应该返回包含 'user0' 的账户
-        self.assertGreater(page_data['total_num'], 0)
+        # 应该返回包含 'zzz' 的账户（应该返回 3 个）
+        self.assertEqual(page_data['total_num'], 3)
+        self.assertEqual(len(page_data['data']), 3)
+        
+        # 验证所有返回的账户都包含 'zzz'
+        returned_usernames = []
         for account in page_data['data']:
-            self.assertIn('user0', account['username'].lower())
+            self.assertIn('zzz', account['username'].lower())
+            returned_usernames.append(account['username'])
+        
+        # 验证返回了所有包含 "zzz" 的账户
+        expected_usernames = {'zzz_user1@example.com', 'zzz_user2@example.com', 'admin_zzz@example.com'}
+        actual_usernames = set(returned_usernames)
+        self.assertEqual(actual_usernames, expected_usernames)
+        
+        # 验证不包含 "zzz" 的账户没有被返回
+        self.assertNotIn('normal_user@example.com', returned_usernames)
+        self.assertNotIn('other_user@example.com', returned_usernames)
     
     def test_create_account_success(self):
         """测试成功创建账户"""

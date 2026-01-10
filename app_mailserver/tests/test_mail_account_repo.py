@@ -5,7 +5,7 @@
 - get_account_by_id
 - get_account_by_username
 - get_account_by_username_any
-- list_accounts (with pagination, filtering, search)
+- list_accounts (with pagination, filtering, ut)
 - create_account
 - update_account
 - delete_account (hard delete)
@@ -207,29 +207,72 @@ class TestMailAccountRepo(TransactionTestCase):
         self.assertEqual(result_inactive['total'], 1)
         self.assertFalse(result_inactive['accounts'][0].is_active)
     
-    def test_list_accounts_with_search(self):
-        """测试列表账户（搜索）"""
+    def test_list_accounts_with_username(self):
+        """测试列表账户（按 username 搜索，多个账户包含相同的子字符串）"""
+        # 创建多个账户，其中几个账户的 username 包含 "zzz"
         MailAccount.objects.using('mailserver_rw').create(
-            username='alice@example.com',
-            password='pass',
+            username='zzz_user1@example.com',
+            password='pass1',
             domain='example.com',
             is_active=True,
-            ct=int(time.time() * 1000),
-            ut=int(time.time() * 1000)
+            ct=int(time.time() * 1000) + 1,
+            ut=int(time.time() * 1000) + 1
         )
         MailAccount.objects.using('mailserver_rw').create(
-            username='bob@example.com',
-            password='pass',
+            username='zzz_user2@example.com',
+            password='pass2',
             domain='example.com',
             is_active=True,
-            ct=int(time.time() * 1000),
-            ut=int(time.time() * 1000)
+            ct=int(time.time() * 1000) + 2,
+            ut=int(time.time() * 1000) + 2
+        )
+        MailAccount.objects.using('mailserver_rw').create(
+            username='admin_zzz@example.com',
+            password='pass3',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 3,
+            ut=int(time.time() * 1000) + 3
+        )
+        # 创建不包含 "zzz" 的账户
+        MailAccount.objects.using('mailserver_rw').create(
+            username='normal_user@example.com',
+            password='pass4',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 4,
+            ut=int(time.time() * 1000) + 4
+        )
+        MailAccount.objects.using('mailserver_rw').create(
+            username='other_user@example.com',
+            password='pass5',
+            domain='example.com',
+            is_active=True,
+            ct=int(time.time() * 1000) + 5,
+            ut=int(time.time() * 1000) + 5
         )
         
-        result = list_accounts(search='alice')
+        # 使用 username 参数搜索包含 "zzz" 的账户
+        result = list_accounts(username='zzz')
         
-        self.assertEqual(result['total'], 1)
-        self.assertIn('alice', result['accounts'][0].username.lower())
+        # 应该返回包含 'zzz' 的账户（应该返回 3 个）
+        self.assertEqual(result['total'], 3)
+        self.assertEqual(len(result['accounts']), 3)
+        
+        # 验证所有返回的账户都包含 'zzz'
+        returned_usernames = []
+        for account in result['accounts']:
+            self.assertIn('zzz', account.username.lower())
+            returned_usernames.append(account.username)
+        
+        # 验证返回了所有包含 "zzz" 的账户
+        expected_usernames = {'zzz_user1@example.com', 'zzz_user2@example.com', 'admin_zzz@example.com'}
+        actual_usernames = set(returned_usernames)
+        self.assertEqual(actual_usernames, expected_usernames)
+        
+        # 验证不包含 "zzz" 的账户没有被返回
+        self.assertNotIn('normal_user@example.com', returned_usernames)
+        self.assertNotIn('other_user@example.com', returned_usernames)
     
     def test_create_account_success(self):
         """测试创建账户成功"""

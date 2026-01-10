@@ -72,7 +72,7 @@ def list_accounts(
         limit: int = 20,
         domain: Optional[str] = None,
         is_active: Optional[bool] = None,
-        search: Optional[str] = None
+        username: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     List mail accounts with pagination and filtering
@@ -82,7 +82,7 @@ def list_accounts(
         limit: Limit for pagination
         domain: Filter by domain (optional)
         is_active: Filter by active status (optional)
-        search: Search keyword for username (optional)
+        username: Search keyword for username (optional)
         
     Returns:
         Dictionary with 'accounts' (list) and 'total' (int)
@@ -97,8 +97,8 @@ def list_accounts(
         if is_active is not None:
             query = query.filter(is_active=is_active)
 
-        if search:
-            query = query.filter(username__icontains=search)
+        if username:
+            query = query.filter(username__icontains=username)
 
         # Get total count
         total = query.count()

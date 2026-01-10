@@ -35,7 +35,7 @@ class MailAccountService(Singleton):
             limit: int = LIMIT_PAGE,
             domain: Optional[str] = None,
             is_active: Optional[bool] = None,
-            search: Optional[str] = None
+            username: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         List mail accounts with pagination and filtering
@@ -45,7 +45,7 @@ class MailAccountService(Singleton):
             limit: Pagination limit (default: 20, max: 1000)
             domain: Filter by domain (optional)
             is_active: Filter by active status (optional, true/false)
-            search: Search keyword for username (optional)
+            username: Search keyword for username (optional)
             
         Returns:
             Dictionary with paginated account data including:
@@ -63,8 +63,8 @@ class MailAccountService(Singleton):
             # Normalize empty strings to None
             if domain == EMPTY_STRING:
                 domain = None
-            if search == EMPTY_STRING:
-                search = None
+            if username == EMPTY_STRING:
+                username = None
 
             # Query accounts
             result = list_accounts(
@@ -72,7 +72,7 @@ class MailAccountService(Singleton):
                 limit=limit,
                 domain=domain,
                 is_active=is_active,
-                search=search
+                username=username
             )
 
             # Convert accounts to dict list
