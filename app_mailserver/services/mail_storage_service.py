@@ -95,7 +95,7 @@ class MailStorageService(Singleton):
                     size=email_size,
                     raw_message=parsed['raw_message'],
                     ct=ct,
-                    dt=ct
+                    ut=ct
                 )
 
                 # Store attachments
@@ -104,7 +104,7 @@ class MailStorageService(Singleton):
 
                 # Update mailbox message count
                 message_count = count_messages_by_mailbox(mailbox.id)
-                update_mailbox(mailbox, message_count=message_count, dt=int(time.time() * 1000))
+                update_mailbox(mailbox, message_count=message_count, ut=int(time.time() * 1000))
 
             logger.info(f"[store_mail] Stored email: id={mail_message.id}, "
                         f"message_id={mail_message.message_id}, "
@@ -124,11 +124,11 @@ class MailStorageService(Singleton):
             path=mailbox_name,
             name=mailbox_name.split('.')[-1] if '.' in mailbox_name else mailbox_name,
             ct=ct,
-            dt=ct
+            ut=ct
         )
         if not created:
-            # Update dt when mailbox is accessed
-            update_mailbox(mailbox, dt=int(time.time() * 1000))
+            # Update ut when mailbox is accessed
+            update_mailbox(mailbox, ut=int(time.time() * 1000))
         return mailbox
 
     def _store_attachment(self, mail_message: MailMessage, attachment_data: Dict[str, Any]):
@@ -302,7 +302,7 @@ class MailStorageService(Singleton):
                 mailbox = get_mailbox_by_id(mailbox_id)
                 if mailbox:
                     message_count = count_messages_by_mailbox(mailbox_id)
-                    update_mailbox(mailbox, message_count=message_count, dt=int(time.time() * 1000))
+                    update_mailbox(mailbox, message_count=message_count, ut=int(time.time() * 1000))
 
             logger.info(f"[delete_mail] Deleted email: id={message_id}")
             return True

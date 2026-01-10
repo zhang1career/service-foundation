@@ -48,7 +48,7 @@ class TestMailAccountListView(TestCase):
                 domain='example.com',
                 is_active=True,
                 ct=int(time.time() * 1000) + i,
-                dt=int(time.time() * 1000) + i
+                ut=int(time.time() * 1000) + i
             )
             self.test_accounts.append(account)
     
@@ -97,7 +97,7 @@ class TestMailAccountListView(TestCase):
             self.assertIn('domain', account)
             self.assertIn('is_active', account)
             self.assertIn('ct', account)
-            self.assertIn('dt', account)
+            self.assertIn('ut', account)
     
     def test_list_accounts_with_pagination(self):
         """测试分页功能"""
@@ -124,7 +124,7 @@ class TestMailAccountListView(TestCase):
             domain='otherdomain.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         request = self.factory.get('/api/mail/accounts', {'domain': 'example.com'})
@@ -150,7 +150,7 @@ class TestMailAccountListView(TestCase):
             domain='example.com',
             is_active=False,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         request = self.factory.get('/api/mail/accounts', {'is_active': 'true'})
@@ -243,7 +243,7 @@ class TestMailAccountListView(TestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 尝试创建相同用户名的账户
@@ -309,7 +309,7 @@ class TestMailAccountDetailView(TestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         self.account_id = self.test_account.id
     
@@ -476,7 +476,7 @@ class TestMailAccountDetailView(TestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 尝试将当前账户更新为已存在的用户名

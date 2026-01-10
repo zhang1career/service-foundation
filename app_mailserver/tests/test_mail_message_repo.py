@@ -45,7 +45,7 @@ class TestMailMessageRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         self.test_mailbox = Mailbox.objects.using('mailserver_rw').create(
@@ -55,7 +55,7 @@ class TestMailMessageRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
     
     def tearDown(self):
@@ -100,7 +100,7 @@ class TestMailMessageRepo(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_mail_message_by_id(message.id)
@@ -127,7 +127,7 @@ class TestMailMessageRepo(TransactionTestCase):
             mt=int(time.time() * 1000) + 1000,
             size=100,
             ct=int(time.time() * 1000) + 1000,
-            dt=int(time.time() * 1000) + 1000
+            ut=int(time.time() * 1000) + 1000
         )
         msg2 = MailMessage.objects.using('mailserver_rw').create(
             account_id=self.test_account.id,
@@ -139,7 +139,7 @@ class TestMailMessageRepo(TransactionTestCase):
             mt=int(time.time() * 1000) + 2000,
             size=200,
             ct=int(time.time() * 1000) + 2000,
-            dt=int(time.time() * 1000) + 2000
+            ut=int(time.time() * 1000) + 2000
         )
         
         result = get_messages_by_mailbox(self.test_mailbox.id)
@@ -163,7 +163,7 @@ class TestMailMessageRepo(TransactionTestCase):
             mt=1000,
             size=100,
             ct=1000,
-            dt=1000
+            ut=1000
         )
         msg2 = MailMessage.objects.using('mailserver_rw').create(
             account_id=self.test_account.id,
@@ -175,7 +175,7 @@ class TestMailMessageRepo(TransactionTestCase):
             mt=2000,
             size=100,
             ct=2000,
-            dt=2000
+            ut=2000
         )
         
         result = get_messages_by_mailbox(self.test_mailbox.id, order_by='mt')
@@ -198,7 +198,7 @@ class TestMailMessageRepo(TransactionTestCase):
                 mt=int(time.time() * 1000) + i,
                 size=100,
                 ct=int(time.time() * 1000) + i,
-                dt=int(time.time() * 1000) + i
+                ut=int(time.time() * 1000) + i
             )
         
         count = count_messages_by_mailbox(self.test_mailbox.id)
@@ -219,7 +219,7 @@ class TestMailMessageRepo(TransactionTestCase):
                 mt=int(time.time() * 1000) + i,
                 size=100,
                 ct=int(time.time() * 1000) + i,
-                dt=int(time.time() * 1000) + i
+                ut=int(time.time() * 1000) + i
             )
         
         for i in range(2):
@@ -234,7 +234,7 @@ class TestMailMessageRepo(TransactionTestCase):
                 mt=int(time.time() * 1000) + i + 10,
                 size=100,
                 ct=int(time.time() * 1000) + i + 10,
-                dt=int(time.time() * 1000) + i + 10
+                ut=int(time.time() * 1000) + i + 10
             )
         
         unread_count = count_unread_messages_by_mailbox(self.test_mailbox.id)
@@ -253,7 +253,7 @@ class TestMailMessageRepo(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 标记为已读
@@ -283,7 +283,7 @@ class TestMailMessageRepo(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = delete_mail_message(message.id)
@@ -329,7 +329,7 @@ class TestMailMessageRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         other_mailbox = Mailbox.objects.using('mailserver_rw').create(
             account_id=other_account.id,
@@ -338,7 +338,7 @@ class TestMailMessageRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         message2 = create_mail_message(

@@ -46,7 +46,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_account_by_id(account.id)
@@ -68,7 +68,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_account_by_username('active@example.com', is_active=True)
@@ -85,7 +85,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=False,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_account_by_username('inactive@example.com', is_active=True)
@@ -99,7 +99,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=False,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_account_by_username_any('any@example.com')
@@ -118,7 +118,7 @@ class TestMailAccountRepo(TransactionTestCase):
                 domain='example.com',
                 is_active=True,
                 ct=int(time.time() * 1000) + i,
-                dt=int(time.time() * 1000) + i
+                ut=int(time.time() * 1000) + i
             )
         
         result = list_accounts()
@@ -138,7 +138,7 @@ class TestMailAccountRepo(TransactionTestCase):
                 domain='example.com',
                 is_active=True,
                 ct=int(time.time() * 1000) + i,
-                dt=int(time.time() * 1000) + i
+                ut=int(time.time() * 1000) + i
             )
         
         # 第一页
@@ -162,7 +162,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='domain1.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAccount.objects.using('mailserver_rw').create(
             username='user2@domain2.com',
@@ -170,7 +170,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='domain2.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = list_accounts(domain='domain1.com')
@@ -186,7 +186,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAccount.objects.using('mailserver_rw').create(
             username='inactive@example.com',
@@ -194,7 +194,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=False,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 仅激活
@@ -215,7 +215,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAccount.objects.using('mailserver_rw').create(
             username='bob@example.com',
@@ -223,7 +223,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = list_accounts(search='alice')
@@ -271,12 +271,12 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='original.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         original_dt = account.ut
         
-        # 等待一小段时间确保 dt 会改变
+        # 等待一小段时间确保 ut 会改变
         time.sleep(0.01)
         
         updated = update_account(
@@ -292,7 +292,7 @@ class TestMailAccountRepo(TransactionTestCase):
         self.assertEqual(updated.password, 'updatedpass')
         self.assertEqual(updated.domain, 'updated.com')
         self.assertFalse(updated.is_active)
-        self.assertGreater(updated.ut, original_dt)  # dt 应该更新
+        self.assertGreater(updated.ut, original_dt)  # ut 应该更新
         
         # 验证数据库已更新
         db_account = MailAccount.objects.using('mailserver_rw').get(id=account.id)
@@ -306,7 +306,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 只更新密码
@@ -338,7 +338,7 @@ class TestMailAccountRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         account_id = account.id
@@ -365,7 +365,7 @@ class TestMailAccountRepo(TransactionTestCase):
                 domain='example.com',
                 is_active=True,
                 ct=int(time.time() * 1000) + i * 1000,  # 确保时间不同
-                dt=int(time.time() * 1000) + i * 1000
+                ut=int(time.time() * 1000) + i * 1000
             )
             accounts.append(account)
         

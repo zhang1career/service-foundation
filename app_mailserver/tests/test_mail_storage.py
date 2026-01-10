@@ -42,7 +42,7 @@ class TestMailStorageService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # Mock OSS service
@@ -159,7 +159,7 @@ class TestMailStorageService(TransactionTestCase):
                 'message_count': 0,
                 'unread_count': 0,
                 'ct': int(time.time() * 1000),
-                'dt': int(time.time() * 1000)
+                'ut': int(time.time() * 1000)
             }
         )
         
@@ -195,7 +195,7 @@ class TestMailStorageService(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 创建附件记录
@@ -237,7 +237,7 @@ class TestMailStorageService(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         from app_mailserver.models.mail_attachment import MailAttachment
@@ -273,7 +273,7 @@ class TestMailStorageService(TransactionTestCase):
             message_count=1,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 创建邮件和附件
@@ -287,7 +287,7 @@ class TestMailStorageService(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         from app_mailserver.models.mail_attachment import MailAttachment

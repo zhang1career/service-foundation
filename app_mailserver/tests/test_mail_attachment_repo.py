@@ -42,7 +42,7 @@ class TestMailAttachmentRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         self.test_mailbox = Mailbox.objects.using('mailserver_rw').create(
@@ -52,7 +52,7 @@ class TestMailAttachmentRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         self.test_message = MailMessage.objects.using('mailserver_rw').create(
@@ -65,7 +65,7 @@ class TestMailAttachmentRepo(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
     
     def tearDown(self):
@@ -173,7 +173,7 @@ class TestMailAttachmentRepo(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAttachment.objects.using('mailserver_rw').create(
             message_id=other_message.id,
@@ -230,7 +230,7 @@ class TestMailAttachmentRepo(TransactionTestCase):
             mt=int(time.time() * 1000),
             size=100,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         other_att = MailAttachment.objects.using('mailserver_rw').create(
             message_id=other_message.id,

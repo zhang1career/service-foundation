@@ -39,7 +39,7 @@ class TestMailboxRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
     
     def tearDown(self):
@@ -56,7 +56,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_mailbox_by_account_and_path(self.test_account.id, 'INBOX')
@@ -81,7 +81,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         sent = Mailbox.objects.using('mailserver_rw').create(
             account_id=self.test_account.id,
@@ -90,7 +90,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         # 为另一个账户创建邮箱（不应返回）
@@ -100,7 +100,7 @@ class TestMailboxRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         Mailbox.objects.using('mailserver_rw').create(
             account_id=other_account.id,
@@ -109,7 +109,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_mailboxes_by_account(self.test_account.id)
@@ -131,7 +131,7 @@ class TestMailboxRepo(TransactionTestCase):
             path='INBOX',
             name='INBOX',
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         self.assertTrue(created)
@@ -154,7 +154,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=5,
             unread_count=2,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         mailbox, created = get_or_create_mailbox(
@@ -162,7 +162,7 @@ class TestMailboxRepo(TransactionTestCase):
             path='INBOX',
             name='INBOX',
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         self.assertFalse(created)
@@ -175,7 +175,7 @@ class TestMailboxRepo(TransactionTestCase):
             account_id=self.test_account.id,
             path='INBOX.Sent',
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         self.assertTrue(created)
@@ -191,7 +191,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         result = get_mailbox_by_id(mailbox.id)
@@ -214,7 +214,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=0,
             unread_count=0,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         rows_updated = update_mailbox(
@@ -243,7 +243,7 @@ class TestMailboxRepo(TransactionTestCase):
             message_count=5,
             unread_count=2,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         
         rows_updated = update_mailbox(mailbox, message_count=10)
@@ -264,7 +264,7 @@ class TestMailboxRepo(TransactionTestCase):
             path='INBOX',
             name='INBOX',
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         self.assertTrue(created1)
         
@@ -274,7 +274,7 @@ class TestMailboxRepo(TransactionTestCase):
             path='INBOX',
             name='INBOX',
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         self.assertFalse(created2)
         self.assertEqual(mailbox1.id, mailbox2.id)
@@ -286,14 +286,14 @@ class TestMailboxRepo(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         mailbox3, created3 = get_or_create_mailbox(
             account_id=other_account.id,
             path='INBOX',
             name='INBOX',
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         self.assertTrue(created3)
         self.assertNotEqual(mailbox1.id, mailbox3.id)

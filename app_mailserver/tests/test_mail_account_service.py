@@ -40,7 +40,7 @@ class TestMailAccountService(TransactionTestCase):
                 domain='example.com',
                 is_active=True,
                 ct=int(time.time() * 1000) + i,
-                dt=int(time.time() * 1000) + i
+                ut=int(time.time() * 1000) + i
             )
 
         result = self.service.list_accounts()
@@ -61,7 +61,7 @@ class TestMailAccountService(TransactionTestCase):
                 domain='example.com',
                 is_active=True,
                 ct=int(time.time() * 1000) + i,
-                dt=int(time.time() * 1000) + i
+                ut=int(time.time() * 1000) + i
             )
 
         # 第一页
@@ -90,7 +90,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='domain1.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAccount.objects.using('mailserver_rw').create(
             username='user2@domain2.com',
@@ -98,7 +98,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='domain2.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         result = self.service.list_accounts(domain='domain1.com')
@@ -114,7 +114,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAccount.objects.using('mailserver_rw').create(
             username='inactive@example.com',
@@ -122,7 +122,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=False,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         # 仅激活
@@ -143,7 +143,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAccount.objects.using('mailserver_rw').create(
             username='bob@example.com',
@@ -151,7 +151,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         result = self.service.list_accounts(search='alice')
@@ -168,7 +168,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         # 负数 limit 应该被调整为默认值
@@ -187,7 +187,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         result = self.service.get_account(account.id)
@@ -198,7 +198,7 @@ class TestMailAccountService(TransactionTestCase):
         self.assertEqual(result['domain'], 'example.com')
         self.assertTrue(result['is_active'])
         self.assertIn('ct', result)
-        self.assertIn('dt', result)
+        self.assertIn('ut', result)
 
     def test_get_account_not_found(self):
         """测试获取不存在的账户"""
@@ -220,7 +220,7 @@ class TestMailAccountService(TransactionTestCase):
         self.assertTrue(account_data['is_active'])
         self.assertIn('id', account_data)
         self.assertGreater(account_data['ct'], 0)
-        self.assertGreater(account_data['dt'], 0)
+        self.assertGreater(account_data['ut'], 0)
 
         # 验证数据库中已创建
         account = MailAccount.objects.using('mailserver_rw').get(username='new@example.com')
@@ -253,7 +253,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         # 尝试创建相同用户名的账户
@@ -273,12 +273,12 @@ class TestMailAccountService(TransactionTestCase):
             domain='original.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         original_dt = account.ut
 
-        # 等待一小段时间确保 dt 会改变
+        # 等待一小段时间确保 ut 会改变
         time.sleep(0.01)
 
         updated = self.service.update_account(
@@ -293,7 +293,7 @@ class TestMailAccountService(TransactionTestCase):
         self.assertEqual(updated['username'], 'updated@example.com')
         self.assertEqual(updated['domain'], 'updated.com')
         self.assertFalse(updated['is_active'])
-        self.assertGreater(updated['dt'], original_dt)  # dt 应该更新
+        self.assertGreater(updated['ut'], original_dt)  # ut 应该更新
 
         # 验证数据库已更新
         db_account = MailAccount.objects.using('mailserver_rw').get(id=account.id)
@@ -308,7 +308,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         # 只更新密码
@@ -344,7 +344,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
         MailAccount.objects.using('mailserver_rw').create(
             username='account2@example.com',
@@ -352,7 +352,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         # 尝试将 account1 更新为 account2 的用户名
@@ -372,7 +372,7 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=int(time.time() * 1000),
-            dt=int(time.time() * 1000)
+            ut=int(time.time() * 1000)
         )
 
         account_id = account.id
@@ -397,13 +397,13 @@ class TestMailAccountService(TransactionTestCase):
             domain='example.com',
             is_active=True,
             ct=1234567890,
-            dt=1234567890
+            ut=1234567890
         )
 
         account_data = self.service.get_account(account.id)
 
         # 验证字典包含所有必需字段
-        required_fields = ['id', 'username', 'domain', 'is_active', 'ct', 'dt']
+        required_fields = ['id', 'username', 'domain', 'is_active', 'ct', 'ut']
         for field in required_fields:
             self.assertIn(field, account_data)
 

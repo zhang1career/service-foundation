@@ -121,7 +121,7 @@ def create_account(
         domain: str = 'localhost',
         is_active: bool = True,
         ct: int = 0,
-        dt: int = 0
+        ut: int = 0
 ) -> MailAccount:
     """
     Create a new mail account
@@ -132,7 +132,7 @@ def create_account(
         domain: Domain name
         is_active: Whether account is active
         ct: Create timestamp (milliseconds)
-        dt: Update timestamp (milliseconds)
+        ut: Update timestamp (milliseconds)
         
     Returns:
         Created MailAccount instance
@@ -140,8 +140,8 @@ def create_account(
     try:
         if ct == 0:
             ct = int(time.time() * 1000)
-        if dt == 0:
-            dt = ct
+        if ut == 0:
+            ut = ct
 
         # Extract domain from username if not provided
         if domain == 'localhost' and '@' in username:
@@ -153,7 +153,7 @@ def create_account(
             domain=domain,
             is_active=is_active,
             ct=ct,
-            dt=dt
+            ut=ut
         )
     except Exception as e:
         logger.exception(f"[create_account] Error creating account: {e}")
@@ -205,7 +205,7 @@ def update_account(
 
         if update_fields:
             account.ut = int(time.time() * 1000)
-            update_fields.append('dt')
+            update_fields.append('ut')
             # 显式指定数据库以确保更新操作在正确的数据库上执行
             account.save(using='mailserver_rw', update_fields=update_fields)
 

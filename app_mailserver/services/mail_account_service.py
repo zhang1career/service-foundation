@@ -267,5 +267,5 @@ class MailAccountService(Singleton):
             'domain': account.domain,
             'is_active': account.is_active,
             'ct': account.ct,
-            'dt': account.ut,
+            'ut': account.ut,
         }

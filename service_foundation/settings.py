@@ -127,7 +127,9 @@ DATABASES = {
         "OPTIONS": {
             "charset": "utf8mb4",
         },
-        "TEST": env("DB_DEFAULT_TEST_NAME", default="sf_test"),
+        "TEST": {
+            "NAME": env("DB_DEFAULT_TEST_NAME", default="sf_test"),
+        },
     },
     "mailserver_rw": {
         "ENGINE": "django.db.backends.mysql",
@@ -139,7 +141,9 @@ DATABASES = {
         "OPTIONS": {
             "charset": "utf8mb4",
         },
-        "TEST": env("DB_MAILSERVER_TEST_NAME", default="sf_mailserver_test"),
+        "TEST": {
+            "NAME": env("DB_MAILSERVER_TEST_NAME", default="sf_mailserver_test"),
+        },
     },
     "oss_rw": {
         "ENGINE": "django.db.backends.mysql",
@@ -151,7 +155,9 @@ DATABASES = {
         "OPTIONS": {
             "charset": "utf8mb4",
         },
-        "TEST": env("DB_OSS_TEST_NAME", default="sf_oss_test"),
+        "TEST": {
+            "NAME": env("DB_OSS_TEST_NAME", default="sf_oss_test"),
+        },
     },
     "snowflake_rw": {
         "ENGINE": "django.db.backends.mysql",
@@ -163,7 +169,9 @@ DATABASES = {
         "OPTIONS": {
             "charset": "utf8mb4",
         },
-        "TEST": env("DB_SNOWFLAKE_TEST_NAME", default="sf_snowflake_test"),
+        "TEST": {
+            "NAME": env("DB_SNOWFLAKE_TEST_NAME", default="sf_snowflake_test"),
+        },
     }
 }
 
