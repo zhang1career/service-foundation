@@ -14,13 +14,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from django.test import TransactionTestCase
 
 from app_mailserver.models.mail_account import MailAccount
 from app_mailserver.models.mailbox import Mailbox
 from app_mailserver.models.mail_message import MailMessage
-from app_mailserver.services.mail_storage import MailStorageService, get_storage_service
+from app_mailserver.services.mail_storage_service import MailStorageService
 from common.enums.content_type_enum import ContentTypeEnum
 
 
@@ -350,8 +350,8 @@ class TestMailStorageService(TransactionTestCase):
     
     def test_get_storage_service_singleton(self):
         """测试存储服务的单例模式"""
-        service1 = get_storage_service()
-        service2 = get_storage_service()
+        service1 = MailStorageService()
+        service2 = MailStorageService()
         
         # 应该是同一个实例
         self.assertIs(service1, service2)
@@ -375,4 +375,3 @@ class TestMailStorageService(TransactionTestCase):
         self.assertIsNotNone(mail_message.message_id)
         self.assertTrue(mail_message.message_id.startswith('<'))
         self.assertTrue(mail_message.message_id.endswith('@mailserver>'))
-

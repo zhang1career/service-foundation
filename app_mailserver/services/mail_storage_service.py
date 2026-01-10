@@ -30,17 +30,18 @@ from app_mailserver.repos import (
     delete_mail_message,
 )
 from app_mailserver.services.mail_parser import MailParser
-from app_mailserver.services.oss_integration import get_oss_service
+from app_mailserver.services.oss_integration_service import OSSIntegrationService
+from common.components.singleton import Singleton
 from common.enums.content_type_enum import ContentTypeEnum
 
 logger = logging.getLogger(__name__)
 
 
-class MailStorageService:
+class MailStorageService(Singleton):
     """Mail storage service"""
 
     def __init__(self):
-        self.oss_service = get_oss_service()
+        self.oss_service = OSSIntegrationService()
         self.parser = MailParser()
 
     def store_mail(
@@ -309,15 +310,3 @@ class MailStorageService:
         except Exception as e:
             logger.exception(f"[delete_mail] Failed to delete message: {e}")
             return False
-
-
-# Singleton instance
-_storage_service = None
-
-
-def get_storage_service() -> MailStorageService:
-    """Get singleton mail storage service instance"""
-    global _storage_service
-    if _storage_service is None:
-        _storage_service = MailStorageService()
-    return _storage_service

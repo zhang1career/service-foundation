@@ -15,7 +15,7 @@ from app_mailserver.repos import (
     get_account_by_username_any,
     create_account,
 )
-from app_mailserver.services.mail_storage import get_storage_service
+from app_mailserver.services.mail_storage_service import MailStorageService
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class SMTPHandler:
     """SMTP handler for processing incoming emails"""
 
     def __init__(self):
-        self.storage_service = get_storage_service()
+        self.storage_service = MailStorageService()
 
     async def handle_DATA(
             self,

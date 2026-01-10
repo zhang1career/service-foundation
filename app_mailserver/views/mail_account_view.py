@@ -2,19 +2,15 @@
 Mail account REST API views
 
 This module provides CRUD operations for mail accounts.
+Views are responsible for HTTP request/response handling only.
+Business logic is handled by MailAccountService.
 """
 import logging
 from rest_framework import status as http_status
 from rest_framework.views import APIView
 
-from app_mailserver.repos import (
-    get_account_by_id,
-    list_accounts,
-    create_account,
-    update_account,
-    delete_account,
-)
-from common.consts.query_const import LIMIT_PAGE, LIMIT_LIST
+from app_mailserver.services.mail_account_service import MailAccountService
+from common.consts.query_const import LIMIT_PAGE
 from common.consts.response_const import (
     RET_RESOURCE_NOT_FOUND,
     RET_MISSING_PARAM,
@@ -23,7 +19,6 @@ from common.consts.response_const import (
 )
 from common.consts.string_const import EMPTY_STRING
 from common.utils.http_util import resp_ok, resp_err, resp_exception, with_type
-from common.utils.page_util import build_page
 
 logger = logging.getLogger(__name__)
 
@@ -50,45 +45,20 @@ class MailAccountListView(APIView):
             is_active_str = request.GET.get("is_active", EMPTY_STRING)
             search = request.GET.get("search", EMPTY_STRING)
 
-            # Validate and adjust limit
-            if limit <= 0:
-                limit = LIMIT_PAGE
-            if limit > LIMIT_LIST:
-                limit = LIMIT_LIST
-
             # Parse is_active
             is_active = None
             if is_active_str:
                 is_active = with_type(is_active_str)
 
-            # Convert empty strings to None
-            domain = domain if domain != EMPTY_STRING else None
-            search = search if search != EMPTY_STRING else None
-
-            # Query accounts
-            result = list_accounts(
+            # Call service to list accounts
+            service = MailAccountService()
+            page_data = service.list_accounts(
                 offset=offset,
                 limit=limit,
                 domain=domain,
                 is_active=is_active,
                 search=search
             )
-
-            # Convert accounts to dict list
-            accounts_data = []
-            for account in result['accounts']:
-                accounts_data.append({
-                    'id': account.id,
-                    'username': account.username,
-                    'domain': account.domain,
-                    'is_active': account.is_active,
-                    'ct': account.ct,
-                    'dt': account.dt,
-                })
-
-            # Build paginated response
-            next_offset = offset + limit if offset + limit < result['total'] else None
-            page_data = build_page(accounts_data, next_offset, result['total'])
 
             return resp_ok(page_data)
 
@@ -112,39 +82,32 @@ class MailAccountListView(APIView):
             # Get request data
             data = request.data if hasattr(request, 'data') else request.POST
 
-            username = data.get('username', '').strip()
-            if not username:
-                return resp_err("Username is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
-
+            username = (data.get('username') or '').strip()
             password = data.get('password', '')
             domain = data.get('domain', 'localhost')
             is_active = with_type(data.get('is_active', True))
 
-            # Create account
-            account = create_account(
+            # Call service to create account
+            service = MailAccountService()
+            account_data = service.create_account(
                 username=username,
                 password=password,
                 domain=domain,
                 is_active=is_active
             )
 
-            # Return created account
-            account_data = {
-                'id': account.id,
-                'username': account.username,
-                'domain': account.domain,
-                'is_active': account.is_active,
-                'ct': account.ct,
-                'dt': account.dt,
-            }
-
             return resp_ok(account_data)
 
+        except ValueError as e:
+            logger.warning(f"[MailAccountListView.post] Validation error: {e}")
+            error_message = str(e)
+            if 'required' in error_message.lower():
+                return resp_err(error_message, code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            elif 'already exists' in error_message.lower():
+                return resp_err(error_message, code=RET_RESOURCE_EXISTS, status=http_status.HTTP_200_OK)
+            return resp_err(error_message, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception(f"[MailAccountListView.post] Error creating account: {e}")
-            if 'UNIQUE constraint' in str(e) or 'duplicate key' in str(e).lower():
-                return resp_err("Account with this username already exists", code=RET_RESOURCE_EXISTS,
-                                status=http_status.HTTP_200_OK)
             return resp_exception(e)
 
 
@@ -160,20 +123,14 @@ class MailAccountDetailView(APIView):
         """
         try:
             account_id = with_type(account_id)
-            account = get_account_by_id(account_id)
 
-            if not account:
+            # Call service to get account
+            service = MailAccountService()
+            account_data = service.get_account(account_id)
+
+            if not account_data:
                 return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
                                 status=http_status.HTTP_200_OK)
-
-            account_data = {
-                'id': account.id,
-                'username': account.username,
-                'domain': account.domain,
-                'is_active': account.is_active,
-                'ct': account.ct,
-                'dt': account.dt,
-            }
 
             return resp_ok(account_data)
 
@@ -198,11 +155,6 @@ class MailAccountDetailView(APIView):
         """
         try:
             account_id = with_type(account_id)
-            account = get_account_by_id(account_id)
-
-            if not account:
-                return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
 
             # Get request data
             data = request.data if hasattr(request, 'data') else request.POST
@@ -213,36 +165,30 @@ class MailAccountDetailView(APIView):
             domain = data.get('domain') if 'domain' in data else None
             is_active = with_type(data.get('is_active')) if 'is_active' in data else None
 
-            # Update account
-            updated_account = update_account(
+            # Call service to update account
+            service = MailAccountService()
+            account_data = service.update_account(
                 account_id=account_id,
-                username=username if username else None,
+                username=username,
                 password=password,
                 domain=domain,
                 is_active=is_active
             )
 
-            if not updated_account:
-                return resp_err("Failed to update account", code=RET_DB_ERROR,
+            if not account_data:
+                return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
                                 status=http_status.HTTP_200_OK)
-
-            # Return updated account
-            account_data = {
-                'id': updated_account.id,
-                'username': updated_account.username,
-                'domain': updated_account.domain,
-                'is_active': updated_account.is_active,
-                'ct': updated_account.ct,
-                'dt': updated_account.dt,
-            }
 
             return resp_ok(account_data)
 
+        except ValueError as e:
+            logger.warning(f"[MailAccountDetailView.put] Validation error: {e}")
+            error_message = str(e)
+            if 'already exists' in error_message.lower():
+                return resp_err(error_message, code=RET_RESOURCE_EXISTS, status=http_status.HTTP_200_OK)
+            return resp_err(error_message, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception(f"[MailAccountDetailView.put] Error updating account: {e}")
-            if 'UNIQUE constraint' in str(e) or 'duplicate key' in str(e).lower():
-                return resp_err("Account with this username already exists", code=RET_RESOURCE_EXISTS,
-                                status=http_status.HTTP_200_OK)
             return resp_exception(e)
 
     def patch(self, request, account_id, *args, **kwargs):
@@ -260,17 +206,13 @@ class MailAccountDetailView(APIView):
         """
         try:
             account_id = with_type(account_id)
-            account = get_account_by_id(account_id)
 
-            if not account:
-                return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
-
-            # Delete account
-            success = delete_account(account_id)
+            # Call service to delete account
+            service = MailAccountService()
+            success = service.delete_account(account_id)
 
             if not success:
-                return resp_err("Failed to delete account", code=RET_DB_ERROR,
+                return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
                                 status=http_status.HTTP_200_OK)
 
             return resp_ok({"message": "Account deleted successfully"})

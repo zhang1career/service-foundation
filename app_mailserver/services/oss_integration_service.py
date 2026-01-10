@@ -11,12 +11,13 @@ from botocore.exceptions import ClientError
 from typing import Optional, Dict, Any
 
 from app_mailserver.config import get_app_config
+from common.components.singleton import Singleton
 from common.exceptions.configuration_error_exception import ConfigurationErrorException
 
 logger = logging.getLogger(__name__)
 
 
-class OSSIntegrationService:
+class OSSIntegrationService(Singleton):
     """OSS integration service for mail attachments"""
 
     def __init__(self):
@@ -191,15 +192,3 @@ class OSSIntegrationService:
             logger.exception(
                 f"[get_attachment_metadata] Unexpected error getting metadata for {self.bucket}/{key}: {e}")
             return None
-
-
-# Singleton instance
-_oss_service = None
-
-
-def get_oss_service() -> OSSIntegrationService:
-    """Get singleton OSS integration service instance"""
-    global _oss_service
-    if _oss_service is None:
-        _oss_service = OSSIntegrationService()
-    return _oss_service

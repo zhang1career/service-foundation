@@ -24,7 +24,7 @@ from app_mailserver.repos import (
     update_message_read_status,
     get_attachments_by_message,
 )
-from app_mailserver.services.mail_storage import get_storage_service
+from app_mailserver.services.mail_storage_service import MailStorageService
 from common.enums.content_type_enum import ContentTypeEnum
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class IMAPHandler:
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
         self.writer = writer
-        self.storage_service = get_storage_service()
+        self.storage_service = MailStorageService()
         self.account: Optional[MailAccount] = None
         self.selected_mailbox: Optional[Mailbox] = None
         self.tag_counter = 0
