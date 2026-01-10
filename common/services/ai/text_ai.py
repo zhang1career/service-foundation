@@ -2,7 +2,7 @@ import logging
 
 from common.apis.aigcbest_api import AigcBestAPI
 from common.components.singleton import Singleton
-from common.consts.string_const import STRING_EMPTY
+from common.consts.string_const import EMPTY_STRING
 from common.exceptions.ai_exception import UnexpectedAnswerException
 from common.utils.string_util import explode, check_blank
 
@@ -222,7 +222,7 @@ class TextAI(Singleton):
                        text: str,
                        role: str,
                        question: str,
-                       additional_question: str = STRING_EMPTY,
+                       additional_question: str = EMPTY_STRING,
                        temperature=0) -> tuple[str, str]:
         """
         Ask a question and get an answer.

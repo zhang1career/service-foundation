@@ -1,6 +1,6 @@
 from typing import Optional
 
-from common.consts.string_const import STRING_EMPTY
+from common.consts.string_const import EMPTY_STRING
 from common.utils.hash_util import md5
 
 
@@ -244,7 +244,7 @@ def sort_and_hash(param_dict: dict) -> tuple[dict, str]:
     from collections import OrderedDict
 
     if check_empty(param_dict):
-        return {}, STRING_EMPTY
+        return {}, EMPTY_STRING
 
     sorted_param_dict = OrderedDict(sorted(param_dict.items()))
     hash_param = md5(str(sorted_param_dict))

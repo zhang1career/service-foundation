@@ -18,12 +18,14 @@ from django.contrib import admin
 from django.urls import path, include
 from app_snowflake import urls as app_snowflake_urls
 from app_oss import urls as app_oss_urls
+from app_mailserver import urls as app_mailserver_urls
 
 urlpatterns = [
     path("admin/", admin.site.urls),
 
     path('api-auth/', include('rest_framework.urls')),
 
-    path('api/snowflake/', include(app_snowflake_urls)),
+    path('api/mail/', include(app_mailserver_urls)),
     path('api/oss/', include(app_oss_urls)),
+    path('api/snowflake/', include(app_snowflake_urls)),
 ]

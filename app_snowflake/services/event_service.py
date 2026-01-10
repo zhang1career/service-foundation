@@ -1,9 +1,9 @@
-from common.consts.string_const import STRING_EMPTY
+from common.consts.string_const import EMPTY_STRING
 
 
 def rec_service_start(datacenter_id: int,
                       machine_id: int,
-                      brief: str = STRING_EMPTY,
+                      brief: str = EMPTY_STRING,
                       detail_dict: dict = None) -> int:
     # lazy load
     from app_snowflake.repos.event_repo import create_event
@@ -11,7 +11,7 @@ def rec_service_start(datacenter_id: int,
     from app_snowflake.models.event import EventDetail
 
     # prepare data
-    detail = EventDetail(**detail_dict)
+    detail = EventDetail(**detail_dict) if detail_dict else None
 
     # query
     event = create_event(datacenter_id,
@@ -20,12 +20,12 @@ def rec_service_start(datacenter_id: int,
                          brief,
                          detail)
 
-    return event.id
+    return event.id if event else 0
 
 
 def rec_clock_backward(datacenter_id: int,
                        machine_id: int,
-                       brief: str = STRING_EMPTY,
+                       brief: str = EMPTY_STRING,
                        detail_dict: dict = None) -> int:
     # lazy load
     from app_snowflake.repos.event_repo import create_event
@@ -33,7 +33,7 @@ def rec_clock_backward(datacenter_id: int,
     from app_snowflake.models.event import EventDetail
 
     # prepare data
-    detail = EventDetail(**detail_dict)
+    detail = EventDetail(**detail_dict) if detail_dict else None
 
     # query
     event = create_event(datacenter_id,
@@ -42,12 +42,12 @@ def rec_clock_backward(datacenter_id: int,
                          brief,
                          detail)
 
-    return event.id
+    return event.id if event else 0
 
 
 def rec_sequence_overflow(datacenter_id: int,
                           machine_id: int,
-                          brief: str = STRING_EMPTY,
+                          brief: str = EMPTY_STRING,
                           detail_dict: dict = None) -> int:
     # lazy load
     from app_snowflake.repos.event_repo import create_event
@@ -55,7 +55,7 @@ def rec_sequence_overflow(datacenter_id: int,
     from app_snowflake.models.event import EventDetail
 
     # prepare data
-    detail = EventDetail(**detail_dict)
+    detail = EventDetail(**detail_dict) if detail_dict else None
 
     # query
     event = create_event(datacenter_id,
@@ -64,4 +64,4 @@ def rec_sequence_overflow(datacenter_id: int,
                          brief,
                          detail)
 
-    return event.id
+    return event.id if event else 0

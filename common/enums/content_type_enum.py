@@ -2,8 +2,7 @@ from enum import Enum
 
 
 class ContentTypeEnum(Enum):
-    """Content type enumeration for OSS objects"""
-    
+
     # Default/Unknown
     APPLICATION_OCTET_STREAM = 0  # application/octet-stream
     

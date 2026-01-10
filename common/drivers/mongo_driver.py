@@ -5,7 +5,7 @@ from pymongo.operations import SearchIndexModel
 from pymongo.synchronous.collection import Collection
 
 from common.components.singleton import Singleton
-from common.consts.string_const import STRING_EMPTY
+from common.consts.string_const import EMPTY_STRING
 
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ class MongoDriver(Singleton):
             return str(result.inserted_id)
         except Exception as e:
             logger.exception(e)
-            return STRING_EMPTY
+            return EMPTY_STRING
 
     def batch_insert(self, coll_name: str, datas: list[dict]) -> list[int]:
         try:

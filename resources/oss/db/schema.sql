@@ -10,7 +10,7 @@
 CREATE TABLE `m` (
 	`id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'primary key id',
 	`bucket_name` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'bucket name',
-	`object_key` VARCHAR(1024) NOT NULL DEFAULT '' COMMENT 'object key (path)',
+	`object_key` VARCHAR(512) NOT NULL DEFAULT '' COMMENT 'object key (path)',
 	`content_type` INT(11) NOT NULL DEFAULT '0' COMMENT 'content type enum id (0=application/octet-stream)',
 	`content_length` BIGINT(20) NOT NULL DEFAULT '0' COMMENT 'content length in bytes',
 	`etag` VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'ETag (MD5 hash)',

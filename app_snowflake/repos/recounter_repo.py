@@ -1,3 +1,5 @@
+from typing import Optional
+
 import logging
 
 from app_snowflake.consts.recounter_const import DEFAULT_RECOUNTER
@@ -7,20 +9,23 @@ from common.utils.date_util import get_now_timestamp_ms
 logger = logging.getLogger(__name__)
 
 
-def create_recounter(datacenter_id: int, machine_id: int) -> Recounter:
-    now = get_now_timestamp_ms()
-    # prepare data
-    new_model_dict = {
-        "dcid": datacenter_id,
-        "mid": machine_id,
-        "rc": DEFAULT_RECOUNTER,
-        "ct": now,
-        "ut": now,
-    }
-    # query
-    new_model = Recounter.objects.using('snowflake_rw').create(**new_model_dict)
-
-    return new_model
+def create_recounter(datacenter_id: int, machine_id: int) -> Optional[Recounter]:
+    try:
+        now = get_now_timestamp_ms()
+        # prepare data
+        new_model_dict = {
+            "dcid": datacenter_id,
+            "mid": machine_id,
+            "rc": DEFAULT_RECOUNTER,
+            "ct": now,
+            "ut": now,
+        }
+        # query
+        new_model = Recounter.objects.using('snowflake_rw').create(**new_model_dict)
+        return new_model
+    except Exception as e:
+        logger.error(f"[snow] failed to create recounter record: {str(e)}")
+        return None
 
 
 def update_recounter(origin: Recounter, data_dict: dict) -> int:
@@ -40,7 +45,7 @@ def update_recounter(origin: Recounter, data_dict: dict) -> int:
     return rows
 
 
-def get_recounter(datacenter_id: int, machine_id: int) -> Recounter:
+def get_recounter(datacenter_id: int, machine_id: int) -> Optional[Recounter]:
     try:
         return Recounter.objects.using('snowflake_rw').get(
             dcid=datacenter_id,
