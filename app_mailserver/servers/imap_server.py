@@ -339,32 +339,41 @@ class IMAPHandler:
                 headers = self._build_rfc822_headers(message)
                 response_parts.append(f'RFC822.HEADER {{{len(headers)}}}')
                 if include_uid:
-                    response_parts.insert(0, f'UID {message.id}')
-                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    # Format: "UID <integer>" - according to RFC 3501, UID should be a pure integer
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                await self.send_response(f'* {seq} FETCH ({" ".join(response_parts)})')
                 await self.send_data(headers)
             elif 'RFC822.TEXT' in data_items or 'BODY[TEXT]' in data_items:
                 # Body text only
                 body_text = await self._build_rfc822_body(message)
                 response_parts.append(f'RFC822.TEXT {{{len(body_text)}}}')
                 if include_uid:
-                    response_parts.insert(0, f'UID {message.id}')
-                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                await self.send_response(f'* {seq} FETCH ({" ".join(response_parts)})')
                 await self.send_data(body_text)
             elif 'BODY[]' in data_items or 'RFC822' in data_items:
                 # Full message (must check after RFC822.HEADER and RFC822.TEXT)
                 body = await self._build_rfc822_message(message)
                 response_parts.append(f'BODY[] {{{len(body)}}}')
                 if include_uid:
-                    response_parts.insert(0, f'UID {message.id}')
-                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                await self.send_response(f'* {seq} FETCH ({" ".join(response_parts)})')
                 await self.send_data(body)
             elif 'BODYSTRUCTURE' in data_items:
                 # Body structure
                 structure = self._build_body_structure(message)
                 response_parts.append(f'BODYSTRUCTURE {structure}')
                 if include_uid:
-                    response_parts.insert(0, f'UID {message.id}')
-                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                await self.send_response(f'* {seq} FETCH ({" ".join(response_parts)})')
             else:
                 # Basic headers
                 flags = []
@@ -382,9 +391,11 @@ class IMAPHandler:
                 
                 # Include UID at the beginning if requested
                 if include_uid:
-                    response_parts.insert(0, f'UID {message.id}')
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
 
-                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                await self.send_response(f'* {seq} FETCH ({" ".join(response_parts)})')
 
         except Exception as e:
             logger.exception(f"[send_fetch_response] Error sending fetch response: {e}")
@@ -539,7 +550,7 @@ class IMAPHandler:
 
     def _parse_uid_sequence(self, uid_seq: str) -> List[int]:
         """
-        Parse UID sequence (e.g., "2", "2:2", "2:5", "*")
+        Parse UID sequence (e.g., "2", "2:2", "2:5", "1,2,3", "*")
         
         Args:
             uid_seq: UID sequence string
@@ -550,6 +561,35 @@ class IMAPHandler:
         if uid_seq == '*':
             # * means last UID (will be handled separately)
             return []
+        
+        # Check for comma-separated list first (e.g., "1,2,3")
+        if ',' in uid_seq:
+            uid_list = []
+            for uid_str in uid_seq.split(','):
+                uid_str = uid_str.strip()
+                if not uid_str:
+                    continue
+                # Check if it's a range (e.g., "1:5" within comma list)
+                if ':' in uid_str:
+                    range_parts = uid_str.split(':', 1)
+                    try:
+                        start_uid = int(range_parts[0])
+                        if range_parts[1] == '*':
+                            # Range with * (e.g., "2:*")
+                            uid_list.append(start_uid)
+                            uid_list.append(-1)  # Use -1 to indicate "*"
+                        else:
+                            end_uid = int(range_parts[1])
+                            uid_list.extend(range(start_uid, end_uid + 1))
+                    except ValueError:
+                        continue
+                else:
+                    # Single UID
+                    try:
+                        uid_list.append(int(uid_str))
+                    except ValueError:
+                        continue
+            return uid_list
         
         if ':' in uid_seq:
             # Range format: "2:5" or "2:*"

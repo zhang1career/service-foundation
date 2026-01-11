@@ -114,6 +114,50 @@ class TestIMAPServerUIDFetch(TransactionTestCase):
         result = self._parse_uid_sequence("2:abc")
         self.assertEqual(result, [])
 
+    def test_parse_uid_sequence_comma_separated(self):
+        """测试解析逗号分隔的 UID 列表（新增功能）"""
+        result = self._parse_uid_sequence("1,2,3")
+        self.assertEqual(result, [1, 2, 3])
+
+    def test_parse_uid_sequence_comma_separated_single(self):
+        """测试解析单个逗号分隔的 UID（虽然只有一个，但格式是逗号分隔）"""
+        result = self._parse_uid_sequence("5")
+        self.assertEqual(result, [5])
+
+    def test_parse_uid_sequence_comma_with_range(self):
+        """测试解析混合格式：逗号分隔和范围（如 1,2:5,7）"""
+        result = self._parse_uid_sequence("1,2:5,7")
+        self.assertEqual(result, [1, 2, 3, 4, 5, 7])
+
+    def test_parse_uid_sequence_comma_with_range_to_end(self):
+        """测试解析混合格式：逗号分隔和范围到末尾（如 1,2:*,5）"""
+        result = self._parse_uid_sequence("1,2:*,5")
+        # 注意：2:* 会返回 [2, -1]，所以结果应该是 [1, 2, -1, 5]
+        # 但实际实现中，逗号分隔的解析会先处理每个部分
+        # 让我们检查实际行为
+        self.assertIn(1, result)
+        self.assertIn(2, result)
+        self.assertIn(5, result)
+        # 检查是否包含 -1（表示 *）
+        self.assertIn(-1, result)
+
+    def test_parse_uid_sequence_comma_with_spaces(self):
+        """测试解析逗号分隔的 UID 列表（带空格）"""
+        result = self._parse_uid_sequence("1, 2, 3")
+        self.assertEqual(result, [1, 2, 3])
+
+    def test_parse_uid_sequence_comma_empty_parts(self):
+        """测试解析逗号分隔的 UID 列表（包含空部分）"""
+        result = self._parse_uid_sequence("1,,3")
+        # 空部分应该被忽略
+        self.assertEqual(result, [1, 3])
+
+    def test_parse_uid_sequence_comma_invalid_parts(self):
+        """测试解析逗号分隔的 UID 列表（包含无效部分）"""
+        result = self._parse_uid_sequence("1,abc,3")
+        # 无效部分应该被忽略
+        self.assertEqual(result, [1, 3])
+
     async def _run_uid_fetch_test(self, handler, args):
         """运行 UID FETCH 测试的辅助方法"""
         responses = []
@@ -757,3 +801,220 @@ class TestIMAPServerUIDFetch(TransactionTestCase):
         
         # 验证头部以空行结束（\r\n）
         self.assertTrue(header_data.endswith('\r\n'))
+
+    def test_uid_fetch_comma_separated_uids(self):
+        """测试 UID FETCH 使用逗号分隔的 UID 列表（新增功能）"""
+        # 创建多个测试邮件
+        msg1 = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg1@example.com>',
+            subject='Message 1',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=False,
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        msg2 = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg2@example.com>',
+            subject='Message 2',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=True,
+            mt=int(time.time() * 1000) + 1000,
+            size=200,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        msg3 = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg3@example.com>',
+            subject='Message 3',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=False,
+            mt=int(time.time() * 1000) + 2000,
+            size=300,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        # 使用逗号分隔的 UID 列表
+        uid_list = f"{msg1.id},{msg2.id},{msg3.id}"
+
+        handler = self._create_handler()
+        args = [uid_list, '(FLAGS)']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 3)  # 应该有三个 FETCH 响应
+
+        # 验证每个响应都包含正确的 UID（整数格式）
+        uids_found = []
+        for fetch_response in fetch_responses:
+            self.assertIn('UID', fetch_response)
+            self.assertIn('FLAGS', fetch_response)
+            # 提取 UID 值（应该以整数格式出现，如 "UID 1"）
+            # 验证 UID 后面跟着的是整数，而不是字符串
+            import re
+            uid_match = re.search(r'UID\s+(\d+)', fetch_response)
+            self.assertIsNotNone(uid_match, f"UID should be an integer in response: {fetch_response}")
+            uid_value = int(uid_match.group(1))
+            uids_found.append(uid_value)
+            # 验证 UID 值在预期的 UID 列表中
+            self.assertIn(uid_value, [msg1.id, msg2.id, msg3.id])
+
+        # 验证所有三个 UID 都被返回
+        self.assertEqual(len(uids_found), 3)
+        self.assertIn(msg1.id, uids_found)
+        self.assertIn(msg2.id, uids_found)
+        self.assertIn(msg3.id, uids_found)
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_comma_separated_with_range(self):
+        """测试 UID FETCH 使用混合格式：逗号分隔和范围（如 1,2:5,7）"""
+        # 创建多个测试邮件
+        msg1 = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg1@example.com>',
+            subject='Message 1',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        msg2 = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg2@example.com>',
+            subject='Message 2',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            mt=int(time.time() * 1000) + 1000,
+            size=200,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        msg3 = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg3@example.com>',
+            subject='Message 3',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            mt=int(time.time() * 1000) + 2000,
+            size=300,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        # 使用混合格式：单个 UID，范围，单个 UID
+        min_id = min(msg1.id, msg2.id, msg3.id)
+        max_id = max(msg1.id, msg2.id, msg3.id)
+        mid_id = sorted([msg1.id, msg2.id, msg3.id])[1]
+        
+        # 格式：第一个UID,范围,最后一个UID
+        uid_sequence = f"{min_id},{min_id}:{mid_id},{max_id}"
+
+        handler = self._create_handler()
+        args = [uid_sequence, '(FLAGS)']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        # 应该至少有匹配的消息数量的响应
+        self.assertGreater(len(fetch_responses), 0)
+
+        # 验证每个响应中的 UID 是整数格式
+        for fetch_response in fetch_responses:
+            self.assertIn('UID', fetch_response)
+            import re
+            uid_match = re.search(r'UID\s+(\d+)', fetch_response)
+            self.assertIsNotNone(uid_match, f"UID should be an integer in response: {fetch_response}")
+            uid_value = int(uid_match.group(1))
+            # 验证 UID 值在预期的 UID 列表中
+            self.assertIn(uid_value, [msg1.id, msg2.id, msg3.id])
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_uid_format_integer(self):
+        """测试 UID FETCH 响应中的 UID 格式为整数（修复的关键测试）"""
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            text_body='Test body',
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(RFC822.HEADER)']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        
+        # 关键测试：验证 UID 格式为整数（不是字符串，不带逗号）
+        # 根据 RFC 3501，响应格式应该是：* <seq> FETCH (UID <integer> RFC822.HEADER {size})
+        # 数据项之间应该用空格分隔，而不是逗号
+        import re
+        
+        # 提取 UID 值
+        uid_match = re.search(r'UID\s+(\d+)', fetch_response)
+        self.assertIsNotNone(uid_match, f"Should find UID in response: {fetch_response}")
+        
+        uid_str = uid_match.group(1)
+        uid_int = int(uid_str)
+        
+        # 验证 UID 是整数类型（不是字符串）
+        self.assertIsInstance(uid_int, int)
+        self.assertEqual(uid_int, msg.id)
+        
+        # 验证 UID 值本身不包含逗号（这是原始 bug 的关键）
+        # UID 值应该是纯整数，不包含任何非数字字符
+        self.assertNotIn(',', uid_str, f"UID value should not contain comma: {uid_str}")
+        
+        # 验证响应格式符合 RFC 3501：数据项之间应该用空格分隔，而不是逗号
+        # 检查 UID 后面直接跟着的是空格（符合 IMAP 规范），而不是逗号
+        uid_with_separator = re.search(rf'UID\s+{msg.id}(\s)', fetch_response)
+        self.assertIsNotNone(uid_with_separator, 
+                            f"UID should be followed by space (per RFC 3501), not comma: {fetch_response}")
+        
+        # 验证响应中不使用逗号分隔数据项（符合 IMAP 规范）
+        # 在 FETCH 响应中，数据项之间应该用空格分隔
+        # 检查响应格式：应该是 "UID <integer> RFC822.HEADER" 而不是 "UID <integer>, RFC822.HEADER"
+        expected_format = rf'UID\s+{msg.id}\s+RFC822\.HEADER'
+        self.assertRegex(fetch_response, expected_format,
+                        f"Response should use space to separate data items (per RFC 3501), not comma: {fetch_response}")
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
