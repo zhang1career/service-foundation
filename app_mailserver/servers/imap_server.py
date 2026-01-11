@@ -374,6 +374,26 @@ class IMAPHandler:
                     response_parts.insert(0, f'UID {int(message.id)}')
                 # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
                 await self.send_response(f'* {seq} FETCH ({" ".join(response_parts)})')
+            elif 'FLAGS' in data_items:
+                # FLAGS only
+                flags = []
+                if message.is_read:
+                    flags.append('\\Seen')
+                if message.is_flagged:
+                    flags.append('\\Flagged')
+
+                # According to IMAP RFC 3501, FLAGS must always be returned as a parenthesized list
+                # Format: FLAGS (\Seen) or FLAGS (\Seen \Flagged) or FLAGS ()
+                flags_str = f'({" ".join(flags)})' if flags else '()'
+                response_parts.append(f'FLAGS {flags_str}')
+                
+                # Include UID at the beginning if requested
+                if include_uid:
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                await self.send_response(f'* {seq} FETCH ({" ".join(response_parts)})')
             else:
                 # Basic headers
                 flags = []
@@ -382,7 +402,9 @@ class IMAPHandler:
                 if message.is_flagged:
                     flags.append('\\Flagged')
 
-                flags_str = ' '.join(flags) if flags else '()'
+                # According to IMAP RFC 3501, FLAGS must always be returned as a parenthesized list
+                # Format: FLAGS (\Seen) or FLAGS (\Seen \Flagged) or FLAGS ()
+                flags_str = f'({" ".join(flags)})' if flags else '()'
                 response_parts.append(f'FLAGS {flags_str}')
                 # Convert UNIX timestamp (milliseconds) to datetime for INTERNALDATE
                 date_dt = datetime.utcfromtimestamp(message.mt / 1000.0)

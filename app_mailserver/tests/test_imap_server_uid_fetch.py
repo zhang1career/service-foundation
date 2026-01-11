@@ -1018,3 +1018,290 @@ class TestIMAPServerUIDFetch(TransactionTestCase):
 
         ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
         self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_flags_format_single_flag(self):
+        """
+        测试 UID FETCH FLAGS 单个标志的格式
+        根据 IMAP RFC 3501，FLAGS 必须总是返回括号包裹的列表格式
+        格式：FLAGS (\Seen) 或 FLAGS (\Seen \Flagged) 或 FLAGS ()
+        """
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=True,  # 已读，应该有 \Seen 标志
+            is_flagged=False,  # 未标记
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(FLAGS)']  # 只请求 FLAGS
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        
+        # 关键测试：验证 FLAGS 格式符合 IMAP RFC 3501
+        import re
+        
+        # 匹配 FLAGS 及其值（必须是括号包裹的格式）
+        flags_match = re.search(r'FLAGS\s+(\([^)]*\))', fetch_response)
+        self.assertIsNotNone(flags_match, 
+                            f"FLAGS should be parenthesized per RFC 3501: {fetch_response}")
+        
+        flags_value = flags_match.group(1)
+        # 验证格式：必须以 ( 开头，以 ) 结尾
+        self.assertTrue(flags_value.startswith('('), 
+                       f"FLAGS value should start with '(': {flags_value}")
+        self.assertTrue(flags_value.endswith(')'), 
+                       f"FLAGS value should end with ')': {flags_value}")
+        
+        # 验证包含 \Seen 标志
+        self.assertIn('\\Seen', flags_value)
+        
+        # 验证格式：FLAGS (\Seen) 而不是 FLAGS \Seen
+        expected_format = r'FLAGS\s+\(\\Seen\)'
+        self.assertRegex(fetch_response, expected_format,
+                        f"FLAGS should be in format FLAGS (\\Seen), not FLAGS \\Seen: {fetch_response}")
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_flags_format_multiple_flags(self):
+        """
+        测试 UID FETCH FLAGS 多个标志的格式
+        格式：FLAGS (\Seen \Flagged)
+        """
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=True,  # 已读，应该有 \Seen 标志
+            is_flagged=True,  # 已标记，应该有 \Flagged 标志
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(FLAGS)']  # 只请求 FLAGS
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        
+        # 关键测试：验证 FLAGS 格式符合 IMAP RFC 3501
+        import re
+        
+        # 匹配 FLAGS 及其值（必须是括号包裹的格式）
+        flags_match = re.search(r'FLAGS\s+(\([^)]*\))', fetch_response)
+        self.assertIsNotNone(flags_match, 
+                            f"FLAGS should be parenthesized per RFC 3501: {fetch_response}")
+        
+        flags_value = flags_match.group(1)
+        # 验证格式：必须以 ( 开头，以 ) 结尾
+        self.assertTrue(flags_value.startswith('('), 
+                       f"FLAGS value should start with '(': {flags_value}")
+        self.assertTrue(flags_value.endswith(')'), 
+                       f"FLAGS value should end with ')': {flags_value}")
+        
+        # 验证包含 \Seen 和 \Flagged 标志
+        self.assertIn('\\Seen', flags_value)
+        self.assertIn('\\Flagged', flags_value)
+        
+        # 验证格式：FLAGS (\Seen \Flagged) 而不是 FLAGS \Seen \Flagged
+        expected_format = r'FLAGS\s+\(\\Seen\s+\\Flagged\)'
+        self.assertRegex(fetch_response, expected_format,
+                        f"FLAGS should be in format FLAGS (\\Seen \\Flagged): {fetch_response}")
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_flags_format_no_flags(self):
+        """
+        测试 UID FETCH FLAGS 无标志时的格式
+        格式：FLAGS ()
+        """
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=False,  # 未读，没有 \Seen 标志
+            is_flagged=False,  # 未标记，没有 \Flagged 标志
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(FLAGS)']  # 只请求 FLAGS
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        
+        # 关键测试：验证 FLAGS 格式符合 IMAP RFC 3501
+        import re
+        
+        # 匹配 FLAGS 及其值（必须是括号包裹的格式）
+        flags_match = re.search(r'FLAGS\s+(\([^)]*\))', fetch_response)
+        self.assertIsNotNone(flags_match, 
+                            f"FLAGS should be parenthesized per RFC 3501: {fetch_response}")
+        
+        flags_value = flags_match.group(1)
+        # 验证格式：必须是空括号 () 当没有标志时
+        self.assertEqual(flags_value, '()', 
+                        f"FLAGS value should be '()' when no flags: {flags_value}")
+        
+        # 验证格式：FLAGS () 而不是 FLAGS 或 FLAGS NIL
+        expected_format = r'FLAGS\s+\(\)'
+        self.assertRegex(fetch_response, expected_format,
+                        f"FLAGS should be in format FLAGS () when no flags: {fetch_response}")
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_flags_with_other_data_items(self):
+        """
+        测试 UID FETCH 当同时请求 FLAGS 和其他数据项时的格式
+        验证 FLAGS 仍然保持括号包裹的格式
+        """
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=True,
+            is_flagged=True,
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        # 请求 FLAGS 和 INTERNALDATE（会进入 else 分支）
+        args = [str(msg.id), '(FLAGS INTERNALDATE)']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        
+        # 关键测试：验证 FLAGS 格式符合 IMAP RFC 3501
+        import re
+        
+        # 匹配 FLAGS 及其值（必须是括号包裹的格式）
+        flags_match = re.search(r'FLAGS\s+(\([^)]*\))', fetch_response)
+        self.assertIsNotNone(flags_match, 
+                            f"FLAGS should be parenthesized per RFC 3501: {fetch_response}")
+        
+        flags_value = flags_match.group(1)
+        # 验证格式：必须以 ( 开头，以 ) 结尾
+        self.assertTrue(flags_value.startswith('('), 
+                       f"FLAGS value should start with '(': {flags_value}")
+        self.assertTrue(flags_value.endswith(')'), 
+                       f"FLAGS value should end with ')': {flags_value}")
+        
+        # 验证包含 \Seen 和 \Flagged 标志
+        self.assertIn('\\Seen', flags_value)
+        self.assertIn('\\Flagged', flags_value)
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_flags_format_php_client_compatibility(self):
+        """
+        测试 UID FETCH FLAGS 格式与 PHP 客户端兼容性
+        PHP 客户端的 parseRawFlags() 期望接收数组参数
+        服务器必须返回括号包裹的 FLAGS 格式，以便 PHP 客户端正确解析为数组
+        """
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            is_read=True,
+            is_flagged=False,
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(FLAGS)']  # 只请求 FLAGS
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        
+        # 关键测试：验证 FLAGS 格式可以被 PHP 客户端正确解析为数组
+        import re
+        
+        # PHP 客户端的 ImapProtocol.php fetch() 方法会解析 FETCH 响应
+        # 它期望 FLAGS 的值是一个数组格式（括号包裹）
+        # 格式应该是：FLAGS (\Seen) 而不是 FLAGS \Seen
+        
+        # 提取 FLAGS 值
+        flags_match = re.search(r'FLAGS\s+(\([^)]*\))', fetch_response)
+        self.assertIsNotNone(flags_match, 
+                            f"FLAGS should be parenthesized for PHP client compatibility: {fetch_response}")
+        
+        flags_value = flags_match.group(1)
+        
+        # 模拟 PHP 客户端的解析逻辑
+        # PHP 客户端会检查 flags[$sequence_id] 是否是数组
+        # 如果 FLAGS 格式是 (\Seen)，PHP 会解析为数组
+        # 如果 FLAGS 格式是 \Seen（字符串），PHP 会尝试作为字符串传入 parseRawFlags()，导致类型错误
+        
+        # 验证格式符合 IMAP RFC 3501 和 PHP 客户端期望
+        # 格式必须是括号包裹的列表，例如：(\Seen) 或 (\Seen \Flagged) 或 ()
+        self.assertTrue(flags_value.startswith('(') and flags_value.endswith(')'),
+                       f"FLAGS must be parenthesized for PHP client (parseRawFlags expects array): {flags_value}")
+        
+        # 验证不包含裸标志（无括号的情况）
+        # 不应该出现 "FLAGS \Seen" 的情况，必须是 "FLAGS (\Seen)"
+        invalid_pattern = r'FLAGS\s+\\[A-Z][a-z]+(?!\s*\)|\s+\\[A-Z])'
+        self.assertNotRegex(fetch_response, invalid_pattern,
+                           f"FLAGS should not contain unparenthesized flags (PHP client compatibility): {fetch_response}")
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
