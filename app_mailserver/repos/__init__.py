@@ -17,7 +17,9 @@ from app_mailserver.repos.mailbox_repo import (
     get_mailboxes_by_account,
     get_or_create_mailbox,
     get_mailbox_by_id,
+    create_mailbox,
     update_mailbox,
+    delete_mailbox,
 )
 from app_mailserver.repos.mail_message_repo import (
     create_mail_message,
@@ -49,7 +51,9 @@ __all__ = [
     'get_mailboxes_by_account',
     'get_or_create_mailbox',
     'get_mailbox_by_id',
+    'create_mailbox',
     'update_mailbox',
+    'delete_mailbox',
     # Mail message
     'create_mail_message',
     'get_mail_message_by_id',
