@@ -10,6 +10,8 @@ from datetime import datetime
 from email.utils import formatdate
 from typing import Optional, List
 
+from asgiref.sync import sync_to_async
+
 from app_mailserver.config import get_app_config
 from app_mailserver.models.mail_account import MailAccount
 from app_mailserver.models.mail_message import MailMessage
@@ -66,6 +68,48 @@ class IMAPHandler:
             self.writer.close()
             await self.writer.wait_closed()
 
+    def _parse_imap_args(self, arg_string: str) -> List[str]:
+        """
+        Parse IMAP command arguments, handling quoted strings
+        
+        Args:
+            arg_string: Argument string after command name
+            
+        Returns:
+            List of parsed arguments
+        """
+        args = []
+        current_arg = []
+        in_quotes = False
+        quote_char = None
+        i = 0
+
+        while i < len(arg_string):
+            char = arg_string[i]
+
+            if char in ('"', "'") and (i == 0 or arg_string[i - 1] != '\\'):
+                if not in_quotes:
+                    in_quotes = True
+                    quote_char = char
+                elif char == quote_char:
+                    in_quotes = False
+                    quote_char = None
+                # Don't include quote in result
+            elif char == ' ' and not in_quotes:
+                if current_arg:
+                    args.append(''.join(current_arg))
+                    current_arg = []
+            else:
+                current_arg.append(char)
+
+            i += 1
+
+        # Add last argument
+        if current_arg:
+            args.append(''.join(current_arg))
+
+        return args
+
     async def process_command(self, line: str):
         """Process IMAP command"""
         try:
@@ -76,8 +120,21 @@ class IMAPHandler:
                 return
 
             tag = parts[0]
-            command = parts[1].split()[0].upper() if len(parts) > 1 else ''
-            args = parts[1].split()[1:] if len(parts) > 1 and len(parts[1].split()) > 1 else []
+
+            if len(parts) < 2:
+                command = ''
+                args = []
+            else:
+                remaining = parts[1]
+                # Find command (first word)
+                first_space = remaining.find(' ')
+                if first_space == -1:
+                    command = remaining.upper()
+                    args = []
+                else:
+                    command = remaining[:first_space].upper()
+                    arg_string = remaining[first_space + 1:]
+                    args = self._parse_imap_args(arg_string)
 
             # Route command
             if command == 'CAPABILITY':
@@ -116,25 +173,40 @@ class IMAPHandler:
         await self.send_response(f'{tag} OK Capability completed')
 
     async def handle_login(self, tag: str, args: List[str]):
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"[handle_login] args: {args}")
+
         """Handle LOGIN command"""
         if len(args) < 2:
             await self.send_response(f'{tag} BAD Login command requires username and password')
             return
 
-        username = args[0]
-        password = args[1]
+        # Remove quotes from username and password if present (IMAP string format)
+        username = args[0].strip('"\'')
+        password = args[1].strip('"\'')
 
         try:
-            account = get_account_by_username(username, is_active=True)
+            account = await sync_to_async(get_account_by_username)(username, is_active=True)
 
-            if account and (not account.password or account.password == password):
+            if not account:
+                await self.send_response(f'{tag} NO Login failed: account not found')
+                logger.warning(f"[handle_login] Account not found: {username}")
+                return
+
+            # Check password: account.password must exist and match
+            if not account.password:
+                await self.send_response(f'{tag} NO Login failed: account has no password set')
+                logger.warning(f"[handle_login] Account has no password: {username}")
+                return
+
+            if account.password == password:
                 self.account = account
                 self.authenticated = True
                 await self.send_response(f'{tag} OK Login successful')
                 logger.info(f"[handle_login] User logged in: {username}")
             else:
                 await self.send_response(f'{tag} NO Login failed: authentication failed')
-                logger.warning(f"[handle_login] Login failed for: {username}")
+                logger.warning(f"[handle_login] Login failed for: {username} (password mismatch)")
 
         except Exception as e:
             logger.exception(f"[handle_login] Error during login: {e}")
@@ -153,7 +225,7 @@ class IMAPHandler:
         mailbox_name = args[0].strip('"')
 
         try:
-            mailbox = get_mailbox_by_account_and_path(self.account.id, mailbox_name)
+            mailbox = await sync_to_async(get_mailbox_by_account_and_path)(self.account.id, mailbox_name)
 
             if not mailbox:
                 await self.send_response(f'{tag} NO Mailbox does not exist')
@@ -162,8 +234,8 @@ class IMAPHandler:
             self.selected_mailbox = mailbox
 
             # Get message count
-            message_count = count_messages_by_mailbox(mailbox.id)
-            recent_count = count_unread_messages_by_mailbox(mailbox.id)
+            message_count = await sync_to_async(count_messages_by_mailbox)(mailbox.id)
+            recent_count = await sync_to_async(count_unread_messages_by_mailbox)(mailbox.id)
 
             # Send mailbox status
             await self.send_response(f'* {message_count} EXISTS')
@@ -185,7 +257,7 @@ class IMAPHandler:
             return
 
         try:
-            mailboxes = get_mailboxes_by_account(self.account.id)
+            mailboxes = await sync_to_async(get_mailboxes_by_account)(self.account.id)
 
             for mailbox in mailboxes:
                 # Format: * LIST (\HasNoChildren) "/" "INBOX"
@@ -212,7 +284,7 @@ class IMAPHandler:
 
         try:
             # Get messages
-            messages = get_messages_by_mailbox(
+            messages = await sync_to_async(get_messages_by_mailbox)(
                 self.selected_mailbox.id,
                 order_by='mt'
             )
@@ -248,7 +320,7 @@ class IMAPHandler:
 
             if 'BODY[]' in data_items or 'RFC822' in data_items:
                 # Full message
-                body = self._build_rfc822_message(message)
+                body = await self._build_rfc822_message(message)
                 response_parts.append(f'BODY[] {{{len(body)}}}')
                 await self.send_response(f'* {message.id} FETCH ({", ".join(response_parts)})')
                 await self.send_data(body)
@@ -277,7 +349,7 @@ class IMAPHandler:
         except Exception as e:
             logger.exception(f"[send_fetch_response] Error sending fetch response: {e}")
 
-    def _build_rfc822_message(self, message: MailMessage) -> str:
+    async def _build_rfc822_message(self, message: MailMessage) -> str:
         """Build RFC822 formatted message"""
         lines = []
         lines.append(f'Message-ID: {message.message_id}')
@@ -303,7 +375,8 @@ class IMAPHandler:
             lines.append('')
             lines.append(message.html_body)
         # Add attachments
-        for attachment in get_attachments_by_message(message.id):
+        attachments = await sync_to_async(get_attachments_by_message)(message.id)
+        for attachment in attachments:
             # Convert enum ID to MIME type string
             try:
                 content_type_enum = ContentTypeEnum(attachment.content_type)
@@ -339,7 +412,7 @@ class IMAPHandler:
             return
 
         try:
-            messages = get_messages_by_mailbox(
+            messages = await sync_to_async(get_messages_by_mailbox)(
                 self.selected_mailbox.id,
                 order_by='date'
             )
@@ -376,7 +449,7 @@ class IMAPHandler:
             if '+FLAGS' in flags:
                 # Add flags
                 if '\\Seen' in flags:
-                    update_message_read_status(
+                    await sync_to_async(update_message_read_status)(
                         self.selected_mailbox.id,
                         int(sequence),
                         is_read=True
@@ -384,7 +457,7 @@ class IMAPHandler:
             elif '-FLAGS' in flags:
                 # Remove flags
                 if '\\Seen' in flags:
-                    update_message_read_status(
+                    await sync_to_async(update_message_read_status)(
                         self.selected_mailbox.id,
                         int(sequence),
                         is_read=False

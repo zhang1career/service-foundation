@@ -9,6 +9,8 @@ from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import SMTP, Session, Envelope
 from typing import Optional
 
+from asgiref.sync import sync_to_async
+
 from app_mailserver.config import get_app_config
 from app_mailserver.models.mail_account import MailAccount
 from app_mailserver.repos import (
@@ -52,13 +54,13 @@ class SMTPHandler:
             recipient = envelope.rcpt_tos[0]  # Use first recipient for now
 
             # Find or create mail account for recipient
-            account = self._get_or_create_account(recipient)
+            account = await self._get_or_create_account(recipient)
 
             # Get email data
             email_data = envelope.content
 
             # Store email in INBOX
-            mail_message = self.storage_service.store_mail(
+            mail_message = await sync_to_async(self.storage_service.store_mail)(
                 account=account,
                 mailbox_name='INBOX',
                 email_data=email_data,
@@ -74,7 +76,7 @@ class SMTPHandler:
             logger.exception(f"[handle_DATA] Failed to process email: {e}")
             return '550 Error processing message'
 
-    def _get_or_create_account(self, email_address: str) -> MailAccount:
+    async def _get_or_create_account(self, email_address: str) -> MailAccount:
         """Get or create mail account for email address"""
         try:
             # Extract domain from email
@@ -85,19 +87,19 @@ class SMTPHandler:
                 domain = 'localhost'
 
             # Try to get existing account
-            account = get_account_by_username_any(email_address)
+            account = await sync_to_async(get_account_by_username_any)(email_address)
 
             if not account:
                 # Create new account
                 import time
                 now = int(time.time() * 1000)
-                account = create_account(
+                account = await sync_to_async(create_account)(
                     username=email_address,
                     password='',  # No password for incoming mail
                     domain=domain,
                     is_active=True,
                     ct=now,
-                    dt=now
+                    ut=now
                 )
                 logger.info(f"[_get_or_create_account] Created new account: {email_address}")
 
