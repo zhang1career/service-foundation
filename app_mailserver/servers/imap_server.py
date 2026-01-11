@@ -545,6 +545,8 @@ class IMAPHandler:
             await self.handle_uid_search(tag, sub_args)
         elif subcommand == 'FETCH':
             await self.handle_uid_fetch(tag, sub_args)
+        elif subcommand == 'STORE':
+            await self.handle_uid_store(tag, sub_args)
         else:
             await self.send_response(f'{tag} BAD UID subcommand not supported: {subcommand}')
 
@@ -764,6 +766,84 @@ class IMAPHandler:
         except Exception as e:
             logger.exception(f"[handle_uid_fetch] Error in UID FETCH: {e}")
             await self.send_response(f'{tag} NO UID FETCH failed: {str(e)}')
+
+    async def handle_uid_store(self, tag: str, args: List[str]):
+        """Handle UID STORE command"""
+        if not self.authenticated or not self.selected_mailbox:
+            await self.send_response(f'{tag} NO Not authenticated or no mailbox selected')
+            return
+
+        if len(args) < 2:
+            await self.send_response(f'{tag} BAD UID STORE command requires UID sequence and flags')
+            return
+
+        uid_sequence = args[0]
+        flags = ' '.join(args[1:])
+
+        try:
+            # Get all messages for the mailbox
+            messages = await sync_to_async(get_messages_by_mailbox)(
+                self.selected_mailbox.id,
+                order_by='mt'
+            )
+
+            # Parse UID sequence
+            if uid_sequence == '*':
+                # * means last message (if messages exist)
+                if not messages:
+                    await self.send_response(f'{tag} OK UID STORE completed')
+                    return
+                matching_uids = [messages[-1].id]
+            else:
+                uid_list = self._parse_uid_sequence(uid_sequence)
+                if not uid_list:
+                    await self.send_response(f'{tag} BAD Invalid UID sequence')
+                    return
+
+                # Check if mailbox is empty
+                if not messages:
+                    await self.send_response(f'{tag} OK UID STORE completed')
+                    return
+
+                # Handle range with * (e.g., "2:*")
+                if len(uid_list) == 2 and uid_list[1] == -1:
+                    # Range from start_uid to highest UID
+                    start_uid = uid_list[0]
+                    matching_uids = [msg.id for msg in messages if msg.id >= start_uid]
+                else:
+                    # Find matching UIDs
+                    uid_set = set(uid_list)
+                    matching_uids = [msg.id for msg in messages if msg.id in uid_set]
+
+            if not matching_uids:
+                await self.send_response(f'{tag} OK UID STORE completed')
+                return
+
+            # Parse flags and update messages
+            if '+FLAGS' in flags:
+                # Add flags
+                if '\\Seen' in flags:
+                    for uid in matching_uids:
+                        await sync_to_async(update_message_read_status)(
+                            self.selected_mailbox.id,
+                            uid,
+                            is_read=True
+                        )
+            elif '-FLAGS' in flags:
+                # Remove flags
+                if '\\Seen' in flags:
+                    for uid in matching_uids:
+                        await sync_to_async(update_message_read_status)(
+                            self.selected_mailbox.id,
+                            uid,
+                            is_read=False
+                        )
+
+            await self.send_response(f'{tag} OK UID STORE completed')
+
+        except Exception as e:
+            logger.exception(f"[handle_uid_store] Error in UID STORE: {e}")
+            await self.send_response(f'{tag} NO UID STORE failed: {str(e)}')
 
     async def handle_logout(self, tag: str):
         """Handle LOGOUT command"""
