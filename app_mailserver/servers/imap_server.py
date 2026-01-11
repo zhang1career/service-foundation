@@ -154,6 +154,8 @@ class IMAPHandler:
                 await self.handle_uid(tag, args)
             elif command == 'LOGOUT':
                 await self.handle_logout(tag)
+            elif command == 'NOOP':
+                await self.handle_noop(tag)
             else:
                 await self.send_response(f'{tag} BAD Unknown command, command={command}, args={args}')
 
@@ -330,8 +332,26 @@ class IMAPHandler:
             # Build response based on data items
             response_parts = []
 
-            if 'BODY[]' in data_items or 'RFC822' in data_items:
-                # Full message
+            # Check for RFC822.HEADER and RFC822.TEXT first (more specific)
+            # to avoid matching 'RFC822' in 'RFC822.HEADER' or 'RFC822.TEXT'
+            if 'RFC822.HEADER' in data_items:
+                # Headers only
+                headers = self._build_rfc822_headers(message)
+                response_parts.append(f'RFC822.HEADER {{{len(headers)}}}')
+                if include_uid:
+                    response_parts.insert(0, f'UID {message.id}')
+                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
+                await self.send_data(headers)
+            elif 'RFC822.TEXT' in data_items or 'BODY[TEXT]' in data_items:
+                # Body text only
+                body_text = await self._build_rfc822_body(message)
+                response_parts.append(f'RFC822.TEXT {{{len(body_text)}}}')
+                if include_uid:
+                    response_parts.insert(0, f'UID {message.id}')
+                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
+                await self.send_data(body_text)
+            elif 'BODY[]' in data_items or 'RFC822' in data_items:
+                # Full message (must check after RFC822.HEADER and RFC822.TEXT)
                 body = await self._build_rfc822_message(message)
                 response_parts.append(f'BODY[] {{{len(body)}}}')
                 if include_uid:
@@ -369,8 +389,8 @@ class IMAPHandler:
         except Exception as e:
             logger.exception(f"[send_fetch_response] Error sending fetch response: {e}")
 
-    async def _build_rfc822_message(self, message: MailMessage) -> str:
-        """Build RFC822 formatted message"""
+    def _build_rfc822_headers(self, message: MailMessage) -> str:
+        """Build RFC822 formatted headers only"""
         lines = [f'Message-ID: {message.message_id}', f'From: {message.from_address}', f'To: {message.to_addresses}']
         if message.cc_addresses:
             lines.append(f'Cc: {message.cc_addresses}')
@@ -380,7 +400,12 @@ class IMAPHandler:
         lines.append(f'Date: {formatdate(date_dt.timestamp())}')
         lines.append('MIME-Version: 1.0')
         lines.append('Content-Type: multipart/mixed; boundary="boundary"')
-        lines.append('')
+        lines.append('')  # Empty line to separate headers from body
+        return '\r\n'.join(lines)
+
+    async def _build_rfc822_body(self, message: MailMessage) -> str:
+        """Build RFC822 formatted body only"""
+        lines = []
         lines.append('--boundary')
         if message.text_body:
             lines.append('Content-Type: text/plain; charset=utf-8')
@@ -411,6 +436,12 @@ class IMAPHandler:
             lines.append('[Attachment data]')
         lines.append('--boundary--')
         return '\r\n'.join(lines)
+
+    async def _build_rfc822_message(self, message: MailMessage) -> str:
+        """Build RFC822 formatted message"""
+        headers = self._build_rfc822_headers(message)
+        body = await self._build_rfc822_body(message)
+        return headers + body
 
     def _build_body_structure(self, message: MailMessage) -> str:
         """Build BODYSTRUCTURE response"""
@@ -700,14 +731,24 @@ class IMAPHandler:
         await self.send_response(f'{tag} OK Logout completed')
         self.writer.close()
 
+    async def handle_noop(self, tag: str):
+        """Handle NOOP command (No Operation - keep connection alive)"""
+        await self.send_response(f'{tag} OK NOOP completed')
+
     async def send_response(self, response: str):
         """Send IMAP response"""
         self.writer.write(f'{response}\r\n'.encode('utf-8'))
         await self.writer.drain()
 
     async def send_data(self, data: str):
-        """Send data (for FETCH BODY[])"""
+        """Send data (for FETCH BODY[])
+        
+        According to IMAP protocol (RFC 3501), literal data must be followed by \r\n
+        to properly terminate the literal.
+        """
         self.writer.write(data.encode('utf-8'))
+        # IMAP literal data must be followed by \r\n to terminate the literal
+        self.writer.write(b'\r\n')
         await self.writer.drain()
 
 

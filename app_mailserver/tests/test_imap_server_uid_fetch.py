@@ -532,3 +532,228 @@ class TestIMAPServerUIDFetch(TransactionTestCase):
 
         ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
         self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_rfc822_header(self):
+        """测试 UID FETCH RFC822.HEADER 数据项（只获取邮件头部）"""
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            text_body='Test body content',
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(RFC822.HEADER)']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        # 应该包含 UID
+        self.assertIn('UID', fetch_response)
+        self.assertIn(str(msg.id), fetch_response)
+        # 应该包含 RFC822.HEADER
+        self.assertIn('RFC822.HEADER', fetch_response)
+
+        # 应该发送了头部数据
+        self.assertGreater(len(data_responses), 0)
+        header_data = data_responses[0]
+        # 验证头部数据包含邮件头部信息
+        self.assertIn('Message-ID', header_data)
+        self.assertIn('From', header_data)
+        self.assertIn('To', header_data)
+        self.assertIn('Subject', header_data)
+        # 头部数据应该以空行结束（\r\n）
+        self.assertTrue(header_data.endswith('\r\n'))
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_rfc822_text(self):
+        """测试 UID FETCH RFC822.TEXT 数据项（只获取邮件正文）"""
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            text_body='Test body content',
+            html_body='<html>Test HTML</html>',
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(RFC822.TEXT)']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        # 应该包含 UID
+        self.assertIn('UID', fetch_response)
+        self.assertIn(str(msg.id), fetch_response)
+        # 应该包含 RFC822.TEXT
+        self.assertIn('RFC822.TEXT', fetch_response)
+
+        # 应该发送了正文数据
+        self.assertGreater(len(data_responses), 0)
+        text_data = data_responses[0]
+        # 验证正文数据包含邮件正文内容
+        self.assertIn('--boundary', text_data)
+        self.assertIn('Test body content', text_data)
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_uid_fetch_body_text(self):
+        """测试 UID FETCH BODY[TEXT] 数据项（iCloud 格式）"""
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            text_body='Test body content',
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(BODY[TEXT])']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证响应
+        fetch_responses = self._filter_fetch_responses(responses)
+        self.assertEqual(len(fetch_responses), 1)
+
+        fetch_response = fetch_responses[0]
+        # 应该包含 UID
+        self.assertIn('UID', fetch_response)
+        self.assertIn(str(msg.id), fetch_response)
+        # 应该包含 RFC822.TEXT（BODY[TEXT] 会被映射为 RFC822.TEXT）
+        self.assertIn('RFC822.TEXT', fetch_response)
+
+        # 应该发送了正文数据
+        self.assertGreater(len(data_responses), 0)
+
+        ok_responses = [r for r in responses if 'OK UID FETCH completed' in r]
+        self.assertEqual(len(ok_responses), 1)
+
+    def test_literal_data_termination(self):
+        """测试 literal 数据后面有正确的 \r\n 终止符"""
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Message',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            text_body='Test body',
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        
+        # 捕获实际写入的原始数据
+        written_data = []
+        original_write = handler.writer.write
+        
+        def capture_write(data):
+            written_data.append(data)
+            original_write(data)
+        
+        handler.writer.write = capture_write
+        
+        args = [str(msg.id), '(BODY[])']
+        responses, _ = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证发送的数据
+        # send_data 会调用 write 两次：一次写入数据，一次写入 \r\n
+        # 所以应该至少有两个 write 调用：一个发送响应行，两个发送 literal 数据（数据 + \r\n）
+        self.assertGreater(len(written_data), 2)
+        
+        # 查找包含 literal 数据的写入（BODY[] 数据）
+        # literal 数据应该在写入操作中
+        literal_write_index = None
+        for i, data in enumerate(written_data):
+            if isinstance(data, bytes) and b'Test body' in data:
+                literal_write_index = i
+                break
+        
+        self.assertIsNotNone(literal_write_index, "Should find literal data write")
+        
+        # 验证 literal 数据后面有 \r\n
+        # send_data 方法会先写入数据，然后写入 \r\n
+        # 所以下一个 write 调用应该是 \r\n
+        if literal_write_index + 1 < len(written_data):
+            next_write = written_data[literal_write_index + 1]
+            self.assertEqual(next_write, b'\r\n', 
+                           f"Literal data should be followed by \\r\\n, but next write is: {next_write}")
+        else:
+            # 如果没有下一个 write，检查数据本身是否以 \r\n 结尾
+            literal_data = written_data[literal_write_index]
+            self.assertTrue(literal_data.endswith(b'\r\n'), 
+                           f"Literal data should end with \\r\\n, but ends with: {literal_data[-10:]}")
+
+    def test_fetch_rfc822_header_format(self):
+        """测试 RFC822.HEADER 返回的数据格式正确"""
+        msg = MailMessage.objects.using('mailserver_rw').create(
+            account_id=self.test_account.id,
+            mailbox_id=self.test_mailbox.id,
+            message_id='<msg@example.com>',
+            subject='Test Subject',
+            from_address='sender@example.com',
+            to_addresses='recipient@example.com',
+            cc_addresses='cc@example.com',
+            text_body='Body should not be in header',
+            mt=int(time.time() * 1000),
+            size=100,
+            ct=int(time.time() * 1000),
+            ut=int(time.time() * 1000)
+        )
+
+        handler = self._create_handler()
+        args = [str(msg.id), '(RFC822.HEADER)']
+
+        responses, data_responses = asyncio.run(self._run_uid_fetch_test(handler, args))
+
+        # 验证头部数据
+        self.assertGreater(len(data_responses), 0)
+        header_data = data_responses[0]
+        
+        # 验证包含头部字段
+        self.assertIn('Message-ID: <msg@example.com>', header_data)
+        self.assertIn('From: sender@example.com', header_data)
+        self.assertIn('To: recipient@example.com', header_data)
+        self.assertIn('Subject: Test Subject', header_data)
+        self.assertIn('Cc: cc@example.com', header_data)
+        
+        # 验证不包含正文内容
+        self.assertNotIn('Body should not be in header', header_data)
+        
+        # 验证头部以空行结束（\r\n）
+        self.assertTrue(header_data.endswith('\r\n'))
