@@ -6,11 +6,10 @@ and attachment retrieval from OSS.
 """
 import asyncio
 import logging
-from datetime import datetime
+from asgiref.sync import sync_to_async
+from datetime import datetime, timezone
 from email.utils import formatdate
 from typing import Optional, List
-
-from asgiref.sync import sync_to_async
 
 from app_mailserver.config import get_app_config
 from app_mailserver.models.mail_account import MailAccount
@@ -151,10 +150,12 @@ class IMAPHandler:
                 await self.handle_search(tag, args)
             elif command == 'STORE':
                 await self.handle_store(tag, args)
+            elif command == 'UID':
+                await self.handle_uid(tag, args)
             elif command == 'LOGOUT':
                 await self.handle_logout(tag)
             else:
-                await self.send_response(f'{tag} BAD Unknown command')
+                await self.send_response(f'{tag} BAD Unknown command, command={command}, args={args}')
 
         except Exception as e:
             logger.exception(f"[process_command] Error processing command: {e}")
@@ -312,9 +313,20 @@ class IMAPHandler:
             logger.exception(f"[handle_fetch] Error fetching message: {e}")
             await self.send_response(f'{tag} NO Fetch failed: {str(e)}')
 
-    async def send_fetch_response(self, message: MailMessage, data_items: str):
-        """Send FETCH response for a message"""
+    async def send_fetch_response(self, message: MailMessage, data_items: str, sequence_num: Optional[int] = None, include_uid: bool = False):
+        """
+        Send FETCH response for a message
+        
+        Args:
+            message: MailMessage object
+            data_items: Data items to include in response
+            sequence_num: Optional sequence number to use in response (defaults to message.id)
+            include_uid: Whether to include UID in the response (for UID FETCH)
+        """
         try:
+            # Use provided sequence number or message.id as default
+            seq = sequence_num if sequence_num is not None else message.id
+            
             # Build response based on data items
             response_parts = []
 
@@ -322,13 +334,17 @@ class IMAPHandler:
                 # Full message
                 body = await self._build_rfc822_message(message)
                 response_parts.append(f'BODY[] {{{len(body)}}}')
-                await self.send_response(f'* {message.id} FETCH ({", ".join(response_parts)})')
+                if include_uid:
+                    response_parts.insert(0, f'UID {message.id}')
+                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
                 await self.send_data(body)
             elif 'BODYSTRUCTURE' in data_items:
                 # Body structure
                 structure = self._build_body_structure(message)
                 response_parts.append(f'BODYSTRUCTURE {structure}')
-                await self.send_response(f'* {message.id} FETCH ({", ".join(response_parts)})')
+                if include_uid:
+                    response_parts.insert(0, f'UID {message.id}')
+                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
             else:
                 # Basic headers
                 flags = []
@@ -343,18 +359,19 @@ class IMAPHandler:
                 date_dt = datetime.utcfromtimestamp(message.mt / 1000.0)
                 response_parts.append(f'INTERNALDATE "{date_dt.strftime("%d-%b-%Y %H:%M:%S +0000")}"')
                 response_parts.append(f'RFC822.SIZE {message.size}')
+                
+                # Include UID at the beginning if requested
+                if include_uid:
+                    response_parts.insert(0, f'UID {message.id}')
 
-                await self.send_response(f'* {message.id} FETCH ({", ".join(response_parts)})')
+                await self.send_response(f'* {seq} FETCH ({", ".join(response_parts)})')
 
         except Exception as e:
             logger.exception(f"[send_fetch_response] Error sending fetch response: {e}")
 
     async def _build_rfc822_message(self, message: MailMessage) -> str:
         """Build RFC822 formatted message"""
-        lines = []
-        lines.append(f'Message-ID: {message.message_id}')
-        lines.append(f'From: {message.from_address}')
-        lines.append(f'To: {message.to_addresses}')
+        lines = [f'Message-ID: {message.message_id}', f'From: {message.from_address}', f'To: {message.to_addresses}']
         if message.cc_addresses:
             lines.append(f'Cc: {message.cc_addresses}')
         lines.append(f'Subject: {message.subject}')
@@ -468,6 +485,214 @@ class IMAPHandler:
         except Exception as e:
             logger.exception(f"[handle_store] Error storing flags: {e}")
             await self.send_response(f'{tag} NO Store failed: {str(e)}')
+
+    async def handle_uid(self, tag: str, args: List[str]):
+        """Handle UID command"""
+        if not self.authenticated or not self.selected_mailbox:
+            await self.send_response(f'{tag} NO Not authenticated or no mailbox selected')
+            return
+
+        if not args:
+            await self.send_response(f'{tag} BAD UID command requires subcommand')
+            return
+
+        subcommand = args[0].upper()
+        sub_args = args[1:]
+
+        if subcommand == 'SEARCH':
+            await self.handle_uid_search(tag, sub_args)
+        elif subcommand == 'FETCH':
+            await self.handle_uid_fetch(tag, sub_args)
+        else:
+            await self.send_response(f'{tag} BAD UID subcommand not supported: {subcommand}')
+
+    def _parse_uid_sequence(self, uid_seq: str) -> List[int]:
+        """
+        Parse UID sequence (e.g., "2", "2:2", "2:5", "*")
+        
+        Args:
+            uid_seq: UID sequence string
+            
+        Returns:
+            List of UID integers, or empty list if invalid
+        """
+        if uid_seq == '*':
+            # * means last UID (will be handled separately)
+            return []
+        
+        if ':' in uid_seq:
+            # Range format: "2:5" or "2:*"
+            parts = uid_seq.split(':', 1)
+            try:
+                start_uid = int(parts[0])
+                if parts[1] == '*':
+                    # "2:*" means from 2 to the highest UID
+                    return [start_uid, -1]  # Use -1 to indicate "*"
+                else:
+                    end_uid = int(parts[1])
+                    # Return range as list
+                    return list(range(start_uid, end_uid + 1))
+            except ValueError:
+                return []
+        else:
+            # Single UID
+            try:
+                return [int(uid_seq)]
+            except ValueError:
+                return []
+
+    def _parse_imap_date(self, date_str: str) -> Optional[datetime]:
+        """
+        Parse IMAP date format (dd-MMM-yyyy) to datetime (UTC)
+        
+        Args:
+            date_str: Date string in IMAP format (e.g., "08-Jan-2026")
+            
+        Returns:
+            datetime object in UTC or None if parsing fails
+        """
+        try:
+            # IMAP date format: dd-MMM-yyyy (e.g., "08-Jan-2026")
+            # Parse as UTC time (IMAP dates are typically in UTC)
+            dt = datetime.strptime(date_str, '%d-%b-%Y')
+            # Set to UTC timezone (mail timestamps are stored in UTC)
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            logger.warning(f"[_parse_imap_date] Failed to parse date: {date_str}")
+            return None
+
+    async def handle_uid_search(self, tag: str, args: List[str]):
+        """Handle UID SEARCH command"""
+        try:
+            # Get all messages for the mailbox
+            messages = await sync_to_async(get_messages_by_mailbox)(
+                self.selected_mailbox.id,
+                order_by='mt'
+            )
+
+            # Parse search criteria
+            i = 0
+
+            while i < len(args):
+                criterion = args[i].upper()
+
+                if criterion == 'SINCE':
+                    # SINCE <date>: messages with date >= date
+                    if i + 1 >= len(args):
+                        await self.send_response(f'{tag} BAD SINCE requires a date')
+                        return
+
+                    date_str = args[i + 1]
+                    since_date = self._parse_imap_date(date_str)
+                    if since_date is None:
+                        await self.send_response(f'{tag} BAD Invalid date format: {date_str}')
+                        return
+
+                    # Convert to timestamp (milliseconds) at start of the day
+                    since_timestamp = int(since_date.timestamp() * 1000)
+
+                    # Filter messages
+                    filtered_messages = []
+                    for msg in messages:
+                        if msg.mt >= since_timestamp:
+                            filtered_messages.append(msg)
+                    messages = filtered_messages
+                    i += 2
+
+                elif criterion == 'UNSEEN':
+                    # UNSEEN: messages that are not read
+                    filtered_messages = []
+                    for msg in messages:
+                        if not msg.is_read:
+                            filtered_messages.append(msg)
+                    messages = filtered_messages
+                    i += 1
+
+                else:
+                    # Unknown criterion, skip it
+                    logger.warning(f"[handle_uid_search] Unknown search criterion: {criterion}")
+                    i += 1
+
+            # Extract UIDs (in this implementation, UID is the message ID)
+            matching_uids = [str(msg.id) for msg in messages]
+
+            # Send response
+            if matching_uids:
+                await self.send_response(f'* SEARCH {" ".join(matching_uids)}')
+            else:
+                await self.send_response('* SEARCH')
+
+            await self.send_response(f'{tag} OK UID SEARCH completed')
+
+        except Exception as e:
+            logger.exception(f"[handle_uid_search] Error in UID SEARCH: {e}")
+            await self.send_response(f'{tag} NO UID SEARCH failed: {str(e)}')
+
+    async def handle_uid_fetch(self, tag: str, args: List[str]):
+        """Handle UID FETCH command"""
+        if not self.authenticated or not self.selected_mailbox:
+            await self.send_response(f'{tag} NO Not authenticated or no mailbox selected')
+            return
+
+        if len(args) < 2:
+            await self.send_response(f'{tag} BAD UID FETCH command requires UID sequence and data items')
+            return
+
+        uid_sequence = args[0]
+        data_items = ' '.join(args[1:])
+
+        try:
+            # Get all messages for the mailbox
+            messages = await sync_to_async(get_messages_by_mailbox)(
+                self.selected_mailbox.id,
+                order_by='mt'
+            )
+
+            # Parse UID sequence first to validate it (before checking if mailbox is empty)
+            if uid_sequence == '*':
+                # * means last message (if messages exist)
+                if not messages:
+                    await self.send_response(f'{tag} OK UID FETCH completed')
+                    return
+                matching_messages = [messages[-1]]
+            else:
+                uid_list = self._parse_uid_sequence(uid_sequence)
+                if not uid_list:
+                    await self.send_response(f'{tag} BAD Invalid UID sequence')
+                    return
+
+                # Check if mailbox is empty (after validating UID sequence)
+                if not messages:
+                    await self.send_response(f'{tag} OK UID FETCH completed')
+                    return
+
+                # Handle range with * (e.g., "2:*")
+                if len(uid_list) == 2 and uid_list[1] == -1:
+                    # Range from start_uid to highest UID
+                    start_uid = uid_list[0]
+                    matching_messages = [msg for msg in messages if msg.id >= start_uid]
+                else:
+                    # Find messages matching UIDs
+                    uid_set = set(uid_list)
+                    matching_messages = [msg for msg in messages if msg.id in uid_set]
+
+            if not matching_messages:
+                await self.send_response(f'{tag} OK UID FETCH completed')
+                return
+
+            # Create a mapping of message ID to sequence number (1-based index)
+            msg_id_to_seq = {msg.id: idx + 1 for idx, msg in enumerate(messages)}
+
+            # Fetch message data
+            for msg in matching_messages:
+                sequence_num = msg_id_to_seq.get(msg.id, msg.id)
+                await self.send_fetch_response(msg, data_items, sequence_num=sequence_num, include_uid=True)
+
+            await self.send_response(f'{tag} OK UID FETCH completed')
+
+        except Exception as e:
+            logger.exception(f"[handle_uid_fetch] Error in UID FETCH: {e}")
+            await self.send_response(f'{tag} NO UID FETCH failed: {str(e)}')
 
     async def handle_logout(self, tag: str):
         """Handle LOGOUT command"""
