@@ -6,11 +6,10 @@ and attachment retrieval from OSS.
 """
 import asyncio
 import logging
-from datetime import datetime
+from asgiref.sync import sync_to_async
+from datetime import datetime, timezone
 from email.utils import formatdate
 from typing import Optional, List
-
-from asgiref.sync import sync_to_async
 
 from app_mailserver.config import get_app_config
 from app_mailserver.models.mail_account import MailAccount
@@ -25,6 +24,7 @@ from app_mailserver.repos import (
     count_unread_messages_by_mailbox,
     update_message_read_status,
     get_attachments_by_message,
+    get_or_create_mailbox,
 )
 from app_mailserver.services.mail_storage_service import MailStorageService
 from common.enums.content_type_enum import ContentTypeEnum
@@ -151,10 +151,16 @@ class IMAPHandler:
                 await self.handle_search(tag, args)
             elif command == 'STORE':
                 await self.handle_store(tag, args)
+            elif command == 'UID':
+                await self.handle_uid(tag, args)
             elif command == 'LOGOUT':
                 await self.handle_logout(tag)
+            elif command == 'NOOP':
+                await self.handle_noop(tag)
+            elif command == 'APPEND':
+                await self.handle_append(tag, args, line)
             else:
-                await self.send_response(f'{tag} BAD Unknown command')
+                await self.send_response(f'{tag} BAD Unknown command, command={command}, args={args}')
 
         except Exception as e:
             logger.exception(f"[process_command] Error processing command: {e}")
@@ -312,23 +318,128 @@ class IMAPHandler:
             logger.exception(f"[handle_fetch] Error fetching message: {e}")
             await self.send_response(f'{tag} NO Fetch failed: {str(e)}')
 
-    async def send_fetch_response(self, message: MailMessage, data_items: str):
-        """Send FETCH response for a message"""
+    async def send_fetch_response(self, message: MailMessage, data_items: str, sequence_num: Optional[int] = None, include_uid: bool = False):
+        """
+        Send FETCH response for a message
+        
+        Args:
+            message: MailMessage object
+            data_items: Data items to include in response
+            sequence_num: Optional sequence number to use in response (defaults to message.id)
+            include_uid: Whether to include UID in the response (for UID FETCH)
+        """
         try:
+            # Validate message object
+            if message is None:
+                logger.error("[send_fetch_response] Message is None")
+                return
+            
+            # Validate and ensure sequence number is a valid positive integer
+            # According to RFC 3501, sequence numbers must be positive integers (1-based)
+            if sequence_num is not None:
+                if not isinstance(sequence_num, int) or sequence_num < 1:
+                    logger.warning(f"[send_fetch_response] Invalid sequence_num: {sequence_num}, using message.id instead")
+                    seq = message.id if message.id and message.id > 0 else 1
+                else:
+                    seq = sequence_num
+            else:
+                # Use message.id as default, but ensure it's valid
+                if message.id is None or message.id < 1:
+                    logger.warning(f"[send_fetch_response] Invalid message.id: {message.id}, using 1 as fallback")
+                    seq = 1
+                else:
+                    seq = message.id
+            
+            # Final validation: ensure seq is a positive integer
+            if not isinstance(seq, int) or seq < 1:
+                logger.error(f"[send_fetch_response] Invalid sequence number after validation: {seq}, using 1 as fallback")
+                seq = 1
+            
             # Build response based on data items
             response_parts = []
 
-            if 'BODY[]' in data_items or 'RFC822' in data_items:
-                # Full message
+            # Check for RFC822.HEADER and RFC822.TEXT first (more specific)
+            # to avoid matching 'RFC822' in 'RFC822.HEADER' or 'RFC822.TEXT'
+            if 'RFC822.HEADER' in data_items:
+                # Headers only
+                headers = self._build_rfc822_headers(message)
+                response_parts.append(f'RFC822.HEADER {{{len(headers)}}}')
+                if include_uid:
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    # Format: "UID <integer>" - according to RFC 3501, UID should be a pure integer
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                fetch_response = f'* {seq} FETCH ({" ".join(response_parts)})'
+                # Validate response format before sending
+                if not self._validate_fetch_response_format(fetch_response):
+                    raise ValueError(f"Invalid FETCH response format: {fetch_response}")
+                await self.send_response(fetch_response)
+                await self.send_data(headers)
+            elif 'RFC822.TEXT' in data_items or 'BODY[TEXT]' in data_items:
+                # Body text only
+                body_text = await self._build_rfc822_body(message)
+                response_parts.append(f'RFC822.TEXT {{{len(body_text)}}}')
+                if include_uid:
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                fetch_response = f'* {seq} FETCH ({" ".join(response_parts)})'
+                # Validate response format before sending
+                if not self._validate_fetch_response_format(fetch_response):
+                    raise ValueError(f"Invalid FETCH response format: {fetch_response}")
+                await self.send_response(fetch_response)
+                await self.send_data(body_text)
+            elif 'BODY[]' in data_items or 'RFC822' in data_items:
+                # Full message (must check after RFC822.HEADER and RFC822.TEXT)
                 body = await self._build_rfc822_message(message)
                 response_parts.append(f'BODY[] {{{len(body)}}}')
-                await self.send_response(f'* {message.id} FETCH ({", ".join(response_parts)})')
+                if include_uid:
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                fetch_response = f'* {seq} FETCH ({" ".join(response_parts)})'
+                # Validate response format before sending
+                if not self._validate_fetch_response_format(fetch_response):
+                    raise ValueError(f"Invalid FETCH response format: {fetch_response}")
+                await self.send_response(fetch_response)
                 await self.send_data(body)
             elif 'BODYSTRUCTURE' in data_items:
                 # Body structure
                 structure = self._build_body_structure(message)
                 response_parts.append(f'BODYSTRUCTURE {structure}')
-                await self.send_response(f'* {message.id} FETCH ({", ".join(response_parts)})')
+                if include_uid:
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                fetch_response = f'* {seq} FETCH ({" ".join(response_parts)})'
+                # Validate response format before sending
+                if not self._validate_fetch_response_format(fetch_response):
+                    raise ValueError(f"Invalid FETCH response format: {fetch_response}")
+                await self.send_response(fetch_response)
+            elif 'FLAGS' in data_items:
+                # FLAGS only
+                flags = []
+                if message.is_read:
+                    flags.append('\\Seen')
+                if message.is_flagged:
+                    flags.append('\\Flagged')
+
+                # According to IMAP RFC 3501, FLAGS must always be returned as a parenthesized list
+                # Format: FLAGS (\Seen) or FLAGS (\Seen \Flagged) or FLAGS ()
+                flags_str = f'({" ".join(flags)})' if flags else '()'
+                response_parts.append(f'FLAGS {flags_str}')
+                
+                # Include UID at the beginning if requested
+                if include_uid:
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
+
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                fetch_response = f'* {seq} FETCH ({" ".join(response_parts)})'
+                # Validate response format before sending
+                if not self._validate_fetch_response_format(fetch_response):
+                    raise ValueError(f"Invalid FETCH response format: {fetch_response}")
+                await self.send_response(fetch_response)
             else:
                 # Basic headers
                 flags = []
@@ -337,24 +448,37 @@ class IMAPHandler:
                 if message.is_flagged:
                     flags.append('\\Flagged')
 
-                flags_str = ' '.join(flags) if flags else '()'
+                # According to IMAP RFC 3501, FLAGS must always be returned as a parenthesized list
+                # Format: FLAGS (\Seen) or FLAGS (\Seen \Flagged) or FLAGS ()
+                flags_str = f'({" ".join(flags)})' if flags else '()'
                 response_parts.append(f'FLAGS {flags_str}')
                 # Convert UNIX timestamp (milliseconds) to datetime for INTERNALDATE
                 date_dt = datetime.utcfromtimestamp(message.mt / 1000.0)
                 response_parts.append(f'INTERNALDATE "{date_dt.strftime("%d-%b-%Y %H:%M:%S +0000")}"')
                 response_parts.append(f'RFC822.SIZE {message.size}')
+                
+                # Include UID at the beginning if requested
+                if include_uid:
+                    # Ensure UID is formatted as integer (not string) for proper parsing by PHP client
+                    response_parts.insert(0, f'UID {int(message.id)}')
 
-                await self.send_response(f'* {message.id} FETCH ({", ".join(response_parts)})')
+                # According to RFC 3501, data items in FETCH response should be separated by spaces, not commas
+                fetch_response = f'* {seq} FETCH ({" ".join(response_parts)})'
+                # Validate response format before sending
+                if not self._validate_fetch_response_format(fetch_response):
+                    raise ValueError(f"Invalid FETCH response format: {fetch_response}")
+                await self.send_response(fetch_response)
 
         except Exception as e:
             logger.exception(f"[send_fetch_response] Error sending fetch response: {e}")
+            # Do not send any response if an error occurs to avoid sending malformed responses
+            # The calling method (handle_uid_fetch) will handle the error appropriately
+            # Re-raise the exception so the caller can handle it
+            raise
 
-    async def _build_rfc822_message(self, message: MailMessage) -> str:
-        """Build RFC822 formatted message"""
-        lines = []
-        lines.append(f'Message-ID: {message.message_id}')
-        lines.append(f'From: {message.from_address}')
-        lines.append(f'To: {message.to_addresses}')
+    def _build_rfc822_headers(self, message: MailMessage) -> str:
+        """Build RFC822 formatted headers only"""
+        lines = [f'Message-ID: {message.message_id}', f'From: {message.from_address}', f'To: {message.to_addresses}']
         if message.cc_addresses:
             lines.append(f'Cc: {message.cc_addresses}')
         lines.append(f'Subject: {message.subject}')
@@ -363,7 +487,12 @@ class IMAPHandler:
         lines.append(f'Date: {formatdate(date_dt.timestamp())}')
         lines.append('MIME-Version: 1.0')
         lines.append('Content-Type: multipart/mixed; boundary="boundary"')
-        lines.append('')
+        lines.append('')  # Empty line to separate headers from body
+        return '\r\n'.join(lines)
+
+    async def _build_rfc822_body(self, message: MailMessage) -> str:
+        """Build RFC822 formatted body only"""
+        lines = []
         lines.append('--boundary')
         if message.text_body:
             lines.append('Content-Type: text/plain; charset=utf-8')
@@ -394,6 +523,12 @@ class IMAPHandler:
             lines.append('[Attachment data]')
         lines.append('--boundary--')
         return '\r\n'.join(lines)
+
+    async def _build_rfc822_message(self, message: MailMessage) -> str:
+        """Build RFC822 formatted message"""
+        headers = self._build_rfc822_headers(message)
+        body = await self._build_rfc822_body(message)
+        return headers + body
 
     def _build_body_structure(self, message: MailMessage) -> str:
         """Build BODYSTRUCTURE response"""
@@ -469,20 +604,541 @@ class IMAPHandler:
             logger.exception(f"[handle_store] Error storing flags: {e}")
             await self.send_response(f'{tag} NO Store failed: {str(e)}')
 
+    async def handle_uid(self, tag: str, args: List[str]):
+        """Handle UID command"""
+        if not self.authenticated or not self.selected_mailbox:
+            await self.send_response(f'{tag} NO Not authenticated or no mailbox selected')
+            return
+
+        if not args:
+            await self.send_response(f'{tag} BAD UID command requires subcommand')
+            return
+
+        subcommand = args[0].upper()
+        sub_args = args[1:]
+
+        if subcommand == 'SEARCH':
+            await self.handle_uid_search(tag, sub_args)
+        elif subcommand == 'FETCH':
+            await self.handle_uid_fetch(tag, sub_args)
+        elif subcommand == 'STORE':
+            await self.handle_uid_store(tag, sub_args)
+        else:
+            await self.send_response(f'{tag} BAD UID subcommand not supported: {subcommand}')
+
+    def _parse_uid_sequence(self, uid_seq: str) -> List[int]:
+        """
+        Parse UID sequence (e.g., "2", "2:2", "2:5", "1,2,3", "*")
+        
+        Args:
+            uid_seq: UID sequence string
+            
+        Returns:
+            List of UID integers, or empty list if invalid
+        """
+        if uid_seq == '*':
+            # * means last UID (will be handled separately)
+            return []
+        
+        # Check for comma-separated list first (e.g., "1,2,3")
+        if ',' in uid_seq:
+            uid_list = []
+            for uid_str in uid_seq.split(','):
+                uid_str = uid_str.strip()
+                if not uid_str:
+                    continue
+                # Check if it's a range (e.g., "1:5" within comma list)
+                if ':' in uid_str:
+                    range_parts = uid_str.split(':', 1)
+                    try:
+                        start_uid = int(range_parts[0])
+                        if range_parts[1] == '*':
+                            # Range with * (e.g., "2:*")
+                            uid_list.append(start_uid)
+                            uid_list.append(-1)  # Use -1 to indicate "*"
+                        else:
+                            end_uid = int(range_parts[1])
+                            uid_list.extend(range(start_uid, end_uid + 1))
+                    except ValueError:
+                        continue
+                else:
+                    # Single UID
+                    try:
+                        uid_list.append(int(uid_str))
+                    except ValueError:
+                        continue
+            return uid_list
+        
+        if ':' in uid_seq:
+            # Range format: "2:5" or "2:*"
+            parts = uid_seq.split(':', 1)
+            try:
+                start_uid = int(parts[0])
+                if parts[1] == '*':
+                    # "2:*" means from 2 to the highest UID
+                    return [start_uid, -1]  # Use -1 to indicate "*"
+                else:
+                    end_uid = int(parts[1])
+                    # Return range as list
+                    return list(range(start_uid, end_uid + 1))
+            except ValueError:
+                return []
+        else:
+            # Single UID
+            try:
+                return [int(uid_seq)]
+            except ValueError:
+                return []
+
+    def _parse_imap_date(self, date_str: str) -> Optional[datetime]:
+        """
+        Parse IMAP date format (dd-MMM-yyyy) to datetime (UTC)
+        
+        Args:
+            date_str: Date string in IMAP format (e.g., "08-Jan-2026")
+            
+        Returns:
+            datetime object in UTC or None if parsing fails
+        """
+        try:
+            # IMAP date format: dd-MMM-yyyy (e.g., "08-Jan-2026")
+            # Parse as UTC time (IMAP dates are typically in UTC)
+            dt = datetime.strptime(date_str, '%d-%b-%Y')
+            # Set to UTC timezone (mail timestamps are stored in UTC)
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            logger.warning(f"[_parse_imap_date] Failed to parse date: {date_str}")
+            return None
+
+    async def handle_uid_search(self, tag: str, args: List[str]):
+        """Handle UID SEARCH command"""
+        try:
+            # Get all messages for the mailbox
+            messages = await sync_to_async(get_messages_by_mailbox)(
+                self.selected_mailbox.id,
+                order_by='mt'
+            )
+
+            # Parse search criteria
+            i = 0
+
+            while i < len(args):
+                criterion = args[i].upper()
+
+                if criterion == 'SINCE':
+                    # SINCE <date>: messages with date >= date
+                    if i + 1 >= len(args):
+                        await self.send_response(f'{tag} BAD SINCE requires a date')
+                        return
+
+                    date_str = args[i + 1]
+                    since_date = self._parse_imap_date(date_str)
+                    if since_date is None:
+                        await self.send_response(f'{tag} BAD Invalid date format: {date_str}')
+                        return
+
+                    # Convert to timestamp (milliseconds) at start of the day
+                    since_timestamp = int(since_date.timestamp() * 1000)
+
+                    # Filter messages
+                    filtered_messages = []
+                    for msg in messages:
+                        if msg.mt >= since_timestamp:
+                            filtered_messages.append(msg)
+                    messages = filtered_messages
+                    i += 2
+
+                elif criterion == 'UNSEEN':
+                    # UNSEEN: messages that are not read
+                    filtered_messages = []
+                    for msg in messages:
+                        if not msg.is_read:
+                            filtered_messages.append(msg)
+                    messages = filtered_messages
+                    i += 1
+
+                else:
+                    # Unknown criterion, skip it
+                    logger.warning(f"[handle_uid_search] Unknown search criterion: {criterion}")
+                    i += 1
+
+            # Extract UIDs (in this implementation, UID is the message ID)
+            matching_uids = [str(msg.id) for msg in messages]
+
+            # Send response
+            if matching_uids:
+                await self.send_response(f'* SEARCH {" ".join(matching_uids)}')
+            else:
+                await self.send_response('* SEARCH')
+
+            await self.send_response(f'{tag} OK UID SEARCH completed')
+
+        except Exception as e:
+            logger.exception(f"[handle_uid_search] Error in UID SEARCH: {e}")
+            await self.send_response(f'{tag} NO UID SEARCH failed: {str(e)}')
+
+    async def handle_uid_fetch(self, tag: str, args: List[str]):
+        """Handle UID FETCH command"""
+        if not self.authenticated or not self.selected_mailbox:
+            await self.send_response(f'{tag} NO Not authenticated or no mailbox selected')
+            return
+
+        if len(args) < 2:
+            await self.send_response(f'{tag} BAD UID FETCH command requires UID sequence and data items')
+            return
+
+        uid_sequence = args[0]
+        data_items = ' '.join(args[1:])
+
+        try:
+            # Get all messages for the mailbox
+            messages = await sync_to_async(get_messages_by_mailbox)(
+                self.selected_mailbox.id,
+                order_by='mt'
+            )
+
+            # Parse UID sequence first to validate it (before checking if mailbox is empty)
+            if uid_sequence == '*':
+                # * means last message (if messages exist)
+                if not messages:
+                    await self.send_response(f'{tag} OK UID FETCH completed')
+                    return
+                matching_messages = [messages[-1]]
+            else:
+                uid_list = self._parse_uid_sequence(uid_sequence)
+                if not uid_list:
+                    await self.send_response(f'{tag} BAD Invalid UID sequence')
+                    return
+
+                # Check if mailbox is empty (after validating UID sequence)
+                if not messages:
+                    await self.send_response(f'{tag} OK UID FETCH completed')
+                    return
+
+                # Handle range with * (e.g., "2:*")
+                if len(uid_list) == 2 and uid_list[1] == -1:
+                    # Range from start_uid to highest UID
+                    start_uid = uid_list[0]
+                    matching_messages = [msg for msg in messages if msg.id >= start_uid]
+                else:
+                    # Find messages matching UIDs
+                    uid_set = set(uid_list)
+                    matching_messages = [msg for msg in messages if msg.id in uid_set]
+
+            if not matching_messages:
+                await self.send_response(f'{tag} OK UID FETCH completed')
+                return
+
+            # Create a mapping of message ID to sequence number (1-based index)
+            # Sequence numbers must be positive integers starting from 1
+            msg_id_to_seq = {}
+            for idx, msg in enumerate(messages):
+                if msg.id is not None and msg.id > 0:
+                    msg_id_to_seq[msg.id] = idx + 1
+
+            # Fetch message data
+            for msg in matching_messages:
+                # Get sequence number from mapping
+                sequence_num = msg_id_to_seq.get(msg.id)
+                
+                # Validate sequence number: must be a positive integer
+                # If not found in mapping, calculate it based on position in messages list
+                if sequence_num is None or sequence_num < 1:
+                    # Try to find the message in the messages list to get its position
+                    try:
+                        msg_index = next(idx for idx, m in enumerate(messages) if m.id == msg.id)
+                        sequence_num = msg_index + 1
+                    except StopIteration:
+                        # Message not found in messages list, use 1 as fallback
+                        logger.warning(f"[handle_uid_fetch] Message {msg.id} not found in messages list, using sequence 1")
+                        sequence_num = 1
+                
+                # Final validation: ensure sequence_num is a positive integer
+                if not isinstance(sequence_num, int) or sequence_num < 1:
+                    logger.warning(f"[handle_uid_fetch] Invalid sequence_num {sequence_num} for message {msg.id}, using 1")
+                    sequence_num = 1
+                
+                # Send fetch response with validated sequence number
+                try:
+                    await self.send_fetch_response(msg, data_items, sequence_num=sequence_num, include_uid=True)
+                except Exception as e:
+                    # Log error but continue with other messages
+                    # According to IMAP protocol, one message failure should not stop the entire FETCH
+                    logger.exception(f"[handle_uid_fetch] Error fetching message {msg.id}: {e}")
+                    continue
+
+            await self.send_response(f'{tag} OK UID FETCH completed')
+
+        except Exception as e:
+            logger.exception(f"[handle_uid_fetch] Error in UID FETCH: {e}")
+            await self.send_response(f'{tag} NO UID FETCH failed: {str(e)}')
+
+    async def handle_uid_store(self, tag: str, args: List[str]):
+        """Handle UID STORE command"""
+        if not self.authenticated or not self.selected_mailbox:
+            await self.send_response(f'{tag} NO Not authenticated or no mailbox selected')
+            return
+
+        if len(args) < 2:
+            await self.send_response(f'{tag} BAD UID STORE command requires UID sequence and flags')
+            return
+
+        uid_sequence = args[0]
+        flags = ' '.join(args[1:])
+
+        try:
+            # Get all messages for the mailbox
+            messages = await sync_to_async(get_messages_by_mailbox)(
+                self.selected_mailbox.id,
+                order_by='mt'
+            )
+
+            # Parse UID sequence
+            if uid_sequence == '*':
+                # * means last message (if messages exist)
+                if not messages:
+                    await self.send_response(f'{tag} OK UID STORE completed')
+                    return
+                matching_uids = [messages[-1].id]
+            else:
+                uid_list = self._parse_uid_sequence(uid_sequence)
+                if not uid_list:
+                    await self.send_response(f'{tag} BAD Invalid UID sequence')
+                    return
+
+                # Check if mailbox is empty
+                if not messages:
+                    await self.send_response(f'{tag} OK UID STORE completed')
+                    return
+
+                # Handle range with * (e.g., "2:*")
+                if len(uid_list) == 2 and uid_list[1] == -1:
+                    # Range from start_uid to highest UID
+                    start_uid = uid_list[0]
+                    matching_uids = [msg.id for msg in messages if msg.id >= start_uid]
+                else:
+                    # Find matching UIDs
+                    uid_set = set(uid_list)
+                    matching_uids = [msg.id for msg in messages if msg.id in uid_set]
+
+            if not matching_uids:
+                await self.send_response(f'{tag} OK UID STORE completed')
+                return
+
+            # Parse flags and update messages
+            if '+FLAGS' in flags:
+                # Add flags
+                if '\\Seen' in flags:
+                    for uid in matching_uids:
+                        await sync_to_async(update_message_read_status)(
+                            self.selected_mailbox.id,
+                            uid,
+                            is_read=True
+                        )
+            elif '-FLAGS' in flags:
+                # Remove flags
+                if '\\Seen' in flags:
+                    for uid in matching_uids:
+                        await sync_to_async(update_message_read_status)(
+                            self.selected_mailbox.id,
+                            uid,
+                            is_read=False
+                        )
+
+            await self.send_response(f'{tag} OK UID STORE completed')
+
+        except Exception as e:
+            logger.exception(f"[handle_uid_store] Error in UID STORE: {e}")
+            await self.send_response(f'{tag} NO UID STORE failed: {str(e)}')
+
     async def handle_logout(self, tag: str):
         """Handle LOGOUT command"""
         await self.send_response('* BYE IMAP server logging out')
         await self.send_response(f'{tag} OK Logout completed')
         self.writer.close()
 
+    async def handle_noop(self, tag: str):
+        """Handle NOOP command (No Operation - keep connection alive)"""
+        await self.send_response(f'{tag} OK NOOP completed')
+
+    async def handle_append(self, tag: str, args: List[str], command_line: str):
+        """
+        Handle APPEND command
+        
+        Format: APPEND mailbox [flags] [date-time] message
+        The message can be a quoted string or literal ({size}\r\n...)
+        """
+        if not self.authenticated:
+            await self.send_response(f'{tag} NO Not authenticated')
+            return
+
+        if not args:
+            await self.send_response(f'{tag} BAD APPEND command requires mailbox name')
+            return
+
+        try:
+            # Parse mailbox name (first argument, may be quoted)
+            mailbox_name = args[0].strip('"\'')
+            # Note: FreeScout sends folder names in UTF7-IMAP encoding, but for ASCII
+            # characters like "Sent", UTF7-IMAP and UTF-8 are the same, so we use as-is
+            
+            # Get or create mailbox
+            mailbox, created = await sync_to_async(get_or_create_mailbox)(
+                account_id=self.account.id,
+                path=mailbox_name,
+                name=mailbox_name.split('.')[-1] if '.' in mailbox_name else mailbox_name,
+                ct=int(datetime.now(timezone.utc).timestamp() * 1000),
+                ut=int(datetime.now(timezone.utc).timestamp() * 1000)
+            )
+
+            # Parse remaining arguments: [flags] [date-time] message
+            # Check if command line contains literal {size}
+            import re
+            literal_match = re.search(r'\{(\d+)\}', command_line)
+            
+            message_bytes = None
+            flags = None
+            
+            if literal_match:
+                # Literal format: {size}\r\n followed by the data
+                literal_size = int(literal_match.group(1))
+                try:
+                    # Read the literal data
+                    message_bytes = await self.reader.readexactly(literal_size)
+                    # Read the trailing \r\n
+                    await self.reader.readline()
+                    
+                    # Parse flags from command line (before the literal)
+                    # Format: APPEND mailbox [flags] [date-time] {size}
+                    flags_part = command_line[:literal_match.start()]
+                    flags_match = re.search(r'\(([^)]+)\)', flags_part)
+                    if flags_match:
+                        flags_str = flags_match.group(1)
+                        flags = [f.strip().strip('\\') for f in flags_str.split()] if flags_str else []
+                except Exception as e:
+                    logger.exception(f"[handle_append] Error reading literal data: {e}")
+                    await self.send_response(f'{tag} NO APPEND failed: error reading message data')
+                    return
+            else:
+                # Quoted string format: extract from args
+                # Parse flags and date-time, then get message
+                i = 1
+                # Check if next arg is flags (parenthesized list)
+                if i < len(args) and args[i].startswith('(') and args[i].endswith(')'):
+                    flags_str = args[i].strip('()')
+                    flags = [f.strip().strip('\\') for f in flags_str.split()] if flags_str else []
+                    i += 1
+                # Skip date-time if present (we'll use current time from email)
+                # Check if next arg looks like a date (quoted string with date format)
+                if i < len(args):
+                    date_str = args[i].strip('"\'')
+                    # If it looks like a date, skip it
+                    if re.match(r'\d{1,2}-[A-Za-z]{3}-\d{4}', date_str):
+                        i += 1
+                # Remaining args should be the message (quoted string)
+                if i < len(args):
+                    message_str = ' '.join(args[i:]).strip('"\'')
+                    message_bytes = message_str.encode('utf-8')
+                else:
+                    await self.send_response(f'{tag} BAD APPEND command requires message data')
+                    return
+
+            if not message_bytes:
+                await self.send_response(f'{tag} BAD APPEND command requires message data')
+                return
+
+            # Store the message using MailStorageService
+            mail_message = await sync_to_async(self.storage_service.store_mail)(
+                account=self.account,
+                mailbox_name=mailbox_name,
+                email_data=message_bytes
+            )
+
+            # Update message flags if provided
+            if flags and mail_message:
+                is_read = 'Seen' in flags or '\\Seen' in flags
+                if is_read != mail_message.is_read:
+                    await sync_to_async(update_message_read_status)(
+                        mailbox.id,
+                        mail_message.id,
+                        is_read=is_read
+                    )
+
+            await self.send_response(f'{tag} OK APPEND completed')
+
+        except Exception as e:
+            logger.exception(f"[handle_append] Error appending message: {e}")
+            await self.send_response(f'{tag} NO APPEND failed: {str(e)}')
+
+    def _validate_fetch_response_format(self, response: str) -> bool:
+        """
+        Validate FETCH response format according to RFC 3501
+        
+        Format should be: * <sequence> FETCH (<data items>)
+        
+        Args:
+            response: Response string to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        if not response or not response.strip():
+            return False
+        
+        # Check if response starts with '*'
+        if not response.startswith('*'):
+            return False
+        
+        # Check if response contains 'FETCH'
+        if 'FETCH' not in response:
+            return False
+        
+        # Parse response: * <sequence> FETCH (<data items>)
+        parts = response.split()
+        if len(parts) < 3:
+            return False
+        
+        # Check format: parts[0] = '*', parts[1] = sequence, parts[2] = 'FETCH'
+        if parts[0] != '*' or parts[2] != 'FETCH':
+            return False
+        
+        # Validate sequence number is a positive integer
+        try:
+            seq = int(parts[1])
+            if seq < 1:
+                return False
+        except (ValueError, IndexError):
+            return False
+        
+        # Check if data items are in parentheses (should contain '(' after FETCH)
+        fetch_index = response.find('FETCH')
+        if fetch_index == -1:
+            return False
+        
+        after_fetch = response[fetch_index + 5:].strip()
+        if not after_fetch.startswith('('):
+            return False
+        
+        return True
+    
     async def send_response(self, response: str):
         """Send IMAP response"""
+        if not response or not response.strip():
+            logger.warning("[send_response] Attempted to send empty response")
+            return
+        
         self.writer.write(f'{response}\r\n'.encode('utf-8'))
         await self.writer.drain()
 
     async def send_data(self, data: str):
-        """Send data (for FETCH BODY[])"""
+        """Send data (for FETCH BODY[])
+        
+        According to IMAP protocol (RFC 3501), literal data must be followed by \r\n
+        to properly terminate the literal.
+        """
         self.writer.write(data.encode('utf-8'))
+        # IMAP literal data must be followed by \r\n to terminate the literal
+        self.writer.write(b'\r\n')
         await self.writer.drain()
 
 
