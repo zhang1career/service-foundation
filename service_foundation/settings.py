@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     "django_crontab",
     "rest_framework",
     "corsheaders",
+    "app_know",
     "app_mailserver",
     "app_oss",
     "app_snowflake",
@@ -129,6 +130,20 @@ DATABASES = {
         },
         "TEST": {
             "NAME": env("DB_DEFAULT_TEST_NAME", default="sf_test"),
+        },
+    },
+    "know_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_KNOW_NAME", default="sf_know"),
+        "USER": env("DB_KNOW_USER", default="zhang"),
+        "PASSWORD": env("DB_KNOW_PASS", default=""),
+        "HOST": env("DB_KNOW_HOST", default="127.0.0.1"),
+        "PORT": env("DB_KNOW_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_KNOW_TEST_NAME", default="sf_know_test"),
         },
     },
     "mailserver_rw": {
