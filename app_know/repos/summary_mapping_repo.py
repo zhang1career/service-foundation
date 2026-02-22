@@ -96,15 +96,22 @@ def create_or_update_mapping(
     app_id = str(app_id).strip()
 
     try:
-        mapping, created = KnowledgeSummaryMapping.objects.using(_DB).get_or_create(
-            kid=knowledge_id,
-            app_id=app_id,
-            defaults={"sid": summary_id},
-        )
-        if not created:
-            mapping.sid = summary_id
-            mapping.save(using=_DB)
-        return mapping
+        existing = KnowledgeSummaryMapping.objects.using(_DB).filter(
+            kid=knowledge_id, app_id=app_id
+        ).first()
+        
+        if existing:
+            existing.sid = summary_id
+            existing.save(using=_DB, update_fields=["sid"])
+            return existing
+        else:
+            mapping = KnowledgeSummaryMapping(
+                kid=knowledge_id,
+                app_id=app_id,
+                sid=summary_id,
+            )
+            mapping.save(using=_DB, force_insert=True)
+            return mapping
     except Exception as e:
         logger.exception("[create_or_update_mapping] Error: %s", e)
         raise

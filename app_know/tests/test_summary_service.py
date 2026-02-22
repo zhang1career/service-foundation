@@ -46,41 +46,41 @@ class SummaryGeneratorTest(TestCase):
         self.assertLessEqual(len(out), 103)
         self.assertTrue(out.endswith("...") or len(out) <= 100)
 
-    @patch("app_know.services.summary_generator._get_ai_client")
+    @patch("app_know.services.summary_generator._get_text_ai")
     def test_generate_with_ai_success(self, mock_get_client):
-        """generate_summary with use_ai=True uses AI client when available."""
+        """generate_summary with use_ai=True uses TextAI client when available."""
         mock_client = MagicMock()
-        mock_client.chat.return_value = "AI generated summary for the knowledge."
+        mock_client.ask_and_answer.return_value = ("prompt", "AI generated summary for the knowledge.")
         mock_get_client.return_value = mock_client
 
         out = generate_summary(title="Test Title", description="Test Desc", use_ai=True)
         self.assertEqual(out, "AI generated summary for the knowledge.")
-        mock_client.chat.assert_called_once()
+        mock_client.ask_and_answer.assert_called_once()
 
-    @patch("app_know.services.summary_generator._get_ai_client")
+    @patch("app_know.services.summary_generator._get_text_ai")
     def test_generate_with_ai_fallback_on_failure(self, mock_get_client):
         """generate_summary falls back to rule-based when AI fails."""
         mock_client = MagicMock()
-        mock_client.chat.side_effect = RuntimeError("API error")
+        mock_client.ask_and_answer.side_effect = RuntimeError("API error")
         mock_get_client.return_value = mock_client
 
         out = generate_summary(title="Test Title", description="Test Desc", use_ai=True)
         self.assertIn("Test Title", out)
         self.assertIn("Test Desc", out)
 
-    @patch("app_know.services.summary_generator._get_ai_client")
+    @patch("app_know.services.summary_generator._get_text_ai")
     def test_generate_with_ai_fallback_when_client_none(self, mock_get_client):
-        """generate_summary falls back to rule-based when AI client unavailable."""
+        """generate_summary falls back to rule-based when TextAI client unavailable."""
         mock_get_client.return_value = None
 
         out = generate_summary(title="Test Title", use_ai=True)
         self.assertIn("Test Title", out)
 
-    @patch("app_know.services.summary_generator._get_ai_client")
+    @patch("app_know.services.summary_generator._get_text_ai")
     def test_generate_with_ai_truncates_long_response(self, mock_get_client):
         """AI-generated summary is truncated if too long."""
         mock_client = MagicMock()
-        mock_client.chat.return_value = "x" * 3000
+        mock_client.ask_and_answer.return_value = ("prompt", "x" * 3000)
         mock_get_client.return_value = mock_client
 
         out = generate_summary(title="T", max_length=100, use_ai=True)
@@ -299,10 +299,10 @@ class SummaryServiceTest(TestCase):
             knowledge_id=1, app_id="app1", summary_id="65a1b2c3d4e5f6"
         )
 
-    @patch("app_know.services.summary_generator._get_ai_client")
+    @patch("app_know.services.summary_generator._get_text_ai")
     @patch("app_know.services.summary_service.save_summary")
     @patch("app_know.services.summary_service.get_knowledge_by_id")
-    def test_generate_and_save_with_ai(self, mock_get_know, mock_save, mock_ai_client):
+    def test_generate_and_save_with_ai(self, mock_get_know, mock_save, mock_text_ai):
         """generate_and_save with use_ai=True sets source to ai_generated."""
         mock_entity = MagicMock()
         mock_entity.title = "Title"
@@ -310,8 +310,8 @@ class SummaryServiceTest(TestCase):
         mock_entity.source_type = "doc"
         mock_get_know.return_value = mock_entity
         mock_client = MagicMock()
-        mock_client.chat.return_value = "AI summary"
-        mock_ai_client.return_value = mock_client
+        mock_client.ask_and_answer.return_value = ("prompt", "AI summary")
+        mock_text_ai.return_value = mock_client
         mock_save.return_value = {"knowledge_id": 1, "summary": "AI summary", "app_id": "app1"}
 
         svc = SummaryService()

@@ -137,10 +137,12 @@ def get_summary(
     query = {KEY_KNOWLEDGE_ID: knowledge_id}
     if app_id is not None and str(app_id).strip():
         query[KEY_APP_ID] = str(app_id).strip()
+    logger.info("[get_summary] Query: %s", query)
     try:
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
         doc = coll.find_one(query)
+        logger.info("[get_summary] Found doc: %s", doc is not None)
         if doc is None:
             return None
         return _doc_to_item(doc)

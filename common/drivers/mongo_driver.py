@@ -1,14 +1,27 @@
 import logging
+import os
+from typing import TYPE_CHECKING
 
 from pymongo import MongoClient
-from pymongo.operations import SearchIndexModel
-from pymongo.synchronous.collection import Collection
 
 from common.components.singleton import Singleton
 from common.consts.string_const import EMPTY_STRING
 
+if TYPE_CHECKING:
+    from pymongo.collection import Collection
+
 
 logger = logging.getLogger(__name__)
+
+# Read SSL and proxy settings from environment
+MONGO_TLS_INSECURE = os.environ.get("MONGO_TLS_INSECURE", "false").lower() == "true"
+MONGO_PROXY_HOST = os.environ.get("MONGO_PROXY_HOST", "")
+MONGO_PROXY_PORT = os.environ.get("MONGO_PROXY_PORT", "")
+
+# Check pymongo version for proxy support
+import pymongo
+PYMONGO_VERSION = tuple(int(x) for x in pymongo.version.split(".")[:2])
+PYMONGO_4_PLUS = PYMONGO_VERSION >= (4, 0)
 
 
 def _build_vector_index_name(attr_name: str):
@@ -18,7 +31,29 @@ def _build_vector_index_name(attr_name: str):
 class MongoDriver(Singleton):
     def __init__(self, host: str, username: str, password: str, cluster: str, db_name: str) -> None:
         uri = f"mongodb+srv://{username}:{password}@{cluster}.{host}/?retryWrites=true&w=majority&appName=Cluster0"
-        self._client = MongoClient(uri, tls=True)
+        
+        client_options = {
+            "tls": True,
+            "serverSelectionTimeoutMS": 10000,
+        }
+        
+        if MONGO_TLS_INSECURE:
+            client_options["tlsAllowInvalidCertificates"] = True
+            logger.warning("[MongoDriver] TLS certificate validation disabled (insecure)")
+        
+        if MONGO_PROXY_HOST and MONGO_PROXY_PORT:
+            if PYMONGO_4_PLUS:
+                client_options["proxyHost"] = MONGO_PROXY_HOST
+                client_options["proxyPort"] = int(MONGO_PROXY_PORT)
+                logger.info("[MongoDriver] Using proxy: %s:%s", MONGO_PROXY_HOST, MONGO_PROXY_PORT)
+            else:
+                logger.warning(
+                    "[MongoDriver] Proxy configured but pymongo %s does not support it. "
+                    "Please upgrade: pip install 'pymongo>=4.0'",
+                    pymongo.version
+                )
+        
+        self._client = MongoClient(uri, **client_options)
         self._db = self._client[db_name]
         try:
             self.ping()
@@ -39,7 +74,7 @@ class MongoDriver(Singleton):
             logger.exception(e)
             raise
 
-    def create_or_get_collection(self, coll_name: str) -> Collection:
+    def create_or_get_collection(self, coll_name: str) -> "Collection":
         """
         Create or get collection with optional settings
         """
@@ -165,6 +200,11 @@ class MongoDriver(Singleton):
             logger.exception(e)
 
     def create_vector_search_index(self, coll_name: str, attr_name: str, dim_num: int):
+        try:
+            from pymongo.operations import SearchIndexModel
+        except ImportError:
+            logger.error("[MongoDriver] SearchIndexModel requires pymongo >= 4.x")
+            return None
         try:
             coll = self.create_or_get_collection(coll_name)
             vector_index = SearchIndexModel(

@@ -314,6 +314,14 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_SNOWFLAKE", default="INFO"),
             "handlers": [env("LOG_HANDLER", default="console")],
         },
+        "app_know": {
+            "level": env("LOG_LEVEL_APP_KNOW", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
+        "common": {
+            "level": env("LOG_LEVEL_COMMON", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
     }
 }
 

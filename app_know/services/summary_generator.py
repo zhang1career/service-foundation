@@ -1,48 +1,46 @@
 """
 Python-based knowledge summary generation from title/description/content.
-Supports rule-based generation and AI-powered generation via AigcBestAPI.
+Supports rule-based generation and AI-powered generation via TextAI.
 """
 import logging
 import os
 from typing import Optional
+
+from common.consts.string_const import EMPTY_STRING
 
 logger = logging.getLogger(__name__)
 
 # Max length for generated summary (chars)
 SUMMARY_MAX_LEN = 2000
 
-# AI generation prompt template
-SUMMARY_PROMPT_TEMPLATE = """Please generate a concise summary for the following knowledge item.
-The summary should capture the key points and main ideas in 2-3 sentences.
-
-Title: {title}
-{description_section}
-{content_section}
-{source_section}
-
-Summary:"""
+# Singleton TextAI instance (lazy initialization)
+_text_ai_client = None
 
 
-def _get_ai_client():
-    """Get AigcBestAPI client lazily, only when needed."""
+def _get_text_ai():
+    """Get TextAI client lazily, only when needed."""
+    global _text_ai_client
+    if _text_ai_client is not None:
+        return _text_ai_client
+
     try:
-        from common.apis.aigcbest_api import AigcBestAPI
+        from common.services.ai.text_ai import TextAI
     except ImportError:
-        logger.warning("[summary_generator] AigcBestAPI not available")
+        logger.warning("[summary_generator] TextAI not available")
         return None
 
-    base_url = os.environ.get("AIGC_API_URL", "https://api2.aigcbest.top/v1")
-    api_key = os.environ.get("AIGC_API_KEY", "")
+    base_url = os.environ.get("AIGC_API_URL", EMPTY_STRING)
+    api_key = os.environ.get("AIGC_API_KEY", EMPTY_STRING)
     model = os.environ.get("AIGC_API_MODEL", "gpt-4o-mini")
-
     if not api_key:
         logger.warning("[summary_generator] AIGC_API_KEY not configured")
         return None
 
     try:
-        return AigcBestAPI(base_url, api_key, model)
+        _text_ai_client = TextAI(base_url, api_key, model)
+        return _text_ai_client
     except Exception as e:
-        logger.exception("[summary_generator] Failed to create AigcBestAPI client: %s", e)
+        logger.exception("[summary_generator] Failed to create TextAI client: %s", e)
         return None
 
 
@@ -63,7 +61,7 @@ def generate_summary(
         content: Optional content
         source_type: Optional source type
         max_length: Maximum length of generated summary
-        use_ai: If True, use AigcBestAPI for AI-powered generation; falls back to rule-based if AI fails
+        use_ai: If True, use TextAI for AI-powered generation; falls back to rule-based if AI fails
 
     Returns:
         Generated summary string
@@ -99,33 +97,35 @@ def _generate_summary_with_ai(
     source_type: str,
     max_length: int,
 ) -> Optional[str]:
-    """Generate summary using AigcBestAPI. Returns None on failure."""
-    client = _get_ai_client()
+    """Generate summary using TextAI.ask_and_answer. Returns None on failure."""
+    client = _get_text_ai()
     if client is None:
         return None
 
-    description_section = f"Description: {description}" if description else ""
-    content_section = f"Content: {content[:1000]}..." if content and len(content) > 1000 else (f"Content: {content}" if content else "")
-    source_section = f"Source Type: {source_type}" if source_type else ""
+    if not content:
+        raise Exception("content is empty")
+    text = content[:1000] + "..." if len(content) > 1000 else content
 
-    prompt = SUMMARY_PROMPT_TEMPLATE.format(
-        title=title,
-        description_section=description_section,
-        content_section=content_section,
-        source_section=source_section,
-    )
+    question = "generate a concise summary capturing the key points and main ideas in 1 sentence."
 
     try:
-        logger.info("[summary_generator] Calling AIGC API for title: %s", title[:50])
-        result = client.chat(prompt, temperature=0.3)
-        if result:
+        logger.info("[summary_generator] Calling TextAI for title: %s", title[:50])
+        prompt, result = client.ask_and_answer(
+            text=text,
+            role="knowledge summarization",
+            question=question,
+            temperature=0.3
+        )
+        logger.info("[summary_generator] TextAI prompt: %s", prompt[:200])
+        if result and result != "no":
             summary = result.strip()
-            logger.info("[summary_generator] AIGC response received, summary length: %d", len(summary))
+            logger.info("[summary_generator] TextAI response received, summary length: %d", len(summary))
+            logger.info("[summary_generator] Summary: %s", summary[:500])
             if len(summary) > max_length:
                 summary = summary[: max_length - 3].rstrip() + "..."
             return summary
         else:
-            logger.warning("[summary_generator] AIGC returned empty result")
+            logger.warning("[summary_generator] TextAI returned empty or 'no' result")
     except Exception as e:
         logger.exception("[summary_generator] AI generation error: %s", e)
 

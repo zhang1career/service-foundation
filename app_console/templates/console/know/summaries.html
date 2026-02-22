@@ -32,34 +32,44 @@
 <script>
 const API_BASE = '/api/know/knowledge/summaries';
 
+function formatTimestamp(ts) {
+    if (!ts || ts <= 0) return '-';
+    const date = new Date(ts);
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 async function loadSummaries() {
     const container = document.getElementById('summary-list');
     
     try {
         const response = await fetch(API_BASE);
         const result = await response.json();
+        const items = result.data && result.data.data ? result.data.data : [];
         
-        if (result.data && result.data.length > 0) {
+        if (items.length > 0) {
             let html = `
                 <table class="data-table">
                     <thead>
                         <tr>
                             <th>知识 ID</th>
-                            <th>知识名称</th>
+                            <th>应用 ID</th>
                             <th>摘要</th>
+                            <th>来源</th>
                             <th>创建时间</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
             
-            result.data.forEach(item => {
+            items.forEach(item => {
                 html += `
                     <tr>
-                        <td>${item.entity_id}</td>
-                        <td class="font-medium">${item.entity_name || '-'}</td>
-                        <td class="max-w-md truncate">${item.summary || '-'}</td>
-                        <td>${formatDate(item.created_at)}</td>
+                        <td><a href="/console/know/${item.knowledge_id}/" class="text-blue-600 hover:underline">${item.knowledge_id}</a></td>
+                        <td>${item.app_id || '-'}</td>
+                        <td class="max-w-md truncate" title="${(item.summary || '').replace(/"/g, '&quot;')}">${item.summary || '-'}</td>
+                        <td><span class="badge badge-info">${item.source || '-'}</span></td>
+                        <td>${formatTimestamp(item.ct)}</td>
                     </tr>
                 `;
             });

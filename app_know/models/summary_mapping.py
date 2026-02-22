@@ -9,20 +9,18 @@ class KnowledgeSummaryMapping(models.Model):
     """
     Maps a knowledge entity to its summary in MongoDB Atlas.
     Stored in MySQL (know_rw database) for efficient querying.
-    Primary key: (kid, app_id) composite key.
+    Uses (kid, app_id) as composite unique constraint.
     """
 
-    kid = models.BigIntegerField(db_column="kid")
+    kid = models.BigIntegerField(db_column="kid", primary_key=True)
     app_id = models.CharField(max_length=128, db_column="app_id")
-    sid = models.CharField(max_length=64, db_column="sid", db_index=True)
+    sid = models.CharField(max_length=255, db_column="sid", db_index=True)
 
     class Meta:
         db_table = "x"
         app_label = "app_know"
         managed = False
-        indexes = [
-            models.Index(fields=["sid"]),
-        ]
+        unique_together = [["kid", "app_id"]]
 
     def __str__(self):
         return f"KnowledgeSummaryMapping(kid={self.kid}, app_id={self.app_id}, sid={self.sid})"
