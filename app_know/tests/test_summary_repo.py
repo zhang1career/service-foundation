@@ -1,6 +1,6 @@
 """
 Tests for summary repository (MongoDB); validation and edge cases. Generated.
-Uses mocked Atlas client and in-memory collection behavior.
+Uses mocked MongoDriver and in-memory collection behavior.
 """
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
@@ -22,6 +22,7 @@ from app_know.repos.summary_repo import (
     KEY_UT,
     KEY_ID,
 )
+import app_know.repos.summary_repo as summary_repo_module
 
 
 def _make_mock_coll():
@@ -100,19 +101,26 @@ def _make_mock_coll():
 
 
 class SummaryRepoTest(TestCase):
-    """Tests for summary repo with mocked Atlas."""
+    """Tests for summary repo with mocked MongoDriver."""
 
     def setUp(self):
         self.mock_coll, self.store = _make_mock_coll()
-        self.mock_atlas = MagicMock()
-        self.mock_atlas.get_collection.return_value = self.mock_coll
+        self.mock_driver = MagicMock()
+        self.mock_driver.create_or_get_collection.return_value = self.mock_coll
+        # Patch the module-level driver to use our mock
+        self.patcher = patch.object(summary_repo_module, '_get_mongo_driver', return_value=self.mock_driver)
+        self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+        # Reset the global driver for next test
+        summary_repo_module._mongo_driver = None
 
     def test_save_summary_insert(self):
         out = save_summary(
             knowledge_id=1,
             summary="My summary",
             app_id="app1",
-            atlas=self.mock_atlas,
         )
         self.assertEqual(out["knowledge_id"], 1)
         self.assertEqual(out["summary"], "My summary")
@@ -121,33 +129,33 @@ class SummaryRepoTest(TestCase):
         self.assertEqual(len(self.store), 1)
 
     def test_save_summary_upsert(self):
-        save_summary(knowledge_id=1, summary="First", app_id="app1", atlas=self.mock_atlas)
-        out = save_summary(knowledge_id=1, summary="Second", app_id="app1", atlas=self.mock_atlas)
+        save_summary(knowledge_id=1, summary="First", app_id="app1")
+        out = save_summary(knowledge_id=1, summary="Second", app_id="app1")
         self.assertEqual(out["summary"], "Second")
         self.assertEqual(len(self.store), 1)
 
     def test_save_summary_validation_invalid_knowledge_id(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=0, summary="x", app_id="a", atlas=self.mock_atlas)
+            save_summary(knowledge_id=0, summary="x", app_id="a")
         self.assertIn("positive integer", str(ctx.exception))
         with self.assertRaises(ValueError):
-            save_summary(knowledge_id=-1, summary="x", app_id="a", atlas=self.mock_atlas)
+            save_summary(knowledge_id=-1, summary="x", app_id="a")
         with self.assertRaises(ValueError):
-            save_summary(knowledge_id=None, summary="x", app_id="a", atlas=self.mock_atlas)
+            save_summary(knowledge_id=None, summary="x", app_id="a")
 
     def test_save_summary_validation_empty_app_id(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=1, summary="x", app_id="  ", atlas=self.mock_atlas)
+            save_summary(knowledge_id=1, summary="x", app_id="  ")
         self.assertIn("app_id", str(ctx.exception))
 
     def test_save_summary_validation_summary_none(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=1, summary=None, app_id="a", atlas=self.mock_atlas)
+            save_summary(knowledge_id=1, summary=None, app_id="a")
         self.assertIn("summary", str(ctx.exception))
 
     def test_save_summary_validation_summary_not_string(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=1, summary=123, app_id="a", atlas=self.mock_atlas)
+            save_summary(knowledge_id=1, summary=123, app_id="a")
         self.assertIn("summary", str(ctx.exception))
 
     def test_save_summary_validation_summary_too_long(self):
@@ -156,97 +164,95 @@ class SummaryRepoTest(TestCase):
                 knowledge_id=1,
                 summary="x" * (SUMMARY_STORAGE_MAX_LEN + 1),
                 app_id="a",
-                atlas=self.mock_atlas,
             )
         self.assertIn("exceed", str(ctx.exception))
 
     def test_save_summary_validation_source_not_string(self):
         with self.assertRaises(ValueError) as ctx:
             save_summary(
-                knowledge_id=1, summary="x", app_id="a", source=123, atlas=self.mock_atlas
+                knowledge_id=1, summary="x", app_id="a", source=123
             )
         self.assertIn("source", str(ctx.exception))
 
     def test_save_summary_empty_string_summary_allowed(self):
         out = save_summary(
-            knowledge_id=1, summary="", app_id="app1", atlas=self.mock_atlas
+            knowledge_id=1, summary="", app_id="app1"
         )
         self.assertEqual(out["summary"], "")
         self.assertEqual(len(self.store), 1)
 
     def test_get_summary(self):
-        save_summary(knowledge_id=2, summary="Found", app_id="app2", atlas=self.mock_atlas)
-        out = get_summary(knowledge_id=2, app_id="app2", atlas=self.mock_atlas)
+        save_summary(knowledge_id=2, summary="Found", app_id="app2")
+        out = get_summary(knowledge_id=2, app_id="app2")
         self.assertIsNotNone(out)
         self.assertEqual(out["summary"], "Found")
 
     def test_get_summary_not_found(self):
-        out = get_summary(knowledge_id=999, atlas=self.mock_atlas)
+        out = get_summary(knowledge_id=999)
         self.assertIsNone(out)
 
     def test_get_summary_invalid_knowledge_id_returns_none(self):
-        self.assertIsNone(get_summary(knowledge_id=0, atlas=self.mock_atlas))
-        self.assertIsNone(get_summary(knowledge_id=-1, atlas=self.mock_atlas))
+        self.assertIsNone(get_summary(knowledge_id=0))
+        self.assertIsNone(get_summary(knowledge_id=-1))
 
     def test_list_summaries(self):
-        save_summary(knowledge_id=1, summary="S1", app_id="app1", atlas=self.mock_atlas)
-        save_summary(knowledge_id=2, summary="S2", app_id="app1", atlas=self.mock_atlas)
-        items, total = list_summaries(app_id="app1", offset=0, limit=10, atlas=self.mock_atlas)
+        save_summary(knowledge_id=1, summary="S1", app_id="app1")
+        save_summary(knowledge_id=2, summary="S2", app_id="app1")
+        items, total = list_summaries(app_id="app1", offset=0, limit=10)
         self.assertEqual(total, 2)
         self.assertEqual(len(items), 2)
 
     def test_list_summaries_pagination(self):
-        save_summary(knowledge_id=1, summary="S1", app_id="a", atlas=self.mock_atlas)
-        save_summary(knowledge_id=2, summary="S2", app_id="a", atlas=self.mock_atlas)
-        save_summary(knowledge_id=3, summary="S3", app_id="a", atlas=self.mock_atlas)
-        items, total = list_summaries(app_id="a", offset=1, limit=1, atlas=self.mock_atlas)
+        save_summary(knowledge_id=1, summary="S1", app_id="a")
+        save_summary(knowledge_id=2, summary="S2", app_id="a")
+        save_summary(knowledge_id=3, summary="S3", app_id="a")
+        items, total = list_summaries(app_id="a", offset=1, limit=1)
         self.assertEqual(total, 3)
         self.assertEqual(len(items), 1)
 
     def test_list_summaries_validation(self):
         with self.assertRaises(ValueError):
-            list_summaries(offset=-1, limit=10, atlas=self.mock_atlas)
+            list_summaries(offset=-1, limit=10)
         with self.assertRaises(ValueError):
-            list_summaries(offset=0, limit=0, atlas=self.mock_atlas)
+            list_summaries(offset=0, limit=0)
         with self.assertRaises(ValueError):
-            list_summaries(offset=0, limit=LIMIT_LIST + 1, atlas=self.mock_atlas)
+            list_summaries(offset=0, limit=LIMIT_LIST + 1)
         with self.assertRaises(ValueError) as ctx:
-            list_summaries(offset=None, limit=10, atlas=self.mock_atlas)
+            list_summaries(offset=None, limit=10)
         self.assertIn("offset", str(ctx.exception))
         with self.assertRaises(ValueError) as ctx:
-            list_summaries(offset=0, limit=None, atlas=self.mock_atlas)
+            list_summaries(offset=0, limit=None)
         self.assertIn("limit", str(ctx.exception))
 
     def test_delete_by_knowledge_id(self):
-        save_summary(knowledge_id=10, summary="X", app_id="a", atlas=self.mock_atlas)
-        save_summary(knowledge_id=10, summary="Y", app_id="b", atlas=self.mock_atlas)
-        n = delete_by_knowledge_id(knowledge_id=10, atlas=self.mock_atlas)
+        save_summary(knowledge_id=10, summary="X", app_id="a")
+        save_summary(knowledge_id=10, summary="Y", app_id="b")
+        n = delete_by_knowledge_id(knowledge_id=10)
         self.assertEqual(n, 2)
-        self.assertIsNone(get_summary(knowledge_id=10, app_id="a", atlas=self.mock_atlas))
+        self.assertIsNone(get_summary(knowledge_id=10, app_id="a"))
 
     def test_delete_by_knowledge_id_invalid_returns_zero(self):
-        n = delete_by_knowledge_id(knowledge_id=0, atlas=self.mock_atlas)
+        n = delete_by_knowledge_id(knowledge_id=0)
         self.assertEqual(n, 0)
 
     def test_search_summaries_by_text_validation(self):
         with self.assertRaises(ValueError) as ctx:
-            search_summaries_by_text(query=None, atlas=self.mock_atlas)
+            search_summaries_by_text(query=None)
         self.assertIn("required", str(ctx.exception))
         with self.assertRaises(ValueError):
-            search_summaries_by_text(query="", atlas=self.mock_atlas)
+            search_summaries_by_text(query="")
         with self.assertRaises(ValueError):
-            search_summaries_by_text(query="  ", atlas=self.mock_atlas)
+            search_summaries_by_text(query="  ")
         with self.assertRaises(ValueError):
-            search_summaries_by_text(query=123, atlas=self.mock_atlas)
+            search_summaries_by_text(query=123)
         with self.assertRaises(ValueError):
-            search_summaries_by_text(query="x", limit=0, atlas=self.mock_atlas)
+            search_summaries_by_text(query="x", limit=0)
         with self.assertRaises(ValueError):
-            search_summaries_by_text(query="x", limit=LIMIT_LIST + 1, atlas=self.mock_atlas)
+            search_summaries_by_text(query="x", limit=LIMIT_LIST + 1)
         with self.assertRaises(ValueError) as ctx:
             search_summaries_by_text(
                 query="x" * (QUERY_SEARCH_MAX_LEN + 1),
                 limit=10,
-                atlas=self.mock_atlas,
             )
         self.assertIn("exceed", str(ctx.exception).lower())
 
@@ -266,7 +272,7 @@ class SummaryRepoTest(TestCase):
                     }
             return Cursor()
         self.mock_coll.find = mock_find
-        items = search_summaries_by_text(query="keyword", limit=10, atlas=self.mock_atlas)
+        items = search_summaries_by_text(query="keyword", limit=10)
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["knowledge_id"], 2)
         self.assertEqual(items[0]["score"], 1.0)
@@ -288,7 +294,6 @@ class SummaryRepoTest(TestCase):
         items = search_summaries_by_text(
             query="[.()*+?^$|\\",
             limit=10,
-            atlas=self.mock_atlas,
         )
         self.assertEqual(items, [])
         self.assertEqual(len(seen_query), 1)

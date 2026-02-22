@@ -1,6 +1,6 @@
 """
 Neo4j persistence for knowledge relationships (knowledge–entity, knowledge–knowledge).
-Uses app_know Neo4j client; all nodes and edges are app-scoped via app_id.
+Uses common Neo4j driver; all nodes and edges are app-scoped via app_id.
 Generated.
 """
 import logging
@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from py2neo import Node, Relationship
 
-from app_know.conn.neo4j import get_neo4j_client
+from common.drivers.neo4j_driver import Neo4jDriver
+from service_foundation import settings
 from app_know.models.relationships import (
     APP_ID_PROP,
     ENTITY_ID_PROP,
@@ -30,6 +31,22 @@ logger = logging.getLogger(__name__)
 
 # Limit for list queries
 REL_LIST_LIMIT = 1000
+
+# Singleton driver instance (lazy initialization)
+_neo4j_driver: Optional[Neo4jDriver] = None
+
+
+def _get_neo4j_driver() -> Neo4jDriver:
+    """Get the singleton Neo4jDriver instance for app_know."""
+    global _neo4j_driver
+    if _neo4j_driver is None:
+        _neo4j_driver = Neo4jDriver(
+            uri=settings.NEO4J_URI,
+            user=settings.NEO4J_USER,
+            password=settings.NEO4J_PASS,
+            name=settings.NEO4J_DATABASE,
+        )
+    return _neo4j_driver
 
 
 def _knowledge_node_props(app_id: str, knowledge_id: int) -> Dict[str, Any]:
@@ -93,34 +110,34 @@ def create_relationship(inp: RelationshipCreateInput) -> Tuple[Relationship, Nod
         raise ValueError("app_id is required and cannot be empty")
     if inp.source_knowledge_id is None or inp.source_knowledge_id <= 0:
         raise ValueError("source_knowledge_id must be a positive integer")
-    client = get_neo4j_client()
+    driver = _get_neo4j_driver()
     rel_type = _rel_type_from_input(inp.relationship_type)
-    start_node = _get_or_create_knowledge_node(inp.app_id, inp.source_knowledge_id, client)
+    start_node = _get_or_create_knowledge_node(inp.app_id, inp.source_knowledge_id, driver)
 
     if inp.relationship_type == "knowledge_entity":
         if not inp.entity_type or not inp.entity_id:
             raise ValueError("entity_type and entity_id are required for knowledge_entity")
         end_node = _get_or_create_entity_node(
-            inp.app_id, inp.entity_type.strip(), str(inp.entity_id).strip(), client
+            inp.app_id, inp.entity_type.strip(), str(inp.entity_id).strip(), driver
         )
     elif inp.relationship_type == "knowledge_knowledge":
         if inp.target_knowledge_id is None:
             raise ValueError("target_knowledge_id is required for knowledge_knowledge")
         end_node = _get_or_create_knowledge_node(
-            inp.app_id, inp.target_knowledge_id, client
+            inp.app_id, inp.target_knowledge_id, driver
         )
     else:
         raise ValueError(f"Unknown relationship_type: {inp.relationship_type}")
 
-    existing = client.find_relationship(start_node, end_node, rel_type)
+    existing = driver.find_an_edge(start_node, end_node, rel_type)
     if existing is not None:
         props = _rel_props(inp.app_id, inp.predicate, inp.properties)
         if props:
-            client.update_relationship(existing, props)
+            driver.update_edge(existing, props)
         return existing, start_node, end_node
 
     props = _rel_props(inp.app_id, inp.predicate, inp.properties)
-    rel = client.create_relationship(start_node, end_node, rel_type, props)
+    rel = driver.create_edge(start_node, end_node, rel_type, props)
     return rel, start_node, end_node
 
 
@@ -137,8 +154,8 @@ def update_relationship_by_id(
         return None
     if not isinstance(properties, dict):
         raise ValueError("properties must be a dict")
-    client = get_neo4j_client()
-    result = client.run(
+    driver = _get_neo4j_driver()
+    result = driver.run(
         "MATCH ()-[r]->() WHERE id(r) = $rid RETURN r",
         {"rid": relationship_id},
     )
@@ -148,11 +165,10 @@ def update_relationship_by_id(
     rel = record["r"]
     if rel.get(APP_ID_PROP) != app_id:
         return None
-    # Merge props (do not overwrite app_id with wrong value)
     merged = dict(properties)
     if APP_ID_PROP not in merged:
         merged[APP_ID_PROP] = app_id
-    client.update_relationship(rel, merged)
+    driver.update_edge(rel, merged)
     return rel
 
 
@@ -162,8 +178,8 @@ def get_relationship_by_id(app_id: str, relationship_id: int) -> Optional[Relati
         return None
     if relationship_id is None or relationship_id <= 0:
         return None
-    client = get_neo4j_client()
-    result = client.run(
+    driver = _get_neo4j_driver()
+    result = driver.run(
         "MATCH ()-[r]->() WHERE id(r) = $rid RETURN r",
         {"rid": relationship_id},
     )
@@ -185,8 +201,8 @@ def delete_relationship_by_id(app_id: str, relationship_id: int) -> bool:
         return False
     if relationship_id is None or relationship_id <= 0:
         return False
-    client = get_neo4j_client()
-    result = client.run(
+    driver = _get_neo4j_driver()
+    result = driver.run(
         "MATCH ()-[r]->() WHERE id(r) = $rid RETURN r",
         {"rid": relationship_id},
     )
@@ -196,7 +212,7 @@ def delete_relationship_by_id(app_id: str, relationship_id: int) -> bool:
     rel = record["r"]
     if rel.get(APP_ID_PROP) != app_id:
         return False
-    client.delete_relationship(rel)
+    driver.delete_edge(rel)
     return True
 
 
@@ -208,7 +224,7 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
     """
     if not inp.app_id or not str(inp.app_id).strip():
         raise ValueError("app_id is required and cannot be empty")
-    client = get_neo4j_client()
+    driver = _get_neo4j_driver()
     limit = min(max(1, inp.limit), REL_LIST_LIMIT)
     offset = max(0, inp.offset)
 
@@ -251,7 +267,7 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
     """
 
     try:
-        total_result = client.run(count_q, params)
+        total_result = driver.run(count_q, params)
         total_record = total_result.single()
         total = total_record["total"] if total_record else 0
     except Exception as e:
@@ -259,7 +275,7 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
         raise
 
     try:
-        result = client.run(q, params)
+        result = driver.run(q, params)
     except Exception as e:
         logger.exception("[query_relationships] query error: %s", e)
         raise
@@ -364,7 +380,7 @@ def get_related_by_knowledge_ids(
     if not ids:
         return []
 
-    client = get_neo4j_client()
+    driver = _get_neo4j_driver()
     params: Dict[str, Any] = {
         "app_id": app_id,
         "ids": ids,
@@ -398,7 +414,7 @@ def get_related_by_knowledge_ids(
     seen: set = set()
     out: List[Dict[str, Any]] = []
     try:
-        result = client.run(q, params)
+        result = driver.run(q, params)
         for record in result:
             source_id = record["source_id"]
             b = record["b"]
@@ -468,7 +484,7 @@ def get_related_as_triples(
     if not ids:
         return []
 
-    client = get_neo4j_client()
+    driver = _get_neo4j_driver()
     params: Dict[str, Any] = {
         "app_id": app_id,
         "ids": ids,
@@ -493,7 +509,7 @@ def get_related_as_triples(
     triples: List[PredicateTriple] = []
     seen: set = set()
     try:
-        result = client.run(q, params)
+        result = driver.run(q, params)
         for record in result:
             a, r, b = record["a"], record["r"], record["b"]
             start_labels = record["start_labels"]

@@ -14,20 +14,28 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
-from app_snowflake import urls as app_snowflake_urls
-from app_oss import urls as app_oss_urls
-from app_mailserver import urls as app_mailserver_urls
-from app_know import urls as app_know_urls
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-
     path('api-auth/', include('rest_framework.urls')),
-
-    path('api/mail/', include(app_mailserver_urls)),
-    path('api/oss/', include(app_oss_urls)),
-    path('api/snowflake/', include(app_snowflake_urls)),
-    path('api/know/', include(app_know_urls)),
 ]
+
+# Dynamically add URL patterns based on enabled apps
+if settings.APP_MAILSERVER_ENABLED:
+    from app_mailserver import urls as app_mailserver_urls
+    urlpatterns.append(path('api/mail/', include(app_mailserver_urls)))
+
+if settings.APP_OSS_ENABLED:
+    from app_oss import urls as app_oss_urls
+    urlpatterns.append(path('api/oss/', include(app_oss_urls)))
+
+if settings.APP_SNOWFLAKE_ENABLED:
+    from app_snowflake import urls as app_snowflake_urls
+    urlpatterns.append(path('api/snowflake/', include(app_snowflake_urls)))
+
+if settings.APP_KNOW_ENABLED:
+    from app_know import urls as app_know_urls
+    urlpatterns.append(path('api/know/', include(app_know_urls)))

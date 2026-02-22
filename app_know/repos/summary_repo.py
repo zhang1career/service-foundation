@@ -10,8 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pymongo.errors import ConnectionFailure, PyMongoError
 
-from app_know.conn.atlas import AtlasClient, get_atlas_client
 from common.consts.query_const import LIMIT_LIST
+from common.drivers.mongo_driver import MongoDriver
+from service_foundation import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +33,22 @@ KEY_CT = "ct"
 KEY_UT = "ut"
 KEY_ID = "_id"
 
+# Singleton driver instance (lazy initialization)
+_mongo_driver: Optional[MongoDriver] = None
 
-def _with_atlas(atlas: Optional[AtlasClient] = None):
-    """Yield an AtlasClient. If atlas is None, create and connect one (caller must use as context or close)."""
-    if atlas is not None:
-        yield atlas
-        return
-    client = get_atlas_client()
-    try:
-        yield client
-    finally:
-        client.disconnect()
+
+def _get_mongo_driver() -> MongoDriver:
+    """Get the singleton MongoDriver instance for app_know."""
+    global _mongo_driver
+    if _mongo_driver is None:
+        _mongo_driver = MongoDriver(
+            host=settings.MONGO_ATLAS_HOST,
+            username=settings.MONGO_ATLAS_USER,
+            password=settings.MONGO_ATLAS_PASS,
+            cluster=settings.MONGO_ATLAS_CLUSTER,
+            db_name=settings.MONGO_ATLAS_DB,
+        )
+    return _mongo_driver
 
 
 def _ensure_index(coll) -> None:
@@ -62,7 +68,6 @@ def save_summary(
     summary: str,
     app_id: str,
     source: Optional[str] = None,
-    atlas: Optional[AtlasClient] = None,
 ) -> Dict[str, Any]:
     """
     Upsert a summary document by (knowledge_id, app_id).
@@ -92,26 +97,26 @@ def save_summary(
         KEY_UT: now_ms,
     }
     try:
-        for client in _with_atlas(atlas):
-            coll = client.get_collection(COLLECTION_NAME)
-            _ensure_index(coll)
-            filter_q = {KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id}
-            existing = coll.find_one(filter_q)
-            if existing:
-                update = {
-                    "$set": {
-                        KEY_SUMMARY: doc[KEY_SUMMARY],
-                        KEY_SOURCE: doc[KEY_SOURCE],
-                        KEY_UT: now_ms,
-                    }
+        driver = _get_mongo_driver()
+        coll = driver.create_or_get_collection(COLLECTION_NAME)
+        _ensure_index(coll)
+        filter_q = {KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id}
+        existing = coll.find_one(filter_q)
+        if existing:
+            update = {
+                "$set": {
+                    KEY_SUMMARY: doc[KEY_SUMMARY],
+                    KEY_SOURCE: doc[KEY_SOURCE],
+                    KEY_UT: now_ms,
                 }
-                coll.update_one(filter_q, update)
-                doc[KEY_CT] = existing.get(KEY_CT, now_ms)
-                doc[KEY_UT] = now_ms
-                doc[KEY_ID] = existing[KEY_ID]
-            else:
-                coll.insert_one(doc)
-            return _doc_to_item(doc)
+            }
+            coll.update_one(filter_q, update)
+            doc[KEY_CT] = existing.get(KEY_CT, now_ms)
+            doc[KEY_UT] = now_ms
+            doc[KEY_ID] = existing[KEY_ID]
+        else:
+            coll.insert_one(doc)
+        return _doc_to_item(doc)
     except ConnectionFailure:
         raise
     except PyMongoError as e:
@@ -122,7 +127,6 @@ def save_summary(
 def get_summary(
     knowledge_id: int,
     app_id: Optional[str] = None,
-    atlas: Optional[AtlasClient] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Get one summary by knowledge_id. If app_id is provided, filter by it.
@@ -134,12 +138,12 @@ def get_summary(
     if app_id is not None and str(app_id).strip():
         query[KEY_APP_ID] = str(app_id).strip()
     try:
-        for client in _with_atlas(atlas):
-            coll = client.get_collection(COLLECTION_NAME)
-            doc = coll.find_one(query)
-            if doc is None:
-                return None
-            return _doc_to_item(doc)
+        driver = _get_mongo_driver()
+        coll = driver.create_or_get_collection(COLLECTION_NAME)
+        doc = coll.find_one(query)
+        if doc is None:
+            return None
+        return _doc_to_item(doc)
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[get_summary] Error: %s", e)
         raise
@@ -150,7 +154,6 @@ def list_summaries(
     knowledge_id: Optional[int] = None,
     offset: int = 0,
     limit: int = 100,
-    atlas: Optional[AtlasClient] = None,
 ) -> Tuple[List[Dict[str, Any]], int]:
     """
     List summaries with optional filters. Returns (items, total_count).
@@ -170,12 +173,12 @@ def list_summaries(
     if knowledge_id is not None and isinstance(knowledge_id, int) and knowledge_id > 0:
         query[KEY_KNOWLEDGE_ID] = knowledge_id
     try:
-        for client in _with_atlas(atlas):
-            coll = client.get_collection(COLLECTION_NAME)
-            total = coll.count_documents(query)
-            cursor = coll.find(query).sort(KEY_UT, -1).skip(offset).limit(limit)
-            items = [_doc_to_item(d) for d in cursor]
-            return items, total
+        driver = _get_mongo_driver()
+        coll = driver.create_or_get_collection(COLLECTION_NAME)
+        total = coll.count_documents(query)
+        cursor = coll.find(query).sort(KEY_UT, -1).skip(offset).limit(limit)
+        items = [_doc_to_item(d) for d in cursor]
+        return items, total
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[list_summaries] Error: %s", e)
         raise
@@ -183,7 +186,6 @@ def list_summaries(
 
 def delete_by_knowledge_id(
     knowledge_id: int,
-    atlas: Optional[AtlasClient] = None,
 ) -> int:
     """
     Delete all summary documents for the given knowledge_id (sync on knowledge delete).
@@ -192,10 +194,10 @@ def delete_by_knowledge_id(
     if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
         return 0
     try:
-        for client in _with_atlas(atlas):
-            coll = client.get_collection(COLLECTION_NAME)
-            result = coll.delete_many({KEY_KNOWLEDGE_ID: knowledge_id})
-            return result.deleted_count
+        driver = _get_mongo_driver()
+        coll = driver.create_or_get_collection(COLLECTION_NAME)
+        result = coll.delete_many({KEY_KNOWLEDGE_ID: knowledge_id})
+        return result.deleted_count
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[delete_by_knowledge_id] Error: %s", e)
         raise
@@ -206,7 +208,6 @@ def update_summary(
     app_id: str,
     summary: Optional[str] = None,
     source: Optional[str] = None,
-    atlas: Optional[AtlasClient] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Update an existing summary document by (knowledge_id, app_id).
@@ -234,17 +235,17 @@ def update_summary(
         update_fields[KEY_SOURCE] = source.strip() or "title_description"
 
     try:
-        for client in _with_atlas(atlas):
-            coll = client.get_collection(COLLECTION_NAME)
-            filter_q = {KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id}
-            result = coll.find_one_and_update(
-                filter_q,
-                {"$set": update_fields},
-                return_document=True,
-            )
-            if result is None:
-                return None
-            return _doc_to_item(result)
+        driver = _get_mongo_driver()
+        coll = driver.create_or_get_collection(COLLECTION_NAME)
+        filter_q = {KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id}
+        result = coll.find_one_and_update(
+            filter_q,
+            {"$set": update_fields},
+            return_document=True,
+        )
+        if result is None:
+            return None
+        return _doc_to_item(result)
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[update_summary] Error: %s", e)
         raise
@@ -253,7 +254,6 @@ def update_summary(
 def delete_summary(
     knowledge_id: int,
     app_id: str,
-    atlas: Optional[AtlasClient] = None,
 ) -> bool:
     """
     Delete a summary document by (knowledge_id, app_id).
@@ -266,10 +266,10 @@ def delete_summary(
         raise ValueError("app_id is required and cannot be empty")
 
     try:
-        for client in _with_atlas(atlas):
-            coll = client.get_collection(COLLECTION_NAME)
-            result = coll.delete_one({KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id})
-            return result.deleted_count > 0
+        driver = _get_mongo_driver()
+        coll = driver.create_or_get_collection(COLLECTION_NAME)
+        result = coll.delete_one({KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id})
+        return result.deleted_count > 0
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[delete_summary] Error: %s", e)
         raise
@@ -284,7 +284,6 @@ def search_summaries_by_text(
     query: str,
     app_id: Optional[str] = None,
     limit: int = 100,
-    atlas: Optional[AtlasClient] = None,
 ) -> List[Dict[str, Any]]:
     """
     Search summaries by keyword/text relevance (case-insensitive regex on summary field).
@@ -304,20 +303,19 @@ def search_summaries_by_text(
     if limit is None or not isinstance(limit, int) or limit <= 0 or limit > LIMIT_LIST:
         raise ValueError(f"limit must be an integer in 1..{LIMIT_LIST}")
     regex_pattern = _regex_escape(q)
-    # Case-insensitive substring match
     filter_q = {KEY_SUMMARY: {"$regex": regex_pattern, "$options": "i"}}
     if app_id is not None and str(app_id).strip():
         filter_q[KEY_APP_ID] = str(app_id).strip()
     try:
-        for client in _with_atlas(atlas):
-            coll = client.get_collection(COLLECTION_NAME)
-            cursor = coll.find(filter_q).limit(limit)
-            items = []
-            for doc in cursor:
-                item = _doc_to_item(doc)
-                item["score"] = 1.0
-                items.append(item)
-            return items
+        driver = _get_mongo_driver()
+        coll = driver.create_or_get_collection(COLLECTION_NAME)
+        cursor = coll.find(filter_q).limit(limit)
+        items = []
+        for doc in cursor:
+            item = _doc_to_item(doc)
+            item["score"] = 1.0
+            items.append(item)
+        return items
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[search_summaries_by_text] Error: %s", e)
         raise
