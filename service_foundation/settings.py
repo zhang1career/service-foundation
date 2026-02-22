@@ -193,6 +193,7 @@ DATABASES = {
 DATABASE_ROUTERS = [
     "app_snowflake.db_routers.ReadWriteRouter",
     "app_oss.db_routers.ReadWriteRouter",
+    "app_know.db_routers.ReadWriteRouter",
 ]
 
 # Password validation

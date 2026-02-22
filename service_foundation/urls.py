@@ -19,6 +19,7 @@ from django.urls import path, include
 from app_snowflake import urls as app_snowflake_urls
 from app_oss import urls as app_oss_urls
 from app_mailserver import urls as app_mailserver_urls
+from app_know import urls as app_know_urls
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -28,4 +29,5 @@ urlpatterns = [
     path('api/mail/', include(app_mailserver_urls)),
     path('api/oss/', include(app_oss_urls)),
     path('api/snowflake/', include(app_snowflake_urls)),
+    path('api/know/', include(app_know_urls)),
 ]

@@ -1,0 +1,32 @@
+# app_know URL configuration. Generated.
+from django.urls import path
+
+from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
+from app_know.views.query_view import LogicalQueryView
+from app_know.views.relationship_view import RelationshipListView, RelationshipDetailView
+from app_know.views.summary_view import (
+    KnowledgeSummaryView,
+    KnowledgeSummaryListView,
+)
+
+urlpatterns = [
+    path("knowledge", KnowledgeListView.as_view(), name="knowledge-list"),
+    path("knowledge/<int:entity_id>", KnowledgeDetailView.as_view(), name="knowledge-detail"),
+    path(
+        "knowledge/<int:entity_id>/summary",
+        KnowledgeSummaryView.as_view(),
+        name="knowledge-summary",
+    ),
+    path(
+        "knowledge/summaries",
+        KnowledgeSummaryListView.as_view(),
+        name="knowledge-summary-list",
+    ),
+    path("knowledge/query", LogicalQueryView.as_view(), name="knowledge-query"),
+    path("knowledge/relationships", RelationshipListView.as_view(), name="relationship-list"),
+    path(
+        "knowledge/relationships/<int:relationship_id>",
+        RelationshipDetailView.as_view(),
+        name="relationship-detail",
+    ),
+]
