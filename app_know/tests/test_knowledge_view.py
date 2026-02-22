@@ -3,10 +3,8 @@ Tests for Knowledge REST API views (CRUD endpoints).
 Generated.
 """
 import json
-import time
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
-from django.db import transaction, connections
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
@@ -19,26 +17,21 @@ from common.consts.response_const import (
     RET_INVALID_PARAM,
 )
 
-from app_know.models import Knowledge
 from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
 
 
 class KnowledgeListViewTest(TestCase):
-    databases = {"default", "know_rw"}
+    """Tests for KnowledgeListView (fully mocked, no DB required)."""
 
     def setUp(self):
         self.factory = APIRequestFactory()
-        Knowledge.objects.using("know_rw").all().delete()
 
-    def tearDown(self):
-        try:
-            Knowledge.objects.using("know_rw").all().delete()
-        except Exception:
-            conn = connections["know_rw"]
-            if conn.in_atomic_block:
-                transaction.set_rollback(True, using="know_rw")
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_list_empty(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.list_knowledge.return_value = {"total_num": 0, "data": []}
+        mock_svc_cls.return_value = mock_svc
 
-    def test_list_empty(self):
         request = self.factory.get("/api/know/knowledge")
         response = KnowledgeListView.as_view()(request)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -48,7 +41,20 @@ class KnowledgeListViewTest(TestCase):
         self.assertEqual(data["data"]["total_num"], 0)
         self.assertEqual(data["data"]["data"], [])
 
-    def test_create_success(self):
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_create_success(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.create_knowledge.return_value = {
+            "id": 1,
+            "title": "API Title",
+            "description": "Desc",
+            "source_type": "doc",
+            "metadata": None,
+            "ct": 1700000000000,
+            "ut": 1700000000000,
+        }
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.post(
             "/api/know/knowledge",
             data={"title": "API Title", "description": "Desc", "source_type": "doc"},
@@ -73,15 +79,15 @@ class KnowledgeListViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
 
-    def test_list_with_params(self):
-        Knowledge.objects.using("know_rw").create(
-            title="A", source_type="doc",
-            ct=int(time.time() * 1000), ut=int(time.time() * 1000),
-        )
-        Knowledge.objects.using("know_rw").create(
-            title="B", source_type="url",
-            ct=int(time.time() * 1000), ut=int(time.time() * 1000),
-        )
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_list_with_params(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.list_knowledge.return_value = {
+            "total_num": 1,
+            "data": [{"id": 1, "title": "A", "source_type": "doc"}],
+        }
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.get(
             "/api/know/knowledge",
             {"offset": 0, "limit": 10, "source_type": "doc"},
@@ -109,7 +115,20 @@ class KnowledgeListViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
 
-    def test_create_with_metadata_dict(self):
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_create_with_metadata_dict(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.create_knowledge.return_value = {
+            "id": 1,
+            "title": "With Meta",
+            "description": None,
+            "source_type": None,
+            "metadata": '{"key": "value", "n": 1}',
+            "ct": 1700000000000,
+            "ut": 1700000000000,
+        }
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.post(
             "/api/know/knowledge",
             data={"title": "With Meta", "metadata": {"key": "value", "n": 1}},
@@ -151,8 +170,21 @@ class KnowledgeListViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
 
-    def test_create_with_description_as_number_coerced_to_string(self):
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_create_with_description_as_number_coerced_to_string(self, mock_svc_cls):
         """Create knowledge with description as number is coerced to string (edge case)."""
+        mock_svc = MagicMock()
+        mock_svc.create_knowledge.return_value = {
+            "id": 1,
+            "title": "Num Desc",
+            "description": "12345",
+            "source_type": "doc",
+            "metadata": None,
+            "ct": 1700000000000,
+            "ut": 1700000000000,
+        }
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.post(
             "/api/know/knowledge",
             data={"title": "Num Desc", "description": 12345, "source_type": "doc"},
@@ -168,29 +200,26 @@ class KnowledgeListViewTest(TestCase):
 
 
 class KnowledgeDetailViewTest(TestCase):
-    databases = {"default", "know_rw"}
+    """Tests for KnowledgeDetailView (fully mocked, no DB required)."""
 
     def setUp(self):
         self.factory = APIRequestFactory()
-        Knowledge.objects.using("know_rw").all().delete()
-        self.entity = Knowledge.objects.using("know_rw").create(
-            title="Detail Test",
-            description="D",
-            source_type="doc",
-            ct=int(time.time() * 1000),
-            ut=int(time.time() * 1000),
-        )
-        self.entity_id = self.entity.id
+        self.entity_id = 1
 
-    def tearDown(self):
-        try:
-            Knowledge.objects.using("know_rw").all().delete()
-        except Exception:
-            conn = connections["know_rw"]
-            if conn.in_atomic_block:
-                transaction.set_rollback(True, using="know_rw")
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_get_success(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.get_knowledge.return_value = {
+            "id": self.entity_id,
+            "title": "Detail Test",
+            "description": "D",
+            "source_type": "doc",
+            "metadata": None,
+            "ct": 1700000000000,
+            "ut": 1700000000000,
+        }
+        mock_svc_cls.return_value = mock_svc
 
-    def test_get_success(self):
         request = self.factory.get(f"/api/know/knowledge/{self.entity_id}")
         response = KnowledgeDetailView.as_view()(request, entity_id=self.entity_id)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -200,14 +229,32 @@ class KnowledgeDetailViewTest(TestCase):
         self.assertEqual(data["data"]["id"], self.entity_id)
         self.assertEqual(data["data"]["title"], "Detail Test")
 
-    def test_get_not_found(self):
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_get_not_found(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.get_knowledge.side_effect = ValueError("Knowledge 99999 not found")
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.get("/api/know/knowledge/99999")
         response = KnowledgeDetailView.as_view()(request, entity_id=99999)
         response.render()
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_RESOURCE_NOT_FOUND)
 
-    def test_put_success(self):
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_put_success(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.update_knowledge.return_value = {
+            "id": self.entity_id,
+            "title": "Updated Title",
+            "description": "D",
+            "source_type": "doc",
+            "metadata": None,
+            "ct": 1700000000000,
+            "ut": 1700000000001,
+        }
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.put(
             f"/api/know/knowledge/{self.entity_id}",
             data={"title": "Updated Title"},
@@ -220,29 +267,39 @@ class KnowledgeDetailViewTest(TestCase):
         self.assertEqual(data["errorCode"], RET_OK)
         self.assertEqual(data["data"]["title"], "Updated Title")
 
-    @patch("app_know.services.summary_service.delete_by_knowledge_id")
-    def test_delete_success(self, mock_delete_summaries):
-        """Delete knowledge entity; Atlas/summary_repo mocked so no real DNS or connection. Generated."""
-        mock_delete_summaries.return_value = 0
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_delete_success(self, mock_svc_cls):
+        """Delete knowledge entity; service fully mocked."""
+        mock_svc = MagicMock()
+        mock_svc.delete_knowledge.return_value = True
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.delete(f"/api/know/knowledge/{self.entity_id}")
         response = KnowledgeDetailView.as_view()(request, entity_id=self.entity_id)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         response.render()
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_OK)
-        self.assertIsNone(
-            Knowledge.objects.using("know_rw").filter(id=self.entity_id).first()
-        )
-        mock_delete_summaries.assert_called_once_with(knowledge_id=self.entity_id)
+        mock_svc.delete_knowledge.assert_called_once_with(self.entity_id)
 
-    def test_delete_not_found(self):
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_delete_not_found(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.delete_knowledge.side_effect = ValueError("Knowledge 99999 not found")
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.delete("/api/know/knowledge/99999")
         response = KnowledgeDetailView.as_view()(request, entity_id=99999)
         response.render()
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_RESOURCE_NOT_FOUND)
 
-    def test_put_empty_title_validation(self):
+    @patch("app_know.views.knowledge_view.KnowledgeService")
+    def test_put_empty_title_validation(self, mock_svc_cls):
+        mock_svc = MagicMock()
+        mock_svc.update_knowledge.side_effect = ValueError("title cannot be empty")
+        mock_svc_cls.return_value = mock_svc
+
         request = self.factory.put(
             f"/api/know/knowledge/{self.entity_id}",
             data={"title": "   "},

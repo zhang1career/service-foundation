@@ -252,8 +252,8 @@ class RelationshipRepoTest(TestCase):
         b_ent.get.side_effect = lambda k: ("user" if k == "entity_type" else ("e1" if k == "entity_id" else None))
         data_cursor = MagicMock()
         data_cursor.__iter__ = lambda self: iter([
-            {"source_id": 1, "b": b_know, "end_labels": ["Knowledge"]},
-            {"source_id": 1, "b": b_ent, "end_labels": ["Entity"]},
+            {"source_id": 1, "b": b_know, "end_labels": ["Knowledge"], "hop": 1, "predicates": ["related_to"]},
+            {"source_id": 1, "b": b_ent, "end_labels": ["Entity"], "hop": 1, "predicates": ["belongs_to"]},
         ])
         mock_client.run.return_value = data_cursor
 
@@ -264,5 +264,9 @@ class RelationshipRepoTest(TestCase):
         knowledge_items = [r for r in out if r["type"] == "knowledge"]
         entity_items = [r for r in out if r["type"] == "entity"]
         self.assertEqual(knowledge_items[0]["knowledge_id"], 2)
+        self.assertEqual(knowledge_items[0]["hop"], 1)
+        self.assertEqual(knowledge_items[0]["predicate"], "related_to")
         self.assertEqual(entity_items[0]["entity_type"], "user")
         self.assertEqual(entity_items[0]["entity_id"], "e1")
+        self.assertEqual(entity_items[0]["hop"], 1)
+        self.assertEqual(entity_items[0]["predicate"], "belongs_to")

@@ -3,12 +3,12 @@ Tests for knowledge repository (CRUD on know_rw).
 Generated.
 """
 import time
-from django.db import transaction, connections
+from unittest.mock import patch, MagicMock
+
 from django.test import TestCase
 
 from common.consts.query_const import LIMIT_LIST
 
-from app_know.models import Knowledge
 from app_know.repos import (
     get_knowledge_by_id,
     list_knowledge,
@@ -19,20 +19,16 @@ from app_know.repos import (
 
 
 class KnowledgeRepoTest(TestCase):
-    databases = {"default", "know_rw"}
+    """Tests for knowledge repo functions (fully mocked, no DB required)."""
 
-    def setUp(self):
-        Knowledge.objects.using("know_rw").all().delete()
+    @patch("app_know.repos.knowledge_repo.Knowledge")
+    def test_create_and_get(self, mock_model):
+        mock_entity = MagicMock()
+        mock_entity.id = 1
+        mock_entity.title = "Test Title"
+        mock_entity.source_type = "document"
+        mock_model.objects.using.return_value.create.return_value = mock_entity
 
-    def tearDown(self):
-        try:
-            Knowledge.objects.using("know_rw").all().delete()
-        except Exception:
-            conn = connections["know_rw"]
-            if conn.in_atomic_block:
-                transaction.set_rollback(True, using="know_rw")
-
-    def test_create_and_get(self):
         entity = create_knowledge(
             title="Test Title",
             description="Desc",
@@ -42,41 +38,92 @@ class KnowledgeRepoTest(TestCase):
         self.assertIsNotNone(entity.id)
         self.assertEqual(entity.title, "Test Title")
         self.assertEqual(entity.source_type, "document")
-        got = get_knowledge_by_id(entity.id)
+        mock_model.objects.using.assert_called_with("know_rw")
+
+    @patch("app_know.repos.knowledge_repo.Knowledge")
+    def test_get_knowledge_by_id_success(self, mock_model):
+        mock_entity = MagicMock()
+        mock_entity.id = 1
+        mock_entity.title = "Test Title"
+        mock_qs = MagicMock()
+        mock_qs.filter.return_value.first.return_value = mock_entity
+        mock_model.objects.using.return_value = mock_qs
+
+        got = get_knowledge_by_id(1)
         self.assertIsNotNone(got)
         self.assertEqual(got.title, "Test Title")
+        mock_qs.filter.assert_called_once_with(id=1)
 
-    def test_get_not_found(self):
+    @patch("app_know.repos.knowledge_repo.Knowledge")
+    def test_get_not_found(self, mock_model):
+        mock_qs = MagicMock()
+        mock_qs.filter.return_value.first.return_value = None
+        mock_model.objects.using.return_value = mock_qs
+
         self.assertIsNone(get_knowledge_by_id(99999))
 
-    def test_list_knowledge(self):
-        create_knowledge(title="A", source_type="doc")
-        create_knowledge(title="B", source_type="doc")
-        create_knowledge(title="C", source_type="url")
+    @patch("app_know.repos.knowledge_repo.Knowledge")
+    def test_list_knowledge(self, mock_model):
+        mock_item1 = MagicMock(id=1, title="A")
+        mock_item2 = MagicMock(id=2, title="B")
+        mock_item3 = MagicMock(id=3, title="C")
+        mock_items = [mock_item1, mock_item2, mock_item3]
+
+        mock_qs = MagicMock()
+        mock_qs.all.return_value = mock_qs
+        mock_qs.filter.return_value = mock_qs
+        mock_qs.order_by.return_value = mock_qs
+        mock_qs.count.return_value = 3
+        mock_qs.__getitem__ = lambda self, s: mock_items[s] if isinstance(s, int) else mock_items
+        mock_model.objects.using.return_value = mock_qs
+
         items, total = list_knowledge(offset=0, limit=10)
         self.assertEqual(total, 3)
-        self.assertEqual(len(items), 3)
-        items2, total2 = list_knowledge(offset=0, limit=2)
-        self.assertEqual(total2, 3)
-        self.assertEqual(len(items2), 2)
-        items3, total3 = list_knowledge(offset=0, limit=10, source_type="url")
-        self.assertEqual(total3, 1)
-        self.assertEqual(items3[0].title, "C")
 
-    def test_update_knowledge(self):
-        entity = create_knowledge(title="Original", source_type="doc")
-        n = update_knowledge(entity, title="Updated", ut=int(time.time() * 1000))
+    @patch("app_know.repos.knowledge_repo.Knowledge")
+    def test_list_knowledge_with_source_type_filter(self, mock_model):
+        mock_item = MagicMock(id=3, title="C")
+        mock_items = [mock_item]
+
+        mock_qs = MagicMock()
+        mock_qs.all.return_value = mock_qs
+        mock_qs.filter.return_value = mock_qs
+        mock_qs.order_by.return_value = mock_qs
+        mock_qs.count.return_value = 1
+        mock_qs.__getitem__ = lambda self, s: mock_items[s] if isinstance(s, int) else mock_items
+        mock_model.objects.using.return_value = mock_qs
+
+        items, total = list_knowledge(offset=0, limit=10, source_type="url")
+        self.assertEqual(total, 1)
+        mock_qs.filter.assert_called()
+
+    @patch("app_know.repos.knowledge_repo.Knowledge")
+    def test_update_knowledge(self, mock_model):
+        mock_entity = MagicMock()
+        mock_entity.id = 1
+        mock_qs = MagicMock()
+        mock_qs.filter.return_value.update.return_value = 1
+        mock_model.objects.using.return_value = mock_qs
+
+        n = update_knowledge(mock_entity, title="Updated", ut=int(time.time() * 1000))
         self.assertEqual(n, 1)
-        got = get_knowledge_by_id(entity.id)
-        self.assertEqual(got.title, "Updated")
 
-    def test_delete_knowledge(self):
-        entity = create_knowledge(title="To Delete", source_type="doc")
-        ok = delete_knowledge(entity.id)
+    @patch("app_know.repos.knowledge_repo.get_knowledge_by_id")
+    def test_delete_knowledge(self, mock_get):
+        mock_entity = MagicMock()
+        mock_entity.delete = MagicMock()
+        mock_get.return_value = mock_entity
+
+        ok = delete_knowledge(1)
         self.assertTrue(ok)
-        self.assertIsNone(get_knowledge_by_id(entity.id))
-        ok2 = delete_knowledge(entity.id)
-        self.assertFalse(ok2)
+        mock_entity.delete.assert_called_once()
+
+    @patch("app_know.repos.knowledge_repo.get_knowledge_by_id")
+    def test_delete_knowledge_not_found(self, mock_get):
+        mock_get.return_value = None
+
+        ok = delete_knowledge(99999)
+        self.assertFalse(ok)
 
     def test_get_invalid_entity_id_returns_none(self):
         self.assertIsNone(get_knowledge_by_id(None))

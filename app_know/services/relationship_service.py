@@ -6,14 +6,18 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app_know.models.relationships import (
+    PREDICATE_PROP,
+    PredicateTriple,
     RelationshipCreateInput,
     RelationshipQueryInput,
     RelationshipQueryResult,
 )
 from app_know.repos.relationship_repo import (
     create_relationship as repo_create,
+    delete_relationship_by_id,
     get_relationship_by_id,
     query_relationships as repo_query,
+    query_relationships_as_triples,
     update_relationship_by_id,
 )
 from common.components.singleton import Singleton
@@ -24,6 +28,7 @@ logger = logging.getLogger(__name__)
 APP_ID_MAX_LEN = 128
 ENTITY_TYPE_MAX_LEN = 128
 ENTITY_ID_MAX_LEN = 512
+PREDICATE_MAX_LEN = 256
 RELATIONSHIP_TYPES = ("knowledge_entity", "knowledge_knowledge")
 
 
@@ -67,7 +72,22 @@ def _relationship_result_to_dict(r: RelationshipQueryResult) -> Dict[str, Any]:
         out["entity_type"] = r.entity_type
     if r.entity_id is not None:
         out["entity_id"] = r.entity_id
+    if r.predicate is not None:
+        out["predicate"] = r.predicate
     return out
+
+
+def _validate_predicate(predicate: Optional[str]) -> Optional[str]:
+    if predicate is None:
+        return None
+    if not isinstance(predicate, str):
+        raise ValueError("predicate must be a string")
+    p = predicate.strip()
+    if not p:
+        return None
+    if len(p) > PREDICATE_MAX_LEN:
+        raise ValueError(f"predicate must be at most {PREDICATE_MAX_LEN} characters")
+    return p
 
 
 class RelationshipService(Singleton):
@@ -81,10 +101,12 @@ class RelationshipService(Singleton):
         target_knowledge_id: Optional[Any] = None,
         entity_type: Optional[str] = None,
         entity_id: Optional[str] = None,
+        predicate: Optional[str] = None,
         properties: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Create or upsert a knowledge–entity or knowledge–knowledge relationship.
+        Supports predicate logic: Subject(source) --predicate-> Object(target).
         Returns created/updated relationship as API dict.
         """
         app_id = _validate_app_id(app_id)
@@ -93,6 +115,7 @@ class RelationshipService(Singleton):
                 f"relationship_type must be one of {RELATIONSHIP_TYPES}"
             )
         source_id = _validate_positive_int(source_knowledge_id, "source_knowledge_id")
+        predicate = _validate_predicate(predicate)
 
         if relationship_type == "knowledge_entity":
             if not entity_type or not str(entity_type).strip():
@@ -111,6 +134,7 @@ class RelationshipService(Singleton):
                 source_knowledge_id=source_id,
                 entity_type=et,
                 entity_id=eid,
+                predicate=predicate,
                 properties=properties,
             )
         else:
@@ -122,14 +146,15 @@ class RelationshipService(Singleton):
                 relationship_type=relationship_type,
                 source_knowledge_id=source_id,
                 target_knowledge_id=target_id,
+                predicate=predicate,
                 properties=properties,
             )
 
         rel, start_node, end_node = repo_create(inp)
-        # Build result from created relationship
         rel_id = getattr(rel, "identity", None)
         props = dict(rel)
         app_id_val = props.pop("app_id", app_id)
+        predicate_val = props.pop(PREDICATE_PROP, predicate)
         result = RelationshipQueryResult(
             relationship_id=rel_id,
             app_id=app_id_val,
@@ -138,6 +163,7 @@ class RelationshipService(Singleton):
             target_knowledge_id=inp.target_knowledge_id,
             entity_type=inp.entity_type,
             entity_id=inp.entity_id,
+            predicate=predicate_val,
             properties=props,
         )
         return _relationship_result_to_dict(result)
@@ -186,6 +212,24 @@ class RelationshipService(Singleton):
             "properties": props,
         }
 
+    def delete_relationship(
+        self,
+        app_id: str,
+        relationship_id: Any,
+    ) -> bool:
+        """
+        Delete relationship by Neo4j relationship id.
+        Returns True if deleted, raises ValueError if not found or app_id mismatch.
+        """
+        app_id = _validate_app_id(app_id)
+        rid = _validate_positive_int(relationship_id, "relationship_id")
+        deleted = delete_relationship_by_id(app_id, rid)
+        if not deleted:
+            raise ValueError(
+                f"Relationship with id {relationship_id} not found or app_id mismatch"
+            )
+        return True
+
     def query_relationships(
         self,
         app_id: str,
@@ -193,6 +237,7 @@ class RelationshipService(Singleton):
         entity_type: Optional[str] = None,
         entity_id: Optional[str] = None,
         relationship_type: Optional[str] = None,
+        predicate: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> Dict[str, Any]:
@@ -215,6 +260,7 @@ class RelationshipService(Singleton):
             )
         et = (entity_type or "").strip() or None
         eid = (str(entity_id).strip() or None) if entity_id is not None else None
+        predicate = _validate_predicate(predicate)
         if et is not None and len(et) > ENTITY_TYPE_MAX_LEN:
             raise ValueError(f"entity_type must be at most {ENTITY_TYPE_MAX_LEN} characters")
         if eid is not None and len(eid) > ENTITY_ID_MAX_LEN:
@@ -226,6 +272,7 @@ class RelationshipService(Singleton):
             entity_type=et,
             entity_id=eid,
             relationship_type=relationship_type,
+            predicate=predicate,
             limit=limit,
             offset=offset,
         )
@@ -233,6 +280,56 @@ class RelationshipService(Singleton):
         next_offset = offset + len(items) if (offset + len(items)) < total else None
         return {
             "data": [_relationship_result_to_dict(r) for r in items],
+            "total_num": total,
+            "next_offset": next_offset,
+        }
+
+    def query_relationships_as_triples(
+        self,
+        app_id: str,
+        knowledge_id: Optional[Any] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        relationship_type: Optional[str] = None,
+        predicate: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Query relationships and return as predicate logic triples.
+        Returns dict with data (list of triples), total_num, next_offset.
+        """
+        app_id = _validate_app_id(app_id)
+        if offset < 0:
+            raise ValueError("offset must be >= 0")
+        if limit <= 0 or limit > LIMIT_LIST:
+            raise ValueError(f"limit must be in 1..{LIMIT_LIST}")
+
+        kid = None
+        if knowledge_id is not None:
+            kid = _validate_positive_int(knowledge_id, "knowledge_id")
+        if relationship_type is not None and relationship_type not in RELATIONSHIP_TYPES:
+            raise ValueError(
+                f"relationship_type must be one of {RELATIONSHIP_TYPES}"
+            )
+        et = (entity_type or "").strip() or None
+        eid = (str(entity_id).strip() or None) if entity_id is not None else None
+        predicate = _validate_predicate(predicate)
+
+        inp = RelationshipQueryInput(
+            app_id=app_id,
+            knowledge_id=kid,
+            entity_type=et,
+            entity_id=eid,
+            relationship_type=relationship_type,
+            predicate=predicate,
+            limit=limit,
+            offset=offset,
+        )
+        triples, total = query_relationships_as_triples(inp)
+        next_offset = offset + len(triples) if (offset + len(triples)) < total else None
+        return {
+            "data": [t.to_dict() for t in triples],
             "total_num": total,
             "next_offset": next_offset,
         }

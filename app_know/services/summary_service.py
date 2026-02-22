@@ -5,11 +5,17 @@ import logging
 from typing import Any, Dict, Optional
 
 from app_know.repos import get_knowledge_by_id
+from app_know.repos.summary_mapping_repo import (
+    create_or_update_mapping,
+    delete_mapping_by_knowledge_id,
+)
 from app_know.repos.summary_repo import (
-    save_summary,
+    delete_by_knowledge_id,
+    delete_summary as repo_delete_summary,
     get_summary as repo_get_summary,
     list_summaries as repo_list_summaries,
-    delete_by_knowledge_id,
+    save_summary,
+    update_summary as repo_update_summary,
 )
 from app_know.services.summary_generator import generate_summary
 from common.components.singleton import Singleton
@@ -44,10 +50,19 @@ class SummaryService(Singleton):
         self,
         knowledge_id: int,
         app_id: str,
+        use_ai: bool = False,
     ) -> Dict[str, Any]:
         """
         Load knowledge by id, generate summary from title/description, upsert to MongoDB.
-        Raises ValueError if knowledge_id or app_id invalid, or knowledge not found.
+        Also creates/updates the MySQL mapping table for efficient querying.
+
+        Args:
+            knowledge_id: Knowledge entity ID
+            app_id: Application ID
+            use_ai: If True, use AigcBestAPI for AI-powered generation
+
+        Raises:
+            ValueError: If knowledge_id or app_id invalid, or knowledge not found
         """
         _validate_knowledge_id(knowledge_id)
         app_id = _validate_app_id(app_id)
@@ -63,13 +78,29 @@ class SummaryService(Singleton):
             description=description,
             content=content,
             source_type=source_type,
+            use_ai=use_ai,
         )
-        return save_summary(
+        source = "ai_generated" if use_ai else "title_description"
+        result = save_summary(
             knowledge_id=knowledge_id,
             summary=summary_text,
             app_id=app_id,
-            source="title_description",
+            source=source,
         )
+        summary_id = result.get("id")
+        if summary_id:
+            try:
+                create_or_update_mapping(
+                    knowledge_id=knowledge_id,
+                    summary_id=summary_id,
+                    app_id=app_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "[generate_and_save] Failed to update mapping for knowledge_id=%s: %s",
+                    knowledge_id, e
+                )
+        return result
 
     def get_summary(
         self,
@@ -116,11 +147,69 @@ class SummaryService(Singleton):
             "next_offset": next_offset,
         }
 
+    def update_summary(
+        self,
+        knowledge_id: int,
+        app_id: str,
+        summary: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Update an existing summary. At least one of summary or source must be provided.
+        Raises ValueError if not found or invalid input.
+        """
+        _validate_knowledge_id(knowledge_id)
+        app_id = _validate_app_id(app_id)
+        if summary is None and source is None:
+            raise ValueError("At least one of summary or source must be provided")
+        result = repo_update_summary(
+            knowledge_id=knowledge_id,
+            app_id=app_id,
+            summary=summary,
+            source=source,
+        )
+        if result is None:
+            raise ValueError(f"Summary for knowledge id {knowledge_id} with app_id {app_id} not found")
+        return result
+
+    def delete_summary(
+        self,
+        knowledge_id: int,
+        app_id: str,
+    ) -> bool:
+        """
+        Delete a summary by (knowledge_id, app_id).
+        Also deletes the MySQL mapping.
+        Raises ValueError if not found.
+        """
+        _validate_knowledge_id(knowledge_id)
+        app_id = _validate_app_id(app_id)
+        deleted = repo_delete_summary(knowledge_id=knowledge_id, app_id=app_id)
+        if not deleted:
+            raise ValueError(f"Summary for knowledge id {knowledge_id} with app_id {app_id} not found")
+        try:
+            delete_mapping_by_knowledge_id(knowledge_id=knowledge_id, app_id=app_id)
+        except Exception as e:
+            logger.warning(
+                "[delete_summary] Failed to delete mapping for knowledge_id=%s: %s",
+                knowledge_id, e
+            )
+        return True
+
     def delete_summaries_for_knowledge(self, knowledge_id: int) -> int:
         """
         Delete all summaries for the given knowledge_id (sync on knowledge delete).
+        Also deletes the MySQL mappings.
         Returns number of summaries deleted. Does not raise if knowledge_id invalid (returns 0).
         """
         if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
             return 0
-        return delete_by_knowledge_id(knowledge_id=knowledge_id)
+        count = delete_by_knowledge_id(knowledge_id=knowledge_id)
+        try:
+            delete_mapping_by_knowledge_id(knowledge_id=knowledge_id)
+        except Exception as e:
+            logger.warning(
+                "[delete_summaries_for_knowledge] Failed to delete mappings for knowledge_id=%s: %s",
+                knowledge_id, e
+            )
+        return count

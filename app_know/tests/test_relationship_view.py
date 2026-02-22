@@ -235,6 +235,102 @@ class RelationshipListViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(data["errorCode"], RET_DB_ERROR)
 
+    @patch("app_know.views.relationship_view.RelationshipService")
+    def test_create_with_predicate_success(self, mock_service_cls):
+        """POST with predicate field creates relationship with predicate."""
+        mock_service = MagicMock()
+        mock_service.create_relationship.return_value = {
+            "relationship_id": 1,
+            "app_id": "myapp",
+            "relationship_type": "knowledge_entity",
+            "source_knowledge_id": 1,
+            "entity_type": "user",
+            "entity_id": "e1",
+            "predicate": "belongs_to",
+            "properties": {},
+        }
+        mock_service_cls.return_value = mock_service
+        request = self.factory.post(
+            "/api/know/knowledge/relationships",
+            data={
+                "app_id": "myapp",
+                "relationship_type": "knowledge_entity",
+                "source_knowledge_id": 1,
+                "entity_type": "user",
+                "entity_id": "e1",
+                "predicate": "belongs_to",
+            },
+            format="json",
+        )
+        response = RelationshipListView.as_view()(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_OK)
+        self.assertEqual(data["data"]["predicate"], "belongs_to")
+
+    @patch("app_know.views.relationship_view.RelationshipService")
+    def test_query_with_predicate_filter(self, mock_service_cls):
+        """GET with predicate filter passes it to service."""
+        mock_service = MagicMock()
+        mock_service.query_relationships.return_value = {
+            "data": [],
+            "total_num": 0,
+            "next_offset": None,
+        }
+        mock_service_cls.return_value = mock_service
+        request = self.factory.get(
+            "/api/know/knowledge/relationships",
+            {"app_id": "myapp", "predicate": "belongs_to"},
+        )
+        response = RelationshipListView.as_view()(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_service.query_relationships.assert_called_once()
+        call_kw = mock_service.query_relationships.call_args[1]
+        self.assertEqual(call_kw["predicate"], "belongs_to")
+
+    @patch("app_know.views.relationship_view.RelationshipService")
+    def test_query_with_format_triple(self, mock_service_cls):
+        """GET with format=triple calls query_relationships_as_triples.
+        Note: DRF intercepts 'format' for content negotiation, so we use a subclass
+        that overrides perform_content_negotiation to avoid 404.
+        """
+        from rest_framework.renderers import JSONRenderer
+
+        mock_service = MagicMock()
+        mock_service.query_relationships_as_triples.return_value = {
+            "data": [
+                {
+                    "subject": {"node_type": "knowledge", "knowledge_id": 1},
+                    "predicate": "relates_to",
+                    "object": {"node_type": "entity", "entity_type": "user", "entity_id": "e1"},
+                    "relationship_id": 42,
+                    "properties": {},
+                }
+            ],
+            "total_num": 1,
+            "next_offset": None,
+        }
+        mock_service_cls.return_value = mock_service
+
+        class TestRelationshipListView(RelationshipListView):
+            def perform_content_negotiation(self, request, force=False):
+                return (JSONRenderer(), "application/json")
+
+        request = self.factory.get(
+            "/api/know/knowledge/relationships",
+            {"app_id": "myapp", "format": "triple"},
+        )
+        response = TestRelationshipListView.as_view()(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_OK)
+        mock_service.query_relationships_as_triples.assert_called_once()
+        self.assertIn("subject", data["data"]["data"][0])
+        self.assertIn("predicate", data["data"]["data"][0])
+        self.assertIn("object", data["data"]["data"][0])
+
 
 class RelationshipDetailViewTest(TestCase):
     def setUp(self):
@@ -346,11 +442,56 @@ class RelationshipDetailViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
 
+    def test_delete_missing_app_id_returns_validation_error(self):
+        """DELETE with missing app_id returns RET_MISSING_PARAM."""
+        request = self.factory.delete("/api/know/knowledge/relationships/1")
+        response = RelationshipDetailView.as_view()(request, relationship_id=1)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
+
+    @patch("app_know.views.relationship_view.RelationshipService")
+    def test_delete_success(self, mock_service_cls):
+        """DELETE relationship by id returns OK when service succeeds."""
+        mock_service = MagicMock()
+        mock_service.delete_relationship.return_value = True
+        mock_service_cls.return_value = mock_service
+        request = self.factory.delete(
+            "/api/know/knowledge/relationships/1?app_id=myapp"
+        )
+        response = RelationshipDetailView.as_view()(request, relationship_id=1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_OK)
+
+    @patch("app_know.views.relationship_view.RelationshipService")
+    def test_delete_not_found(self, mock_service_cls):
+        """DELETE relationship not found returns RET_RESOURCE_NOT_FOUND."""
+        mock_service = MagicMock()
+        mock_service.delete_relationship.side_effect = ValueError("not found")
+        mock_service_cls.return_value = mock_service
+        request = self.factory.delete(
+            "/api/know/knowledge/relationships/999?app_id=myapp"
+        )
+        response = RelationshipDetailView.as_view()(request, relationship_id=999)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_RESOURCE_NOT_FOUND)
+
+    def test_delete_invalid_relationship_id_returns_invalid_param(self):
+        """DELETE with relationship_id=0 returns RET_INVALID_PARAM."""
+        request = self.factory.delete(
+            "/api/know/knowledge/relationships/0?app_id=myapp"
+        )
+        response = RelationshipDetailView.as_view()(request, relationship_id=0)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
 
 class RelationshipEndpointIntegrationTest(TestCase):
     """Verify relationship API endpoints are wired and return expected shape. Generated."""
-
-    databases = {"default", "know_rw"}
 
     def setUp(self):
         self.factory = APIRequestFactory()

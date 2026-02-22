@@ -16,11 +16,14 @@ from app_know.models.relationships import (
     KNOWLEDGE_ID_PROP,
     NODE_LABEL_ENTITY,
     NODE_LABEL_KNOWLEDGE,
+    PREDICATE_PROP,
     REL_TYPE_KNOWLEDGE_ENTITY,
     REL_TYPE_KNOWLEDGE_KNOWLEDGE,
+    PredicateTriple,
     RelationshipCreateInput,
     RelationshipQueryInput,
     RelationshipQueryResult,
+    SubjectObject,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,11 +68,17 @@ def _rel_type_from_input(relationship_type: str) -> str:
     raise ValueError(f"Unknown relationship_type: {relationship_type}")
 
 
-def _rel_props(app_id: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _rel_props(
+    app_id: str,
+    predicate: Optional[str] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     out = {APP_ID_PROP: app_id}
+    if predicate:
+        out[PREDICATE_PROP] = predicate
     if extra:
         for k, v in extra.items():
-            if k != APP_ID_PROP:
+            if k not in (APP_ID_PROP, PREDICATE_PROP):
                 out[k] = v
     return out
 
@@ -78,6 +87,7 @@ def create_relationship(inp: RelationshipCreateInput) -> Tuple[Relationship, Nod
     """
     Create a knowledge–entity or knowledge–knowledge relationship.
     Creates source/target nodes if they do not exist. Returns (relationship, start_node, end_node).
+    Supports predicate logic: Subject(source) --predicate-> Object(target).
     """
     if not inp.app_id or not str(inp.app_id).strip():
         raise ValueError("app_id is required and cannot be empty")
@@ -104,13 +114,12 @@ def create_relationship(inp: RelationshipCreateInput) -> Tuple[Relationship, Nod
 
     existing = client.find_relationship(start_node, end_node, rel_type)
     if existing is not None:
-        # Update properties if provided
-        props = _rel_props(inp.app_id, inp.properties)
+        props = _rel_props(inp.app_id, inp.predicate, inp.properties)
         if props:
             client.update_relationship(existing, props)
         return existing, start_node, end_node
 
-    props = _rel_props(inp.app_id, inp.properties)
+    props = _rel_props(inp.app_id, inp.predicate, inp.properties)
     rel = client.create_relationship(start_node, end_node, rel_type, props)
     return rel, start_node, end_node
 
@@ -167,10 +176,35 @@ def get_relationship_by_id(app_id: str, relationship_id: int) -> Optional[Relati
     return rel
 
 
+def delete_relationship_by_id(app_id: str, relationship_id: int) -> bool:
+    """
+    Delete relationship by Neo4j internal id. Verifies app_id on relationship.
+    Returns True if deleted, False if not found or app_id mismatch.
+    """
+    if not app_id or not str(app_id).strip():
+        return False
+    if relationship_id is None or relationship_id <= 0:
+        return False
+    client = get_neo4j_client()
+    result = client.run(
+        "MATCH ()-[r]->() WHERE id(r) = $rid RETURN r",
+        {"rid": relationship_id},
+    )
+    record = result.single()
+    if not record:
+        return False
+    rel = record["r"]
+    if rel.get(APP_ID_PROP) != app_id:
+        return False
+    client.delete_relationship(rel)
+    return True
+
+
 def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQueryResult], int]:
     """
     Query relationships by app_id and optional filters.
     Returns (list of RelationshipQueryResult, total count).
+    Supports predicate filtering.
     """
     if not inp.app_id or not str(inp.app_id).strip():
         raise ValueError("app_id is required and cannot be empty")
@@ -178,8 +212,6 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
     limit = min(max(1, inp.limit), REL_LIST_LIMIT)
     offset = max(0, inp.offset)
 
-    # Build Cypher: match (a:Knowledge)-[r:REL_TYPE]->(b) where r.app_id = $app_id
-    # and optional filters on a.knowledge_id, b (Entity or Knowledge), r type
     params: Dict[str, Any] = {"app_id": inp.app_id, "limit": limit, "offset": offset}
 
     conditions = ["r.app_id = $app_id"]
@@ -198,9 +230,11 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
     if inp.entity_id is not None:
         params["entity_id"] = inp.entity_id
         conditions.append("(b.entity_id = $entity_id)")
+    if inp.predicate is not None:
+        params["predicate"] = inp.predicate
+        conditions.append("r.predicate = $predicate")
 
     where_clause = " AND ".join(conditions)
-    # Match both Knowledge->Entity and Knowledge->Knowledge; distinguish by end node label
     q = f"""
     MATCH (a:Knowledge)-[r]->(b)
     WHERE a.app_id = $app_id AND b.app_id = $app_id AND {where_clause}
@@ -242,6 +276,7 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
         entity_id = b.get(ENTITY_ID_PROP) if NODE_LABEL_ENTITY in end_labels else None
         rel_id = r.identity if hasattr(r, "identity") else None
         props = dict(r)
+        predicate_val = props.pop(PREDICATE_PROP, None)
         out.append(
             RelationshipQueryResult(
                 relationship_id=rel_id,
@@ -251,22 +286,70 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
                 target_knowledge_id=target_knowledge_id,
                 entity_type=entity_type,
                 entity_id=entity_id,
+                predicate=predicate_val,
                 properties=props,
             )
         )
     return out, total
 
 
+def query_relationships_as_triples(
+    inp: RelationshipQueryInput,
+) -> Tuple[List[PredicateTriple], int]:
+    """
+    Query relationships and return as predicate logic triples.
+    Returns (list of PredicateTriple, total count).
+    """
+    results, total = query_relationships(inp)
+    triples = []
+    for r in results:
+        subject = SubjectObject(
+            node_type="knowledge",
+            knowledge_id=r.source_knowledge_id,
+        )
+        if r.relationship_type == "knowledge_knowledge":
+            obj = SubjectObject(
+                node_type="knowledge",
+                knowledge_id=r.target_knowledge_id,
+            )
+        else:
+            obj = SubjectObject(
+                node_type="entity",
+                entity_type=r.entity_type,
+                entity_id=r.entity_id,
+            )
+        triple = PredicateTriple(
+            subject=subject,
+            predicate=r.predicate or r.relationship_type,
+            obj=obj,
+            relationship_id=r.relationship_id,
+            properties=r.properties,
+        )
+        triples.append(triple)
+    return triples, total
+
+
 def get_related_by_knowledge_ids(
     knowledge_ids: List[int],
     app_id: str,
     limit: int = 200,
+    max_hops: int = 1,
+    predicate_filter: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Neo4j graph reasoning: given candidate knowledge IDs, return related knowledge and entities
-    (outgoing and incoming traversals). Used by logical query to expand candidates.
-    Returns list of dicts: type (knowledge|entity), knowledge_id, entity_type, entity_id,
-    source_knowledge_id, hop (1). Generated.
+    with multi-hop traversal support.
+
+    Args:
+        knowledge_ids: List of starting knowledge IDs
+        app_id: Application ID for scoping
+        limit: Maximum number of results
+        max_hops: Maximum traversal depth (1-5)
+        predicate_filter: Optional predicate to filter relationships
+
+    Returns:
+        List of dicts with: type, knowledge_id, entity_type, entity_id,
+        source_knowledge_id, hop, predicate
     """
     if not app_id or not str(app_id).strip():
         raise ValueError("app_id is required and cannot be empty")
@@ -274,25 +357,44 @@ def get_related_by_knowledge_ids(
         raise ValueError("knowledge_ids must be a list")
     if limit is None or not isinstance(limit, int) or limit <= 0 or limit > REL_LIST_LIMIT:
         raise ValueError(f"limit must be an integer in 1..{REL_LIST_LIMIT}")
+    if max_hops is None or not isinstance(max_hops, int) or max_hops < 1 or max_hops > 5:
+        raise ValueError("max_hops must be an integer in 1..5")
+
     ids = [i for i in knowledge_ids if isinstance(i, int) and i > 0]
     if not ids:
         return []
+
     client = get_neo4j_client()
-    params: Dict[str, Any] = {"app_id": app_id, "ids": ids, "limit": limit}
-    # Outgoing: (k:Knowledge)-[r]->(b) where k in ids
-    q = """
-    MATCH (k:Knowledge)-[r]->(b)
+    params: Dict[str, Any] = {
+        "app_id": app_id,
+        "ids": ids,
+        "limit": limit,
+        "max_hops": max_hops,
+    }
+
+    predicate_condition = ""
+    if predicate_filter:
+        params["predicate"] = predicate_filter
+        predicate_condition = "AND r.predicate = $predicate"
+
+    q = f"""
+    MATCH path = (k:Knowledge)-[r*1..{max_hops}]->(b)
     WHERE k.app_id = $app_id AND b.app_id = $app_id AND k.knowledge_id IN $ids
-    WITH k, b, labels(b) AS end_labels
+    {predicate_condition.replace('r.predicate', 'ALL(rel IN r WHERE rel.predicate = $predicate)') if predicate_filter else ''}
+    WITH k, b, length(path) AS hop, labels(b) AS end_labels,
+         [rel IN relationships(path) | rel.predicate] AS predicates
     LIMIT $limit
-    RETURN k.knowledge_id AS source_id, b, end_labels
+    RETURN k.knowledge_id AS source_id, b, end_labels, hop, predicates
     UNION
-    MATCH (a:Knowledge)-[r]->(k:Knowledge)
+    MATCH path = (a)-[r*1..{max_hops}]->(k:Knowledge)
     WHERE k.app_id = $app_id AND a.app_id = $app_id AND k.knowledge_id IN $ids
-    WITH a, k
+    {predicate_condition.replace('r.predicate', 'ALL(rel IN r WHERE rel.predicate = $predicate)') if predicate_filter else ''}
+    WITH a, k, length(path) AS hop, labels(a) AS end_labels,
+         [rel IN relationships(path) | rel.predicate] AS predicates
     LIMIT $limit
-    RETURN k.knowledge_id AS source_id, a AS b, labels(a) AS end_labels
+    RETURN k.knowledge_id AS source_id, a AS b, end_labels, hop, predicates
     """
+
     seen: set = set()
     out: List[Dict[str, Any]] = []
     try:
@@ -301,6 +403,10 @@ def get_related_by_knowledge_ids(
             source_id = record["source_id"]
             b = record["b"]
             end_labels = record["end_labels"]
+            hop = record["hop"]
+            predicates = record.get("predicates", [])
+            predicate = predicates[-1] if predicates else None
+
             if NODE_LABEL_KNOWLEDGE in end_labels:
                 kid = b.get(KNOWLEDGE_ID_PROP)
                 key = ("knowledge", kid)
@@ -312,7 +418,8 @@ def get_related_by_knowledge_ids(
                         "entity_type": None,
                         "entity_id": None,
                         "source_knowledge_id": source_id,
-                        "hop": 1,
+                        "hop": hop,
+                        "predicate": predicate,
                     })
             else:
                 etype = b.get(ENTITY_TYPE_PROP)
@@ -326,7 +433,8 @@ def get_related_by_knowledge_ids(
                         "entity_type": etype,
                         "entity_id": eid,
                         "source_knowledge_id": source_id,
-                        "hop": 1,
+                        "hop": hop,
+                        "predicate": predicate,
                     })
             if len(out) >= limit:
                 break
@@ -334,3 +442,107 @@ def get_related_by_knowledge_ids(
         logger.exception("[get_related_by_knowledge_ids] Error: %s", e)
         raise
     return out
+
+
+def get_related_as_triples(
+    knowledge_ids: List[int],
+    app_id: str,
+    limit: int = 200,
+    max_hops: int = 1,
+    predicate_filter: Optional[str] = None,
+) -> List[PredicateTriple]:
+    """
+    Get related items as predicate logic triples.
+    Returns list of PredicateTriple objects.
+    """
+    if not app_id or not str(app_id).strip():
+        raise ValueError("app_id is required and cannot be empty")
+    if not isinstance(knowledge_ids, list):
+        raise ValueError("knowledge_ids must be a list")
+    if limit is None or not isinstance(limit, int) or limit <= 0 or limit > REL_LIST_LIMIT:
+        raise ValueError(f"limit must be an integer in 1..{REL_LIST_LIMIT}")
+    if max_hops is None or not isinstance(max_hops, int) or max_hops < 1 or max_hops > 5:
+        raise ValueError("max_hops must be an integer in 1..5")
+
+    ids = [i for i in knowledge_ids if isinstance(i, int) and i > 0]
+    if not ids:
+        return []
+
+    client = get_neo4j_client()
+    params: Dict[str, Any] = {
+        "app_id": app_id,
+        "ids": ids,
+        "limit": limit,
+    }
+
+    predicate_condition = ""
+    if predicate_filter:
+        params["predicate"] = predicate_filter
+        predicate_condition = "AND r.predicate = $predicate"
+
+    q = f"""
+    MATCH (a)-[r]->(b)
+    WHERE a.app_id = $app_id AND b.app_id = $app_id
+    AND (a.knowledge_id IN $ids OR b.knowledge_id IN $ids)
+    {predicate_condition}
+    WITH a, r, b, labels(a) AS start_labels, labels(b) AS end_labels
+    LIMIT $limit
+    RETURN a, r, b, start_labels, end_labels
+    """
+
+    triples: List[PredicateTriple] = []
+    seen: set = set()
+    try:
+        result = client.run(q, params)
+        for record in result:
+            a, r, b = record["a"], record["r"], record["b"]
+            start_labels = record["start_labels"]
+            end_labels = record["end_labels"]
+            rel_id = r.identity if hasattr(r, "identity") else None
+            props = dict(r)
+            predicate = props.pop(PREDICATE_PROP, None) or type(r).__name__
+
+            if NODE_LABEL_KNOWLEDGE in start_labels:
+                subject = SubjectObject(
+                    node_type="knowledge",
+                    knowledge_id=a.get(KNOWLEDGE_ID_PROP),
+                )
+            else:
+                subject = SubjectObject(
+                    node_type="entity",
+                    entity_type=a.get(ENTITY_TYPE_PROP),
+                    entity_id=a.get(ENTITY_ID_PROP),
+                )
+
+            if NODE_LABEL_KNOWLEDGE in end_labels:
+                obj = SubjectObject(
+                    node_type="knowledge",
+                    knowledge_id=b.get(KNOWLEDGE_ID_PROP),
+                )
+            else:
+                obj = SubjectObject(
+                    node_type="entity",
+                    entity_type=b.get(ENTITY_TYPE_PROP),
+                    entity_id=b.get(ENTITY_ID_PROP),
+                )
+
+            key = (subject.node_type, subject.knowledge_id or subject.entity_id,
+                   predicate,
+                   obj.node_type, obj.knowledge_id or obj.entity_id)
+            if key not in seen:
+                seen.add(key)
+                props.pop(APP_ID_PROP, None)
+                triples.append(PredicateTriple(
+                    subject=subject,
+                    predicate=predicate,
+                    obj=obj,
+                    relationship_id=rel_id,
+                    properties=props,
+                ))
+
+            if len(triples) >= limit:
+                break
+    except Exception as e:
+        logger.exception("[get_related_as_triples] Error: %s", e)
+        raise
+    return triples

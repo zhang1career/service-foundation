@@ -74,7 +74,7 @@ class RelationshipListView(APIView):
     """Create relationship (POST) and query relationships (GET)."""
 
     def get(self, request, *args, **kwargs):
-        """Query relationships. Query params: app_id (required), knowledge_id, entity_type, entity_id, relationship_type, limit, offset."""
+        """Query relationships. Query params: app_id (required), knowledge_id, entity_type, entity_id, relationship_type, predicate, limit, offset, format."""
         try:
             app_id = (request.GET.get("app_id") or "").strip()
             if not app_id:
@@ -83,6 +83,8 @@ class RelationshipListView(APIView):
             entity_type = request.GET.get("entity_type")
             entity_id = request.GET.get("entity_id")
             relationship_type = request.GET.get("relationship_type")
+            predicate = request.GET.get("predicate")
+            output_format = (request.GET.get("format") or "").strip().lower()
             raw_limit = request.GET.get("limit", 100)
             raw_offset = request.GET.get("offset", 0)
             try:
@@ -95,15 +97,28 @@ class RelationshipListView(APIView):
             if offset < 0:
                 raise ValueError("offset must be >= 0")
             service = RelationshipService()
-            out = service.query_relationships(
-                app_id=app_id,
-                knowledge_id=knowledge_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                relationship_type=relationship_type,
-                limit=limit,
-                offset=offset,
-            )
+            if output_format == "triple":
+                out = service.query_relationships_as_triples(
+                    app_id=app_id,
+                    knowledge_id=knowledge_id,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    relationship_type=relationship_type,
+                    predicate=predicate,
+                    limit=limit,
+                    offset=offset,
+                )
+            else:
+                out = service.query_relationships(
+                    app_id=app_id,
+                    knowledge_id=knowledge_id,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    relationship_type=relationship_type,
+                    predicate=predicate,
+                    limit=limit,
+                    offset=offset,
+                )
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[RelationshipListView.get] Validation error: %s", e)
@@ -114,7 +129,7 @@ class RelationshipListView(APIView):
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        """Create a relationship. Body: app_id, relationship_type, source_knowledge_id; for knowledge_entity: entity_type, entity_id; for knowledge_knowledge: target_knowledge_id; optional properties."""
+        """Create a relationship. Body: app_id, relationship_type, source_knowledge_id; for knowledge_entity: entity_type, entity_id; for knowledge_knowledge: target_knowledge_id; optional predicate and properties."""
         try:
             try:
                 data = _get_body(request) or {}
@@ -128,6 +143,7 @@ class RelationshipListView(APIView):
             target_knowledge_id = data.get("target_knowledge_id")
             entity_type = data.get("entity_type")
             entity_id = data.get("entity_id")
+            predicate = data.get("predicate")
             properties = data.get("properties")
             if isinstance(properties, dict):
                 pass
@@ -141,6 +157,7 @@ class RelationshipListView(APIView):
                 target_knowledge_id=target_knowledge_id,
                 entity_type=entity_type,
                 entity_id=entity_id,
+                predicate=predicate,
                 properties=properties,
             )
             return resp_ok(out)
@@ -216,4 +233,21 @@ class RelationshipDetailView(APIView):
             return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception("[RelationshipDetailView.put] Error: %s", e)
+            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+
+    def delete(self, request, relationship_id, *args, **kwargs):
+        """Delete relationship by Neo4j relationship id. Query param: app_id (required)."""
+        try:
+            app_id = (request.GET.get("app_id") or "").strip()
+            if not app_id:
+                raise ValueError("app_id is required and cannot be empty")
+            rid = _parse_relationship_id(relationship_id)
+            service = RelationshipService()
+            service.delete_relationship(app_id=app_id, relationship_id=rid)
+            return resp_ok(None)
+        except ValueError as e:
+            logger.warning("[RelationshipDetailView.delete] Validation error: %s", e)
+            return resp_err(str(e), code=_error_code_for_validation(str(e)), status=http_status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("[RelationshipDetailView.delete] Error: %s", e)
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)

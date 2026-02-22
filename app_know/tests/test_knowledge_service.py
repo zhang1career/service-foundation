@@ -2,13 +2,12 @@
 Tests for knowledge service (validation and CRUD).
 Generated.
 """
-import time as time_module
-from django.db import transaction, connections
+from unittest.mock import patch, MagicMock
+
 from django.test import TestCase
 
 from common.consts.query_const import LIMIT_LIST
 
-from app_know.models import Knowledge
 from app_know.services.knowledge_service import (
     KnowledgeService,
     TITLE_MAX_LEN,
@@ -17,18 +16,7 @@ from app_know.services.knowledge_service import (
 
 
 class KnowledgeServiceTest(TestCase):
-    databases = {"default", "know_rw"}
-
-    def setUp(self):
-        Knowledge.objects.using("know_rw").all().delete()
-
-    def tearDown(self):
-        try:
-            Knowledge.objects.using("know_rw").all().delete()
-        except Exception:
-            conn = connections["know_rw"]
-            if conn.in_atomic_block:
-                transaction.set_rollback(True, using="know_rw")
+    """Tests for KnowledgeService (fully mocked, no DB required)."""
 
     def test_create_requires_title(self):
         svc = KnowledgeService()
@@ -36,7 +24,18 @@ class KnowledgeServiceTest(TestCase):
             svc.create_knowledge(title="")
         self.assertIn("required", str(ctx.exception).lower())
 
-    def test_create_success(self):
+    @patch("app_know.services.knowledge_service.create_knowledge")
+    def test_create_success(self, mock_create):
+        mock_entity = MagicMock()
+        mock_entity.id = 1
+        mock_entity.title = "My Title"
+        mock_entity.description = "My desc"
+        mock_entity.source_type = "document"
+        mock_entity.metadata = None
+        mock_entity.ct = 1700000000000
+        mock_entity.ut = 1700000000000
+        mock_create.return_value = mock_entity
+
         svc = KnowledgeService()
         out = svc.create_knowledge(
             title="My Title",
@@ -49,8 +48,11 @@ class KnowledgeServiceTest(TestCase):
         self.assertEqual(out["source_type"], "document")
         self.assertIn("ct", out)
         self.assertIn("ut", out)
+        mock_create.assert_called_once()
 
-    def test_get_not_found(self):
+    @patch("app_know.services.knowledge_service.get_knowledge_by_id")
+    def test_get_not_found(self, mock_get):
+        mock_get.return_value = None
         svc = KnowledgeService()
         with self.assertRaises(ValueError) as ctx:
             svc.get_knowledge(99999)
@@ -63,13 +65,17 @@ class KnowledgeServiceTest(TestCase):
         with self.assertRaises(ValueError):
             svc.list_knowledge(limit=0)
 
-    def test_update_not_found(self):
+    @patch("app_know.services.knowledge_service.get_knowledge_by_id")
+    def test_update_not_found(self, mock_get):
+        mock_get.return_value = None
         svc = KnowledgeService()
         with self.assertRaises(ValueError) as ctx:
             svc.update_knowledge(99999, title="X")
         self.assertIn("not found", str(ctx.exception).lower())
 
-    def test_delete_not_found(self):
+    @patch("app_know.services.knowledge_service.delete_knowledge")
+    def test_delete_not_found(self, mock_delete):
+        mock_delete.return_value = False
         svc = KnowledgeService()
         with self.assertRaises(ValueError) as ctx:
             svc.delete_knowledge(99999)
@@ -112,26 +118,24 @@ class KnowledgeServiceTest(TestCase):
             svc.create_knowledge(title="Ok", source_type="x" * (SOURCE_TYPE_MAX_LEN + 1))
         self.assertIn("source_type", str(ctx.exception).lower())
 
-    def test_update_title_too_long_raises(self):
-        entity = Knowledge.objects.using("know_rw").create(
-            title="Original",
-            source_type="doc",
-            ct=int(time_module.time() * 1000),
-            ut=int(time_module.time() * 1000),
-        )
+    @patch("app_know.services.knowledge_service.get_knowledge_by_id")
+    def test_update_title_too_long_raises(self, mock_get):
+        mock_entity = MagicMock()
+        mock_entity.id = 1
+        mock_get.return_value = mock_entity
+
         svc = KnowledgeService()
         with self.assertRaises(ValueError) as ctx:
-            svc.update_knowledge(entity.id, title="x" * (TITLE_MAX_LEN + 1))
+            svc.update_knowledge(1, title="x" * (TITLE_MAX_LEN + 1))
         self.assertIn("title", str(ctx.exception).lower())
 
-    def test_update_source_type_too_long_raises(self):
-        entity = Knowledge.objects.using("know_rw").create(
-            title="Original",
-            source_type="doc",
-            ct=int(time_module.time() * 1000),
-            ut=int(time_module.time() * 1000),
-        )
+    @patch("app_know.services.knowledge_service.get_knowledge_by_id")
+    def test_update_source_type_too_long_raises(self, mock_get):
+        mock_entity = MagicMock()
+        mock_entity.id = 1
+        mock_get.return_value = mock_entity
+
         svc = KnowledgeService()
         with self.assertRaises(ValueError) as ctx:
-            svc.update_knowledge(entity.id, source_type="x" * (SOURCE_TYPE_MAX_LEN + 1))
+            svc.update_knowledge(1, source_type="x" * (SOURCE_TYPE_MAX_LEN + 1))
         self.assertIn("source_type", str(ctx.exception).lower())

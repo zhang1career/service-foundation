@@ -201,6 +201,80 @@ def delete_by_knowledge_id(
         raise
 
 
+def update_summary(
+    knowledge_id: int,
+    app_id: str,
+    summary: Optional[str] = None,
+    source: Optional[str] = None,
+    atlas: Optional[AtlasClient] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Update an existing summary document by (knowledge_id, app_id).
+    Returns the updated document or None if not found.
+    Raises ValueError for invalid inputs.
+    """
+    if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
+        raise ValueError("knowledge_id must be a positive integer")
+    app_id = (app_id or "").strip()
+    if not app_id:
+        raise ValueError("app_id is required and cannot be empty")
+    if summary is not None:
+        if not isinstance(summary, str):
+            raise ValueError("summary must be a string")
+        if len(summary) > SUMMARY_STORAGE_MAX_LEN:
+            raise ValueError(f"summary must not exceed {SUMMARY_STORAGE_MAX_LEN} characters")
+    if source is not None and not isinstance(source, str):
+        raise ValueError("source must be a string or None")
+
+    now_ms = int(time.time() * 1000)
+    update_fields = {KEY_UT: now_ms}
+    if summary is not None:
+        update_fields[KEY_SUMMARY] = summary
+    if source is not None:
+        update_fields[KEY_SOURCE] = source.strip() or "title_description"
+
+    try:
+        for client in _with_atlas(atlas):
+            coll = client.get_collection(COLLECTION_NAME)
+            filter_q = {KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id}
+            result = coll.find_one_and_update(
+                filter_q,
+                {"$set": update_fields},
+                return_document=True,
+            )
+            if result is None:
+                return None
+            return _doc_to_item(result)
+    except (ConnectionFailure, PyMongoError) as e:
+        logger.exception("[update_summary] Error: %s", e)
+        raise
+
+
+def delete_summary(
+    knowledge_id: int,
+    app_id: str,
+    atlas: Optional[AtlasClient] = None,
+) -> bool:
+    """
+    Delete a summary document by (knowledge_id, app_id).
+    Returns True if deleted, False if not found.
+    """
+    if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
+        raise ValueError("knowledge_id must be a positive integer")
+    app_id = (app_id or "").strip()
+    if not app_id:
+        raise ValueError("app_id is required and cannot be empty")
+
+    try:
+        for client in _with_atlas(atlas):
+            coll = client.get_collection(COLLECTION_NAME)
+            result = coll.delete_one({KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id})
+            return result.deleted_count > 0
+    except (ConnectionFailure, PyMongoError) as e:
+        logger.exception("[delete_summary] Error: %s", e)
+        raise
+
+
 def _regex_escape(text: str) -> str:
     """Escape special regex characters in a string for safe use in $regex."""
     return re.escape(text)

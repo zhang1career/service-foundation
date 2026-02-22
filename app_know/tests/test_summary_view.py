@@ -2,7 +2,6 @@
 Tests for knowledge summary API views (validation, error handling, edge cases). Generated.
 """
 import json
-import time
 from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
@@ -17,7 +16,6 @@ from common.consts.response_const import (
     RET_INVALID_PARAM,
 )
 
-from app_know.models import Knowledge
 from app_know.views.summary_view import (
     KnowledgeSummaryView,
     KnowledgeSummaryListView,
@@ -25,27 +23,11 @@ from app_know.views.summary_view import (
 
 
 class KnowledgeSummaryViewTest(TestCase):
-    """Tests for GET/POST knowledge/<id>/summary."""
-
-    databases = {"default", "know_rw"}
+    """Tests for GET/POST knowledge/<id>/summary (fully mocked, no DB required)."""
 
     def setUp(self):
         self.factory = APIRequestFactory()
-        Knowledge.objects.using("know_rw").all().delete()
-        self.entity = Knowledge.objects.using("know_rw").create(
-            title="Summary Test",
-            description="Desc",
-            source_type="doc",
-            ct=int(time.time() * 1000),
-            ut=int(time.time() * 1000),
-        )
-        self.entity_id = self.entity.id
-
-    def tearDown(self):
-        try:
-            Knowledge.objects.using("know_rw").all().delete()
-        except Exception:
-            pass
+        self.entity_id = 1
 
     @patch("app_know.views.summary_view.SummaryService")
     def test_post_generate_success(self, mock_svc_cls):
@@ -68,6 +50,9 @@ class KnowledgeSummaryViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_OK)
         self.assertEqual(data["data"]["app_id"], "myapp")
+        mock_svc.generate_and_save.assert_called_once_with(
+            knowledge_id=self.entity_id, app_id="myapp", use_ai=False
+        )
 
     def test_post_missing_app_id(self):
         request = self.factory.post(
@@ -156,7 +141,7 @@ class KnowledgeSummaryViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_OK)
         mock_svc.generate_and_save.assert_called_once_with(
-            knowledge_id=self.entity_id, app_id="42"
+            knowledge_id=self.entity_id, app_id="42", use_ai=False
         )
 
     @patch("app_know.views.summary_view.SummaryService")
@@ -285,3 +270,125 @@ class KnowledgeSummaryListViewTest(TestCase):
         data = json.loads(response.content)
         self.assertNotEqual(data["errorCode"], RET_OK)
         self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+
+class KnowledgeSummaryViewMockedTest(TestCase):
+    """Tests for PUT/DELETE summary endpoints (fully mocked, no DB required)."""
+
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.entity_id = 1
+
+    @patch("app_know.views.summary_view.SummaryService")
+    def test_post_with_use_ai_flag(self, mock_svc_cls):
+        """POST with use_ai=True passes flag to service."""
+        mock_svc = MagicMock()
+        mock_svc.generate_and_save.return_value = {
+            "knowledge_id": self.entity_id,
+            "summary": "AI Generated Summary",
+            "app_id": "myapp",
+            "source": "ai_generated",
+        }
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.post(
+            f"/api/know/knowledge/{self.entity_id}/summary",
+            data={"app_id": "myapp", "use_ai": True},
+            format="json",
+        )
+        response = KnowledgeSummaryView.as_view()(request, entity_id=self.entity_id)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_OK)
+        mock_svc.generate_and_save.assert_called_once_with(
+            knowledge_id=self.entity_id, app_id="myapp", use_ai=True
+        )
+
+    @patch("app_know.views.summary_view.SummaryService")
+    def test_put_update_success(self, mock_svc_cls):
+        """PUT updates summary successfully."""
+        mock_svc = MagicMock()
+        mock_svc.update_summary.return_value = {
+            "knowledge_id": self.entity_id,
+            "summary": "Updated summary",
+            "app_id": "myapp",
+        }
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.put(
+            f"/api/know/knowledge/{self.entity_id}/summary",
+            data={"app_id": "myapp", "summary": "Updated summary"},
+            format="json",
+        )
+        response = KnowledgeSummaryView.as_view()(request, entity_id=self.entity_id)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_OK)
+        self.assertEqual(data["data"]["summary"], "Updated summary")
+
+    def test_put_missing_app_id_returns_validation_error(self):
+        """PUT with missing app_id returns RET_MISSING_PARAM."""
+        request = self.factory.put(
+            f"/api/know/knowledge/{self.entity_id}/summary",
+            data={"summary": "Updated"},
+            format="json",
+        )
+        response = KnowledgeSummaryView.as_view()(request, entity_id=self.entity_id)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
+
+    @patch("app_know.views.summary_view.SummaryService")
+    def test_put_not_found(self, mock_svc_cls):
+        """PUT for non-existent summary returns RET_RESOURCE_NOT_FOUND."""
+        mock_svc = MagicMock()
+        mock_svc.update_summary.side_effect = ValueError("not found")
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.put(
+            f"/api/know/knowledge/{self.entity_id}/summary",
+            data={"app_id": "myapp", "summary": "Updated"},
+            format="json",
+        )
+        response = KnowledgeSummaryView.as_view()(request, entity_id=self.entity_id)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_RESOURCE_NOT_FOUND)
+
+    @patch("app_know.views.summary_view.SummaryService")
+    def test_delete_success(self, mock_svc_cls):
+        """DELETE summary successfully."""
+        mock_svc = MagicMock()
+        mock_svc.delete_summary.return_value = True
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.delete(
+            f"/api/know/knowledge/{self.entity_id}/summary?app_id=myapp"
+        )
+        response = KnowledgeSummaryView.as_view()(request, entity_id=self.entity_id)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_OK)
+
+    def test_delete_missing_app_id_returns_validation_error(self):
+        """DELETE with missing app_id returns RET_MISSING_PARAM."""
+        request = self.factory.delete(
+            f"/api/know/knowledge/{self.entity_id}/summary"
+        )
+        response = KnowledgeSummaryView.as_view()(request, entity_id=self.entity_id)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
+
+    @patch("app_know.views.summary_view.SummaryService")
+    def test_delete_not_found(self, mock_svc_cls):
+        """DELETE non-existent summary returns RET_RESOURCE_NOT_FOUND."""
+        mock_svc = MagicMock()
+        mock_svc.delete_summary.side_effect = ValueError("not found")
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.delete(
+            f"/api/know/knowledge/{self.entity_id}/summary?app_id=myapp"
+        )
+        response = KnowledgeSummaryView.as_view()(request, entity_id=self.entity_id)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_RESOURCE_NOT_FOUND)

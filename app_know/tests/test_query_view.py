@@ -241,6 +241,123 @@ class LogicalQueryViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
 
+    @patch("app_know.views.query_view.LogicalQueryService")
+    def test_get_with_max_hops(self, mock_svc_cls):
+        """GET with max_hops parameter passes it to service."""
+        mock_svc = MagicMock()
+        mock_svc.query.return_value = {"data": [], "total_num": 0}
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.get(
+            "/api/know/knowledge/query",
+            {"query": "test", "max_hops": "3"},
+        )
+        response = LogicalQueryView.as_view()(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        call_kw = mock_svc.query.call_args[1]
+        self.assertEqual(call_kw["max_hops"], 3)
+
+    @patch("app_know.views.query_view.LogicalQueryService")
+    def test_get_with_predicate_filter(self, mock_svc_cls):
+        """GET with predicate passes it to service as predicate_filter."""
+        mock_svc = MagicMock()
+        mock_svc.query.return_value = {"data": [], "total_num": 0}
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.get(
+            "/api/know/knowledge/query",
+            {"query": "test", "predicate": "belongs_to"},
+        )
+        response = LogicalQueryView.as_view()(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        call_kw = mock_svc.query.call_args[1]
+        self.assertEqual(call_kw["predicate_filter"], "belongs_to")
+
+    @patch("app_know.views.query_view.LogicalQueryService")
+    def test_post_with_output_format_triple(self, mock_svc_cls):
+        """POST with format=triple returns predicate logic format.
+        Note: GET cannot use 'format' parameter due to DRF content negotiation.
+        """
+        mock_svc = MagicMock()
+        mock_svc.query.return_value = {
+            "data": [
+                {
+                    "subject": {"node_type": "knowledge", "knowledge_id": 1},
+                    "predicate": "relates_to",
+                    "object": {"node_type": "knowledge", "knowledge_id": 2},
+                }
+            ],
+            "total_num": 1,
+        }
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.post(
+            "/api/know/knowledge/query",
+            data=json.dumps({"query": "test", "format": "triple"}),
+            content_type="application/json",
+        )
+        response = LogicalQueryView.as_view()(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_OK)
+        call_kw = mock_svc.query.call_args[1]
+        self.assertEqual(call_kw["output_format"], "triple")
+
+    def test_get_invalid_max_hops_returns_invalid_param(self):
+        """GET with invalid max_hops returns RET_INVALID_PARAM."""
+        request = self.factory.get(
+            "/api/know/knowledge/query",
+            {"query": "test", "max_hops": "abc"},
+        )
+        response = LogicalQueryView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_get_max_hops_over_limit_returns_invalid_param(self):
+        """GET with max_hops > MAX_HOPS_LIMIT returns RET_INVALID_PARAM."""
+        from app_know.services.query_service import MAX_HOPS_LIMIT
+        request = self.factory.get(
+            "/api/know/knowledge/query",
+            {"query": "test", "max_hops": str(MAX_HOPS_LIMIT + 1)},
+        )
+        response = LogicalQueryView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_get_max_hops_zero_returns_invalid_param(self):
+        """GET with max_hops=0 returns RET_INVALID_PARAM."""
+        request = self.factory.get(
+            "/api/know/knowledge/query",
+            {"query": "test", "max_hops": "0"},
+        )
+        response = LogicalQueryView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    @patch("app_know.views.query_view.LogicalQueryService")
+    def test_post_with_max_hops_and_predicate(self, mock_svc_cls):
+        """POST with max_hops, predicate, and format passes them to service."""
+        mock_svc = MagicMock()
+        mock_svc.query.return_value = {"data": [], "total_num": 0}
+        mock_svc_cls.return_value = mock_svc
+        request = self.factory.post(
+            "/api/know/knowledge/query",
+            data=json.dumps({
+                "query": "test",
+                "max_hops": 2,
+                "predicate": "contains",
+                "format": "triple",
+            }),
+            content_type="application/json",
+        )
+        response = LogicalQueryView.as_view()(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        call_kw = mock_svc.query.call_args[1]
+        self.assertEqual(call_kw["max_hops"], 2)
+        self.assertEqual(call_kw["predicate_filter"], "contains")
+        self.assertEqual(call_kw["output_format"], "triple")
+
     def test_post_invalid_limit_returns_invalid_param(self):
         """POST with non-integer limit returns RET_INVALID_PARAM; no real Neo4j/Atlas (validation runs before service). Generated."""
         request = self.factory.post(
@@ -277,8 +394,6 @@ class LogicalQueryViewTest(TestCase):
 
 class LogicalQueryEndpointTest(TestCase):
     """Verify knowledge/query endpoint is wired and returns expected shape. Generated."""
-
-    databases = {"default", "know_rw"}
 
     def test_knowledge_query_url_resolves(self):
         url = reverse("knowledge-query")

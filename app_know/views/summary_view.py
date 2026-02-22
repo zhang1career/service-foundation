@@ -48,7 +48,7 @@ def _error_code_for_validation(msg: str) -> int:
 
 
 class KnowledgeSummaryView(APIView):
-    """GET: retrieve summary for a knowledge item. POST: trigger generation. Query/Body: app_id."""
+    """GET: retrieve summary. POST: trigger generation. PUT: update. DELETE: delete. Query/Body: app_id."""
 
     def get(self, request, entity_id, *args, **kwargs):
         """Get summary for knowledge <entity_id>. Optional query param: app_id."""
@@ -76,7 +76,7 @@ class KnowledgeSummaryView(APIView):
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
 
     def post(self, request, entity_id, *args, **kwargs):
-        """Generate and persist summary for knowledge <entity_id>. Body: app_id."""
+        """Generate and persist summary for knowledge <entity_id>. Body: app_id, use_ai (optional)."""
         try:
             entity_id = _parse_entity_id(entity_id)
             data = getattr(request, "data", None) or request.POST or {}
@@ -91,8 +91,9 @@ class KnowledgeSummaryView(APIView):
             app_id = (raw_app_id or "").strip()
             if not app_id:
                 raise ValueError("app_id is required and cannot be empty")
+            use_ai = data.get("use_ai", False)
             service = SummaryService()
-            out = service.generate_and_save(knowledge_id=entity_id, app_id=app_id)
+            out = service.generate_and_save(knowledge_id=entity_id, app_id=app_id, use_ai=use_ai)
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[KnowledgeSummaryView.post] Validation error: %s", e)
@@ -106,6 +107,67 @@ class KnowledgeSummaryView(APIView):
             return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception("[KnowledgeSummaryView.post] Error: %s", e)
+            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+
+    def put(self, request, entity_id, *args, **kwargs):
+        """Update summary for knowledge <entity_id>. Body: app_id (required), summary, source."""
+        try:
+            entity_id = _parse_entity_id(entity_id)
+            data = getattr(request, "data", None) or request.POST or {}
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data) if data.strip() else {}
+                except json.JSONDecodeError:
+                    data = {}
+            raw_app_id = data.get("app_id")
+            if raw_app_id is not None and not isinstance(raw_app_id, str):
+                raw_app_id = str(raw_app_id)
+            app_id = (raw_app_id or "").strip()
+            if not app_id:
+                raise ValueError("app_id is required and cannot be empty")
+            summary = data.get("summary")
+            source = data.get("source")
+            service = SummaryService()
+            out = service.update_summary(
+                knowledge_id=entity_id,
+                app_id=app_id,
+                summary=summary,
+                source=source,
+            )
+            return resp_ok(out)
+        except ValueError as e:
+            logger.warning("[KnowledgeSummaryView.put] Validation error: %s", e)
+            return resp_err(
+                str(e),
+                code=_error_code_for_validation(str(e)),
+                status=http_status.HTTP_200_OK,
+            )
+        except ParseError as e:
+            logger.warning("[KnowledgeSummaryView.put] Parse error: %s", e)
+            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("[KnowledgeSummaryView.put] Error: %s", e)
+            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+
+    def delete(self, request, entity_id, *args, **kwargs):
+        """Delete summary for knowledge <entity_id>. Query param: app_id (required)."""
+        try:
+            entity_id = _parse_entity_id(entity_id)
+            app_id = (request.GET.get("app_id") or "").strip()
+            if not app_id:
+                raise ValueError("app_id is required and cannot be empty")
+            service = SummaryService()
+            service.delete_summary(knowledge_id=entity_id, app_id=app_id)
+            return resp_ok(None)
+        except ValueError as e:
+            logger.warning("[KnowledgeSummaryView.delete] Validation error: %s", e)
+            return resp_err(
+                str(e),
+                code=_error_code_for_validation(str(e)),
+                status=http_status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.exception("[KnowledgeSummaryView.delete] Error: %s", e)
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
 
 
