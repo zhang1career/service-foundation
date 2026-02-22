@@ -32,8 +32,8 @@ class KnowledgeRepoTest(TestCase):
         entity = create_knowledge(
             title="Test Title",
             description="Desc",
+            content="Test content body",
             source_type="document",
-            metadata='{"k": "v"}',
         )
         self.assertIsNotNone(entity.id)
         self.assertEqual(entity.title, "Test Title")

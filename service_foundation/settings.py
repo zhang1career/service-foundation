@@ -60,6 +60,7 @@ THREAD = env("THREAD", default=1)
 GMT = env("GMT", default="+00:00")
 
 # App enable switches (controlled via environment variables)
+APP_CONSOLE_ENABLED = env.bool("APP_CONSOLE_ENABLED", default=True)
 APP_KNOW_ENABLED = env.bool("APP_KNOW_ENABLED", default=True)
 APP_MAILSERVER_ENABLED = env.bool("APP_MAILSERVER_ENABLED", default=True)
 APP_OSS_ENABLED = env.bool("APP_OSS_ENABLED", default=True)
@@ -79,6 +80,8 @@ INSTALLED_APPS = [
 ]
 
 # Dynamically add enabled apps
+if APP_CONSOLE_ENABLED:
+    INSTALLED_APPS.append("app_console")
 if APP_KNOW_ENABLED:
     INSTALLED_APPS.append("app_know")
 if APP_MAILSERVER_ENABLED:
@@ -118,6 +121,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "app_console.context_processors.console_context",
             ],
         },
     },

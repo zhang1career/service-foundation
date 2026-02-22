@@ -30,8 +30,8 @@ class KnowledgeServiceTest(TestCase):
         mock_entity.id = 1
         mock_entity.title = "My Title"
         mock_entity.description = "My desc"
+        mock_entity.content = "Some content"
         mock_entity.source_type = "document"
-        mock_entity.metadata = None
         mock_entity.ct = 1700000000000
         mock_entity.ut = 1700000000000
         mock_create.return_value = mock_entity

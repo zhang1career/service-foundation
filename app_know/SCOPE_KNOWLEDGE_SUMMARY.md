@@ -71,7 +71,7 @@ No Django model/migrations for MySQL for summaries; persistence is MongoDB-only 
 | Dependency | Role |
 |------------|------|
 | **MongoDB Atlas** | Persist summaries (existing `app_know.conn.atlas`, `AtlasClient`, `get_atlas_client`). |
-| **Knowledge entity (MySQL)** | Source of title/description/metadata; `app_know.models.Knowledge`, `app_know.repos` (`get_knowledge_by_id`, `list_knowledge`). |
+| **Knowledge entity (MySQL)** | Source of title/description; `app_know.models.Knowledge`, `app_know.repos` (`get_knowledge_by_id`, `list_knowledge`). |
 | **Python** | Summary generation logic (in-app; no new external API required for Round 1 unless specified). |
 | **Generation trigger** | API (POST endpoint above) and/or job (e.g. management command or cron); at least one in scope. |
 | **app_id / scope** | Reuse existing app-scoping pattern (e.g. from relationship APIs) for summary documents. |

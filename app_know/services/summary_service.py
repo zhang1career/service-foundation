@@ -66,19 +66,31 @@ class SummaryService(Singleton):
         """
         _validate_knowledge_id(knowledge_id)
         app_id = _validate_app_id(app_id)
+        logger.info(
+            "[generate_and_save] Starting for knowledge_id=%s, app_id=%s, use_ai=%s",
+            knowledge_id, app_id, use_ai
+        )
         entity = get_knowledge_by_id(knowledge_id)
         if not entity:
             raise ValueError(f"Knowledge entity with id {knowledge_id} not found")
         title = entity.title or ""
         description = entity.description or ""
-        content = getattr(entity, "content", None) or entity.metadata or ""
+        content = getattr(entity, "content", None) or ""
         source_type = getattr(entity, "source_type", None) or ""
+        logger.info(
+            "[generate_and_save] Generating summary for title: %s",
+            title[:50] if title else "(empty)"
+        )
         summary_text = generate_summary(
             title=title,
             description=description,
             content=content,
             source_type=source_type,
             use_ai=use_ai,
+        )
+        logger.info(
+            "[generate_and_save] Summary generated, length=%d, saving to Atlas",
+            len(summary_text)
         )
         source = "ai_generated" if use_ai else "title_description"
         result = save_summary(

@@ -28,7 +28,8 @@ class MongoDriver(Singleton):
 
     def __del__(self):
         print('---- mongo driver closed ----')
-        self._client.close()
+        if hasattr(self, '_client') and self._client is not None:
+            self._client.close()
 
     def ping(self) -> None:
         try:

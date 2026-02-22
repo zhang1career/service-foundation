@@ -48,8 +48,8 @@ class KnowledgeListViewTest(TestCase):
             "id": 1,
             "title": "API Title",
             "description": "Desc",
+            "content": "",
             "source_type": "doc",
-            "metadata": None,
             "ct": 1700000000000,
             "ut": 1700000000000,
         }
@@ -115,33 +115,6 @@ class KnowledgeListViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
 
-    @patch("app_know.views.knowledge_view.KnowledgeService")
-    def test_create_with_metadata_dict(self, mock_svc_cls):
-        mock_svc = MagicMock()
-        mock_svc.create_knowledge.return_value = {
-            "id": 1,
-            "title": "With Meta",
-            "description": None,
-            "source_type": None,
-            "metadata": '{"key": "value", "n": 1}',
-            "ct": 1700000000000,
-            "ut": 1700000000000,
-        }
-        mock_svc_cls.return_value = mock_svc
-
-        request = self.factory.post(
-            "/api/know/knowledge",
-            data={"title": "With Meta", "metadata": {"key": "value", "n": 1}},
-            format="json",
-        )
-        response = KnowledgeListView.as_view()(request)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response.render()
-        data = json.loads(response.content)
-        self.assertEqual(data["errorCode"], RET_OK)
-        self.assertIn("metadata", data["data"])
-        self.assertEqual(data["data"]["metadata"], '{"key": "value", "n": 1}')
-
     def test_list_limit_over_max_returns_validation_error(self):
         request = self.factory.get(
             "/api/know/knowledge",
@@ -178,8 +151,8 @@ class KnowledgeListViewTest(TestCase):
             "id": 1,
             "title": "Num Desc",
             "description": "12345",
+            "content": "",
             "source_type": "doc",
-            "metadata": None,
             "ct": 1700000000000,
             "ut": 1700000000000,
         }
@@ -213,8 +186,8 @@ class KnowledgeDetailViewTest(TestCase):
             "id": self.entity_id,
             "title": "Detail Test",
             "description": "D",
+            "content": "Some content",
             "source_type": "doc",
-            "metadata": None,
             "ct": 1700000000000,
             "ut": 1700000000000,
         }
@@ -248,8 +221,8 @@ class KnowledgeDetailViewTest(TestCase):
             "id": self.entity_id,
             "title": "Updated Title",
             "description": "D",
+            "content": "",
             "source_type": "doc",
-            "metadata": None,
             "ct": 1700000000000,
             "ut": 1700000000001,
         }

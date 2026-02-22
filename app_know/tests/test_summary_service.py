@@ -105,7 +105,6 @@ class SummaryServiceTest(TestCase):
         mock_entity = MagicMock()
         mock_entity.title = "Title"
         mock_entity.description = "Desc"
-        mock_entity.metadata = None
         mock_entity.source_type = "doc"
         mock_get_know.return_value = mock_entity
         mock_save.return_value = {"knowledge_id": 1, "summary": "Title: Title Description: Desc", "app_id": "app1"}
@@ -144,7 +143,6 @@ class SummaryServiceTest(TestCase):
         mock_entity = MagicMock()
         mock_entity.title = ""
         mock_entity.description = None
-        mock_entity.metadata = None
         mock_get_know.return_value = mock_entity
         svc = SummaryService()
         with self.assertRaises(ValueError) as ctx:
@@ -286,7 +284,6 @@ class SummaryServiceTest(TestCase):
         mock_entity = MagicMock()
         mock_entity.title = "Title"
         mock_entity.description = "Desc"
-        mock_entity.metadata = None
         mock_entity.source_type = "doc"
         mock_get_know.return_value = mock_entity
         mock_save.return_value = {
@@ -310,7 +307,6 @@ class SummaryServiceTest(TestCase):
         mock_entity = MagicMock()
         mock_entity.title = "Title"
         mock_entity.description = "Desc"
-        mock_entity.metadata = None
         mock_entity.source_type = "doc"
         mock_get_know.return_value = mock_entity
         mock_client = MagicMock()

@@ -63,8 +63,8 @@ def list_knowledge(
 def create_knowledge(
     title: str,
     description: Optional[str] = None,
+    content: Optional[str] = None,
     source_type: str = "unknown",
-    metadata: Optional[str] = None,
     ct: int = 0,
     ut: int = 0,
 ) -> Knowledge:
@@ -79,8 +79,8 @@ def create_knowledge(
         return Knowledge.objects.using(_DB).create(
             title=(title or "").strip(),
             description=description or "",
+            content=content or "",
             source_type=(source_type or "unknown").strip() or "unknown",
-            metadata=metadata,
             ct=ct,
             ut=ut,
         )

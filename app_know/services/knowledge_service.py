@@ -1,5 +1,5 @@
 """
-Knowledge service: validation and CRUD business logic for knowledge metadata.
+Knowledge service: validation and CRUD business logic for knowledge entities.
 Generated.
 """
 import logging
@@ -40,15 +40,15 @@ def _entity_to_dict(entity: Knowledge) -> Dict[str, Any]:
         "id": entity.id,
         "title": entity.title,
         "description": entity.description or "",
+        "content": entity.content or "",
         "source_type": entity.source_type,
-        "metadata": entity.metadata,
         "ct": entity.ct,
         "ut": entity.ut,
     }
 
 
 class KnowledgeService(Singleton):
-    """Service for knowledge metadata CRUD with validation."""
+    """Service for knowledge CRUD with validation."""
 
     def list_knowledge(
         self,
@@ -84,8 +84,8 @@ class KnowledgeService(Singleton):
         self,
         title: str,
         description: Optional[str] = None,
+        content: Optional[str] = None,
         source_type: Optional[str] = None,
-        metadata: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create entity. Validates title (required). Raises ValueError on validation error."""
         t = (str(title).strip() if title is not None else "")
@@ -98,12 +98,13 @@ class KnowledgeService(Singleton):
             raise ValueError(f"source_type must be at most {SOURCE_TYPE_MAX_LEN} characters")
         desc_val = description if description is not None else ""
         desc_str = str(desc_val).strip() if not isinstance(desc_val, str) else desc_val.strip()
+        content_str = (str(content) if content is not None else "") or ""
         now_ms = int(time.time() * 1000)
         entity = create_knowledge(
             title=t,
             description=desc_str or None,
+            content=content_str or None,
             source_type=st,
-            metadata=metadata,
             ct=now_ms,
             ut=now_ms,
         )
@@ -114,8 +115,8 @@ class KnowledgeService(Singleton):
         entity_id: int,
         title: Optional[str] = None,
         description: Optional[str] = None,
+        content: Optional[str] = None,
         source_type: Optional[str] = None,
-        metadata: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Update entity. Raises ValueError if invalid id, not found, or validation fails."""
         _validate_entity_id(entity_id)
@@ -133,13 +134,14 @@ class KnowledgeService(Singleton):
         if description is not None:
             d = str(description) if not isinstance(description, str) else description
             updates["description"] = d.strip() or ""
+        if content is not None:
+            c = str(content) if not isinstance(content, str) else content
+            updates["content"] = c
         if source_type is not None:
             st = (str(source_type) if not isinstance(source_type, str) else source_type).strip() or "unknown"
             if len(st) > SOURCE_TYPE_MAX_LEN:
                 raise ValueError(f"source_type must be at most {SOURCE_TYPE_MAX_LEN} characters")
             updates["source_type"] = st
-        if metadata is not None:
-            updates["metadata"] = metadata
         if updates:
             updates["ut"] = int(time.time() * 1000)
             update_knowledge(entity, **updates)

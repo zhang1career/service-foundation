@@ -36,7 +36,7 @@ All endpoints live under `api/know/` (project mounts `app_know` at `api/know/`).
 
 ## 2. Database models and persistence (scope confirmed)
 
-- **Django (MySQL):** `app_know.models.Knowledge` — knowledge metadata (id, title, description, source_type, metadata, ct, ut). No `app_id` on the model; knowledge is global; scoping is on relationships and summaries.
+- **Django (MySQL):** `app_know.models.Knowledge` — knowledge entity (id, title, description, source_type, ct, ut). No `app_id` on the model; knowledge is global; scoping is on relationships and summaries.
 - **Migrations:** Existing migrations under `app_know` for `Knowledge`; no new migrations required for multi-application or skills-scoped query (scoping is in Atlas/Neo4j and request params).
 - **Atlas (MongoDB):** Collection `knowledge_summaries`. Documents have `knowledge_id`, `summary`, `app_id`, `source`, `ct`, `ut`. Unique index `(knowledge_id, app_id)`. Search and list are app-scoped via `app_id`.
 - **Neo4j:** Knowledge and Entity nodes and relationships (e.g. RELATES_TO_ENTITY, RELATES_TO_KNOWLEDGE) are app-scoped via `app_id` on nodes and edges. Query and “related by knowledge ids” use `app_id` in Cypher.

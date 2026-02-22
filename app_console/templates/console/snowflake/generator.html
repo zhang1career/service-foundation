@@ -1,0 +1,286 @@
+{% extends 'console/base.html' %}
+
+{% block title %}ID 生成{% endblock %}
+{% block page_title %}Snowflake ID 生成器{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Generator -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold">生成 ID</h2>
+        </div>
+        <div class="card-body">
+            <p class="text-gray-600 mb-6">
+                Snowflake 算法生成的 64 位唯一 ID，保证分布式环境下的唯一性和有序性。
+            </p>
+            
+            <div class="form-group">
+                <label class="form-label" for="batch-count">批量生成数量</label>
+                <input type="number" id="batch-count" class="form-input" value="1" min="1" max="100">
+            </div>
+            
+            <button onclick="generateIds()" class="btn btn-primary w-full">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                生成 ID
+            </button>
+            
+            <div id="generated-ids" class="mt-6 hidden">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="form-label mb-0">生成结果</label>
+                    <button onclick="copyAllIds()" class="btn btn-outline btn-sm">复制全部</button>
+                </div>
+                <div id="ids-container" class="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ID Parser -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold">ID 解析</h2>
+        </div>
+        <div class="card-body">
+            <p class="text-gray-600 mb-6">
+                解析 Snowflake ID，查看其组成部分（时间戳、数据中心、机器码、序列号）。
+            </p>
+            
+            <div class="form-group">
+                <label class="form-label" for="parse-id">输入 ID</label>
+                <input type="text" id="parse-id" class="form-input" placeholder="输入要解析的 Snowflake ID">
+            </div>
+            
+            <button onclick="parseId()" class="btn btn-secondary w-full">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z"></path>
+                </svg>
+                解析 ID
+            </button>
+            
+            <div id="parse-result" class="mt-6 hidden">
+                <h3 class="font-semibold mb-4">解析结果</h3>
+                <div class="space-y-3" id="parse-details">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History -->
+<div class="card mt-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">生成历史</h2>
+        <button onclick="clearHistory()" class="btn btn-outline btn-sm">清空历史</button>
+    </div>
+    <div class="card-body p-0">
+        <div id="history-list">
+            <div class="empty-state">
+                <p class="text-gray-500">暂无生成记录</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '/api/snowflake/id';
+let generatedHistory = JSON.parse(localStorage.getItem('snowflakeHistory') || '[]');
+
+// Generate IDs
+async function generateIds() {
+    const count = parseInt(document.getElementById('batch-count').value) || 1;
+    const container = document.getElementById('ids-container');
+    const resultDiv = document.getElementById('generated-ids');
+    
+    container.innerHTML = '<div class="text-center"><div class="spinner"></div></div>';
+    resultDiv.classList.remove('hidden');
+    
+    try {
+        const ids = [];
+        for (let i = 0; i < count; i++) {
+            const response = await fetch(API_BASE);
+            const result = await response.json();
+            if (result.data && result.data.id) {
+                ids.push(result.data.id);
+            }
+        }
+        
+        if (ids.length > 0) {
+            container.innerHTML = ids.map(id => `
+                <div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-0">
+                    <code class="font-mono text-sm">${id}</code>
+                    <button onclick="copyToClipboard('${id}')" class="btn btn-outline btn-sm">复制</button>
+                </div>
+            `).join('');
+            
+            // Add to history
+            const historyItem = {
+                ids: ids,
+                timestamp: new Date().toISOString(),
+                count: ids.length
+            };
+            generatedHistory.unshift(historyItem);
+            generatedHistory = generatedHistory.slice(0, 20); // Keep last 20
+            localStorage.setItem('snowflakeHistory', JSON.stringify(generatedHistory));
+            
+            loadHistory();
+            showToast(`成功生成 ${ids.length} 个 ID`, 'success');
+        }
+    } catch (error) {
+        container.innerHTML = `<p class="text-red-500">生成失败: ${error.message}</p>`;
+        showToast(error.message, 'error');
+    }
+}
+
+// Copy all IDs
+function copyAllIds() {
+    const container = document.getElementById('ids-container');
+    const codes = container.querySelectorAll('code');
+    const ids = Array.from(codes).map(c => c.textContent).join('\n');
+    copyToClipboard(ids);
+}
+
+// Parse ID
+function parseId() {
+    const id = document.getElementById('parse-id').value.trim();
+    const resultDiv = document.getElementById('parse-result');
+    const detailsDiv = document.getElementById('parse-details');
+    
+    if (!id) {
+        showToast('请输入 ID', 'error');
+        return;
+    }
+    
+    try {
+        // Snowflake ID structure (64 bits):
+        // 1 bit: sign (always 0)
+        // 41 bits: timestamp (milliseconds since epoch)
+        // 5 bits: datacenter ID
+        // 5 bits: machine ID
+        // 12 bits: sequence
+        
+        const bigId = BigInt(id);
+        
+        // Default epoch (2021-01-01 00:00:00 UTC)
+        const epoch = BigInt(1609459200000);
+        
+        const timestamp = (bigId >> BigInt(22)) + epoch;
+        const datacenterId = (bigId >> BigInt(17)) & BigInt(0x1F);
+        const machineId = (bigId >> BigInt(12)) & BigInt(0x1F);
+        const sequence = bigId & BigInt(0xFFF);
+        
+        const date = new Date(Number(timestamp));
+        
+        detailsDiv.innerHTML = `
+            <div class="bg-gray-50 p-3 rounded-lg">
+                <p class="text-sm text-gray-500">原始 ID</p>
+                <p class="font-mono font-semibold">${id}</p>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-lg">
+                <p class="text-sm text-gray-500">二进制表示</p>
+                <p class="font-mono text-xs break-all">${bigId.toString(2).padStart(64, '0')}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-blue-50 p-3 rounded-lg">
+                    <p class="text-sm text-blue-600">时间戳</p>
+                    <p class="font-semibold">${date.toLocaleString('zh-CN')}</p>
+                    <p class="text-xs text-gray-500">${timestamp.toString()} ms</p>
+                </div>
+                <div class="bg-green-50 p-3 rounded-lg">
+                    <p class="text-sm text-green-600">数据中心 ID</p>
+                    <p class="font-semibold">${datacenterId.toString()}</p>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded-lg">
+                    <p class="text-sm text-yellow-600">机器 ID</p>
+                    <p class="font-semibold">${machineId.toString()}</p>
+                </div>
+                <div class="bg-purple-50 p-3 rounded-lg">
+                    <p class="text-sm text-purple-600">序列号</p>
+                    <p class="font-semibold">${sequence.toString()}</p>
+                </div>
+            </div>
+        `;
+        
+        resultDiv.classList.remove('hidden');
+    } catch (error) {
+        detailsDiv.innerHTML = `<p class="text-red-500">解析失败：无效的 ID 格式</p>`;
+        resultDiv.classList.remove('hidden');
+    }
+}
+
+// Load history
+function loadHistory() {
+    const container = document.getElementById('history-list');
+    
+    if (generatedHistory.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p class="text-gray-500">暂无生成记录</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>数量</th>
+                    <th>ID 列表</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    generatedHistory.forEach((item, index) => {
+        const idsPreview = item.ids.length > 2 
+            ? `${item.ids[0]}, ${item.ids[1]}, ...` 
+            : item.ids.join(', ');
+        
+        html += `
+            <tr>
+                <td>${formatDate(item.timestamp)}</td>
+                <td>${item.count}</td>
+                <td class="font-mono text-sm max-w-md truncate">${idsPreview}</td>
+                <td>
+                    <button onclick="copyHistoryIds(${index})" class="btn btn-outline btn-sm">复制</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function copyHistoryIds(index) {
+    const ids = generatedHistory[index].ids.join('\n');
+    copyToClipboard(ids);
+}
+
+function clearHistory() {
+    if (!confirm('确认清空所有生成历史？')) return;
+    
+    generatedHistory = [];
+    localStorage.removeItem('snowflakeHistory');
+    loadHistory();
+    showToast('历史已清空', 'success');
+}
+
+// Initial load
+document.addEventListener('DOMContentLoaded', loadHistory);
+
+// Enter key to parse
+document.getElementById('parse-id').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') parseId();
+});
+</script>
+{% endblock %}

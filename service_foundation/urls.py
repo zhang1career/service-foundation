@@ -23,6 +23,11 @@ urlpatterns = [
     path('api-auth/', include('rest_framework.urls')),
 ]
 
+# Add console URL if enabled
+if settings.APP_CONSOLE_ENABLED:
+    from app_console import urls as app_console_urls
+    urlpatterns.append(path('console/', include(app_console_urls)))
+
 # Dynamically add URL patterns based on enabled apps
 if settings.APP_MAILSERVER_ENABLED:
     from app_mailserver import urls as app_mailserver_urls

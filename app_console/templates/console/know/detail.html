@@ -1,0 +1,149 @@
+{% extends 'console/base.html' %}
+
+{% block title %}知识详情{% endblock %}
+{% block page_title %}知识详情{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'console:know-list' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        返回列表
+    </a>
+</div>
+
+<div id="knowledge-detail">
+    <div class="p-8 text-center text-gray-500">
+        <div class="spinner"></div>
+        <p class="mt-2">加载中...</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const entityId = {{ entity_id }};
+const API_BASE = '/api/know/knowledge';
+
+function formatTimestamp(ts) {
+    if (!ts || ts <= 0) return '-';
+    const date = new Date(ts);
+    const pad = (n) => n.toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const seconds = pad(date.getSeconds());
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+async function loadDetail() {
+    const container = document.getElementById('knowledge-detail');
+    
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}`);
+        const result = await response.json();
+        
+        if (result.data) {
+            const data = result.data;
+            container.innerHTML = `
+                <div class="card mb-6">
+                    <div class="card-header">
+                        <h2 class="text-xl font-semibold">${data.title || '未命名'}</h2>
+                        <div class="flex space-x-2">
+                            <button onclick="window.location.href='{% url 'console:know-list' %}'" class="btn btn-outline btn-sm">返回</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">ID</p>
+                                <p class="font-medium">${data.id}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">来源类型</p>
+                                <span class="badge badge-info">${data.source_type || '-'}</span>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                                <p>${formatTimestamp(data.ct)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                                <p>${formatTimestamp(data.ut)}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6">
+                            <p class="text-sm text-gray-500 mb-2">描述</p>
+                            <p class="bg-gray-50 p-4 rounded-lg">${data.description || '无描述'}</p>
+                        </div>
+                        
+                        <div class="mt-6">
+                            <p class="text-sm text-gray-500 mb-2">内容</p>
+                            <div class="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">${data.content || '无内容'}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Summary Section -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="text-lg font-semibold">摘要</h3>
+                        <button onclick="generateSummary()" class="btn btn-primary btn-sm">生成摘要</button>
+                    </div>
+                    <div class="card-body" id="summary-content">
+                        <p class="text-gray-500">点击"生成摘要"按钮获取知识摘要</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            throw new Error('未找到数据');
+        }
+    } catch (error) {
+        container.innerHTML = `
+            <div class="card">
+                <div class="card-body text-center text-red-500">
+                    <p>加载失败: ${error.message}</p>
+                    <a href="{% url 'console:know-list' %}" class="btn btn-primary btn-sm mt-4">返回列表</a>
+                </div>
+            </div>
+        `;
+    }
+}
+
+async function generateSummary() {
+    const container = document.getElementById('summary-content');
+    container.innerHTML = '<div class="flex items-center"><div class="spinner mr-2"></div>生成中...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/summary`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                app_id: 'console',
+                use_ai: true
+            })
+        });
+        const result = await response.json();
+        
+        if (result.code === 0 && result.data && result.data.summary) {
+            container.innerHTML = `<div class="whitespace-pre-wrap">${result.data.summary}</div>`;
+        } else if (result.msg) {
+            container.innerHTML = `<p class="text-red-500">生成失败: ${result.msg}</p>`;
+        } else {
+            container.innerHTML = '<p class="text-gray-500">暂无摘要</p>';
+        }
+    } catch (error) {
+        container.innerHTML = `<p class="text-red-500">生成失败: ${error.message}</p>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadDetail);
+</script>
+{% endblock %}

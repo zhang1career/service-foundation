@@ -60,7 +60,7 @@ def generate_summary(
     Args:
         title: Knowledge title (required)
         description: Optional description
-        content: Optional content/metadata
+        content: Optional content
         source_type: Optional source type
         max_length: Maximum length of generated summary
         use_ai: If True, use AigcBestAPI for AI-powered generation; falls back to rule-based if AI fails
@@ -116,12 +116,16 @@ def _generate_summary_with_ai(
     )
 
     try:
+        logger.info("[summary_generator] Calling AIGC API for title: %s", title[:50])
         result = client.chat(prompt, temperature=0.3)
         if result:
             summary = result.strip()
+            logger.info("[summary_generator] AIGC response received, summary length: %d", len(summary))
             if len(summary) > max_length:
                 summary = summary[: max_length - 3].rstrip() + "..."
             return summary
+        else:
+            logger.warning("[summary_generator] AIGC returned empty result")
     except Exception as e:
         logger.exception("[summary_generator] AI generation error: %s", e)
 

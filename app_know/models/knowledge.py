@@ -1,5 +1,5 @@
 """
-Knowledge entity model for MySQL-backed knowledge metadata storage.
+Knowledge entity model for MySQL-backed knowledge storage.
 Generated.
 """
 from django.db import models
@@ -8,7 +8,7 @@ from common.consts.string_const import EMPTY_STRING
 
 
 class Knowledge(models.Model):
-    """Knowledge entity: metadata for a knowledge item stored in know_rw MySQL."""
+    """Knowledge entity stored in know_rw MySQL."""
 
     id = models.BigAutoField(primary_key=True)
 
@@ -16,10 +16,10 @@ class Knowledge(models.Model):
     title = models.CharField(max_length=512, db_index=True)
     # Optional description
     description = models.TextField(blank=True, null=True)
+    # Knowledge content (main body text)
+    content = models.TextField(blank=True, null=True)
     # Source type (e.g. 'document', 'url', 'ingestion')
     source_type = models.CharField(max_length=64, db_index=True, default=EMPTY_STRING)
-    # Extra metadata as JSON text
-    metadata = models.TextField(blank=True, null=True)
 
     # Create time (Unix timestamp, milliseconds)
     ct = models.BigIntegerField(default=0, db_index=True)

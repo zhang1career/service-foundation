@@ -1,8 +1,7 @@
 """
-Knowledge REST API views: CRUD for knowledge metadata.
+Knowledge REST API views: CRUD for knowledge entities.
 Generated.
 """
-import json
 import logging
 
 from django.db import DatabaseError, IntegrityError
@@ -68,23 +67,21 @@ class KnowledgeListView(APIView):
             return resp_exception(e)
 
     def post(self, request, *args, **kwargs):
-        """Create a knowledge entity. Body: title (required), description, source_type, metadata."""
+        """Create a knowledge entity. Body: title (required), description, content, source_type."""
         try:
             data = getattr(request, "data", None) or request.POST
             if data is None:
                 data = {}
             title = (data.get("title") or "").strip()
             description = data.get("description")
+            content = data.get("content")
             source_type = data.get("source_type")
-            metadata = data.get("metadata")
-            if isinstance(metadata, dict):
-                metadata = json.dumps(metadata) if metadata else None
             service = KnowledgeService()
             out = service.create_knowledge(
                 title=title,
                 description=description,
+                content=content,
                 source_type=source_type,
-                metadata=metadata,
             )
             return resp_ok(out)
         except ValueError as e:
@@ -128,23 +125,21 @@ class KnowledgeDetailView(APIView):
             return resp_exception(e)
 
     def put(self, request, entity_id, *args, **kwargs):
-        """Update knowledge entity. Body: title, description, source_type, metadata (all optional)."""
+        """Update knowledge entity. Body: title, description, content, source_type (all optional)."""
         try:
             entity_id = _parse_entity_id(entity_id)
             data = getattr(request, "data", None) or request.POST or {}
             title = data.get("title")
             description = data.get("description")
+            content = data.get("content")
             source_type = data.get("source_type")
-            metadata = data.get("metadata")
-            if isinstance(metadata, dict):
-                metadata = json.dumps(metadata) if metadata else None
             service = KnowledgeService()
             out = service.update_knowledge(
                 entity_id=entity_id,
                 title=title,
                 description=description,
+                content=content,
                 source_type=source_type,
-                metadata=metadata,
             )
             return resp_ok(out)
         except ValueError as e:
