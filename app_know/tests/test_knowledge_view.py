@@ -4,6 +4,7 @@ Generated.
 """
 import json
 import time
+from unittest.mock import patch
 
 from django.db import transaction, connections
 from django.test import TestCase
@@ -99,14 +100,14 @@ class KnowledgeListViewTest(TestCase):
         response = KnowledgeListView.as_view()(request)
         response.render()
         data = json.loads(response.content)
-        self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
 
     def test_list_validation_invalid_limit(self):
         request = self.factory.get("/api/know/knowledge", {"limit": 0})
         response = KnowledgeListView.as_view()(request)
         response.render()
         data = json.loads(response.content)
-        self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
 
     def test_create_with_metadata_dict(self):
         request = self.factory.post(
@@ -130,14 +131,14 @@ class KnowledgeListViewTest(TestCase):
         response = KnowledgeListView.as_view()(request)
         response.render()
         data = json.loads(response.content)
-        self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
 
     def test_list_offset_non_numeric_returns_validation_error(self):
         request = self.factory.get("/api/know/knowledge", {"offset": "x"})
         response = KnowledgeListView.as_view()(request)
         response.render()
         data = json.loads(response.content)
-        self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
 
     def test_create_empty_title_whitespace_returns_validation_error(self):
         request = self.factory.post(
@@ -219,7 +220,10 @@ class KnowledgeDetailViewTest(TestCase):
         self.assertEqual(data["errorCode"], RET_OK)
         self.assertEqual(data["data"]["title"], "Updated Title")
 
-    def test_delete_success(self):
+    @patch("app_know.services.summary_service.delete_by_knowledge_id")
+    def test_delete_success(self, mock_delete_summaries):
+        """Delete knowledge entity; Atlas/summary_repo mocked so no real DNS or connection. Generated."""
+        mock_delete_summaries.return_value = 0
         request = self.factory.delete(f"/api/know/knowledge/{self.entity_id}")
         response = KnowledgeDetailView.as_view()(request, entity_id=self.entity_id)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -229,6 +233,7 @@ class KnowledgeDetailViewTest(TestCase):
         self.assertIsNone(
             Knowledge.objects.using("know_rw").filter(id=self.entity_id).first()
         )
+        mock_delete_summaries.assert_called_once_with(knowledge_id=self.entity_id)
 
     def test_delete_not_found(self):
         request = self.factory.delete("/api/know/knowledge/99999")
@@ -269,6 +274,34 @@ class KnowledgeDetailViewTest(TestCase):
     def test_delete_entity_id_zero_returns_invalid_param(self):
         request = self.factory.delete("/api/know/knowledge/0")
         response = KnowledgeDetailView.as_view()(request, entity_id=0)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_get_entity_id_negative_returns_invalid_param(self):
+        """Detail view rejects negative entity_id (input validation)."""
+        request = self.factory.get("/api/know/knowledge/-1")
+        response = KnowledgeDetailView.as_view()(request, entity_id=-1)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_put_entity_id_negative_returns_invalid_param(self):
+        """PUT with negative entity_id returns invalid param."""
+        request = self.factory.put(
+            "/api/know/knowledge/-1",
+            data={"title": "Updated"},
+            format="json",
+        )
+        response = KnowledgeDetailView.as_view()(request, entity_id=-1)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_delete_entity_id_negative_returns_invalid_param(self):
+        """DELETE with negative entity_id returns invalid param (input validation)."""
+        request = self.factory.delete("/api/know/knowledge/-1")
+        response = KnowledgeDetailView.as_view()(request, entity_id=-1)
         response.render()
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_INVALID_PARAM)

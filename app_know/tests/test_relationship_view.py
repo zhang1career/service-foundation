@@ -1,6 +1,6 @@
 """
 Tests for relationship REST API views (create/update/query, validation, and error handling).
-Generated.
+RelationshipService is mocked so no real Neo4j connection is used. Generated.
 """
 import json
 from unittest.mock import patch, MagicMock
@@ -166,6 +166,42 @@ class RelationshipListViewTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
 
+    def test_query_invalid_offset_returns_validation_error(self):
+        """GET with non-integer offset returns RET_INVALID_PARAM; no service call so no Neo4j. Generated."""
+        request = self.factory.get(
+            "/api/know/knowledge/relationships",
+            {"app_id": "myapp", "limit": "10", "offset": "y"},
+        )
+        response = RelationshipListView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_query_limit_zero_returns_invalid_param(self):
+        """GET with limit=0 returns RET_INVALID_PARAM; validation before service. Generated."""
+        request = self.factory.get(
+            "/api/know/knowledge/relationships",
+            {"app_id": "myapp", "limit": "0", "offset": "0"},
+        )
+        response = RelationshipListView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_query_negative_offset_returns_invalid_param(self):
+        """GET with offset=-1 returns RET_INVALID_PARAM; validation before service. Generated."""
+        request = self.factory.get(
+            "/api/know/knowledge/relationships",
+            {"app_id": "myapp", "limit": "10", "offset": "-1"},
+        )
+        response = RelationshipListView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
     def test_post_empty_body_treated_as_empty_dict(self):
         request = self.factory.post(
             "/api/know/knowledge/relationships",
@@ -313,6 +349,8 @@ class RelationshipDetailViewTest(TestCase):
 
 class RelationshipEndpointIntegrationTest(TestCase):
     """Verify relationship API endpoints are wired and return expected shape. Generated."""
+
+    databases = {"default", "know_rw"}
 
     def setUp(self):
         self.factory = APIRequestFactory()

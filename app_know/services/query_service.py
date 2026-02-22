@@ -90,9 +90,10 @@ class LogicalQueryService(Singleton):
                     "hop": 0,
                 }
 
-        # (2) Neo4j: graph reasoning on candidate IDs (require app_id for Neo4j)
+        # (2) Neo4j: graph reasoning on candidate IDs (require app_id for Neo4j).
+        # Call even when candidate_ids is empty so Neo4j can return app-scoped related items if supported.
         related: List[Dict[str, Any]] = []
-        if candidate_ids and app_id:
+        if app_id:
             try:
                 related = get_related_by_knowledge_ids(
                     knowledge_ids=candidate_ids,

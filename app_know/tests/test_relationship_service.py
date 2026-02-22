@@ -1,6 +1,6 @@
 """
 Tests for relationship service (validation, create/update/query, and edge cases).
-Generated.
+Repo layer (repo_create, repo_query, update_relationship_by_id) is mocked so no real Neo4j connection is used. Generated.
 """
 from unittest.mock import MagicMock, patch
 

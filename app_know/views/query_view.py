@@ -45,28 +45,27 @@ class LogicalQueryView(APIView):
             app_id = (request.GET.get("app_id") or "").strip() or None
             raw_limit = request.GET.get("limit")
         else:
-            data = getattr(request, "data", None) or request.POST or {}
-            if isinstance(data, str):
-                try:
-                    data = json.loads(data) if data.strip() else {}
-                except json.JSONDecodeError:
-                    raise ParseError("Invalid JSON body")
-            if not isinstance(data, dict):
-                data = {}
-            if not data:
-                raw = getattr(request, "body", None)
-                if raw:
-                    ct = (getattr(request, "content_type", "") or "").split(";")[0].strip().lower()
-                    if ct == "application/json":
-                        if isinstance(raw, bytes):
-                            raw = raw.decode("utf-8", errors="replace")
-                        if isinstance(raw, str) and raw.strip():
-                            try:
-                                data = json.loads(raw)
-                            except json.JSONDecodeError:
-                                raise ParseError("Invalid JSON body")
-            if not isinstance(data, dict):
-                data = {}
+            # Prefer request.data (DRF) when present; do not read request.body after .data (stream consumed).
+            data = getattr(request, "data", None)
+            if data is not None:
+                if not isinstance(data, dict):
+                    data = {}
+            else:
+                data = request.POST or {}
+                if not data:
+                    raw = getattr(request, "body", None)
+                    if raw:
+                        ct = (getattr(request, "content_type", "") or "").split(";")[0].strip().lower()
+                        if ct == "application/json":
+                            if isinstance(raw, bytes):
+                                raw = raw.decode("utf-8", errors="replace")
+                            if isinstance(raw, str) and raw.strip():
+                                try:
+                                    data = json.loads(raw)
+                                except json.JSONDecodeError:
+                                    raise ParseError("Invalid JSON body")
+                if not isinstance(data, dict):
+                    data = {}
             query = (data.get("query") or data.get("q") or "").strip()
             app_id = (data.get("app_id") or "").strip() or None
             raw_limit = data.get("limit")

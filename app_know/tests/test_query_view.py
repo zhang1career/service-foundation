@@ -1,6 +1,7 @@
 """
 Tests for logical query API view (GET/POST). Generated.
 Round 2: skills-scoped query tests (app_id=skills).
+LogicalQueryService is mocked so no real Atlas or Neo4j connection is used.
 """
 import json
 from unittest.mock import patch, MagicMock
@@ -240,6 +241,19 @@ class LogicalQueryViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(data["errorCode"], RET_MISSING_PARAM)
 
+    def test_post_invalid_limit_returns_invalid_param(self):
+        """POST with non-integer limit returns RET_INVALID_PARAM; no real Neo4j/Atlas (validation runs before service). Generated."""
+        request = self.factory.post(
+            "/api/know/knowledge/query",
+            data=json.dumps({"query": "test", "limit": "abc"}),
+            content_type="application/json",
+        )
+        response = LogicalQueryView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+        self.assertIn("limit", data.get("message", "").lower())
+
     @patch("app_know.views.query_view.LogicalQueryService")
     def test_post_json_body_from_raw_body_parsed(self, mock_svc_cls):
         """POST with JSON in request.body (no request.data) is parsed correctly (edge case)."""
@@ -263,6 +277,8 @@ class LogicalQueryViewTest(TestCase):
 
 class LogicalQueryEndpointTest(TestCase):
     """Verify knowledge/query endpoint is wired and returns expected shape. Generated."""
+
+    databases = {"default", "know_rw"}
 
     def test_knowledge_query_url_resolves(self):
         url = reverse("knowledge-query")

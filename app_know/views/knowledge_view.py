@@ -57,7 +57,9 @@ class KnowledgeListView(APIView):
             return resp_ok(page_data)
         except ValueError as e:
             logger.warning("[KnowledgeListView.get] Validation error: %s", e)
-            return resp_err(str(e), code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            msg = str(e)
+            code = RET_INVALID_PARAM if ("integer" in msg.lower() or "offset" in msg or "limit" in msg) else RET_MISSING_PARAM
+            return resp_err(msg, code=code, status=http_status.HTTP_200_OK)
         except (DatabaseError, IntegrityError) as e:
             logger.exception("[KnowledgeListView.get] DB error: %s", e)
             return resp_err(str(e), code=RET_DB_ERROR, status=http_status.HTTP_200_OK)

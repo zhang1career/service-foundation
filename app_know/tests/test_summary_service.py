@@ -109,6 +109,13 @@ class SummaryServiceTest(TestCase):
         with self.assertRaises(ValueError):
             svc.get_summary(knowledge_id=0)
 
+    def test_get_summary_validation_negative_id(self):
+        """get_summary with negative knowledge_id raises ValueError (edge case)."""
+        svc = SummaryService()
+        with self.assertRaises(ValueError) as ctx:
+            svc.get_summary(knowledge_id=-1)
+        self.assertIn("positive", str(ctx.exception).lower())
+
     @patch("app_know.services.summary_service.repo_list_summaries")
     def test_list_summaries_validation(self, mock_list):
         mock_list.return_value = ([], 0)

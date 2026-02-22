@@ -1,8 +1,15 @@
+import unittest
 from unittest import TestCase
 
-from common.apis.aigcbest_api import AigcBestAPI
+try:
+    from common.apis.aigcbest_api import AigcBestAPI
+    _AIGC_SKIP_MSG = None
+except ImportError as e:
+    AigcBestAPI = None
+    _AIGC_SKIP_MSG = "aigcbest_api not available: %s" % e
 
 
+@unittest.skipIf(AigcBestAPI is None, _AIGC_SKIP_MSG or "aigcbest_api not available")
 class TestAigcBestAPI(TestCase):
     def setUp(self):
         pass

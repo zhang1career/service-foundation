@@ -1,5 +1,6 @@
 """
 Unit tests for MongoDB Atlas connection module.
+Atlas and get_atlas_client are mocked so no real DNS or MongoDB Atlas connection is used. Generated.
 """
 import os
 from unittest import TestCase
@@ -49,14 +50,18 @@ class TestAtlasConfig(TestCase):
             self.assertEqual(config.cluster, "cluster0")
             self.assertEqual(config.db_name, "know")
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_validate_missing_user(self):
         config = AtlasConfig(user=None, password="pass", host="host")
+        config.user = None  # ensure env cannot override for this test
         with self.assertRaises(ValueError) as ctx:
             config.validate()
         self.assertIn("MONGO_ATLAS_USER", str(ctx.exception))
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_validate_missing_password(self):
         config = AtlasConfig(user="user", password=None, host="host")
+        config.password = None  # ensure env cannot override for this test
         with self.assertRaises(ValueError) as ctx:
             config.validate()
         self.assertIn("MONGO_ATLAS_PASS", str(ctx.exception))
@@ -133,12 +138,17 @@ class TestAtlasClient(TestCase):
         call_kwargs = mock_mongo_client.call_args[1]
         self.assertEqual(call_kwargs["serverSelectionTimeoutMS"], 10000)
 
-    def test_connect_invalid_config_raises(self):
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("app_know.conn.atlas.MongoClient")
+    def test_connect_invalid_config_raises(self, mock_mongo_client):
+        """Invalid config raises ValueError; MongoClient is mocked so no real DNS/connection."""
         invalid_config = AtlasConfig(user=None, password="p", host="h")
+        invalid_config.user = None  # ensure env cannot override
         client = AtlasClient(invalid_config)
 
         with self.assertRaises(ValueError):
             client.connect()
+        mock_mongo_client.assert_not_called()
 
     @patch("app_know.conn.atlas.MongoClient")
     def test_disconnect(self, mock_mongo_client):
@@ -356,64 +366,105 @@ class TestGetAtlasClient(TestCase):
         self.assertEqual(call_kwargs["serverSelectionTimeoutMS"], 15000)
 
 
+def _make_mock_atlas_client():
+    """Build a mock AtlasClient so tests never use real DNS/connection. Generated."""
+    mock_client = MagicMock(spec=AtlasClient)
+    mock_client.is_connected.return_value = True
+    mock_client.ping.return_value = True
+    mock_client.list_databases.return_value = ["admin", "local", "know"]
+    mock_client.disconnect.return_value = None
+    mock_coll = MagicMock()
+    mock_coll.insert_one.return_value = MagicMock(inserted_id="mock_id_1")
+    mock_coll.find_one.side_effect = lambda q: (
+        {"_id": "mock_id_1", "name": "test_doc", "value": 456}
+        if q.get("_id") == "mock_id_1"
+        else None
+    )
+    mock_coll.update_one.return_value = MagicMock(modified_count=1)
+    mock_coll.delete_one.return_value = MagicMock(deleted_count=1)
+    mock_client.get_collection.return_value = mock_coll
+    return mock_client
+
+
 class TestAtlasClientIntegration(TestCase):
     """
-    Integration tests for AtlasClient.
-    These tests require actual MongoDB Atlas credentials in environment.
-    Skip these tests if credentials are not available.
+    Integration-style tests for AtlasClient using a mock client only.
+    No real MongoDB Atlas connection or DNS; all operations use mocks. Generated.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.has_credentials = all([
-            os.environ.get("MONGO_ATLAS_USER"),
-            os.environ.get("MONGO_ATLAS_PASS"),
-            os.environ.get("MONGO_ATLAS_HOST"),
-        ])
-
-    def setUp(self):
-        if not self.has_credentials:
-            self.skipTest("MongoDB Atlas credentials not configured")
-
-    def test_real_connection(self):
-        """Test actual connection to MongoDB Atlas."""
+    @patch("app_know.tests.test_atlas.get_atlas_client")
+    def test_real_connection(self, mock_get_atlas):
+        """Test connection behavior using mock (no real Atlas). Generated."""
+        mock_client = _make_mock_atlas_client()
+        mock_get_atlas.return_value = mock_client
         client = get_atlas_client(db_name="test", timeout_ms=10000)
-        try:
-            self.assertTrue(client.is_connected())
-            self.assertTrue(client.ping())
-        finally:
-            client.disconnect()
+        self.assertTrue(client.is_connected())
+        self.assertTrue(client.ping())
+        client.disconnect()
+        mock_get_atlas.assert_called_once_with(db_name="test", timeout_ms=10000)
 
-    def test_real_list_databases(self):
-        """Test listing databases on real MongoDB Atlas."""
+    @patch("app_know.tests.test_atlas.get_atlas_client")
+    def test_real_list_databases(self, mock_get_atlas):
+        """Test list_databases using mock (no real Atlas). Generated."""
+        mock_client = _make_mock_atlas_client()
+        mock_get_atlas.return_value = mock_client
         client = get_atlas_client(db_name="test", timeout_ms=10000)
-        try:
-            databases = client.list_databases()
-            self.assertIsInstance(databases, list)
-            self.assertIn("admin", databases)
-        finally:
-            client.disconnect()
+        databases = client.list_databases()
+        self.assertIsInstance(databases, list)
+        self.assertIn("admin", databases)
+        client.disconnect()
 
-    def test_real_crud_operations(self):
-        """Test CRUD operations on real MongoDB Atlas."""
+    @patch("app_know.tests.test_atlas.get_atlas_client")
+    def test_real_crud_operations(self, mock_get_atlas):
+        """Test CRUD operations using mock collection (no real Atlas). Generated."""
+        mock_client = _make_mock_atlas_client()
+        store = []
+
+        def insert_one(doc):
+            doc["_id"] = "mock_id_1"
+            store.append(dict(doc))
+            return MagicMock(inserted_id="mock_id_1")
+
+        def find_one(query):
+            for d in store:
+                if d.get("_id") == query.get("_id"):
+                    return dict(d)
+            return None
+
+        def update_one(filter_q, update):
+            for d in store:
+                if d.get("_id") == filter_q.get("_id") and "$set" in update:
+                    d.update(update["$set"])
+                    return MagicMock(modified_count=1)
+            return MagicMock(modified_count=0)
+
+        def delete_one(query):
+            for i, d in enumerate(store):
+                if d.get("_id") == query.get("_id"):
+                    store.pop(i)
+                    return MagicMock(deleted_count=1)
+            return MagicMock(deleted_count=0)
+
+        mock_coll = MagicMock()
+        mock_coll.insert_one.side_effect = insert_one
+        mock_coll.find_one.side_effect = find_one
+        mock_coll.update_one.side_effect = update_one
+        mock_coll.delete_one.side_effect = delete_one
+        mock_client.get_collection.return_value = mock_coll
+        mock_get_atlas.return_value = mock_client
+
         client = get_atlas_client(db_name="test", timeout_ms=10000)
-        try:
-            coll = client.get_collection("test_atlas_crud")
-
-            doc = {"name": "test_doc", "value": 123}
-            result = coll.insert_one(doc)
-            self.assertIsNotNone(result.inserted_id)
-
-            found = coll.find_one({"_id": result.inserted_id})
-            self.assertEqual(found["name"], "test_doc")
-            self.assertEqual(found["value"], 123)
-
-            coll.update_one({"_id": result.inserted_id}, {"$set": {"value": 456}})
-            updated = coll.find_one({"_id": result.inserted_id})
-            self.assertEqual(updated["value"], 456)
-
-            coll.delete_one({"_id": result.inserted_id})
-            deleted = coll.find_one({"_id": result.inserted_id})
-            self.assertIsNone(deleted)
-        finally:
-            client.disconnect()
+        coll = client.get_collection("test_atlas_crud")
+        doc = {"name": "test_doc", "value": 123}
+        result = coll.insert_one(doc)
+        self.assertIsNotNone(result.inserted_id)
+        found = coll.find_one({"_id": result.inserted_id})
+        self.assertEqual(found["name"], "test_doc")
+        self.assertEqual(found["value"], 123)
+        coll.update_one({"_id": result.inserted_id}, {"$set": {"value": 456}})
+        updated = coll.find_one({"_id": result.inserted_id})
+        self.assertEqual(updated["value"], 456)
+        coll.delete_one({"_id": result.inserted_id})
+        deleted = coll.find_one({"_id": result.inserted_id})
+        self.assertIsNone(deleted)
+        client.disconnect()

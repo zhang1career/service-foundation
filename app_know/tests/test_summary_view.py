@@ -261,3 +261,27 @@ class KnowledgeSummaryListViewTest(TestCase):
         mock_svc.list_summaries.assert_called_once()
         call_kw = mock_svc.list_summaries.call_args[1]
         self.assertIsNone(call_kw["knowledge_id"])
+
+    def test_list_offset_non_integer_returns_validation_error(self):
+        """List with offset that cannot be parsed as integer returns validation error."""
+        request = self.factory.get(
+            "/api/know/knowledge/summaries",
+            {"offset": "abc", "limit": "10"},
+        )
+        response = KnowledgeSummaryListView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertNotEqual(data["errorCode"], RET_OK)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)
+
+    def test_list_limit_non_integer_returns_validation_error(self):
+        """List with limit that cannot be parsed as integer returns validation error."""
+        request = self.factory.get(
+            "/api/know/knowledge/summaries",
+            {"offset": "0", "limit": "xyz"},
+        )
+        response = KnowledgeSummaryListView.as_view()(request)
+        response.render()
+        data = json.loads(response.content)
+        self.assertNotEqual(data["errorCode"], RET_OK)
+        self.assertEqual(data["errorCode"], RET_INVALID_PARAM)

@@ -1,6 +1,6 @@
 """
 Tests for relationship repo (Neo4j persistence, validation, and edge cases).
-Generated.
+get_neo4j_client is mocked so no real Neo4j connection is used. Generated.
 """
 from unittest.mock import MagicMock, patch
 

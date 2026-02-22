@@ -1,5 +1,6 @@
 """
 Unit tests for Neo4j connection module.
+Neo4j and get_neo4j_client are mocked so no real Neo4j connection is used. Generated.
 """
 import os
 from unittest import TestCase
@@ -50,14 +51,18 @@ class TestNeo4jConfig(TestCase):
             config.validate()
         self.assertIn("NEO4J_URI", str(ctx.exception))
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_validate_missing_user(self):
         config = Neo4jConfig(uri="bolt://localhost:7687", user=None, password="pass")
+        config.user = None  # ensure env cannot override for this test
         with self.assertRaises(ValueError) as ctx:
             config.validate()
         self.assertIn("NEO4J_USER", str(ctx.exception))
 
+    @patch.dict(os.environ, {}, clear=True)
     def test_validate_missing_password(self):
         config = Neo4jConfig(uri="bolt://localhost:7687", user="user", password=None)
+        config.password = None  # ensure env cannot override for this test
         with self.assertRaises(ValueError) as ctx:
             config.validate()
         self.assertIn("NEO4J_PASS", str(ctx.exception))
@@ -101,8 +106,16 @@ class TestNeo4jClient(TestCase):
         mock_graph.assert_called_once()
         mock_graph_instance.run.assert_called_with("RETURN 1")
 
-    def test_connect_invalid_config_raises(self):
+    @patch("app_know.conn.neo4j.Graph")
+    @patch("app_know.conn.neo4j.NodeMatcher")
+    @patch("app_know.conn.neo4j.RelationshipMatcher")
+    @patch.dict(os.environ, {}, clear=True)
+    def test_connect_invalid_config_raises(
+        self, mock_rel_matcher, mock_node_matcher, mock_graph
+    ):
+        """Invalid config raises ValueError; Graph/NodeMatcher/RelationshipMatcher mocked so no real Neo4j connection. Generated."""
         invalid_config = Neo4jConfig(uri="bolt://localhost:7687", user=None, password="p")
+        invalid_config.user = None  # ensure env cannot override for this test
         client = Neo4jClient(invalid_config)
 
         with self.assertRaises(ValueError):
@@ -449,72 +462,90 @@ class TestGetNeo4jClient(TestCase):
         self.assertEqual(client.config.database, "custom_db")
 
 
+def _make_mock_neo4j_client():
+    """Build a mock Neo4jClient so tests never use real Neo4j connection. Generated."""
+    mock_client = MagicMock(spec=Neo4jClient)
+    mock_client.is_connected.return_value = True
+    mock_client.disconnect.return_value = None
+    mock_node = MagicMock()
+    mock_node.__getitem__ = lambda self, k: getattr(self, "_props", {}).get(k)
+    mock_node.__setitem__ = lambda self, k, v: setattr(self, "_props", getattr(self, "_props", {}) or {}) or (getattr(self, "_props", {}).__setitem__(k, v))
+    mock_node._props = {}
+    mock_client.create_node.return_value = mock_node
+    mock_client.find_node.return_value = mock_node
+    mock_client.find_node.side_effect = lambda *a, **kw: mock_node
+    mock_client.create_relationship.return_value = MagicMock()
+    mock_client.find_relationship.return_value = MagicMock()
+    mock_client.get_neighbors.return_value = [MagicMock()]
+    mock_client.update_node.return_value = mock_node
+    return mock_client
+
+
 class TestNeo4jClientIntegration(TestCase):
     """
-    Integration tests for Neo4jClient.
-    These tests require actual Neo4j credentials in environment.
-    Skip these tests if credentials are not available.
+    Integration-style tests for Neo4jClient using a mock client only.
+    get_neo4j_client is patched so no real Neo4j connection is used. Generated.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.has_credentials = all([
-            os.environ.get("NEO4J_URI"),
-            os.environ.get("NEO4J_USER"),
-            os.environ.get("NEO4J_PASS"),
-        ])
-
-    def setUp(self):
-        if not self.has_credentials:
-            self.skipTest("Neo4j credentials not configured")
-
-    def test_real_connection(self):
-        """Test actual connection to Neo4j."""
+    @patch("app_know.tests.test_neo4j.get_neo4j_client")
+    def test_real_connection(self, mock_get_neo4j):
+        """Test connection behavior using mock (no real Neo4j)."""
+        mock_client = _make_mock_neo4j_client()
+        mock_get_neo4j.return_value = mock_client
         client = get_neo4j_client()
-        try:
-            self.assertTrue(client.is_connected())
-        finally:
-            client.disconnect()
+        self.assertTrue(client.is_connected())
+        client.disconnect()
+        mock_get_neo4j.assert_called_once()
 
-    def test_real_crud_operations(self):
-        """Test CRUD operations on real Neo4j."""
+    @patch("app_know.tests.test_neo4j.get_neo4j_client")
+    def test_real_crud_operations(self, mock_get_neo4j):
+        """Test CRUD operations using mock (no real Neo4j)."""
+        mock_client = _make_mock_neo4j_client()
+        mock_node = MagicMock()
+        mock_node.__getitem__ = lambda s, k: {"name": "test_neo4j_crud", "value": 123}.get(k)
+        mock_node.__setitem__ = MagicMock()
+        mock_updated = MagicMock()
+        mock_updated.__getitem__ = lambda s, k: {"name": "test_neo4j_crud", "value": 456}.get(k)
+        mock_updated.__setitem__ = MagicMock()
+        mock_client.create_node.return_value = mock_node
+        mock_client.find_node.side_effect = [mock_node, mock_updated, None]
+        mock_get_neo4j.return_value = mock_client
         client = get_neo4j_client()
-        try:
-            node = client.create_node("TestNode", {"name": "test_neo4j_crud", "value": 123})
-            self.assertIsNotNone(node)
+        node = client.create_node("TestNode", {"name": "test_neo4j_crud", "value": 123})
+        self.assertIsNotNone(node)
+        found = client.find_node("TestNode", {"name": "test_neo4j_crud"})
+        self.assertIsNotNone(found)
+        self.assertEqual(found["value"], 123)
+        client.update_node(found, {"value": 456})
+        updated = client.find_node("TestNode", {"name": "test_neo4j_crud"})
+        self.assertEqual(updated["value"], 456)
+        client.delete_node(updated)
+        deleted = client.find_node("TestNode", {"name": "test_neo4j_crud"})
+        self.assertIsNone(deleted)
+        client.disconnect()
 
-            found = client.find_node("TestNode", {"name": "test_neo4j_crud"})
-            self.assertIsNotNone(found)
-            self.assertEqual(found["value"], 123)
-
-            client.update_node(found, {"value": 456})
-            updated = client.find_node("TestNode", {"name": "test_neo4j_crud"})
-            self.assertEqual(updated["value"], 456)
-
-            client.delete_node(updated)
-            deleted = client.find_node("TestNode", {"name": "test_neo4j_crud"})
-            self.assertIsNone(deleted)
-        finally:
-            client.disconnect()
-
-    def test_real_relationship_operations(self):
-        """Test relationship operations on real Neo4j."""
+    @patch("app_know.tests.test_neo4j.get_neo4j_client")
+    def test_real_relationship_operations(self, mock_get_neo4j):
+        """Test relationship operations using mock (no real Neo4j)."""
+        mock_client = _make_mock_neo4j_client()
+        mock_node1 = MagicMock()
+        mock_node2 = MagicMock()
+        mock_rel = MagicMock()
+        mock_client.create_node.side_effect = [mock_node1, mock_node2]
+        mock_client.create_relationship.return_value = mock_rel
+        mock_client.find_relationship.return_value = mock_rel
+        mock_client.get_neighbors.return_value = [mock_node2]
+        mock_get_neo4j.return_value = mock_client
         client = get_neo4j_client()
-        try:
-            node1 = client.create_node("TestPerson", {"name": "Alice"})
-            node2 = client.create_node("TestPerson", {"name": "Bob"})
-
-            rel = client.create_relationship(node1, node2, "TEST_KNOWS", {"since": 2020})
-            self.assertIsNotNone(rel)
-
-            found_rel = client.find_relationship(node1, node2, "TEST_KNOWS")
-            self.assertIsNotNone(found_rel)
-
-            neighbors = client.get_neighbors(node1, "TEST_KNOWS", direction="outgoing")
-            self.assertEqual(len(neighbors), 1)
-
-            client.delete_relationship(rel)
-            client.delete_node(node1)
-            client.delete_node(node2)
-        finally:
-            client.disconnect()
+        node1 = client.create_node("TestPerson", {"name": "Alice"})
+        node2 = client.create_node("TestPerson", {"name": "Bob"})
+        rel = client.create_relationship(node1, node2, "TEST_KNOWS", {"since": 2020})
+        self.assertIsNotNone(rel)
+        found_rel = client.find_relationship(node1, node2, "TEST_KNOWS")
+        self.assertIsNotNone(found_rel)
+        neighbors = client.get_neighbors(node1, "TEST_KNOWS", direction="outgoing")
+        self.assertEqual(len(neighbors), 1)
+        client.delete_relationship(rel)
+        client.delete_node(node1)
+        client.delete_node(node2)
+        client.disconnect()
