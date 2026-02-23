@@ -106,7 +106,7 @@ def _generate_summary_with_ai(
         raise Exception("content is empty")
     text = content[:1000] + "..." if len(content) > 1000 else content
 
-    question = "generate a concise summary capturing the key points and main ideas in 1 sentence."
+    question = "generate a concise summary capturing the key points and main ideas in 1 sentence, written in English."
 
     try:
         logger.info("[summary_generator] Calling TextAI for title: %s", title[:50])

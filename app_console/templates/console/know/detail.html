@@ -99,6 +99,17 @@ async function loadDetail() {
                         <div class="flex items-center text-gray-500"><div class="spinner mr-2"></div>加载中...</div>
                     </div>
                 </div>
+                
+                <!-- Relations Section -->
+                <div class="card mt-6">
+                    <div class="card-header">
+                        <h3 class="text-lg font-semibold">关系提取</h3>
+                        <button onclick="extractRelations()" class="btn btn-primary btn-sm">提取关系</button>
+                    </div>
+                    <div class="card-body" id="relations-content">
+                        <p class="text-gray-500">点击"提取关系"按钮从内容中提取谓词逻辑关系</p>
+                    </div>
+                </div>
             `;
             loadExistingSummary();
         } else {
@@ -176,6 +187,84 @@ async function generateSummary() {
         }
     } catch (error) {
         container.innerHTML = `<p class="text-red-500">生成失败: ${error.message}</p>`;
+    }
+}
+
+async function extractRelations() {
+    const container = document.getElementById('relations-content');
+    container.innerHTML = '<div class="flex items-center"><div class="spinner mr-2"></div>提取中...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/extract_relations`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                app_id: 'console'
+            })
+        });
+        const result = await response.json();
+        
+        if (result.errorCode === 0 && result.data) {
+            const relations = result.data.relations || [];
+            if (relations.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">未能从内容中提取到关系</p>';
+                return;
+            }
+            
+            let html = `<p class="text-sm text-gray-500 mb-3">共提取 ${relations.length} 条关系</p>`;
+            html += '<div class="space-y-3">';
+            
+            relations.forEach((rel, index) => {
+                const hasError = rel.error;
+                const statusClass = hasError ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50';
+                const statusIcon = hasError ? '❌' : '✓';
+                
+                html += `
+                    <div class="p-3 rounded-lg border ${statusClass}">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">#${index + 1}</span>
+                            <span class="text-xs">${statusIcon}</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-500">主语:</span>
+                                <span class="font-medium ml-1">${rel.subject || '-'}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">谓语:</span>
+                                <span class="font-medium ml-1">${rel.predicate || '-'}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">宾语:</span>
+                                <span class="font-medium ml-1">${rel.object || '-'}</span>
+                            </div>
+                        </div>
+                        ${!hasError ? `
+                        <div class="mt-2 text-xs text-gray-400">
+                            主语节点ID: ${rel.subject_node_id || '-'} | 
+                            宾语节点ID: ${rel.object_node_id || '-'} | 
+                            关系ID: ${rel.neo4j_relationship_id || '-'}
+                        </div>
+                        ` : `
+                        <div class="mt-2 text-xs text-red-500">
+                            错误: ${rel.error}
+                        </div>
+                        `}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        } else if (result.message) {
+            container.innerHTML = `<p class="text-red-500">提取失败: ${result.message}</p>`;
+        } else {
+            container.innerHTML = '<p class="text-gray-500">未能提取到关系</p>';
+        }
+    } catch (error) {
+        container.innerHTML = `<p class="text-red-500">提取失败: ${error.message}</p>`;
     }
 }
 

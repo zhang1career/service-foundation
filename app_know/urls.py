@@ -3,6 +3,7 @@ from django.urls import path
 
 from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
 from app_know.views.query_view import LogicalQueryView
+from app_know.views.relation_extract_view import RelationExtractView
 from app_know.views.relationship_view import RelationshipListView, RelationshipDetailView
 from app_know.views.summary_view import (
     KnowledgeSummaryView,
@@ -16,6 +17,11 @@ urlpatterns = [
         "knowledge/<int:entity_id>/summary",
         KnowledgeSummaryView.as_view(),
         name="knowledge-summary",
+    ),
+    path(
+        "knowledge/<int:entity_id>/extract_relations",
+        RelationExtractView.as_view(),
+        name="knowledge-extract-relations",
     ),
     path(
         "knowledge/summaries",

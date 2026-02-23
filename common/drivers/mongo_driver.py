@@ -13,10 +13,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Read SSL and proxy settings from environment
-MONGO_TLS_INSECURE = os.environ.get("MONGO_TLS_INSECURE", "false").lower() == "true"
-MONGO_PROXY_HOST = os.environ.get("MONGO_PROXY_HOST", "")
-MONGO_PROXY_PORT = os.environ.get("MONGO_PROXY_PORT", "")
 
 # Check pymongo version for proxy support
 import pymongo
@@ -36,22 +32,6 @@ class MongoDriver(Singleton):
             "tls": True,
             "serverSelectionTimeoutMS": 10000,
         }
-        
-        if MONGO_TLS_INSECURE:
-            client_options["tlsAllowInvalidCertificates"] = True
-            logger.warning("[MongoDriver] TLS certificate validation disabled (insecure)")
-        
-        if MONGO_PROXY_HOST and MONGO_PROXY_PORT:
-            if PYMONGO_4_PLUS:
-                client_options["proxyHost"] = MONGO_PROXY_HOST
-                client_options["proxyPort"] = int(MONGO_PROXY_PORT)
-                logger.info("[MongoDriver] Using proxy: %s:%s", MONGO_PROXY_HOST, MONGO_PROXY_PORT)
-            else:
-                logger.warning(
-                    "[MongoDriver] Proxy configured but pymongo %s does not support it. "
-                    "Please upgrade: pip install 'pymongo>=4.0'",
-                    pymongo.version
-                )
         
         self._client = MongoClient(uri, **client_options)
         self._db = self._client[db_name]
