@@ -6,7 +6,7 @@ Supports vector similarity search on name.
 """
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from pymongo.errors import ConnectionFailure, DuplicateKeyError, PyMongoError
@@ -68,10 +68,6 @@ def _ensure_index(coll) -> None:
         logger.warning("[component_repo] Index creation (may already exist): %s", e)
 
 
-# Similarity score threshold: treat as "same" entity when score >= this (for get_or_create_node)
-SIMILARITY_REUSE_THRESHOLD = 0.99
-
-
 def _vector_search_node(
     name: str,
     app_id: int,
@@ -127,6 +123,23 @@ def find_similar_node(name: str, app_id: int, limit: int = 1) -> Optional[Dict[s
     if not results:
         return None
     return _doc_to_item(results[0])
+
+
+def find_similar_nodes(name: str, app_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+    """
+    Find top N similar graph nodes by vector search on name.
+    Returns list of nodes with id, name, score (0-1 similarity), ordered by similarity (best first).
+    Used for subject/object candidate dropdowns in relation extraction UI.
+    """
+    results, scores = _vector_search_node(name, app_id, limit=limit, include_score=True)
+    if not results:
+        return []
+    out = []
+    for i, doc in enumerate(results[:limit]):
+        item = _doc_to_item(doc)
+        item["score"] = float(scores[i]) if scores and i < len(scores) else 0.0
+        out.append(item)
+    return out
 
 
 def find_node_by_name(name: str, app_id: int) -> Optional[Dict[str, Any]]:
@@ -189,7 +202,7 @@ def get_or_create_node(
         _ensure_index(coll)
 
         results, scores = _vector_search_node(name, app_id, limit=1, include_score=True)
-        if results and scores and scores[0] >= SIMILARITY_REUSE_THRESHOLD:
+        if results and scores and scores[0] >= settings.KNOW_SIMILARITY_REUSE_THRESHOLD:
             result = _doc_to_item(results[0])
             result["is_new"] = False
             return result
@@ -313,6 +326,7 @@ def ensure_vector_index() -> bool:
             coll_name=COLLECTION_NAME,
             attr_name=KEY_NAME_VEC,
             dim_num=NAME_VEC_DIM,
+            filter_paths=[KEY_APP_ID],
         )
         logger.info("[component_repo] Vector index ensure attempted for %s.%s", COLLECTION_NAME, KEY_NAME_VEC)
         return True

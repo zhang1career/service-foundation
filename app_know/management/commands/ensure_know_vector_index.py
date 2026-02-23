@@ -5,8 +5,11 @@ Usage:
     python manage.py ensure_know_vector_index
 
 Creates:
-- knowledge_components.name_vec for relation extraction (subject/object similarity)
-- knowledge_summaries.summary_vec for summary semantic search
+- knowledge_components.name_vec (with app_id filter) for relation extraction
+- knowledge_summaries.summary_vec (with app_id filter) for summary semantic search
+
+Note: If indexes already exist without the app_id filter, drop them in Atlas UI
+first, then run this command again.
 """
 from django.core.management.base import BaseCommand
 

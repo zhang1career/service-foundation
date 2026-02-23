@@ -356,6 +356,7 @@ def ensure_summary_vector_index() -> bool:
             coll_name=COLLECTION_NAME,
             attr_name=KEY_SUMMARY_VEC,
             dim_num=SUMMARY_VEC_DIM,
+            filter_paths=[KEY_APP_ID],
         )
         logger.info(
             "[summary_repo] Vector index ensure attempted for %s.%s",

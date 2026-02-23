@@ -331,6 +331,8 @@ REQUEST_ID_RESPONSE_HEADER = "X_Request_Id"
 
 # MongoDB Atlas configuration (for app_know)
 MONGO_ATLAS_USER = env("MONGO_ATLAS_USER", default="")
+# Knowledge component similarity reuse threshold (vector score >= this treats as same entity)
+KNOW_SIMILARITY_REUSE_THRESHOLD = env.float("KNOW_SIMILARITY_REUSE_THRESHOLD", default=0.99)
 MONGO_ATLAS_PASS = env("MONGO_ATLAS_PASS", default="")
 MONGO_ATLAS_HOST = env("MONGO_ATLAS_HOST", default="cluster.mongodb.net")
 MONGO_ATLAS_CLUSTER = env("MONGO_ATLAS_CLUSTER", default="cluster0")

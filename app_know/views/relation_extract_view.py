@@ -10,10 +10,10 @@ from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
 
 from app_know.services.knowledge_service import KnowledgeService
+from app_know.repos import component_repo
 from app_know.services.relation_extractor import (
     ExtractedRelation,
     extract_relations_from_content,
-    resolve_relations_via_atlas,
     store_relation_in_graph,
 )
 from app_know.services.summary_service import SummaryService, _validate_app_id
@@ -108,12 +108,34 @@ class RelationExtractView(APIView):
                 app_id=app_id,
                 knowledge_id=entity_id,
             )
-            relations = resolve_relations_via_atlas(relations, app_id=app_id)
 
-            results = [
-                {"subject": r.subject, "predicate": r.predicate, "object": r.obj}
-                for r in relations
-            ]
+            results = []
+            for r in relations:
+                subject_candidates = component_repo.find_similar_nodes(
+                    r.subject, app_id, limit=5
+                )
+                object_candidates = component_repo.find_similar_nodes(
+                    r.obj, app_id, limit=5
+                )
+                subject_names = {c["name"] for c in subject_candidates}
+                object_names = {c["name"] for c in object_candidates}
+                if r.subject and r.subject not in subject_names:
+                    subject_candidates = [{"id": "", "name": r.subject, "score": 0.0}] + subject_candidates
+                if r.obj and r.obj not in object_names:
+                    object_candidates = [{"id": "", "name": r.obj, "score": 0.0}] + object_candidates
+                results.append({
+                    "subject": r.subject,
+                    "predicate": r.predicate,
+                    "object": r.obj,
+                    "subject_candidates": [
+                        {"id": c.get("id", ""), "name": c.get("name", ""), "score": float(c.get("score", 0.0))}
+                        for c in subject_candidates
+                    ],
+                    "object_candidates": [
+                        {"id": c.get("id", ""), "name": c.get("name", ""), "score": float(c.get("score", 0.0))}
+                        for c in object_candidates
+                    ],
+                })
 
             return resp_ok({
                 "knowledge_id": entity_id,

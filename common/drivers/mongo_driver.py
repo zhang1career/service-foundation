@@ -179,25 +179,37 @@ class MongoDriver(Singleton):
         except Exception as e:
             logger.exception(e)
 
-    def create_vector_search_index(self, coll_name: str, attr_name: str, dim_num: int):
+    def create_vector_search_index(
+        self,
+        coll_name: str,
+        attr_name: str,
+        dim_num: int,
+        filter_paths: list | None = None,
+    ):
+        """
+        Create vector search index. filter_paths: fields to add as filter type
+        (required for $vectorSearch filter to work, e.g. ["app_id"]).
+        """
         try:
             from pymongo.operations import SearchIndexModel
         except ImportError:
             logger.error("[MongoDriver] SearchIndexModel requires pymongo >= 4.x")
             return None
         try:
+            fields = [
+                {
+                    "type": "vector",
+                    "numDimensions": dim_num,
+                    "path": attr_name,
+                    "similarity": "cosine",
+                }
+            ]
+            if filter_paths:
+                for path in filter_paths:
+                    fields.append({"type": "filter", "path": path})
             coll = self.create_or_get_collection(coll_name)
             vector_index = SearchIndexModel(
-                definition={
-                    "fields": [
-                        {
-                            "type": "vector",
-                            "numDimensions": dim_num,
-                            "path": attr_name,
-                            "similarity": "cosine"
-                        }
-                    ]
-                },
+                definition={"fields": fields},
                 name=_build_vector_index_name(attr_name),
                 type="vectorSearch",
             )
@@ -234,9 +246,13 @@ class MongoDriver(Singleton):
         }
         if filter_query:
             vs_stage["filter"] = filter_query
+        # Replace "score": 1 with vectorSearchScore from $meta (required for $vectorSearch)
+        project = dict(proj)
+        if "score" in project:
+            project["score"] = {"$meta": "vectorSearchScore"}
         pipeline = [
             {"$vectorSearch": vs_stage},
-            {"$project": proj}
+            {"$project": project}
         ]
         # query data
         try:
@@ -245,3 +261,4 @@ class MongoDriver(Singleton):
             return list(results)
         except Exception as e:
             logger.exception(e)
+            return []
