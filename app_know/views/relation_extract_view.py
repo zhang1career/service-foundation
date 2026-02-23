@@ -14,7 +14,10 @@ from app_know.repos import component_repo
 from app_know.services.relation_extractor import (
     ExtractedRelation,
     extract_relations_from_content,
+    get_relation_graph_by_knowledge_id,
     store_relation_in_graph,
+    update_graph_node_name,
+    update_graph_relationship_type,
 )
 from app_know.services.summary_service import SummaryService, _validate_app_id
 from common.consts.response_const import (
@@ -222,4 +225,110 @@ class RelationSaveView(APIView):
             )
         except Exception as e:
             logger.exception("[RelationSaveView.post] Error: %s", e)
+            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+
+
+class RelationGraphView(APIView):
+    """GET: fetch Neo4j relation graph for a knowledge entity (kid -> table y -> cid -> Neo4j)."""
+
+    def get(self, request, entity_id, *args, **kwargs):
+        """
+        Get relation graph for knowledge entity.
+        Query param: app_id (optional, default 0)
+        """
+        try:
+            entity_id = _parse_entity_id(entity_id)
+            raw_app_id = request.query_params.get("app_id", 0)
+            app_id = _validate_app_id(raw_app_id)
+
+            graph_data = get_relation_graph_by_knowledge_id(
+                knowledge_id=entity_id,
+                app_id=app_id,
+            )
+            return resp_ok(graph_data)
+        except ValueError as e:
+            logger.warning("[RelationGraphView.get] Validation error: %s", e)
+            return resp_err(
+                str(e),
+                code=_error_code_for_validation(str(e)),
+                status=http_status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.exception("[RelationGraphView.get] Error: %s", e)
+            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+
+
+class RelationGraphNodeUpdateView(APIView):
+    """PATCH/POST: update graph node name by cid."""
+
+    def patch(self, request, entity_id, *args, **kwargs):
+        return self._update_node(request, entity_id)
+
+    def post(self, request, entity_id, *args, **kwargs):
+        return self._update_node(request, entity_id)
+
+    def _update_node(self, request, entity_id):
+        """Body: cid (required), name (required), app_id (optional, default 0)."""
+        try:
+            _parse_entity_id(entity_id)
+            data = getattr(request, "data", None) or request.POST or {}
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data) if data.strip() else {}
+                except json.JSONDecodeError:
+                    data = {}
+            cid = (data.get("cid") or "").strip()
+            name = (data.get("name") or "").strip()
+            app_id = _validate_app_id(data.get("app_id", 0))
+            if not cid:
+                return resp_err("cid is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            ok = update_graph_node_name(cid=cid, name=name or cid, app_id=app_id)
+            if not ok:
+                return resp_err("Node not found or update failed", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+            return resp_ok({"cid": cid, "name": name or cid})
+        except ValueError as e:
+            return resp_err(str(e), code=_error_code_for_validation(str(e)), status=http_status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("[RelationGraphNodeUpdateView.patch] Error: %s", e)
+            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+
+
+class RelationGraphEdgeUpdateView(APIView):
+    """PATCH/POST: update graph relationship type (delete old, create new)."""
+
+    def patch(self, request, entity_id, *args, **kwargs):
+        return self._update_edge(request, entity_id)
+
+    def post(self, request, entity_id, *args, **kwargs):
+        return self._update_edge(request, entity_id)
+
+    def _update_edge(self, request, entity_id):
+        """Body: from_cid, to_cid, old_type, new_type, app_id (optional)."""
+        try:
+            _parse_entity_id(entity_id)
+            data = getattr(request, "data", None) or request.POST or {}
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data) if data.strip() else {}
+                except json.JSONDecodeError:
+                    data = {}
+            from_cid = (data.get("from_cid") or data.get("from") or "").strip()
+            to_cid = (data.get("to_cid") or data.get("to") or "").strip()
+            old_type = (data.get("old_type") or "").strip()
+            new_type = (data.get("new_type") or "").strip()
+            app_id = _validate_app_id(data.get("app_id", 0))
+            if not from_cid or not to_cid:
+                return resp_err("from_cid and to_cid are required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            if not old_type or not new_type:
+                return resp_err("old_type and new_type are required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            ok = update_graph_relationship_type(
+                from_cid=from_cid, to_cid=to_cid, old_type=old_type, new_type=new_type, app_id=app_id
+            )
+            if not ok:
+                return resp_err("Relationship not found or update failed", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+            return resp_ok({"from": from_cid, "to": to_cid, "type": new_type})
+        except ValueError as e:
+            return resp_err(str(e), code=_error_code_for_validation(str(e)), status=http_status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("[RelationGraphEdgeUpdateView.patch] Error: %s", e)
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)

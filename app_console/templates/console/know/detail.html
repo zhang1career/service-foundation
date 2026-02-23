@@ -2,8 +2,13 @@
 
 {% block title %}知识详情{% endblock %}
 {% block page_title %}知识详情{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <div class="mb-6">
     <a href="{% url 'console:know-list' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,6 +28,9 @@
 {% endblock %}
 
 {% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 <script>
 const entityId = {{ entity_id }};
 const API_BASE = '/api/know/knowledge';
@@ -116,7 +124,7 @@ async function loadDetail() {
                 <!-- Relations Section (extract button visible only when summary exists) -->
                 <div class="card mt-6" id="relations-section">
                     <div class="card-header">
-                        <h3 class="text-lg font-semibold">关系提取</h3>
+                        <h3 class="text-lg font-semibold">关系</h3>
                         <div class="flex space-x-2">
                             <button id="extract-relations-btn" onclick="extractRelations()" class="btn btn-primary btn-sm" style="display:none">提取关系</button>
                             <button id="save-relation-btn" onclick="saveRelation()" class="btn btn-outline btn-sm" style="display:none">保存关系</button>
@@ -125,9 +133,23 @@ async function loadDetail() {
                     <div class="card-body" id="relations-content">
                         <p class="text-gray-500">点击"提取关系"按钮从内容中提取谓词逻辑关系。主语和宾语默认来自 AI 解析结果，可输入或从 Atlas 相似度匹配的候选项中选取后点击"保存关系"存储到 Neo4j</p>
                     </div>
+                    <div class="card-body border-t border-gray-200">
+                        <p class="text-sm text-gray-500 mb-2">关系图</p>
+                        <div class="relative flex gap-4">
+                            <div id="relation-graph" class="flex-1" style="height: 400px; min-height: 300px; background: #f9fafb; border-radius: 0.5rem;"></div>
+                            <div id="relation-props-drawer" class="w-72 flex-shrink-0 border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden" style="display:none;">
+                                <div class="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+                                    <span class="font-semibold text-gray-700">属性</span>
+                                    <button type="button" onclick="closeRelationPropsDrawer()" class="text-gray-500 hover:text-gray-700">&times;</button>
+                                </div>
+                                <div id="relation-props-content" class="p-4 text-sm"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
             loadExistingSummary();
+            loadRelationGraph();
         } else {
             throw new Error('未找到数据');
         }
@@ -174,6 +196,189 @@ async function loadExistingSummary() {
         container.innerHTML = '<p class="text-gray-500">暂无摘要，点击"生成摘要"按钮创建</p>';
         const extractBtn = document.getElementById('extract-relations-btn');
         if (extractBtn) extractBtn.style.display = 'none';
+    }
+}
+
+let relationGraphNvl = null;
+let relationGraphHandlers = [];
+let relationGraphData = { nodes: [], edges: [] };
+let relationPropsSelection = null;
+
+function closeRelationPropsDrawer() {
+    const drawer = document.getElementById('relation-props-drawer');
+    if (drawer) drawer.style.display = 'none';
+    relationPropsSelection = null;
+}
+
+function showRelationPropsDrawer(type, data) {
+    const drawer = document.getElementById('relation-props-drawer');
+    const content = document.getElementById('relation-props-content');
+    if (!drawer || !content) return;
+    relationPropsSelection = { type: type, data: Object.assign({}, data) };
+    let html = '';
+    if (type === 'node') {
+        const name = data.caption || data.label || data.id || '';
+        html = '<form id="relation-props-form" onsubmit="saveRelationProps(event)">' +
+            '<div class="space-y-3">' +
+            '<div><label class="block text-gray-500 text-xs mb-1">ID (cid)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.id || '-') + '</p></div>' +
+            '<div><label class="block text-gray-500 text-xs mb-1">名称</label><input type="text" name="name" value="' + escapeAttr(name) + '" class="w-full border rounded px-2 py-1.5 text-sm" placeholder="节点名称" /></div>' +
+            '<button type="submit" class="btn btn-primary btn-sm w-full">保存</button>' +
+            '</div></form>';
+    } else if (type === 'relationship') {
+        const typ = data.caption || data.label || '';
+        html = '<form id="relation-props-form" onsubmit="saveRelationProps(event)">' +
+            '<div class="space-y-3">' +
+            '<div><label class="block text-gray-500 text-xs mb-1">起点 (from)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.from || '-') + '</p></div>' +
+            '<div><label class="block text-gray-500 text-xs mb-1">终点 (to)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.to || '-') + '</p></div>' +
+            '<div><label class="block text-gray-500 text-xs mb-1">类型</label><input type="text" name="type" value="' + escapeAttr(typ) + '" class="w-full border rounded px-2 py-1.5 text-sm" placeholder="关系类型，如 related_to" /></div>' +
+            '<button type="submit" class="btn btn-primary btn-sm w-full">保存</button>' +
+            '</div></form>';
+    }
+    content.innerHTML = html || '<p class="text-gray-500">无属性</p>';
+    drawer.style.display = 'block';
+}
+
+async function saveRelationProps(ev) {
+    ev.preventDefault();
+    if (!relationPropsSelection) return;
+    const form = document.getElementById('relation-props-form');
+    if (!form) return;
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+    try {
+        const type = relationPropsSelection.type;
+        const data = relationPropsSelection.data;
+        if (type === 'node') {
+            const name = (form.querySelector('[name="name"]') || {}).value?.trim() || data.id;
+            const res = await fetch(`${API_BASE}/${entityId}/graph_node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ cid: data.id, name: name, app_id: 0 })
+            });
+            const text = await res.text();
+            let result;
+            try { result = JSON.parse(text); } catch (_) {
+                showToast('保存失败: 服务器返回异常 (状态 ' + res.status + ')，请检查登录或网络', 'error');
+                return;
+            }
+            if (result.errorCode === 0) {
+                showToast('节点已更新', 'success');
+                const nd = relationGraphData.nodes.find(n => String(n.id) === String(data.id));
+                if (nd) nd.caption = name;
+                if (relationGraphNvl) relationGraphNvl.addAndUpdateElementsInGraph([{ id: data.id, caption: name }], []);
+            } else {
+                showToast('保存失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } else if (type === 'relationship') {
+            const newType = (form.querySelector('[name="type"]') || {}).value?.trim();
+            if (!newType) { showToast('请输入关系类型', 'error'); return; }
+            const res = await fetch(`${API_BASE}/${entityId}/graph_edge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ from_cid: data.from, to_cid: data.to, old_type: data.caption || data.label || '', new_type: newType, app_id: 0 })
+            });
+            const text = await res.text();
+            let result;
+            try { result = JSON.parse(text); } catch (_) {
+                showToast('保存失败: 服务器返回异常 (状态 ' + res.status + ')，请检查登录或网络', 'error');
+                return;
+            }
+            if (result.errorCode === 0) {
+                showToast('关系已更新', 'success');
+                closeRelationPropsDrawer();
+                loadRelationGraph();
+            } else {
+                showToast('保存失败: ' + (result.message || '未知错误'), 'error');
+            }
+        }
+    } catch (e) {
+        showToast('保存失败: ' + (e.message || '未知错误'), 'error');
+    } finally {
+        const f = document.getElementById('relation-props-form');
+        if (f) { const b = f.querySelector('button[type="submit"]'); if (b) { b.disabled = false; b.textContent = '保存'; } }
+    }
+}
+
+async function loadRelationGraph() {
+    const container = document.getElementById('relation-graph');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/relation_graph?app_id=0`);
+        const result = await response.json();
+        if (result.errorCode !== 0 || !result.data) {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center">暂无关系图数据</p>';
+            return;
+        }
+        const data = result.data;
+        const nvlNodes = (data.nodes || []).map(n => ({
+            id: String(n.id),
+            caption: n.label || n.id || '?'
+        }));
+        const nvlRels = (data.edges || []).map((e, i) => ({
+            id: 'rel_' + i + '_' + e.from + '_' + e.to,
+            from: String(e.from),
+            to: String(e.to),
+            caption: e.label || '',
+            type: e.label || undefined
+        }));
+        if (nvlNodes.length === 0 && nvlRels.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center">暂无关系图（提取并保存关系后将显示）</p>';
+            return;
+        }
+        relationGraphData = { nodes: nvlNodes, edges: nvlRels };
+        if (relationGraphNvl) {
+            relationGraphHandlers.forEach(h => { try { h.destroy && h.destroy(); } catch (e) {} });
+            relationGraphHandlers = [];
+            relationGraphNvl.destroy();
+            relationGraphNvl = null;
+        }
+        const baseMod = await import('https://esm.sh/@neo4j-nvl/base@1.1.0');
+        const handlersMod = await import('https://esm.sh/@neo4j-nvl/interaction-handlers@1.1.0');
+        const opts = {
+            layout: 'forceDirected',
+            initialZoom: 1.2,
+            disableTelemetry: true,
+            renderer: 'canvas',
+            callbacks: { onLayoutDone: () => { if (relationGraphNvl) relationGraphNvl.fit(nvlNodes.map(n => n.id)); } }
+        };
+        relationGraphNvl = new baseMod.NVL(container, nvlNodes, nvlRels, opts, {});
+
+        const { DragNodeInteraction, PanInteraction, ZoomInteraction, ClickInteraction } = handlersMod;
+        const dragHandler = new DragNodeInteraction(relationGraphNvl);
+        const panHandler = new PanInteraction(relationGraphNvl);
+        const zoomHandler = new ZoomInteraction(relationGraphNvl);
+        const clickHandler = new ClickInteraction(relationGraphNvl);
+
+        clickHandler.updateCallback('onNodeClick', (node) => {
+            if (!node) return;
+            const nodeId = node.id ?? node.data?.id;
+            if (!nodeId) return;
+            relationGraphNvl.deselectAll();
+            relationGraphNvl.addAndUpdateElementsInGraph([{ id: nodeId, selected: true }], []);
+            const nd = relationGraphData.nodes.find(n => String(n.id) === String(nodeId));
+            showRelationPropsDrawer('node', nd ? { id: nd.id, caption: nd.caption, label: nd.caption } : { id: nodeId });
+        });
+        clickHandler.updateCallback('onRelationshipClick', (rel) => {
+            if (!rel) return;
+            const relId = rel.id ?? rel.data?.id;
+            if (!relId) return;
+            relationGraphNvl.deselectAll();
+            relationGraphNvl.addAndUpdateElementsInGraph([], [{ id: relId, selected: true }]);
+            const rd = relationGraphData.edges.find(r => r.id === relId);
+            showRelationPropsDrawer('relationship', rd ? { id: rd.id, from: rd.from, to: rd.to, caption: rd.caption, label: rd.caption } : { id: relId });
+        });
+        clickHandler.updateCallback('onSceneClick', () => {
+            relationGraphNvl.deselectAll();
+            closeRelationPropsDrawer();
+        });
+
+        relationGraphHandlers = [dragHandler, panHandler, zoomHandler, clickHandler];
+    } catch (error) {
+        console.error('[loadRelationGraph] Error:', error);
+        container.innerHTML = '<p class="text-red-500 p-4 text-center">加载关系图失败: ' + (error.message || '未知错误') + '</p>';
     }
 }
 
@@ -447,6 +652,7 @@ async function saveRelation() {
         if (result.errorCode === 0 && result.data) {
             const d = result.data;
             showToast(`保存成功\n主语节点ID: ${d.subject_node_id || '-'}\n宾语节点ID: ${d.object_node_id || '-'}\n关系ID: ${d.neo4j_relationship_id || '-'}`, 'success');
+            loadRelationGraph();
         } else {
             showToast('保存失败: ' + (result.message || '未知错误'), 'error');
         }

@@ -9,6 +9,7 @@ mongosh 风格交互式连接并查询 MongoDB Atlas。
   use <db>                    切换数据库
   db                          显示当前数据库
   show collections            列出当前数据库的集合
+  <db>.<coll>.<method>(...)   便捷语法，等价于 use <db> + db.<coll>.<method>(...)
   db.<coll>.find([query])     查询，query 为 JSON 默认 {}
   db.<coll>.findOne([query])  返回单条
   db.<coll>.updateMany(f, u)  批量更新，f=filter JSON，u=update JSON
@@ -165,6 +166,28 @@ def _match_db_coll_method(line: str) -> re.Match | None:
     )
 
 
+# 保留字，不能作为 shorthand 的数据库名
+_SHORTHAND_RESERVED = frozenset({"show", "use", "db", "help", "it", "exit", "quit", "q"})
+
+
+def _try_expand_shorthand(line: str, client) -> tuple[str, str] | None:
+    """
+    若 line 符合 dbname.coll.method(...) 格式，展开为 use dbname + db.coll.method(...)。
+    返回 (expanded_line, db_name) 或 None。
+    """
+    m = re.match(r"(\w+)\s*\.\s*(\w+)\s*\.\s*(\w+)\s*\(", line, re.IGNORECASE)
+    if not m:
+        return None
+    db_name_cand, coll, method = m.group(1), m.group(2), m.group(3)
+    if db_name_cand.lower() in _SHORTHAND_RESERVED:
+        return None
+    if db_name_cand not in client.list_database_names():
+        return None
+    rest = "(" + line[m.end() :]  # 从 ( 开始的剩余部分
+    expanded = f"db.{coll}.{method}{rest}"
+    return expanded, db_name_cand
+
+
 def repl(client):
     db_name = None
     limit = DEFAULT_BATCH_SIZE
@@ -248,6 +271,15 @@ def repl(client):
                     if len(docs) < it_limit:
                         it_coll = None
                 continue
+
+            # 便捷语法：dbname.coll.method(...) 自动展开为 use dbname + db.coll.method(...)
+            shorthand = _try_expand_shorthand(line, client)
+            if shorthand:
+                expanded_line, new_db = shorthand
+                db_name = new_db
+                it_coll = None
+                print(f"switched to db {new_db}")
+                line = expanded_line
 
             # 尝试解析 db.<coll>.<method>(...)
             m = _match_db_coll_method(line)

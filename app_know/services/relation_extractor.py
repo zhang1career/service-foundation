@@ -16,7 +16,7 @@ from service_foundation import settings
 
 logger = logging.getLogger(__name__)
 
-NODE_LABEL_GRAPH_NODE = "GraphNode"
+NODE_LABEL_GRAPH_NODE = "component"
 
 
 def _sanitize_rel_type(predicate: str) -> str:
@@ -425,3 +425,102 @@ def extract_and_store_relations(
             })
     
     return results
+
+
+def get_relation_graph_by_knowledge_id(
+    knowledge_id: int,
+    app_id: Optional[int] = 0,
+) -> Dict[str, Any]:
+    """
+    Fetch Neo4j subgraph for a knowledge entity.
+    Flow: kid (knowledge_id) -> table y -> cids -> Neo4j query by cids.
+    
+    Returns:
+        Dict with "nodes" (list of {id, label, cid}) and "edges" (list of {from, to, label})
+        suitable for vis-network visualization.
+    """
+    from app_know.repos.component_mapping_repo import get_cids_by_knowledge_id
+
+    result: Dict[str, Any] = {"nodes": [], "edges": []}
+    cids = get_cids_by_knowledge_id(knowledge_id, app_id=app_id)
+    if not cids:
+        return result
+
+    driver = _get_neo4j_driver()
+    # Fetch subgraph: nodes with cid in cids and their 1-hop relationships (app-scoped).
+    # Use startNode(r) and endNode(r) to preserve relationship direction (unidirectional).
+    query = """
+        MATCH (n:component)-[r]-(m:component)
+        WHERE n.cid IN $cids AND n.app_id = $app_id AND m.app_id = $app_id
+        RETURN startNode(r) AS startNode, endNode(r) AS endNode, type(r) AS rel_type
+    """
+    try:
+        cursor = driver.run(query, {"cids": cids, "app_id": app_id or 0})
+        nodes_map: Dict[str, Dict[str, Any]] = {}
+        edges_set: set = set()
+
+        for record in cursor:
+            start_node = record["startNode"]
+            end_node = record["endNode"]
+            rel_type = record["rel_type"] or "related_to"
+
+            start_cid = (start_node.get("cid") or "").strip()
+            end_cid = (end_node.get("cid") or "").strip()
+            start_name = (start_node.get("name") or start_cid or "?").strip()
+            end_name = (end_node.get("name") or end_cid or "?").strip()
+
+            if start_cid and start_cid not in nodes_map:
+                nodes_map[start_cid] = {"id": start_cid, "label": start_name, "cid": start_cid}
+            if end_cid and end_cid not in nodes_map:
+                nodes_map[end_cid] = {"id": end_cid, "label": end_name, "cid": end_cid}
+
+            edge_key = (start_cid, end_cid, rel_type)
+            if start_cid and end_cid and edge_key not in edges_set:
+                edges_set.add(edge_key)
+                result["edges"].append({
+                    "from": start_cid,
+                    "to": end_cid,
+                    "label": rel_type,
+                })
+
+        result["nodes"] = list(nodes_map.values())
+    except Exception as e:
+        logger.exception("[get_relation_graph_by_knowledge_id] Error: %s", e)
+        raise
+
+    return result
+
+
+def update_graph_node_name(cid: str, name: str, app_id: int = 0) -> bool:
+    """Update a graph node's name property by cid. Returns True if updated."""
+    driver = _get_neo4j_driver()
+    node = driver.find_node(NODE_LABEL_GRAPH_NODE, {"cid": cid, "app_id": app_id})
+    if node is None:
+        return False
+    driver.update_node(node, {"name": (name or "").strip() or cid})
+    return True
+
+
+def update_graph_relationship_type(
+    from_cid: str,
+    to_cid: str,
+    old_type: str,
+    new_type: str,
+    app_id: int = 0,
+) -> bool:
+    """Update relationship type by deleting old and creating new. Returns True if updated."""
+    new_type = _sanitize_rel_type(new_type)
+    old_type = _sanitize_rel_type(old_type) or "related_to"
+    if not new_type or new_type == old_type:
+        return False
+    driver = _get_neo4j_driver()
+    start_node = driver.find_node(NODE_LABEL_GRAPH_NODE, {"cid": from_cid, "app_id": app_id})
+    end_node = driver.find_node(NODE_LABEL_GRAPH_NODE, {"cid": to_cid, "app_id": app_id})
+    if start_node is None or end_node is None:
+        return False
+    rel = driver.find_an_edge(start_node, end_node, old_type)
+    if rel is None:
+        return False
+    driver.delete_edge(rel)
+    driver.create_edge(start_node, end_node, new_type, {"app_id": app_id})
+    return True

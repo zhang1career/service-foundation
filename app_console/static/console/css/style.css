@@ -1,5 +1,33 @@
 /* Custom styles for console app */
 
+/* Sidebar collapse / resize */
+#console-sidebar {
+    --sidebar-width: 256px;
+}
+#sidebar-handle {
+    width: 6px;
+    cursor: col-resize;
+}
+#sidebar-handle:hover,
+#sidebar-handle:active {
+    background: rgba(59, 130, 246, 0.4);
+}
+#sidebar-toggle {
+    transition: transform 0.2s ease;
+}
+#sidebar-toggle:hover {
+    transform: scale(1.05);
+}
+.sidebar-collapsed .sidebar-link {
+    justify-content: center;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+.sidebar-collapsed nav ul {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
 /* HTMX loading indicator */
 .htmx-indicator {
     display: none;
@@ -37,7 +65,7 @@
 
 .data-table th {
     background-color: #f9fafb;
-    padding: 12px 16px;
+    padding: 8px 12px;
     text-align: left;
     font-weight: 600;
     color: #374151;
@@ -45,7 +73,7 @@
 }
 
 .data-table td {
-    padding: 12px 16px;
+    padding: 8px 12px;
     border-bottom: 1px solid #e5e7eb;
 }
 
@@ -62,7 +90,7 @@
 }
 
 .card-header {
-    padding: 16px 20px;
+    padding: 12px 16px;
     border-bottom: 1px solid #e5e7eb;
     display: flex;
     justify-content: space-between;
@@ -70,7 +98,7 @@
 }
 
 .card-body {
-    padding: 20px;
+    padding: 14px 16px;
 }
 
 /* Button styles */
@@ -286,7 +314,7 @@
 }
 
 .modal-body {
-    padding: 20px;
+    padding: 16px;
 }
 
 .modal-footer {

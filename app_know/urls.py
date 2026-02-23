@@ -3,7 +3,13 @@ from django.urls import path
 
 from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
 from app_know.views.query_view import LogicalQueryView
-from app_know.views.relation_extract_view import RelationExtractView, RelationSaveView
+from app_know.views.relation_extract_view import (
+    RelationExtractView,
+    RelationGraphEdgeUpdateView,
+    RelationGraphNodeUpdateView,
+    RelationGraphView,
+    RelationSaveView,
+)
 from app_know.views.relationship_view import RelationshipListView, RelationshipDetailView
 from app_know.views.summary_view import (
     KnowledgeSummaryView,
@@ -27,6 +33,21 @@ urlpatterns = [
         "knowledge/<int:entity_id>/save_relation",
         RelationSaveView.as_view(),
         name="knowledge-save-relation",
+    ),
+    path(
+        "knowledge/<int:entity_id>/relation_graph",
+        RelationGraphView.as_view(),
+        name="knowledge-relation-graph",
+    ),
+    path(
+        "knowledge/<int:entity_id>/graph_node",
+        RelationGraphNodeUpdateView.as_view(),
+        name="knowledge-graph-node-update",
+    ),
+    path(
+        "knowledge/<int:entity_id>/graph_edge",
+        RelationGraphEdgeUpdateView.as_view(),
+        name="knowledge-graph-edge-update",
     ),
     path(
         "knowledge/summaries",
