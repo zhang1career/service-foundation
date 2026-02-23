@@ -14,15 +14,15 @@ _DB = "know_rw"
 
 def get_mapping_by_knowledge_id(
     knowledge_id: int,
-    app_id: Optional[str] = None,
+    app_id: Optional[int] = None,
 ) -> Optional[KnowledgeSummaryMapping]:
     """Get mapping by knowledge_id (kid), optionally filtered by app_id."""
     if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
         return None
     try:
         qs = KnowledgeSummaryMapping.objects.using(_DB).filter(kid=knowledge_id)
-        if app_id is not None and str(app_id).strip():
-            qs = qs.filter(app_id=str(app_id).strip())
+        if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+            qs = qs.filter(app_id=app_id)
         return qs.first()
     except Exception as e:
         logger.exception("[get_mapping_by_knowledge_id] Error: %s", e)
@@ -31,15 +31,15 @@ def get_mapping_by_knowledge_id(
 
 def get_mapping_by_summary_id(
     summary_id: str,
-    app_id: Optional[str] = None,
+    app_id: Optional[int] = None,
 ) -> Optional[KnowledgeSummaryMapping]:
     """Get mapping by summary_id (sid), optionally filtered by app_id."""
     if not summary_id or not str(summary_id).strip():
         return None
     try:
         qs = KnowledgeSummaryMapping.objects.using(_DB).filter(sid=str(summary_id).strip())
-        if app_id is not None and str(app_id).strip():
-            qs = qs.filter(app_id=str(app_id).strip())
+        if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+            qs = qs.filter(app_id=app_id)
         return qs.first()
     except Exception as e:
         logger.exception("[get_mapping_by_summary_id] Error: %s", e)
@@ -47,7 +47,7 @@ def get_mapping_by_summary_id(
 
 
 def list_mappings(
-    app_id: Optional[str] = None,
+    app_id: Optional[int] = None,
     knowledge_ids: Optional[List[int]] = None,
     offset: int = 0,
     limit: int = 100,
@@ -62,8 +62,8 @@ def list_mappings(
         raise ValueError(f"limit must be an integer in 1..{LIMIT_LIST}")
     try:
         qs = KnowledgeSummaryMapping.objects.using(_DB).all().order_by("kid")
-        if app_id is not None and str(app_id).strip():
-            qs = qs.filter(app_id=str(app_id).strip())
+        if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+            qs = qs.filter(app_id=app_id)
         if knowledge_ids is not None and isinstance(knowledge_ids, list) and knowledge_ids:
             valid_ids = [i for i in knowledge_ids if isinstance(i, int) and i > 0]
             if valid_ids:
@@ -79,7 +79,7 @@ def list_mappings(
 def create_or_update_mapping(
     knowledge_id: int,
     summary_id: str,
-    app_id: str,
+    app_id: int,
 ) -> KnowledgeSummaryMapping:
     """
     Create or update a mapping (upsert by kid + app_id).
@@ -89,11 +89,10 @@ def create_or_update_mapping(
         raise ValueError("knowledge_id must be a positive integer")
     if not summary_id or not str(summary_id).strip():
         raise ValueError("summary_id is required and cannot be empty")
-    if not app_id or not str(app_id).strip():
-        raise ValueError("app_id is required and cannot be empty")
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
 
     summary_id = str(summary_id).strip()
-    app_id = str(app_id).strip()
 
     try:
         existing = KnowledgeSummaryMapping.objects.using(_DB).filter(
@@ -119,7 +118,7 @@ def create_or_update_mapping(
 
 def delete_mapping_by_knowledge_id(
     knowledge_id: int,
-    app_id: Optional[str] = None,
+    app_id: Optional[int] = None,
 ) -> int:
     """
     Delete mapping(s) by knowledge_id (kid), optionally filtered by app_id.
@@ -129,8 +128,8 @@ def delete_mapping_by_knowledge_id(
         return 0
     try:
         qs = KnowledgeSummaryMapping.objects.using(_DB).filter(kid=knowledge_id)
-        if app_id is not None and str(app_id).strip():
-            qs = qs.filter(app_id=str(app_id).strip())
+        if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+            qs = qs.filter(app_id=app_id)
         count, _ = qs.delete()
         return count
     except Exception as e:
@@ -140,7 +139,7 @@ def delete_mapping_by_knowledge_id(
 
 def get_knowledge_ids_by_summary_ids(
     summary_ids: List[str],
-    app_id: Optional[str] = None,
+    app_id: Optional[int] = None,
 ) -> List[int]:
     """
     Get knowledge IDs by summary IDs (for query flow: Atlas -> MySQL -> Neo4j).
@@ -153,8 +152,8 @@ def get_knowledge_ids_by_summary_ids(
         return []
     try:
         qs = KnowledgeSummaryMapping.objects.using(_DB).filter(sid__in=valid_ids)
-        if app_id is not None and str(app_id).strip():
-            qs = qs.filter(app_id=str(app_id).strip())
+        if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+            qs = qs.filter(app_id=app_id)
         return list(qs.values_list("kid", flat=True))
     except Exception as e:
         logger.exception("[get_knowledge_ids_by_summary_ids] Error: %s", e)

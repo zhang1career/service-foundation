@@ -66,7 +66,7 @@ def _ensure_index(coll) -> None:
 def save_summary(
     knowledge_id: int,
     summary: str,
-    app_id: str,
+    app_id: int,
     source: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -84,9 +84,8 @@ def save_summary(
         raise ValueError(f"summary must not exceed {SUMMARY_STORAGE_MAX_LEN} characters")
     if source is not None and not isinstance(source, str):
         raise ValueError("source must be a string or None")
-    app_id = (app_id or "").strip()
-    if not app_id:
-        raise ValueError("app_id is required and cannot be empty")
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
     now_ms = int(time.time() * 1000)
     doc = {
         KEY_KNOWLEDGE_ID: knowledge_id,
@@ -126,7 +125,7 @@ def save_summary(
 
 def get_summary(
     knowledge_id: int,
-    app_id: Optional[str] = None,
+    app_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Get one summary by knowledge_id. If app_id is provided, filter by it.
@@ -135,8 +134,8 @@ def get_summary(
     if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
         return None
     query = {KEY_KNOWLEDGE_ID: knowledge_id}
-    if app_id is not None and str(app_id).strip():
-        query[KEY_APP_ID] = str(app_id).strip()
+    if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+        query[KEY_APP_ID] = app_id
     logger.info("[get_summary] Query: %s", query)
     try:
         driver = _get_mongo_driver()
@@ -170,8 +169,8 @@ def list_summaries(
     if not isinstance(limit, int) or limit <= 0 or limit > LIMIT_LIST:
         raise ValueError(f"limit must be an integer in 1..{LIMIT_LIST}")
     query = {}
-    if app_id is not None and str(app_id).strip():
-        query[KEY_APP_ID] = str(app_id).strip()
+    if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+        query[KEY_APP_ID] = app_id
     if knowledge_id is not None and isinstance(knowledge_id, int) and knowledge_id > 0:
         query[KEY_KNOWLEDGE_ID] = knowledge_id
     try:
@@ -207,7 +206,7 @@ def delete_by_knowledge_id(
 
 def update_summary(
     knowledge_id: int,
-    app_id: str,
+    app_id: int,
     summary: Optional[str] = None,
     source: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -218,9 +217,8 @@ def update_summary(
     """
     if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
         raise ValueError("knowledge_id must be a positive integer")
-    app_id = (app_id or "").strip()
-    if not app_id:
-        raise ValueError("app_id is required and cannot be empty")
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
     if summary is not None:
         if not isinstance(summary, str):
             raise ValueError("summary must be a string")
@@ -255,7 +253,7 @@ def update_summary(
 
 def delete_summary(
     knowledge_id: int,
-    app_id: str,
+    app_id: int,
 ) -> bool:
     """
     Delete a summary document by (knowledge_id, app_id).
@@ -263,9 +261,8 @@ def delete_summary(
     """
     if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
         raise ValueError("knowledge_id must be a positive integer")
-    app_id = (app_id or "").strip()
-    if not app_id:
-        raise ValueError("app_id is required and cannot be empty")
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
 
     try:
         driver = _get_mongo_driver()
@@ -284,7 +281,7 @@ def _regex_escape(text: str) -> str:
 
 def search_summaries_by_text(
     query: str,
-    app_id: Optional[str] = None,
+    app_id: Optional[int] = None,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
     """
@@ -306,8 +303,8 @@ def search_summaries_by_text(
         raise ValueError(f"limit must be an integer in 1..{LIMIT_LIST}")
     regex_pattern = _regex_escape(q)
     filter_q = {KEY_SUMMARY: {"$regex": regex_pattern, "$options": "i"}}
-    if app_id is not None and str(app_id).strip():
-        filter_q[KEY_APP_ID] = str(app_id).strip()
+    if app_id is not None and isinstance(app_id, int) and app_id >= 0:
+        filter_q[KEY_APP_ID] = app_id
     try:
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
@@ -328,7 +325,7 @@ def _doc_to_item(doc: Dict[str, Any]) -> Dict[str, Any]:
     out = {
         "knowledge_id": doc.get(KEY_KNOWLEDGE_ID),
         "summary": doc.get(KEY_SUMMARY, ""),
-        "app_id": doc.get(KEY_APP_ID, ""),
+        "app_id": doc.get(KEY_APP_ID, 0),
         "source": doc.get(KEY_SOURCE, "title_description"),
         "ct": doc.get(KEY_CT, 0),
         "ut": doc.get(KEY_UT, 0),

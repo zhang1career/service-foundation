@@ -25,3 +25,10 @@ pymysql~=1.1.2
 aiosmtpd>=1.4.4
 asgiref~=3.11.0
 pymongo~=4.16.0
+
+# ML / embedding (app_know: graph_node_repo, TextHelper)
+# PyTorch >= 2.4 required by sentence-transformers 5.x for some features
+torch>=2.4.0
+torchvision>=0.19.0
+torchaudio>=2.4.0
+sentence-transformers>=3.0.0

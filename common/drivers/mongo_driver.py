@@ -219,23 +219,24 @@ class MongoDriver(Singleton):
                       embedded_vec: list[float],
                       cand_num: int = 50,
                       limit: int = 3,
-                      proj: dict = None) -> list:
+                      proj: dict = None,
+                      filter_query: dict = None) -> list:
         # check arguments
         if proj is None:
             proj = {}
         # prepare data
+        vs_stage = {
+            "index": _build_vector_index_name(attr_name),
+            "path": attr_name,
+            "queryVector": embedded_vec,
+            "numCandidates": min(max(limit * 20, cand_num), 10000),
+            "limit": limit,
+        }
+        if filter_query:
+            vs_stage["filter"] = filter_query
         pipeline = [
-            {
-                '$vectorSearch': {
-                    "index": _build_vector_index_name(attr_name),
-                    "path": attr_name,
-                    "queryVector": embedded_vec,
-                    "numCandidates": min(max(limit * 20, cand_num), 10000),
-                    "limit": limit,
-                }
-            }, {
-                '$project': proj
-            }
+            {"$vectorSearch": vs_stage},
+            {"$project": proj}
         ]
         # query data
         try:

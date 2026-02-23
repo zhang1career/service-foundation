@@ -25,20 +25,16 @@ from common.consts.query_const import LIMIT_LIST
 
 logger = logging.getLogger(__name__)
 
-APP_ID_MAX_LEN = 128
 ENTITY_TYPE_MAX_LEN = 128
 ENTITY_ID_MAX_LEN = 512
 PREDICATE_MAX_LEN = 256
 RELATIONSHIP_TYPES = ("knowledge_entity", "knowledge_knowledge")
 
 
-def _validate_app_id(app_id: Optional[str]) -> str:
-    if not app_id or not str(app_id).strip():
-        raise ValueError("app_id is required and cannot be empty")
-    s = str(app_id).strip()
-    if len(s) > APP_ID_MAX_LEN:
-        raise ValueError(f"app_id must be at most {APP_ID_MAX_LEN} characters")
-    return s
+def _validate_app_id(app_id) -> int:
+    """Validate and return app_id as integer. Uses summary_service validator."""
+    from app_know.services.summary_service import _validate_app_id as _validate
+    return _validate(app_id)
 
 
 def _validate_positive_int(value: Any, name: str) -> int:
@@ -95,7 +91,7 @@ class RelationshipService(Singleton):
 
     def create_relationship(
         self,
-        app_id: str,
+        app_id,
         relationship_type: str,
         source_knowledge_id: Any,
         target_knowledge_id: Optional[Any] = None,

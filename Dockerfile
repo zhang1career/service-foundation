@@ -27,10 +27,10 @@ RUN groupadd -r service_foundation && useradd -r -g service_foundation service_f
 COPY requirements.txt .
 
 # Install Python dependencies with pip cache mounting
-# This allows pip to reuse downloaded packages between builds
+# Use PyTorch CPU index for smaller image and faster install (no CUDA)
 RUN --mount=type=cache,target=/root/.cache/pip,uid=0,gid=0 \
     pip install --upgrade pip \
-    && pip install -r requirements.txt
+    && pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Copy application code (this layer will only rebuild when code changes)
 COPY --chown=service_foundation:service_foundation . .

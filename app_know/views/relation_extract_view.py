@@ -10,7 +10,13 @@ from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
 
 from app_know.services.knowledge_service import KnowledgeService
-from app_know.services.relation_extractor import extract_and_store_relations
+from app_know.services.relation_extractor import (
+    ExtractedRelation,
+    extract_relations_from_content,
+    resolve_relations_via_atlas,
+    store_relation_in_graph,
+)
+from app_know.services.summary_service import SummaryService, _validate_app_id
 from common.consts.response_const import (
     RET_RESOURCE_NOT_FOUND,
     RET_MISSING_PARAM,
@@ -79,29 +85,36 @@ class RelationExtractView(APIView):
                     data = {}
             
             raw_app_id = data.get("app_id")
-            if raw_app_id is not None and not isinstance(raw_app_id, str):
-                raw_app_id = str(raw_app_id)
-            app_id = (raw_app_id or "").strip()
-            if not app_id:
-                raise ValueError("app_id is required and cannot be empty")
+            app_id = _validate_app_id(raw_app_id)  # default 0
             
             service = KnowledgeService()
             knowledge = service.get_knowledge(entity_id)
-            
-            content = knowledge.get("content", "")
-            if not content or not content.strip():
+
+            summary_service = SummaryService()
+            summary_result = summary_service.get_summary(
+                knowledge_id=entity_id,
+                app_id=app_id,
+            )
+            if not summary_result or not summary_result.get("summary", "").strip():
                 return resp_err(
-                    "Knowledge content is empty, cannot extract relations",
+                    "Knowledge summary is empty, please generate summary first",
                     code=RET_INVALID_PARAM,
                     status=http_status.HTTP_200_OK,
                 )
-            
-            results = extract_and_store_relations(
+            content = summary_result["summary"].strip()
+
+            relations = extract_relations_from_content(
                 content=content,
                 app_id=app_id,
                 knowledge_id=entity_id,
             )
-            
+            relations = resolve_relations_via_atlas(relations, app_id=app_id)
+
+            results = [
+                {"subject": r.subject, "predicate": r.predicate, "object": r.obj}
+                for r in relations
+            ]
+
             return resp_ok({
                 "knowledge_id": entity_id,
                 "relations": results,
@@ -126,4 +139,65 @@ class RelationExtractView(APIView):
             return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception("[RelationExtractView.post] Error: %s", e)
+            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+
+
+class RelationSaveView(APIView):
+    """POST: save a relation (subject, predicate, object) to Neo4j."""
+
+    def post(self, request, entity_id, *args, **kwargs):
+        """
+        Save relation to graph databases.
+
+        Body:
+            app_id: Application ID (required)
+            subject: Subject text (required)
+            predicate: Predicate text (required)
+            object: Object text (required)
+        """
+        try:
+            entity_id = _parse_entity_id(entity_id)
+
+            data = getattr(request, "data", None) or request.POST or {}
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data) if data.strip() else {}
+                except json.JSONDecodeError:
+                    data = {}
+
+            raw_app_id = data.get("app_id")
+            app_id = _validate_app_id(raw_app_id)
+
+            subject = (data.get("subject") or "").strip()
+            predicate = (data.get("predicate") or "").strip()
+            obj = (data.get("object") or "").strip()
+
+            if not subject:
+                return resp_err("subject is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            if not predicate:
+                return resp_err("predicate is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            if not obj:
+                return resp_err("object is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+
+            relation = ExtractedRelation(subject=subject, predicate=predicate, obj=obj)
+            stored = store_relation_in_graph(relation, app_id=app_id, knowledge_id=entity_id)
+
+            return resp_ok({
+                "knowledge_id": entity_id,
+                "subject": stored.subject,
+                "predicate": stored.predicate,
+                "object": stored.obj,
+                "subject_node_id": stored.subject_node_id,
+                "object_node_id": stored.obj_node_id,
+                "neo4j_relationship_id": stored.neo4j_relationship_id,
+            })
+        except ValueError as e:
+            logger.warning("[RelationSaveView.post] Validation error: %s", e)
+            return resp_err(
+                str(e),
+                code=_error_code_for_validation(str(e)),
+                status=http_status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.exception("[RelationSaveView.post] Error: %s", e)
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)

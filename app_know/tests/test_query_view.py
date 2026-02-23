@@ -186,7 +186,7 @@ class LogicalQueryViewTest(TestCase):
 
         request = self.factory.post(
             "/api/know/knowledge/query",
-            data=json.dumps({"query": "natural language", "app_id": "app1", "limit": 20}),
+            data=json.dumps({"query": "natural language", "app_id": 1, "limit": 20}),
             content_type="application/json",
         )
         response = LogicalQueryView.as_view()(request)
@@ -233,7 +233,7 @@ class LogicalQueryViewTest(TestCase):
     def test_post_missing_query(self):
         request = self.factory.post(
             "/api/know/knowledge/query",
-            data=json.dumps({"app_id": "app1"}),
+            data=json.dumps({"app_id": 1}),
             content_type="application/json",
         )
         response = LogicalQueryView.as_view()(request)
@@ -423,7 +423,7 @@ class LogicalQueryEndpointTest(TestCase):
         client = APIClient()
         response = client.post(
             reverse("knowledge-query"),
-            {"query": "natural language", "app_id": "app1", "limit": 20},
+            {"query": "natural language", "app_id": 1, "limit": 20},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)

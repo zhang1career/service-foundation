@@ -66,7 +66,7 @@ class LogicalQueryService(Singleton):
     def query(
         self,
         query: str,
-        app_id: Optional[str] = None,
+        app_id: Optional[int] = None,
         limit: Optional[int] = None,
         max_hops: Optional[int] = None,
         predicate_filter: Optional[str] = None,
@@ -90,7 +90,12 @@ class LogicalQueryService(Singleton):
         q = _validate_query(query)
         limit = _validate_limit(limit)
         max_hops = _validate_max_hops(max_hops)
-        app_id = (app_id or "").strip() or None
+        if app_id is not None and not (isinstance(app_id, int) and app_id >= 0):
+            try:
+                from app_know.services.summary_service import _validate_app_id
+                app_id = _validate_app_id(app_id)
+            except ValueError:
+                app_id = None
 
         # (1) Atlas: summary relevance -> candidate knowledge IDs with score
         try:

@@ -27,6 +27,19 @@
 const entityId = {{ entity_id }};
 const API_BASE = '/api/know/knowledge';
 
+function getCookie(name) {
+    let v = null;
+    if (document.cookie && document.cookie !== '') {
+        document.cookie.split(';').forEach(function(p) {
+            const part = p.trim();
+            if (part.indexOf(name + '=') === 0) {
+                v = decodeURIComponent(part.substring(name.length + 1));
+            }
+        });
+    }
+    return v;
+}
+
 function formatTimestamp(ts) {
     if (!ts || ts <= 0) return '-';
     const date = new Date(ts);
@@ -100,14 +113,17 @@ async function loadDetail() {
                     </div>
                 </div>
                 
-                <!-- Relations Section -->
-                <div class="card mt-6">
+                <!-- Relations Section (extract button visible only when summary exists) -->
+                <div class="card mt-6" id="relations-section">
                     <div class="card-header">
                         <h3 class="text-lg font-semibold">关系提取</h3>
-                        <button onclick="extractRelations()" class="btn btn-primary btn-sm">提取关系</button>
+                        <div class="flex space-x-2">
+                            <button id="extract-relations-btn" onclick="extractRelations()" class="btn btn-primary btn-sm" style="display:none">提取关系</button>
+                            <button id="save-relation-btn" onclick="saveRelation()" class="btn btn-outline btn-sm" style="display:none">保存关系</button>
+                        </div>
                     </div>
                     <div class="card-body" id="relations-content">
-                        <p class="text-gray-500">点击"提取关系"按钮从内容中提取谓词逻辑关系</p>
+                        <p class="text-gray-500">点击"提取关系"按钮从内容中提取谓词逻辑关系，解析结果将显示在下方文本框中，可编辑后点击"保存关系"存储到 Neo4j</p>
                     </div>
                 </div>
             `;
@@ -131,7 +147,7 @@ async function loadExistingSummary() {
     const container = document.getElementById('summary-content');
     
     try {
-        const url = `${API_BASE}/${entityId}/summary?app_id=console`;
+        const url = `${API_BASE}/${entityId}/summary?app_id=0`;
         console.log('[loadExistingSummary] Fetching:', url);
         const response = await fetch(url);
         const result = await response.json();
@@ -145,13 +161,19 @@ async function loadExistingSummary() {
                     更新时间: ${formatTimestamp(result.data.ut)}
                 </div>
             `;
+            const extractBtn = document.getElementById('extract-relations-btn');
+            if (extractBtn) extractBtn.style.display = '';
         } else {
             console.log('[loadExistingSummary] No summary found, errorCode:', result.errorCode, 'msg:', result.message);
             container.innerHTML = '<p class="text-gray-500">暂无摘要，点击"生成摘要"按钮创建</p>';
+            const extractBtn = document.getElementById('extract-relations-btn');
+            if (extractBtn) extractBtn.style.display = 'none';
         }
     } catch (error) {
         console.error('[loadExistingSummary] Error:', error);
         container.innerHTML = '<p class="text-gray-500">暂无摘要，点击"生成摘要"按钮创建</p>';
+        const extractBtn = document.getElementById('extract-relations-btn');
+        if (extractBtn) extractBtn.style.display = 'none';
     }
 }
 
@@ -166,7 +188,7 @@ async function generateSummary() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                app_id: 'console',
+                app_id: 0,
                 use_ai: true
             })
         });
@@ -180,6 +202,8 @@ async function generateSummary() {
                     更新时间: ${formatTimestamp(result.data.ut)}
                 </div>
             `;
+            const extractBtn = document.getElementById('extract-relations-btn');
+            if (extractBtn) extractBtn.style.display = '';
         } else if (result.message) {
             container.innerHTML = `<p class="text-red-500">生成失败: ${result.message}</p>`;
         } else {
@@ -190,81 +214,155 @@ async function generateSummary() {
     }
 }
 
+function escapeAttr(s) {
+    return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function renderRelationInputs(relation, relationCount) {
+    const container = document.getElementById('relations-content');
+    const sub = escapeAttr(relation.subject);
+    const prd = escapeAttr(relation.predicate);
+    const obj = escapeAttr(relation.object);
+    const countNote = relationCount > 1 ? `<p class="text-sm text-gray-500 mb-3">共提取 ${relationCount} 条关系，当前显示第1条，可编辑后保存</p>` : '';
+    container.innerHTML = `
+        ${countNote}
+        <div class="space-y-3">
+            <div>
+                <label class="block text-sm text-gray-500 mb-1">主语</label>
+                <input type="text" id="relation-subject" class="w-full border rounded px-3 py-2" value="${sub}" placeholder="主语" />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-500 mb-1">谓语</label>
+                <input type="text" id="relation-predicate" class="w-full border rounded px-3 py-2" value="${prd}" placeholder="谓语" />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-500 mb-1">宾语</label>
+                <input type="text" id="relation-object" class="w-full border rounded px-3 py-2" value="${obj}" placeholder="宾语" />
+            </div>
+        </div>
+    `;
+    const saveBtn = document.getElementById('save-relation-btn');
+    if (saveBtn) saveBtn.style.display = '';
+}
+
 async function extractRelations() {
     const container = document.getElementById('relations-content');
     container.innerHTML = '<div class="flex items-center"><div class="spinner mr-2"></div>提取中...</div>';
-    
+
     try {
         const response = await fetch(`${API_BASE}/${entityId}/extract_relations`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || '',
+                'X-Requested-With': 'XMLHttpRequest',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
-                app_id: 'console'
+                app_id: 0
             })
         });
         const result = await response.json();
-        
+
         if (result.errorCode === 0 && result.data) {
             const relations = result.data.relations || [];
             if (relations.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">未能从内容中提取到关系</p>';
+                const saveBtn = document.getElementById('save-relation-btn');
+                if (saveBtn) saveBtn.style.display = 'none';
                 return;
             }
-            
-            let html = `<p class="text-sm text-gray-500 mb-3">共提取 ${relations.length} 条关系</p>`;
-            html += '<div class="space-y-3">';
-            
-            relations.forEach((rel, index) => {
-                const hasError = rel.error;
-                const statusClass = hasError ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50';
-                const statusIcon = hasError ? '❌' : '✓';
-                
-                html += `
-                    <div class="p-3 rounded-lg border ${statusClass}">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-sm font-medium">#${index + 1}</span>
-                            <span class="text-xs">${statusIcon}</span>
-                        </div>
-                        <div class="grid grid-cols-3 gap-2 text-sm">
-                            <div>
-                                <span class="text-gray-500">主语:</span>
-                                <span class="font-medium ml-1">${rel.subject || '-'}</span>
-                            </div>
-                            <div>
-                                <span class="text-gray-500">谓语:</span>
-                                <span class="font-medium ml-1">${rel.predicate || '-'}</span>
-                            </div>
-                            <div>
-                                <span class="text-gray-500">宾语:</span>
-                                <span class="font-medium ml-1">${rel.object || '-'}</span>
-                            </div>
-                        </div>
-                        ${!hasError ? `
-                        <div class="mt-2 text-xs text-gray-400">
-                            主语节点ID: ${rel.subject_node_id || '-'} | 
-                            宾语节点ID: ${rel.object_node_id || '-'} | 
-                            关系ID: ${rel.neo4j_relationship_id || '-'}
-                        </div>
-                        ` : `
-                        <div class="mt-2 text-xs text-red-500">
-                            错误: ${rel.error}
-                        </div>
-                        `}
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            container.innerHTML = html;
+            const first = relations[0];
+            renderRelationInputs(first, relations.length);
         } else if (result.message) {
             container.innerHTML = `<p class="text-red-500">提取失败: ${result.message}</p>`;
+            const saveBtn = document.getElementById('save-relation-btn');
+            if (saveBtn) saveBtn.style.display = 'none';
         } else {
             container.innerHTML = '<p class="text-gray-500">未能提取到关系</p>';
+            const saveBtn = document.getElementById('save-relation-btn');
+            if (saveBtn) saveBtn.style.display = 'none';
         }
     } catch (error) {
         container.innerHTML = `<p class="text-red-500">提取失败: ${error.message}</p>`;
+        const saveBtn = document.getElementById('save-relation-btn');
+        if (saveBtn) saveBtn.style.display = 'none';
+    }
+}
+
+async function saveRelation() {
+    const subjectInput = document.getElementById('relation-subject');
+    const predicateInput = document.getElementById('relation-predicate');
+    const objectInput = document.getElementById('relation-object');
+    if (!subjectInput || !predicateInput || !objectInput) {
+        alert('请先点击"提取关系"获取解析结果');
+        return;
+    }
+    const subject = subjectInput.value.trim();
+    const predicate = predicateInput.value.trim();
+    const obj = objectInput.value.trim();
+    if (!subject || !predicate || !obj) {
+        alert('请填写完整的主语、谓语、宾语');
+        return;
+    }
+
+    const saveBtn = document.getElementById('save-relation-btn');
+    const originalText = saveBtn ? saveBtn.textContent : '保存关系';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = '保存中...';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/save_relation`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                app_id: 0,
+                subject: subject,
+                predicate: predicate,
+                object: obj
+            }),
+            credentials: 'same-origin'
+        });
+        const contentType = response.headers.get('Content-Type') || '';
+        const text = await response.text();
+        if (!contentType.includes('application/json')) {
+            const snippet = text.substring(0, 100).replace(/\s+/g, ' ');
+            alert('保存失败: 接口返回了非 JSON 内容 (状态码: ' + response.status + ')。可能原因：请求地址有误、服务异常或需要登录。响应片段: ' + snippet);
+            return;
+        }
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch (e) {
+            alert('保存失败: 响应无法解析为 JSON。状态码: ' + response.status);
+            return;
+        }
+
+        if (result.errorCode === 0 && result.data) {
+            const d = result.data;
+            alert(`保存成功\n主语节点ID: ${d.subject_node_id || '-'}\n宾语节点ID: ${d.object_node_id || '-'}\n关系ID: ${d.neo4j_relationship_id || '-'}`);
+        } else {
+            alert('保存失败: ' + (result.message || '未知错误'));
+        }
+    } catch (error) {
+        alert('保存失败: ' + error.message);
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
+        }
     }
 }
 

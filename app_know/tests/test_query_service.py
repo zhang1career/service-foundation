@@ -101,12 +101,12 @@ class LogicalQueryServiceTest(TestCase):
             {"type": "knowledge", "knowledge_id": 2, "source_knowledge_id": 1, "hop": 1},
         ]
         svc = LogicalQueryService()
-        out = svc.query(query="test", app_id="myapp", limit=10)
+        out = svc.query(query="test", app_id=3, limit=10)
         self.assertIn("data", out)
         self.assertGreaterEqual(len(out["data"]), 1)
         mock_related.assert_called_once()
         call_kw = mock_related.call_args[1]
-        self.assertEqual(call_kw["app_id"], "myapp")
+        self.assertEqual(call_kw["app_id"], 3)
         self.assertEqual(call_kw["knowledge_ids"], [1])
 
     @patch("app_know.services.query_service.get_related_by_knowledge_ids")
@@ -121,10 +121,10 @@ class LogicalQueryServiceTest(TestCase):
         out = svc.query(query="programming", app_id="skills", limit=20)
         self.assertIn("data", out)
         self.assertGreaterEqual(len(out["data"]), 1)
-        mock_search.assert_called_once_with(query="programming", app_id="skills", limit=20)
+        mock_search.assert_called_once_with(query="programming", app_id=2, limit=20)
         mock_related.assert_called_once()
         call_kw = mock_related.call_args[1]
-        self.assertEqual(call_kw["app_id"], "skills")
+        self.assertEqual(call_kw["app_id"], 2)
         self.assertEqual(call_kw["knowledge_ids"], [1])
 
     @patch("app_know.services.query_service.get_related_by_knowledge_ids")
@@ -135,7 +135,7 @@ class LogicalQueryServiceTest(TestCase):
             {"type": "entity", "entity_type": "task", "entity_id": "e1", "source_knowledge_id": 1, "hop": 1},
         ]
         svc = LogicalQueryService()
-        out = svc.query(query="test", app_id="app1", limit=10)
+        out = svc.query(query="test", app_id=1, limit=10)
         data = out["data"]
         self.assertGreaterEqual(len(data), 1)
         self.assertEqual(data[0]["type"], "knowledge")
@@ -175,7 +175,7 @@ class LogicalQueryServiceTest(TestCase):
         mock_search.return_value = []
         mock_related.return_value = []
         svc = LogicalQueryService()
-        out = svc.query(query="x", app_id="myapp", limit=10)
+        out = svc.query(query="x", app_id=3, limit=10)
         self.assertEqual(out["data"], [])
         self.assertEqual(out["total_num"], 0)
 
@@ -193,7 +193,7 @@ class LogicalQueryServiceTest(TestCase):
         mock_related.side_effect = OSError("Neo4j error")
         svc = LogicalQueryService()
         with self.assertRaises(OSError):
-            svc.query(query="test", app_id="myapp", limit=10)
+            svc.query(query="test", app_id=3, limit=10)
 
     @patch("app_know.services.query_service.get_related_by_knowledge_ids")
     @patch("app_know.services.query_service.search_summaries_by_text")
@@ -228,7 +228,7 @@ class LogicalQueryServiceTest(TestCase):
             {"type": "knowledge", "knowledge_id": 5, "source_knowledge_id": 1, "hop": 1},
         ]
         svc = LogicalQueryService()
-        out = svc.query(query="x", app_id="myapp", limit=10)
+        out = svc.query(query="x", app_id=3, limit=10)
         self.assertEqual(len(out["data"]), 1)
         self.assertEqual(out["data"][0]["knowledge_id"], 5)
         self.assertEqual(out["data"][0]["source"], "neo4j")

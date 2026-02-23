@@ -120,42 +120,42 @@ class SummaryRepoTest(TestCase):
         out = save_summary(
             knowledge_id=1,
             summary="My summary",
-            app_id="app1",
+            app_id=1,
         )
         self.assertEqual(out["knowledge_id"], 1)
         self.assertEqual(out["summary"], "My summary")
-        self.assertEqual(out["app_id"], "app1")
+        self.assertEqual(out["app_id"], 1)
         self.assertIn("id", out)
         self.assertEqual(len(self.store), 1)
 
     def test_save_summary_upsert(self):
-        save_summary(knowledge_id=1, summary="First", app_id="app1")
-        out = save_summary(knowledge_id=1, summary="Second", app_id="app1")
+        save_summary(knowledge_id=1, summary="First", app_id=1)
+        out = save_summary(knowledge_id=1, summary="Second", app_id=1)
         self.assertEqual(out["summary"], "Second")
         self.assertEqual(len(self.store), 1)
 
     def test_save_summary_validation_invalid_knowledge_id(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=0, summary="x", app_id="a")
+            save_summary(knowledge_id=0, summary="x", app_id=1)
         self.assertIn("positive integer", str(ctx.exception))
         with self.assertRaises(ValueError):
-            save_summary(knowledge_id=-1, summary="x", app_id="a")
+            save_summary(knowledge_id=-1, summary="x", app_id=1)
         with self.assertRaises(ValueError):
-            save_summary(knowledge_id=None, summary="x", app_id="a")
+            save_summary(knowledge_id=None, summary="x", app_id=1)
 
     def test_save_summary_validation_empty_app_id(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=1, summary="x", app_id="  ")
+            save_summary(knowledge_id=1, summary="x", app_id=None)
         self.assertIn("app_id", str(ctx.exception))
 
     def test_save_summary_validation_summary_none(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=1, summary=None, app_id="a")
+            save_summary(knowledge_id=1, summary=None, app_id=1)
         self.assertIn("summary", str(ctx.exception))
 
     def test_save_summary_validation_summary_not_string(self):
         with self.assertRaises(ValueError) as ctx:
-            save_summary(knowledge_id=1, summary=123, app_id="a")
+            save_summary(knowledge_id=1, summary=123, app_id=1)
         self.assertIn("summary", str(ctx.exception))
 
     def test_save_summary_validation_summary_too_long(self):
@@ -163,27 +163,27 @@ class SummaryRepoTest(TestCase):
             save_summary(
                 knowledge_id=1,
                 summary="x" * (SUMMARY_STORAGE_MAX_LEN + 1),
-                app_id="a",
+                app_id=1,
             )
         self.assertIn("exceed", str(ctx.exception))
 
     def test_save_summary_validation_source_not_string(self):
         with self.assertRaises(ValueError) as ctx:
             save_summary(
-                knowledge_id=1, summary="x", app_id="a", source=123
+                knowledge_id=1, summary="x", app_id=1, source=123
             )
         self.assertIn("source", str(ctx.exception))
 
     def test_save_summary_empty_string_summary_allowed(self):
         out = save_summary(
-            knowledge_id=1, summary="", app_id="app1"
+            knowledge_id=1, summary="", app_id=1
         )
         self.assertEqual(out["summary"], "")
         self.assertEqual(len(self.store), 1)
 
     def test_get_summary(self):
-        save_summary(knowledge_id=2, summary="Found", app_id="app2")
-        out = get_summary(knowledge_id=2, app_id="app2")
+        save_summary(knowledge_id=2, summary="Found", app_id=2)
+        out = get_summary(knowledge_id=2, app_id=2)
         self.assertIsNotNone(out)
         self.assertEqual(out["summary"], "Found")
 
@@ -196,17 +196,17 @@ class SummaryRepoTest(TestCase):
         self.assertIsNone(get_summary(knowledge_id=-1))
 
     def test_list_summaries(self):
-        save_summary(knowledge_id=1, summary="S1", app_id="app1")
-        save_summary(knowledge_id=2, summary="S2", app_id="app1")
-        items, total = list_summaries(app_id="app1", offset=0, limit=10)
+        save_summary(knowledge_id=1, summary="S1", app_id=1)
+        save_summary(knowledge_id=2, summary="S2", app_id=1)
+        items, total = list_summaries(app_id=1, offset=0, limit=10)
         self.assertEqual(total, 2)
         self.assertEqual(len(items), 2)
 
     def test_list_summaries_pagination(self):
-        save_summary(knowledge_id=1, summary="S1", app_id="a")
-        save_summary(knowledge_id=2, summary="S2", app_id="a")
-        save_summary(knowledge_id=3, summary="S3", app_id="a")
-        items, total = list_summaries(app_id="a", offset=1, limit=1)
+        save_summary(knowledge_id=1, summary="S1", app_id=1)
+        save_summary(knowledge_id=2, summary="S2", app_id=1)
+        save_summary(knowledge_id=3, summary="S3", app_id=1)
+        items, total = list_summaries(app_id=1, offset=1, limit=1)
         self.assertEqual(total, 3)
         self.assertEqual(len(items), 1)
 
@@ -265,7 +265,7 @@ class SummaryRepoTest(TestCase):
                     yield {
                         KEY_KNOWLEDGE_ID: 2,
                         KEY_SUMMARY: "Keyword match here",
-                        KEY_APP_ID: "app1",
+                        KEY_APP_ID: 1,
                         KEY_CT: 1000,
                         KEY_UT: 1000,
                         KEY_ID: "oid1",

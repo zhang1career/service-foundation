@@ -36,11 +36,34 @@ def _validate_knowledge_id(knowledge_id) -> None:
         raise ValueError("knowledge_id must be a positive integer")
 
 
-def _validate_app_id(app_id: Optional[str]) -> str:
-    app_id = (app_id or "").strip()
-    if not app_id:
-        raise ValueError("app_id is required and cannot be empty")
-    return app_id
+def _validate_app_id(app_id, default=None) -> int:
+    """Validate and return app_id as integer. 0 is valid (default). Raises ValueError if invalid."""
+    from app_know.consts import APP_ID_DEFAULT
+    dflt = default if default is not None else APP_ID_DEFAULT
+    if app_id is None:
+        return dflt
+    if isinstance(app_id, int):
+        if app_id < 0:
+            raise ValueError("app_id must be a non-negative integer")
+        return app_id
+    if isinstance(app_id, str):
+        s = app_id.strip()
+        if not s:
+            return dflt
+        try:
+            val = int(s)
+            if val < 0:
+                raise ValueError("app_id must be a non-negative integer")
+            return val
+        except ValueError:
+            raise ValueError("app_id must be an integer")
+    try:
+        val = int(app_id)
+        if val < 0:
+            raise ValueError("app_id must be a non-negative integer")
+        return val
+    except (TypeError, ValueError):
+        raise ValueError("app_id must be an integer")
 
 
 class SummaryService(Singleton):
@@ -49,7 +72,7 @@ class SummaryService(Singleton):
     def generate_and_save(
         self,
         knowledge_id: int,
-        app_id: str,
+        app_id,
         use_ai: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -58,7 +81,7 @@ class SummaryService(Singleton):
 
         Args:
             knowledge_id: Knowledge entity ID
-            app_id: Application ID
+            app_id: Application ID (int, 0 for default)
             use_ai: If True, use AigcBestAPI for AI-powered generation
 
         Raises:
@@ -117,7 +140,7 @@ class SummaryService(Singleton):
     def get_summary(
         self,
         knowledge_id: int,
-        app_id: Optional[str] = None,
+        app_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Get one summary by knowledge_id, optionally filtered by app_id."""
         _validate_knowledge_id(knowledge_id)
@@ -125,7 +148,7 @@ class SummaryService(Singleton):
 
     def list_summaries(
         self,
-        app_id: Optional[str] = None,
+        app_id: Optional[int] = None,
         knowledge_id: Optional[int] = None,
         offset: Optional[int] = None,
         limit: Optional[int] = None,
@@ -162,7 +185,7 @@ class SummaryService(Singleton):
     def update_summary(
         self,
         knowledge_id: int,
-        app_id: str,
+        app_id,
         summary: Optional[str] = None,
         source: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -187,7 +210,7 @@ class SummaryService(Singleton):
     def delete_summary(
         self,
         knowledge_id: int,
-        app_id: str,
+        app_id,
     ) -> bool:
         """
         Delete a summary by (knowledge_id, app_id).

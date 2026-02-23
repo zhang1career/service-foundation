@@ -28,7 +28,7 @@ class GetMappingByKnowledgeIdTest(TestCase):
         mock_qs.first.return_value = mock_mapping
         mock_model.objects.using.return_value = mock_qs
 
-        result = get_mapping_by_knowledge_id(knowledge_id=1, app_id="app1")
+        result = get_mapping_by_knowledge_id(knowledge_id=1, app_id=1)
         self.assertEqual(result, mock_mapping)
         mock_qs.filter.assert_any_call(kid=1)
 
@@ -55,7 +55,7 @@ class GetMappingBySummaryIdTest(TestCase):
         mock_qs.first.return_value = mock_mapping
         mock_model.objects.using.return_value = mock_qs
 
-        result = get_mapping_by_summary_id(summary_id="abc123", app_id="app1")
+        result = get_mapping_by_summary_id(summary_id="abc123", app_id=1)
         self.assertEqual(result, mock_mapping)
 
     def test_invalid_summary_id_returns_none(self):
@@ -77,7 +77,7 @@ class ListMappingsTest(TestCase):
         mock_qs.__getitem__ = MagicMock(return_value=[MagicMock(), MagicMock()])
         mock_model.objects.using.return_value = mock_qs
 
-        items, total = list_mappings(app_id="app1", offset=0, limit=10)
+        items, total = list_mappings(app_id=1, offset=0, limit=10)
         self.assertEqual(total, 2)
         self.assertEqual(len(items), 2)
 
@@ -101,7 +101,7 @@ class CreateOrUpdateMappingTest(TestCase):
         mock_mapping = MagicMock()
         mock_model.objects.using.return_value.get_or_create.return_value = (mock_mapping, True)
 
-        result = create_or_update_mapping(knowledge_id=1, summary_id="abc123", app_id="app1")
+        result = create_or_update_mapping(knowledge_id=1, summary_id="abc123", app_id=1)
         self.assertEqual(result, mock_mapping)
         mock_model.objects.using.return_value.get_or_create.assert_called_once()
 
@@ -110,19 +110,19 @@ class CreateOrUpdateMappingTest(TestCase):
         mock_mapping = MagicMock()
         mock_model.objects.using.return_value.get_or_create.return_value = (mock_mapping, False)
 
-        result = create_or_update_mapping(knowledge_id=1, summary_id="new_id", app_id="app1")
+        result = create_or_update_mapping(knowledge_id=1, summary_id="new_id", app_id=1)
         self.assertEqual(result, mock_mapping)
         self.assertEqual(mock_mapping.sid, "new_id")
         mock_mapping.save.assert_called_once()
 
     def test_invalid_knowledge_id_raises(self):
         with self.assertRaises(ValueError) as ctx:
-            create_or_update_mapping(knowledge_id=0, summary_id="abc", app_id="app1")
+            create_or_update_mapping(knowledge_id=0, summary_id="abc", app_id=1)
         self.assertIn("knowledge_id", str(ctx.exception))
 
     def test_invalid_summary_id_raises(self):
         with self.assertRaises(ValueError) as ctx:
-            create_or_update_mapping(knowledge_id=1, summary_id="", app_id="app1")
+            create_or_update_mapping(knowledge_id=1, summary_id="", app_id=1)
         self.assertIn("summary_id", str(ctx.exception))
 
     def test_invalid_app_id_raises(self):
@@ -141,7 +141,7 @@ class DeleteMappingByKnowledgeIdTest(TestCase):
         mock_qs.delete.return_value = (2, {})
         mock_model.objects.using.return_value = mock_qs
 
-        result = delete_mapping_by_knowledge_id(knowledge_id=1, app_id="app1")
+        result = delete_mapping_by_knowledge_id(knowledge_id=1, app_id=1)
         self.assertEqual(result, 2)
 
     def test_invalid_knowledge_id_returns_zero(self):
@@ -160,7 +160,7 @@ class GetKnowledgeIdsBySummaryIdsTest(TestCase):
         mock_qs.values_list.return_value = [1, 2, 3]
         mock_model.objects.using.return_value = mock_qs
 
-        result = get_knowledge_ids_by_summary_ids(summary_ids=["a", "b", "c"], app_id="app1")
+        result = get_knowledge_ids_by_summary_ids(summary_ids=["a", "b", "c"], app_id=1)
         self.assertEqual(result, [1, 2, 3])
 
     def test_empty_summary_ids_returns_empty(self):

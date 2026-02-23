@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 NODE_LABEL_GRAPH_NODE = "GraphNode"
 REL_TYPE_PREDICATE = "PREDICATE_REL"
 
-EXTRACT_QUESTION = '将正文内容提取出谓词逻辑，结果写成json的格式：{"sub": "xx", "prd": "yy", "obj": "zz"}'
-
 _text_ai_client = None
 _neo4j_driver: Optional[Neo4jDriver] = None
+
+EXTRACT_QUESTION = 'extract the predicate logic from the main text and write the result in the following JSON format, without any other content: {"sub": "we", "prd": "are", "obj": "the champions"}'
 
 
 def _get_text_ai():
@@ -147,32 +147,32 @@ def _parse_multiple_json_from_response(response: str) -> List[Dict[str, str]]:
 
 def extract_relations_from_content(
     content: str,
-    app_id: str,
+    app_id: int,
     knowledge_id: int,
 ) -> List[ExtractedRelation]:
     """
     Extract predicate logic relations from content using TextAI.
-    
+
     Args:
         content: The text content to extract relations from
-        app_id: Application ID for scoping
+        app_id: Application ID (integer) for scoping
         knowledge_id: Knowledge entity ID for reference
-    
+
     Returns:
         List of ExtractedRelation objects
     """
     if not content or not isinstance(content, str):
         raise ValueError("content is required and must be a string")
-    if not app_id or not isinstance(app_id, str):
-        raise ValueError("app_id is required and must be a string")
-    
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
+
     content = content.strip()
-    app_id = app_id.strip()
     if not content:
         raise ValueError("content cannot be empty")
-    if not app_id:
-        raise ValueError("app_id cannot be empty")
-    
+
+    logger.info("[relation_extractor] extract_relations_from_content input content (knowledge_id=%d, len=%d): %s",
+                knowledge_id, len(content), content)
+
     client = _get_text_ai()
     if client is None:
         raise RuntimeError("TextAI client not available")
@@ -221,20 +221,52 @@ def extract_relations_from_content(
         raise
 
 
+def resolve_relations_via_atlas(
+    relations: List[ExtractedRelation],
+    app_id: int,
+) -> List[ExtractedRelation]:
+    """
+    Resolve subject and object via Atlas vector similarity search.
+    If a similar node exists in knowledge_components, use its name; otherwise keep the parsed result.
+    """
+    from app_know.repos import graph_node_repo
+
+    resolved = []
+    for rel in relations:
+        subject_resolved = rel.subject
+        obj_resolved = rel.obj
+
+        similar_subject = graph_node_repo.find_similar_node(rel.subject, app_id, limit=1)
+        if similar_subject and similar_subject.get("name"):
+            subject_resolved = similar_subject["name"]
+            logger.info("[relation_extractor] Resolved subject '%s' -> '%s'", rel.subject, subject_resolved)
+
+        similar_obj = graph_node_repo.find_similar_node(rel.obj, app_id, limit=1)
+        if similar_obj and similar_obj.get("name"):
+            obj_resolved = similar_obj["name"]
+            logger.info("[relation_extractor] Resolved object '%s' -> '%s'", rel.obj, obj_resolved)
+
+        resolved.append(ExtractedRelation(
+            subject=subject_resolved,
+            predicate=rel.predicate,
+            obj=obj_resolved,
+        ))
+    return resolved
+
+
 def store_relation_in_graph(
     relation: ExtractedRelation,
-    app_id: str,
+    app_id: int,
     knowledge_id: int,
 ) -> ExtractedRelation:
     """
-    Store extracted relation in MongoDB Atlas and Neo4j.
+    Store extracted relation in MongoDB Atlas, MySQL component mapping, and Neo4j.
     
-    1. Check if subject exists in Atlas graph_node collection
-    2. If not, insert subject into Atlas and get _id
-    3. Check if object exists in Atlas graph_node collection  
-    4. If not, insert object into Atlas and get _id
-    5. Create/get Neo4j nodes using Atlas _ids
-    6. Create relationship in Neo4j
+    1. Query Atlas (knowledge_components) for subject by name; if not found, insert and get _id
+    2. Query Atlas for object by name; if not found, insert and get _id
+    3. Insert (kid, cid, type) into table y (KnowledgeComponentMapping)
+    4. Query Neo4j by cid from table y; if not found, create node with cid
+    5. Check for duplicate relation in Neo4j; if not duplicate, insert relation
     
     Args:
         relation: The extracted relation
@@ -245,75 +277,102 @@ def store_relation_in_graph(
         Updated ExtractedRelation with node IDs and relationship ID
     """
     from app_know.repos import graph_node_repo
-    
+    from app_know.repos.component_mapping_repo import (
+        create_mapping,
+        TYPE_SUBJECT,
+        TYPE_OBJECT,
+    )
+
     subject_node = graph_node_repo.get_or_create_node(
         name=relation.subject,
         app_id=app_id,
         node_type="entity",
     )
-    relation.subject_node_id = subject_node["id"]
-    logger.info("[relation_extractor] Subject node: %s (is_new=%s)", 
-                subject_node["id"], subject_node.get("is_new"))
-    
+    subject_cid = subject_node["id"]
+    relation.subject_node_id = subject_cid
+    logger.info("[relation_extractor] Subject node: %s (is_new=%s)",
+                subject_cid, subject_node.get("is_new"))
+
     obj_node = graph_node_repo.get_or_create_node(
         name=relation.obj,
         app_id=app_id,
         node_type="entity",
     )
-    relation.obj_node_id = obj_node["id"]
-    logger.info("[relation_extractor] Object node: %s (is_new=%s)", 
-                obj_node["id"], obj_node.get("is_new"))
-    
+    obj_cid = obj_node["id"]
+    relation.obj_node_id = obj_cid
+    logger.info("[relation_extractor] Object node: %s (is_new=%s)",
+                obj_cid, obj_node.get("is_new"))
+
+    create_mapping(
+        knowledge_id=knowledge_id,
+        component_id=subject_cid,
+        app_id=app_id,
+        component_type=TYPE_SUBJECT,
+    )
+    create_mapping(
+        knowledge_id=knowledge_id,
+        component_id=obj_cid,
+        app_id=app_id,
+        component_type=TYPE_OBJECT,
+    )
+
     driver = _get_neo4j_driver()
-    
+
     subject_neo4j_node = _get_or_create_neo4j_node(
         driver=driver,
-        atlas_id=relation.subject_node_id,
+        cid=subject_cid,
         name=relation.subject,
         app_id=app_id,
     )
-    
+
     obj_neo4j_node = _get_or_create_neo4j_node(
         driver=driver,
-        atlas_id=relation.obj_node_id,
+        cid=obj_cid,
         name=relation.obj,
         app_id=app_id,
     )
     
+    predicate_val = (relation.predicate or "").strip() or ""
+    if not predicate_val:
+        predicate_val = "related_to"
+        logger.warning("[relation_extractor] Empty predicate, using default 'related_to'")
+
     existing_rel = driver.find_an_edge(subject_neo4j_node, obj_neo4j_node, REL_TYPE_PREDICATE)
     if existing_rel is not None:
         props = {
-            "predicate": relation.predicate,
+            "predicate": predicate_val,
             "app_id": app_id,
             "knowledge_id": knowledge_id,
         }
         driver.update_edge(existing_rel, props)
         relation.neo4j_relationship_id = existing_rel.identity if hasattr(existing_rel, "identity") else None
-        logger.info("[relation_extractor] Updated existing relationship: %s", relation.neo4j_relationship_id)
+        logger.info("[relation_extractor] Updated existing relationship id=%s predicate='%s'",
+                    relation.neo4j_relationship_id, predicate_val)
     else:
         props = {
-            "predicate": relation.predicate,
+            "predicate": predicate_val,
             "app_id": app_id,
             "knowledge_id": knowledge_id,
         }
         new_rel = driver.create_edge(subject_neo4j_node, obj_neo4j_node, REL_TYPE_PREDICATE, props)
         relation.neo4j_relationship_id = new_rel.identity if hasattr(new_rel, "identity") else None
-        logger.info("[relation_extractor] Created new relationship: %s", relation.neo4j_relationship_id)
+        logger.info("[relation_extractor] Created new relationship id=%s predicate='%s'",
+                    relation.neo4j_relationship_id, predicate_val)
     
     return relation
 
 
-def _get_or_create_neo4j_node(driver: Neo4jDriver, atlas_id: str, name: str, app_id: str):
-    """Get or create a Neo4j node using Atlas _id as unique identifier."""
-    props = {"atlas_id": atlas_id, "app_id": app_id}
+def _get_or_create_neo4j_node(driver: Neo4jDriver, cid: str, name: str, app_id: int):
+    """Get or create a Neo4j node using cid (Atlas _id) as unique identifier."""
+    props = {"cid": cid, "app_id": app_id}
     node = driver.find_node(NODE_LABEL_GRAPH_NODE, props)
     if node is not None:
         if node.get("name") != name:
             driver.update_node(node, {"name": name})
         return node
-    
+
     node_props = {
-        "atlas_id": atlas_id,
+        "cid": cid,
         "name": name,
         "app_id": app_id,
     }
@@ -322,7 +381,7 @@ def _get_or_create_neo4j_node(driver: Neo4jDriver, atlas_id: str, name: str, app
 
 def extract_and_store_relations(
     content: str,
-    app_id: str,
+    app_id: int,
     knowledge_id: int,
 ) -> List[Dict[str, Any]]:
     """

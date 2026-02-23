@@ -13,7 +13,7 @@ class KnowledgeSummaryMapping(models.Model):
     """
 
     kid = models.BigIntegerField(db_column="kid", primary_key=True)
-    app_id = models.CharField(max_length=128, db_column="app_id")
+    app_id = models.IntegerField(db_column="app_id")
     sid = models.CharField(max_length=255, db_column="sid", db_index=True)
 
     class Meta:

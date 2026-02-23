@@ -72,7 +72,7 @@ class PredicateTriple:
 class RelationshipCreateInput:
     """Input for creating a knowledge–entity or knowledge–knowledge relationship."""
 
-    app_id: str
+    app_id: int
     relationship_type: str  # "knowledge_entity" | "knowledge_knowledge"
     source_knowledge_id: int
     # For knowledge_entity: entity_type and entity_id; for knowledge_knowledge: target_knowledge_id
@@ -87,7 +87,7 @@ class RelationshipCreateInput:
 class RelationshipUpdateInput:
     """Input for updating relationship properties."""
 
-    app_id: str
+    app_id: int
     properties: Dict[str, Any]
     predicate: Optional[str] = None
 
@@ -97,7 +97,7 @@ class RelationshipQueryResult:
     """One relationship as returned by query APIs."""
 
     relationship_id: Optional[int]  # Neo4j internal id if available
-    app_id: str
+    app_id: int
     relationship_type: str
     source_knowledge_id: int
     target_knowledge_id: Optional[int] = None
@@ -111,7 +111,7 @@ class RelationshipQueryResult:
 class RelationshipQueryInput:
     """Input for querying relationships."""
 
-    app_id: str
+    app_id: int
     knowledge_id: Optional[int] = None
     entity_type: Optional[str] = None
     entity_id: Optional[str] = None

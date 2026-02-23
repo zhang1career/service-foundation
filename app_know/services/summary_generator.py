@@ -16,6 +16,8 @@ SUMMARY_MAX_LEN = 2000
 # Singleton TextAI instance (lazy initialization)
 _text_ai_client = None
 
+SUMMARY_QUESTION = "generate a concise summary capturing the key points and main ideas in 1 sentence, written in English."
+
 
 def _get_text_ai():
     """Get TextAI client lazily, only when needed."""
@@ -106,14 +108,12 @@ def _generate_summary_with_ai(
         raise Exception("content is empty")
     text = content[:1000] + "..." if len(content) > 1000 else content
 
-    question = "generate a concise summary capturing the key points and main ideas in 1 sentence, written in English."
-
     try:
         logger.info("[summary_generator] Calling TextAI for title: %s", title[:50])
         prompt, result = client.ask_and_answer(
             text=text,
             role="knowledge summarization",
-            question=question,
+            question=SUMMARY_QUESTION,
             temperature=0.3
         )
         logger.info("[summary_generator] TextAI prompt: %s", prompt[:200])

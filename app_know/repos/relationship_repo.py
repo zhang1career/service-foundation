@@ -49,11 +49,11 @@ def _get_neo4j_driver() -> Neo4jDriver:
     return _neo4j_driver
 
 
-def _knowledge_node_props(app_id: str, knowledge_id: int) -> Dict[str, Any]:
+def _knowledge_node_props(app_id: int, knowledge_id: int) -> Dict[str, Any]:
     return {APP_ID_PROP: app_id, KNOWLEDGE_ID_PROP: knowledge_id}
 
 
-def _entity_node_props(app_id: str, entity_type: str, entity_id: str) -> Dict[str, Any]:
+def _entity_node_props(app_id: int, entity_type: str, entity_id: str) -> Dict[str, Any]:
     return {
         APP_ID_PROP: app_id,
         ENTITY_TYPE_PROP: entity_type,
@@ -61,7 +61,7 @@ def _entity_node_props(app_id: str, entity_type: str, entity_id: str) -> Dict[st
     }
 
 
-def _get_or_create_knowledge_node(app_id: str, knowledge_id: int, client) -> Node:
+def _get_or_create_knowledge_node(app_id: int, knowledge_id: int, client) -> Node:
     props = _knowledge_node_props(app_id, knowledge_id)
     node = client.find_node(NODE_LABEL_KNOWLEDGE, props)
     if node is not None:
@@ -69,7 +69,7 @@ def _get_or_create_knowledge_node(app_id: str, knowledge_id: int, client) -> Nod
     return client.create_node(NODE_LABEL_KNOWLEDGE, props)
 
 
-def _get_or_create_entity_node(app_id: str, entity_type: str, entity_id: str, client) -> Node:
+def _get_or_create_entity_node(app_id: int, entity_type: str, entity_id: str, client) -> Node:
     props = _entity_node_props(app_id, entity_type, entity_id)
     node = client.find_node(NODE_LABEL_ENTITY, props)
     if node is not None:
@@ -86,7 +86,7 @@ def _rel_type_from_input(relationship_type: str) -> str:
 
 
 def _rel_props(
-    app_id: str,
+    app_id: int,
     predicate: Optional[str] = None,
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -106,8 +106,8 @@ def create_relationship(inp: RelationshipCreateInput) -> Tuple[Relationship, Nod
     Creates source/target nodes if they do not exist. Returns (relationship, start_node, end_node).
     Supports predicate logic: Subject(source) --predicate-> Object(target).
     """
-    if not inp.app_id or not str(inp.app_id).strip():
-        raise ValueError("app_id is required and cannot be empty")
+    if inp.app_id is None or not isinstance(inp.app_id, int) or inp.app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
     if inp.source_knowledge_id is None or inp.source_knowledge_id <= 0:
         raise ValueError("source_knowledge_id must be a positive integer")
     driver = _get_neo4j_driver()
@@ -142,13 +142,13 @@ def create_relationship(inp: RelationshipCreateInput) -> Tuple[Relationship, Nod
 
 
 def update_relationship_by_id(
-    app_id: str, relationship_id: int, properties: Dict[str, Any]
+    app_id: int, relationship_id: int, properties: Dict[str, Any]
 ) -> Optional[Relationship]:
     """
     Update relationship by Neo4j internal id. Verifies app_id on relationship.
     Returns updated relationship or None if not found / app_id mismatch.
     """
-    if not app_id or not str(app_id).strip():
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
         return None
     if relationship_id is None or relationship_id <= 0:
         return None
@@ -172,9 +172,9 @@ def update_relationship_by_id(
     return rel
 
 
-def get_relationship_by_id(app_id: str, relationship_id: int) -> Optional[Relationship]:
+def get_relationship_by_id(app_id: int, relationship_id: int) -> Optional[Relationship]:
     """Get relationship by Neo4j id; returns None if not found or app_id mismatch."""
-    if not app_id or not str(app_id).strip():
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
         return None
     if relationship_id is None or relationship_id <= 0:
         return None
@@ -192,12 +192,12 @@ def get_relationship_by_id(app_id: str, relationship_id: int) -> Optional[Relati
     return rel
 
 
-def delete_relationship_by_id(app_id: str, relationship_id: int) -> bool:
+def delete_relationship_by_id(app_id: int, relationship_id: int) -> bool:
     """
     Delete relationship by Neo4j internal id. Verifies app_id on relationship.
     Returns True if deleted, False if not found or app_id mismatch.
     """
-    if not app_id or not str(app_id).strip():
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
         return False
     if relationship_id is None or relationship_id <= 0:
         return False
@@ -222,8 +222,8 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
     Returns (list of RelationshipQueryResult, total count).
     Supports predicate filtering.
     """
-    if not inp.app_id or not str(inp.app_id).strip():
-        raise ValueError("app_id is required and cannot be empty")
+    if inp.app_id is None or not isinstance(inp.app_id, int) or inp.app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
     driver = _get_neo4j_driver()
     limit = min(max(1, inp.limit), REL_LIST_LIMIT)
     offset = max(0, inp.offset)
@@ -347,7 +347,7 @@ def query_relationships_as_triples(
 
 def get_related_by_knowledge_ids(
     knowledge_ids: List[int],
-    app_id: str,
+    app_id: int,
     limit: int = 200,
     max_hops: int = 1,
     predicate_filter: Optional[str] = None,
@@ -367,8 +367,8 @@ def get_related_by_knowledge_ids(
         List of dicts with: type, knowledge_id, entity_type, entity_id,
         source_knowledge_id, hop, predicate
     """
-    if not app_id or not str(app_id).strip():
-        raise ValueError("app_id is required and cannot be empty")
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
     if not isinstance(knowledge_ids, list):
         raise ValueError("knowledge_ids must be a list")
     if limit is None or not isinstance(limit, int) or limit <= 0 or limit > REL_LIST_LIMIT:
@@ -462,7 +462,7 @@ def get_related_by_knowledge_ids(
 
 def get_related_as_triples(
     knowledge_ids: List[int],
-    app_id: str,
+    app_id: int,
     limit: int = 200,
     max_hops: int = 1,
     predicate_filter: Optional[str] = None,
@@ -471,8 +471,8 @@ def get_related_as_triples(
     Get related items as predicate logic triples.
     Returns list of PredicateTriple objects.
     """
-    if not app_id or not str(app_id).strip():
-        raise ValueError("app_id is required and cannot be empty")
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        raise ValueError("app_id is required and must be a non-negative integer")
     if not isinstance(knowledge_ids, list):
         raise ValueError("knowledge_ids must be a list")
     if limit is None or not isinstance(limit, int) or limit <= 0 or limit > REL_LIST_LIMIT:
