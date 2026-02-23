@@ -27,7 +27,15 @@ def _sanitize_rel_type(predicate: str) -> str:
 _text_ai_client = None
 _neo4j_driver: Optional[Neo4jDriver] = None
 
-EXTRACT_QUESTION = 'extract the predicate logic from the main text and write the result in the following JSON format, without any other content: {"sub": "we", "prd": "are", "obj": "the champions"}'
+EXTRACT_QUESTION = (
+    "Extract the predicate logic from the main text. Generalize (概括) the subject, predicate, and object "
+    "to their core semantic concepts—do not copy words verbatim. "
+    "Rules: (1) Subject: abstract to the core entity or concept (e.g., 'we' -> the referent like 'team', 'user'; "
+    "drop pronouns unless they denote a semantic role). "
+    "(2) Predicate: use the canonical/base form of the relation (e.g., 'are' -> 'be', 'has bought' -> 'buy'). "
+    "(3) Object: extract the core concept without determiners or modifiers (e.g., 'the champions' -> 'champion'). "
+    "Output JSON only, no other content: {\"sub\": \"...\", \"prd\": \"...\", \"obj\": \"...\"}"
+)
 
 
 def _get_text_ai():
