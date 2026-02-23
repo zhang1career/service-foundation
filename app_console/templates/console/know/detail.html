@@ -119,6 +119,24 @@ async function loadDetail() {
                     <div class="card-body" id="summary-content">
                         <div class="flex items-center text-gray-500"><div class="spinner mr-2"></div>加载中...</div>
                     </div>
+                    <div class="card-body border-t border-gray-200">
+                        <div class="flex items-center gap-2 mb-2">
+                            <label class="flex items-center cursor-pointer gap-2 text-sm">
+                                <input type="checkbox" id="atlas-terminal-toggle" onchange="toggleAtlasTerminal(this.checked)" class="rounded border-gray-300">
+                                <span>Atlas 交互</span>
+                            </label>
+                            <span class="text-sm text-gray-500">(python ./scripts/query_atlas.py)</span>
+                        </div>
+                        <div id="atlas-terminal-section" class="hidden">
+                        <div class="bg-gray-900 rounded-lg overflow-hidden font-mono text-sm">
+                            <div id="atlas-terminal-output" class="p-3 text-green-400 min-h-[120px] max-h-[300px] overflow-y-auto whitespace-pre-wrap break-words"></div>
+                            <div class="flex border-t border-gray-700">
+                                <input type="text" id="atlas-terminal-input" placeholder="输入命令 (如 show dbs, help) 回车发送" class="flex-1 bg-transparent text-green-400 px-3 py-2 focus:outline-none placeholder-gray-500" onkeydown="handleAtlasTerminalKeydown(event)">
+                                <button type="button" onclick="sendAtlasCommand()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-green-400">发送</button>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Relations Section (extract button visible only when summary exists) -->
@@ -197,6 +215,82 @@ async function loadExistingSummary() {
         const extractBtn = document.getElementById('extract-relations-btn');
         if (extractBtn) extractBtn.style.display = 'none';
     }
+}
+
+let atlasTerminalSession = null;
+
+function toggleAtlasTerminal(checked) {
+    const section = document.getElementById('atlas-terminal-section');
+    if (!section) return;
+    section.classList.toggle('hidden', !checked);
+    if (checked) {
+        document.getElementById('atlas-terminal-input')?.focus();
+        if (!atlasTerminalSession && document.getElementById('atlas-terminal-output').innerHTML === '') {
+            initAtlasTerminal();
+        }
+    }
+}
+
+function initAtlasTerminal() {
+    fetch('/api/know/atlas_repl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ line: 'init', session: null })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.errorCode === 0 && result.data) {
+            atlasTerminalSession = result.data.session || {};
+            const out = document.getElementById('atlas-terminal-output');
+            if (out) out.textContent = result.data.output || '';
+        } else {
+            const out = document.getElementById('atlas-terminal-output');
+            if (out) out.textContent = '连接失败: ' + (result.message || '未知错误');
+        }
+    })
+    .catch(e => {
+        const out = document.getElementById('atlas-terminal-output');
+        if (out) out.textContent = '连接失败: ' + (e.message || '网络错误');
+    });
+}
+
+function handleAtlasTerminalKeydown(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        sendAtlasCommand();
+    }
+}
+
+function sendAtlasCommand() {
+    const input = document.getElementById('atlas-terminal-input');
+    const output = document.getElementById('atlas-terminal-output');
+    if (!input || !output) return;
+    const line = input.value.trim();
+    if (!line) return;
+    input.value = '';
+    output.textContent = (output.textContent ? output.textContent + '\n\n' : '') + '> ' + line;
+    fetch('/api/know/atlas_repl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ line: line, session: atlasTerminalSession || {} })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.errorCode === 0 && result.data) {
+            atlasTerminalSession = result.data.session || {};
+            const resp = result.data.output || '';
+            output.textContent = output.textContent + '\n' + resp;
+        } else {
+            output.textContent = output.textContent + '\n' + ('错误: ' + (result.message || '未知错误'));
+        }
+        output.scrollTop = output.scrollHeight;
+    })
+    .catch(e => {
+        output.textContent = output.textContent + '\n' + ('错误: ' + (e.message || '网络错误'));
+        output.scrollTop = output.scrollHeight;
+    });
 }
 
 let relationGraphNvl = null;
