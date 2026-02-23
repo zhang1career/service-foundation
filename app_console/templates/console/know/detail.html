@@ -300,14 +300,14 @@ async function saveRelation() {
     const predicateInput = document.getElementById('relation-predicate');
     const objectInput = document.getElementById('relation-object');
     if (!subjectInput || !predicateInput || !objectInput) {
-        alert('请先点击"提取关系"获取解析结果');
+        showToast('请先点击"提取关系"获取解析结果', 'error');
         return;
     }
     const subject = subjectInput.value.trim();
     const predicate = predicateInput.value.trim();
     const obj = objectInput.value.trim();
     if (!subject || !predicate || !obj) {
-        alert('请填写完整的主语、谓语、宾语');
+        showToast('请填写完整的主语、谓语、宾语', 'error');
         return;
     }
 
@@ -339,25 +339,25 @@ async function saveRelation() {
         const text = await response.text();
         if (!contentType.includes('application/json')) {
             const snippet = text.substring(0, 100).replace(/\s+/g, ' ');
-            alert('保存失败: 接口返回了非 JSON 内容 (状态码: ' + response.status + ')。可能原因：请求地址有误、服务异常或需要登录。响应片段: ' + snippet);
+            showToast('保存失败: 接口返回了非 JSON 内容 (状态码: ' + response.status + ')。可能原因：请求地址有误、服务异常或需要登录。响应片段: ' + snippet, 'error');
             return;
         }
         let result;
         try {
             result = JSON.parse(text);
         } catch (e) {
-            alert('保存失败: 响应无法解析为 JSON。状态码: ' + response.status);
+            showToast('保存失败: 响应无法解析为 JSON。状态码: ' + response.status, 'error');
             return;
         }
 
         if (result.errorCode === 0 && result.data) {
             const d = result.data;
-            alert(`保存成功\n主语节点ID: ${d.subject_node_id || '-'}\n宾语节点ID: ${d.object_node_id || '-'}\n关系ID: ${d.neo4j_relationship_id || '-'}`);
+            showToast(`保存成功\n主语节点ID: ${d.subject_node_id || '-'}\n宾语节点ID: ${d.object_node_id || '-'}\n关系ID: ${d.neo4j_relationship_id || '-'}`, 'success');
         } else {
-            alert('保存失败: ' + (result.message || '未知错误'));
+            showToast('保存失败: ' + (result.message || '未知错误'), 'error');
         }
     } catch (error) {
-        alert('保存失败: ' + error.message);
+        showToast('保存失败: ' + error.message, 'error');
     } finally {
         if (saveBtn) {
             saveBtn.disabled = false;

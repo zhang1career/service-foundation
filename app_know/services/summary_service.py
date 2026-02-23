@@ -115,12 +115,10 @@ class SummaryService(Singleton):
             "[generate_and_save] Summary generated, length=%d, saving to Atlas",
             len(summary_text)
         )
-        source = "ai_generated" if use_ai else "title_description"
         result = save_summary(
             knowledge_id=knowledge_id,
             summary=summary_text,
             app_id=app_id,
-            source=source,
         )
         summary_id = result.get("id")
         if summary_id:
@@ -187,21 +185,19 @@ class SummaryService(Singleton):
         knowledge_id: int,
         app_id,
         summary: Optional[str] = None,
-        source: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Update an existing summary. At least one of summary or source must be provided.
+        Update an existing summary. summary must be provided.
         Raises ValueError if not found or invalid input.
         """
         _validate_knowledge_id(knowledge_id)
         app_id = _validate_app_id(app_id)
-        if summary is None and source is None:
-            raise ValueError("At least one of summary or source must be provided")
+        if summary is None:
+            raise ValueError("summary must be provided")
         result = repo_update_summary(
             knowledge_id=knowledge_id,
             app_id=app_id,
             summary=summary,
-            source=source,
         )
         if result is None:
             raise ValueError(f"Summary for knowledge id {knowledge_id} with app_id {app_id} not found")

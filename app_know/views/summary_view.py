@@ -107,7 +107,7 @@ class KnowledgeSummaryView(APIView):
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
 
     def put(self, request, entity_id, *args, **kwargs):
-        """Update summary for knowledge <entity_id>. Body: app_id (required), summary, source."""
+        """Update summary for knowledge <entity_id>. Body: app_id (required), summary."""
         try:
             entity_id = _parse_entity_id(entity_id)
             data = getattr(request, "data", None) or request.POST or {}
@@ -119,13 +119,11 @@ class KnowledgeSummaryView(APIView):
             raw_app_id = data.get("app_id")
             app_id = _validate_app_id(raw_app_id)
             summary = data.get("summary")
-            source = data.get("source")
             service = SummaryService()
             out = service.update_summary(
                 knowledge_id=entity_id,
                 app_id=app_id,
                 summary=summary,
-                source=source,
             )
             return resp_ok(out)
         except ValueError as e:

@@ -33,7 +33,7 @@ def _get_text_ai():
 
     base_url = os.environ.get("AIGC_API_URL", EMPTY_STRING)
     api_key = os.environ.get("AIGC_API_KEY", EMPTY_STRING)
-    model = os.environ.get("AIGC_API_MODEL", "gpt-4o-mini")
+    model = os.environ.get("AIGC_GPT_MODEL", "gpt-4o-mini")
     if not api_key:
         logger.warning("[summary_generator] AIGC_API_KEY not configured")
         return None

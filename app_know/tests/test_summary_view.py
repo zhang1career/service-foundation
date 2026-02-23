@@ -284,10 +284,9 @@ class KnowledgeSummaryViewMockedTest(TestCase):
         """POST with use_ai=True passes flag to service."""
         mock_svc = MagicMock()
         mock_svc.generate_and_save.return_value = {
-            "knowledge_id": self.entity_id,
+            "kid": self.entity_id,
             "summary": "AI Generated Summary",
             "app_id": "myapp",
-            "source": "ai_generated",
         }
         mock_svc_cls.return_value = mock_svc
         request = self.factory.post(

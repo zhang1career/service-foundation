@@ -79,8 +79,8 @@ class LogicalQueryServiceTest(TestCase):
     @patch("app_know.services.query_service.search_summaries_by_text")
     def test_query_atlas_only_returns_ranked(self, mock_search, mock_related):
         mock_search.return_value = [
-            {"knowledge_id": 1, "summary": "First hit", "score": 1.0},
-            {"knowledge_id": 2, "summary": "Second", "score": 1.0},
+            {"kid": 1, "summary": "First hit", "score": 1.0},
+            {"kid": 2, "summary": "Second", "score": 1.0},
         ]
         mock_related.return_value = []
         svc = LogicalQueryService()
@@ -96,7 +96,7 @@ class LogicalQueryServiceTest(TestCase):
     @patch("app_know.services.query_service.get_related_by_knowledge_ids")
     @patch("app_know.services.query_service.search_summaries_by_text")
     def test_query_with_app_id_calls_neo4j(self, mock_search, mock_related):
-        mock_search.return_value = [{"knowledge_id": 1, "summary": "Hit", "score": 1.0}]
+        mock_search.return_value = [{"kid": 1, "summary": "Hit", "score": 1.0}]
         mock_related.return_value = [
             {"type": "knowledge", "knowledge_id": 2, "source_knowledge_id": 1, "hop": 1},
         ]
@@ -113,7 +113,7 @@ class LogicalQueryServiceTest(TestCase):
     @patch("app_know.services.query_service.search_summaries_by_text")
     def test_query_skills_app_id_uses_neo4j_pipeline(self, mock_search, mock_related):
         """Skills-scoped query (app_id=skills) uses Atlas summary relevance + Neo4j graph reasoning."""
-        mock_search.return_value = [{"knowledge_id": 1, "summary": "Python skill", "score": 1.0}]
+        mock_search.return_value = [{"kid": 1, "summary": "Python skill", "score": 1.0}]
         mock_related.return_value = [
             {"type": "entity", "entity_type": "skill", "entity_id": "s1", "source_knowledge_id": 1, "hop": 1},
         ]
@@ -130,7 +130,7 @@ class LogicalQueryServiceTest(TestCase):
     @patch("app_know.services.query_service.get_related_by_knowledge_ids")
     @patch("app_know.services.query_service.search_summaries_by_text")
     def test_query_combined_ranking(self, mock_search, mock_related):
-        mock_search.return_value = [{"knowledge_id": 1, "summary": "A", "score": 1.0}]
+        mock_search.return_value = [{"kid": 1, "summary": "A", "score": 1.0}]
         mock_related.return_value = [
             {"type": "entity", "entity_type": "task", "entity_id": "e1", "source_knowledge_id": 1, "hop": 1},
         ]
@@ -189,7 +189,7 @@ class LogicalQueryServiceTest(TestCase):
     @patch("app_know.services.query_service.get_related_by_knowledge_ids")
     @patch("app_know.services.query_service.search_summaries_by_text")
     def test_query_neo4j_raises_propagates(self, mock_search, mock_related):
-        mock_search.return_value = [{"knowledge_id": 1, "summary": "Hit", "score": 1.0}]
+        mock_search.return_value = [{"kid": 1, "summary": "Hit", "score": 1.0}]
         mock_related.side_effect = OSError("Neo4j error")
         svc = LogicalQueryService()
         with self.assertRaises(OSError):
@@ -205,12 +205,12 @@ class LogicalQueryServiceTest(TestCase):
 
     @patch("app_know.services.query_service.get_related_by_knowledge_ids")
     @patch("app_know.services.query_service.search_summaries_by_text")
-    def test_query_atlas_result_missing_knowledge_id_skipped(self, mock_search, mock_related):
-        """Atlas result items without knowledge_id are skipped (edge case)."""
+    def test_query_atlas_result_missing_kid_skipped(self, mock_search, mock_related):
+        """Atlas result items without kid are skipped (edge case)."""
         mock_search.return_value = [
-            {"knowledge_id": 1, "summary": "Hit", "score": 1.0},
+            {"kid": 1, "summary": "Hit", "score": 1.0},
             {"summary": "No id", "score": 1.0},
-            {"knowledge_id": None, "summary": "None id", "score": 1.0},
+            {"kid": None, "summary": "None id", "score": 1.0},
         ]
         mock_related.return_value = []
         svc = LogicalQueryService()

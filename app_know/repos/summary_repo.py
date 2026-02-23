@@ -2,6 +2,7 @@
 MongoDB repository for knowledge summaries (Atlas). Generated.
 Upsert/get/list/delete by knowledge_id and app_id.
 Logical query: search by summary relevance (text/regex). Generated.
+Vector search: search by semantic similarity on summary embedding.
 """
 import logging
 import re
@@ -12,6 +13,7 @@ from pymongo.errors import ConnectionFailure, PyMongoError
 
 from common.consts.query_const import LIMIT_LIST
 from common.drivers.mongo_driver import MongoDriver
+from common.services.text.text_helper import TextHelper, VEC_DIM
 from service_foundation import settings
 
 logger = logging.getLogger(__name__)
@@ -25,16 +27,20 @@ SUMMARY_STORAGE_MAX_LEN = 50_000
 QUERY_SEARCH_MAX_LEN = 2000
 
 # Document keys
-KEY_KNOWLEDGE_ID = "knowledge_id"
+KEY_KID = "kid"
 KEY_SUMMARY = "summary"
+KEY_SUMMARY_VEC = "summary_vec"
 KEY_APP_ID = "app_id"
-KEY_SOURCE = "source"
 KEY_CT = "ct"
 KEY_UT = "ut"
 KEY_ID = "_id"
 
+# Vector dimension for summary embedding (must match TextHelper.VEC_DIM)
+SUMMARY_VEC_DIM = VEC_DIM
+
 # Singleton driver instance (lazy initialization)
 _mongo_driver: Optional[MongoDriver] = None
+_text_helper = None
 
 
 def _get_mongo_driver() -> MongoDriver:
@@ -51,13 +57,21 @@ def _get_mongo_driver() -> MongoDriver:
     return _mongo_driver
 
 
+def _get_text_helper() -> TextHelper:
+    """Get TextHelper for embedding generation."""
+    global _text_helper
+    if _text_helper is None:
+        _text_helper = TextHelper()
+    return _text_helper
+
+
 def _ensure_index(coll) -> None:
-    """Ensure unique index on (knowledge_id, app_id) for upsert semantics."""
+    """Ensure unique index on (kid, app_id) for upsert semantics."""
     try:
         coll.create_index(
-            [(KEY_KNOWLEDGE_ID, 1), (KEY_APP_ID, 1)],
+            [(KEY_KID, 1), (KEY_APP_ID, 1)],
             unique=True,
-            name="idx_knowledge_id_app_id",
+            name="idx_kid_app_id",
         )
     except PyMongoError as e:
         logger.warning("[summary_repo] Index creation (may already exist): %s", e)
@@ -67,10 +81,9 @@ def save_summary(
     knowledge_id: int,
     summary: str,
     app_id: int,
-    source: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Upsert a summary document by (knowledge_id, app_id).
+    Upsert a summary document by (kid, app_id). knowledge_id is stored as kid.
     Returns the document as stored (with _id, ct, ut).
     Raises ValueError for invalid inputs; PyMongoError/ConnectionFailure on DB errors.
     """
@@ -82,33 +95,40 @@ def save_summary(
         raise ValueError("summary must be a string")
     if len(summary) > SUMMARY_STORAGE_MAX_LEN:
         raise ValueError(f"summary must not exceed {SUMMARY_STORAGE_MAX_LEN} characters")
-    if source is not None and not isinstance(source, str):
-        raise ValueError("source must be a string or None")
     if app_id is None or not isinstance(app_id, int) or app_id < 0:
         raise ValueError("app_id is required and must be a non-negative integer")
     now_ms = int(time.time() * 1000)
     doc = {
-        KEY_KNOWLEDGE_ID: knowledge_id,
+        KEY_KID: knowledge_id,
         KEY_SUMMARY: summary,
         KEY_APP_ID: app_id,
-        KEY_SOURCE: (source or "title_description").strip() or "title_description",
         KEY_CT: now_ms,
         KEY_UT: now_ms,
     }
     try:
+        helper = _get_text_helper()
+        vec = helper.generate_vector(summary)
+        if vec and len(vec) == SUMMARY_VEC_DIM:
+            doc[KEY_SUMMARY_VEC] = vec
+        else:
+            logger.warning("[save_summary] Failed to generate embedding for summary, kid=%s", knowledge_id)
+    except Exception as e:
+        logger.warning("[save_summary] Failed to generate embedding for kid=%s: %s", knowledge_id, e)
+    try:
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
         _ensure_index(coll)
-        filter_q = {KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id}
+        filter_q = {KEY_KID: knowledge_id, KEY_APP_ID: app_id}
         existing = coll.find_one(filter_q)
         if existing:
             update = {
                 "$set": {
                     KEY_SUMMARY: doc[KEY_SUMMARY],
-                    KEY_SOURCE: doc[KEY_SOURCE],
                     KEY_UT: now_ms,
                 }
             }
+            if KEY_SUMMARY_VEC in doc:
+                update["$set"][KEY_SUMMARY_VEC] = doc[KEY_SUMMARY_VEC]
             coll.update_one(filter_q, update)
             doc[KEY_CT] = existing.get(KEY_CT, now_ms)
             doc[KEY_UT] = now_ms
@@ -133,7 +153,7 @@ def get_summary(
     """
     if knowledge_id is None or not isinstance(knowledge_id, int) or knowledge_id <= 0:
         return None
-    query = {KEY_KNOWLEDGE_ID: knowledge_id}
+    query = {KEY_KID: knowledge_id}
     if app_id is not None and isinstance(app_id, int) and app_id >= 0:
         query[KEY_APP_ID] = app_id
     logger.info("[get_summary] Query: %s", query)
@@ -172,7 +192,7 @@ def list_summaries(
     if app_id is not None and isinstance(app_id, int) and app_id >= 0:
         query[KEY_APP_ID] = app_id
     if knowledge_id is not None and isinstance(knowledge_id, int) and knowledge_id > 0:
-        query[KEY_KNOWLEDGE_ID] = knowledge_id
+        query[KEY_KID] = knowledge_id
     try:
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
@@ -197,7 +217,7 @@ def delete_by_knowledge_id(
     try:
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
-        result = coll.delete_many({KEY_KNOWLEDGE_ID: knowledge_id})
+        result = coll.delete_many({KEY_KID: knowledge_id})
         return result.deleted_count
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[delete_by_knowledge_id] Error: %s", e)
@@ -208,10 +228,9 @@ def update_summary(
     knowledge_id: int,
     app_id: int,
     summary: Optional[str] = None,
-    source: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    Update an existing summary document by (knowledge_id, app_id).
+    Update an existing summary document by (kid, app_id).
     Returns the updated document or None if not found.
     Raises ValueError for invalid inputs.
     """
@@ -224,20 +243,25 @@ def update_summary(
             raise ValueError("summary must be a string")
         if len(summary) > SUMMARY_STORAGE_MAX_LEN:
             raise ValueError(f"summary must not exceed {SUMMARY_STORAGE_MAX_LEN} characters")
-    if source is not None and not isinstance(source, str):
-        raise ValueError("source must be a string or None")
 
     now_ms = int(time.time() * 1000)
     update_fields = {KEY_UT: now_ms}
     if summary is not None:
         update_fields[KEY_SUMMARY] = summary
-    if source is not None:
-        update_fields[KEY_SOURCE] = source.strip() or "title_description"
+        try:
+            helper = _get_text_helper()
+            vec = helper.generate_vector(summary)
+            if vec and len(vec) == SUMMARY_VEC_DIM:
+                update_fields[KEY_SUMMARY_VEC] = vec
+            else:
+                logger.warning("[update_summary] Failed to generate embedding for kid=%s", knowledge_id)
+        except Exception as e:
+            logger.warning("[update_summary] Failed to generate embedding for kid=%s: %s", knowledge_id, e)
 
     try:
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
-        filter_q = {KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id}
+        filter_q = {KEY_KID: knowledge_id, KEY_APP_ID: app_id}
         result = coll.find_one_and_update(
             filter_q,
             {"$set": update_fields},
@@ -267,7 +291,7 @@ def delete_summary(
     try:
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
-        result = coll.delete_one({KEY_KNOWLEDGE_ID: knowledge_id, KEY_APP_ID: app_id})
+        result = coll.delete_one({KEY_KID: knowledge_id, KEY_APP_ID: app_id})
         return result.deleted_count > 0
     except (ConnectionFailure, PyMongoError) as e:
         logger.exception("[delete_summary] Error: %s", e)
@@ -286,7 +310,7 @@ def search_summaries_by_text(
 ) -> List[Dict[str, Any]]:
     """
     Search summaries by keyword/text relevance (case-insensitive regex on summary field).
-    Returns list of dicts with knowledge_id, summary, app_id, score (1.0 for match).
+    Returns list of dicts with kid, summary, app_id, score (1.0 for match).
     Used by logical query to get candidate knowledge IDs. Raises ValueError for invalid inputs.
     Generated.
     """
@@ -320,13 +344,87 @@ def search_summaries_by_text(
         raise
 
 
+def ensure_summary_vector_index() -> bool:
+    """
+    Create vector search index on knowledge_summaries.summary_vec if not exists.
+    Call this once before using search_summaries_by_vector (e.g. via management command).
+    Returns True if index created or already exists.
+    """
+    try:
+        driver = _get_mongo_driver()
+        driver.create_vector_search_index(
+            coll_name=COLLECTION_NAME,
+            attr_name=KEY_SUMMARY_VEC,
+            dim_num=SUMMARY_VEC_DIM,
+        )
+        logger.info(
+            "[summary_repo] Vector index ensure attempted for %s.%s",
+            COLLECTION_NAME,
+            KEY_SUMMARY_VEC,
+        )
+        return True
+    except Exception as e:
+        logger.warning("[summary_repo] ensure_summary_vector_index error: %s", e)
+        return False
+
+
+def search_summaries_by_vector(
+    query: str,
+    app_id: Optional[int] = None,
+    limit: int = 10,
+) -> List[Dict[str, Any]]:
+    """
+    Search summaries by semantic similarity using vector search on summary embedding.
+    Returns list of dicts with kid, summary, app_id, ct, ut, score.
+    """
+    if query is None:
+        raise ValueError("query is required")
+    if not isinstance(query, str):
+        raise ValueError("query must be a string")
+    q = (query or "").strip()
+    if not q:
+        raise ValueError("query cannot be empty")
+    if limit is None or not isinstance(limit, int) or limit <= 0 or limit > LIMIT_LIST:
+        raise ValueError(f"limit must be an integer in 1..{LIMIT_LIST}")
+
+    try:
+        helper = _get_text_helper()
+        query_vec = helper.generate_vector(q)
+        if not query_vec or len(query_vec) != SUMMARY_VEC_DIM:
+            logger.warning("[search_summaries_by_vector] Invalid embedding for query")
+            return []
+
+        driver = _get_mongo_driver()
+        proj = {KEY_KID: 1, KEY_SUMMARY: 1, KEY_APP_ID: 1, KEY_CT: 1, KEY_UT: 1, "score": 1}
+        filter_query = {KEY_APP_ID: app_id} if app_id is not None and isinstance(app_id, int) and app_id >= 0 else None
+        results = driver.vector_search(
+            coll_name=COLLECTION_NAME,
+            attr_name=KEY_SUMMARY_VEC,
+            embedded_vec=query_vec,
+            cand_num=50,
+            limit=limit,
+            proj=proj,
+            filter_query=filter_query,
+        )
+        if not results or not isinstance(results, list):
+            return []
+        items = []
+        for r in results:
+            item = _doc_to_item(r)
+            item["score"] = r.get("score", 0.0)
+            items.append(item)
+        return items
+    except Exception as e:
+        logger.warning("[summary_repo] search_summaries_by_vector error (index may not exist): %s", e)
+        raise
+
+
 def _doc_to_item(doc: Dict[str, Any]) -> Dict[str, Any]:
     """Convert MongoDB document to API-friendly dict (id as string for ObjectId)."""
     out = {
-        "knowledge_id": doc.get(KEY_KNOWLEDGE_ID),
+        "kid": doc.get(KEY_KID),
         "summary": doc.get(KEY_SUMMARY, ""),
         "app_id": doc.get(KEY_APP_ID, 0),
-        "source": doc.get(KEY_SOURCE, "title_description"),
         "ct": doc.get(KEY_CT, 0),
         "ut": doc.get(KEY_UT, 0),
     }

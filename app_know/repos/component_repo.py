@@ -6,10 +6,10 @@ Supports vector similarity search on name.
 """
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from bson import ObjectId
-from pymongo.errors import ConnectionFailure, PyMongoError
+from pymongo.errors import ConnectionFailure, DuplicateKeyError, PyMongoError
 
 from common.drivers.mongo_driver import MongoDriver
 from service_foundation import settings
@@ -65,7 +65,56 @@ def _ensure_index(coll) -> None:
             name="idx_name_app_id",
         )
     except PyMongoError as e:
-        logger.warning("[graph_node_repo] Index creation (may already exist): %s", e)
+        logger.warning("[component_repo] Index creation (may already exist): %s", e)
+
+
+# Similarity score threshold: treat as "same" entity when score >= this (for get_or_create_node)
+SIMILARITY_REUSE_THRESHOLD = 0.99
+
+
+def _vector_search_node(
+    name: str,
+    app_id: int,
+    limit: int = 1,
+    include_score: bool = False,
+) -> tuple[Optional[list], Optional[list[float]]]:
+    """
+    Vector search for nodes by name similarity. Returns (results, scores) or (None, None) on error.
+    """
+    if not name or not isinstance(name, str):
+        return None, None
+    if app_id is None or not isinstance(app_id, int) or app_id < 0:
+        return None, None
+    name = name.strip()
+    if not name:
+        return None, None
+
+    try:
+        helper = _get_text_helper()
+        query_vec = helper.generate_vector(name)
+        if not query_vec or len(query_vec) != NAME_VEC_DIM:
+            return None, None
+
+        driver = _get_mongo_driver()
+        proj = {"name": 1, "app_id": 1, "node_type": 1, "_id": 1, "ct": 1, "ut": 1}
+        if include_score:
+            proj["score"] = 1
+        results = driver.vector_search(
+            coll_name=COLLECTION_NAME,
+            attr_name=KEY_NAME_VEC,
+            embedded_vec=query_vec,
+            cand_num=50,
+            limit=min(limit * 5, 25),
+            proj=proj,
+            filter_query={KEY_APP_ID: app_id},
+        )
+        if not results or not isinstance(results, list):
+            return None, None
+        scores = [r.get("score", 0.0) for r in results] if include_score else None
+        return results, scores
+    except Exception as e:
+        logger.warning("[component_repo] vector search error (index may not exist): %s", e)
+        return None, None
 
 
 def find_similar_node(name: str, app_id: int, limit: int = 1) -> Optional[Dict[str, Any]]:
@@ -74,66 +123,18 @@ def find_similar_node(name: str, app_id: int, limit: int = 1) -> Optional[Dict[s
     Returns the best match or None if no similar node found.
     Requires knowledge_components to have name_vec field and vector index.
     """
-    if not name or not isinstance(name, str):
+    results, _ = _vector_search_node(name, app_id, limit=limit, include_score=False)
+    if not results:
         return None
-    if app_id is None or not isinstance(app_id, int) or app_id < 0:
-        return None
-
-    name = name.strip()
-    if not name:
-        return None
-
-    try:
-        helper = _get_text_helper()
-        query_vec = helper.generate_vector(name)
-        if not query_vec or len(query_vec) != NAME_VEC_DIM:
-            return None
-
-        driver = _get_mongo_driver()
-        proj = {"name": 1, "app_id": 1, "node_type": 1, "_id": 1, "ct": 1, "ut": 1}
-        results = driver.vector_search(
-            coll_name=COLLECTION_NAME,
-            attr_name=KEY_NAME_VEC,
-            embedded_vec=query_vec,
-            cand_num=50,
-            limit=min(limit * 5, 25),
-            proj=proj,
-        )
-        if not results or not isinstance(results, list):
-            return None
-        for r in results:
-            if r.get(KEY_APP_ID) == app_id:
-                return _doc_to_item(r)
-        return None
-    except Exception as e:
-        logger.warning("[graph_node_repo] find_similar_node error (index may not exist): %s", e)
-        return None
+    return _doc_to_item(results[0])
 
 
 def find_node_by_name(name: str, app_id: int) -> Optional[Dict[str, Any]]:
     """
-    Find a graph node by name and app_id.
-    Returns None if not found.
+    Find a graph node by name similarity (vector search on name).
+    Returns the most similar node or None if not found.
     """
-    if not name or not isinstance(name, str):
-        return None
-    if app_id is None or not isinstance(app_id, int) or app_id < 0:
-        return None
-
-    name = name.strip()
-    if not name:
-        return None
-    
-    try:
-        driver = _get_mongo_driver()
-        coll = driver.create_or_get_collection(COLLECTION_NAME)
-        doc = coll.find_one({KEY_NAME: name, KEY_APP_ID: app_id})
-        if doc is None:
-            return None
-        return _doc_to_item(doc)
-    except (ConnectionFailure, PyMongoError) as e:
-        logger.exception("[graph_node_repo] find_node_by_name error: %s", e)
-        raise
+    return find_similar_node(name, app_id, limit=1)
 
 
 def find_node_by_id(node_id: str) -> Optional[Dict[str, Any]]:
@@ -152,7 +153,7 @@ def find_node_by_id(node_id: str) -> Optional[Dict[str, Any]]:
             return None
         return _doc_to_item(doc)
     except (ConnectionFailure, PyMongoError) as e:
-        logger.exception("[graph_node_repo] find_node_by_id error: %s", e)
+        logger.exception("[component_repo] find_node_by_id error: %s", e)
         raise
 
 
@@ -186,7 +187,15 @@ def get_or_create_node(
         driver = _get_mongo_driver()
         coll = driver.create_or_get_collection(COLLECTION_NAME)
         _ensure_index(coll)
-        
+
+        results, scores = _vector_search_node(name, app_id, limit=1, include_score=True)
+        if results and scores and scores[0] >= SIMILARITY_REUSE_THRESHOLD:
+            result = _doc_to_item(results[0])
+            result["is_new"] = False
+            return result
+
+        # Exact match before insert: avoid DuplicateKeyError when (name, app_id) already exists
+        # (e.g. vector search missed it due to threshold or embedding variance)
         existing = coll.find_one({KEY_NAME: name, KEY_APP_ID: app_id})
         if existing:
             result = _doc_to_item(existing)
@@ -207,15 +216,23 @@ def get_or_create_node(
             if vec and len(vec) == NAME_VEC_DIM:
                 doc[KEY_NAME_VEC] = vec
         except Exception as e:
-            logger.warning("[graph_node_repo] Failed to generate embedding for name '%s': %s", name[:50], e)
-        insert_result = coll.insert_one(doc)
-        doc[KEY_ID] = insert_result.inserted_id
-        
-        result = _doc_to_item(doc)
-        result["is_new"] = True
-        return result
+            logger.warning("[component_repo] Failed to generate embedding for name '%s': %s", name[:50], e)
+        try:
+            insert_result = coll.insert_one(doc)
+            doc[KEY_ID] = insert_result.inserted_id
+            result = _doc_to_item(doc)
+            result["is_new"] = True
+            return result
+        except DuplicateKeyError:
+            # Race: another request inserted between our find and insert
+            existing = coll.find_one({KEY_NAME: name, KEY_APP_ID: app_id})
+            if existing:
+                result = _doc_to_item(existing)
+                result["is_new"] = False
+                return result
+            raise
     except (ConnectionFailure, PyMongoError) as e:
-        logger.exception("[graph_node_repo] get_or_create_node error: %s", e)
+        logger.exception("[component_repo] get_or_create_node error: %s", e)
         raise
 
 
@@ -227,6 +244,7 @@ def update_node(
     """
     Update a graph node by _id.
     Returns updated node or None if not found.
+    When name is updated, regenerates name_vec for vector similarity search.
     """
     if not node_id or not isinstance(node_id, str):
         raise ValueError("node_id is required and must be a string")
@@ -237,6 +255,15 @@ def update_node(
         if not name:
             raise ValueError("name cannot be empty")
         update_fields[KEY_NAME] = name
+        try:
+            helper = _get_text_helper()
+            vec = helper.generate_vector(name)
+            if vec and len(vec) == NAME_VEC_DIM:
+                update_fields[KEY_NAME_VEC] = vec
+            else:
+                logger.warning("[component_repo] Failed to generate embedding for name in update_node: %s", name[:50])
+        except Exception as e:
+            logger.warning("[component_repo] Failed to generate embedding for name in update_node: %s", e)
     if node_type is not None:
         update_fields[KEY_NODE_TYPE] = node_type
     
@@ -252,7 +279,7 @@ def update_node(
             return None
         return _doc_to_item(result)
     except (ConnectionFailure, PyMongoError) as e:
-        logger.exception("[graph_node_repo] update_node error: %s", e)
+        logger.exception("[component_repo] update_node error: %s", e)
         raise
 
 
@@ -270,7 +297,7 @@ def delete_node(node_id: str) -> bool:
         result = coll.delete_one({KEY_ID: ObjectId(node_id)})
         return result.deleted_count > 0
     except (ConnectionFailure, PyMongoError) as e:
-        logger.exception("[graph_node_repo] delete_node error: %s", e)
+        logger.exception("[component_repo] delete_node error: %s", e)
         raise
 
 
@@ -287,10 +314,10 @@ def ensure_vector_index() -> bool:
             attr_name=KEY_NAME_VEC,
             dim_num=NAME_VEC_DIM,
         )
-        logger.info("[graph_node_repo] Vector index ensure attempted for %s.%s", COLLECTION_NAME, KEY_NAME_VEC)
+        logger.info("[component_repo] Vector index ensure attempted for %s.%s", COLLECTION_NAME, KEY_NAME_VEC)
         return True
     except Exception as e:
-        logger.warning("[graph_node_repo] ensure_vector_index error: %s", e)
+        logger.warning("[component_repo] ensure_vector_index error: %s", e)
         return False
 
 

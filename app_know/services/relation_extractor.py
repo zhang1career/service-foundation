@@ -17,7 +17,12 @@ from service_foundation import settings
 logger = logging.getLogger(__name__)
 
 NODE_LABEL_GRAPH_NODE = "GraphNode"
-REL_TYPE_PREDICATE = "PREDICATE_REL"
+
+
+def _sanitize_rel_type(predicate: str) -> str:
+    """Convert predicate to valid Neo4j relationship type (alphanumeric + underscore)."""
+    s = re.sub(r"[^a-zA-Z0-9_]", "_", (predicate or "").strip())
+    return s or "related_to"
 
 _text_ai_client = None
 _neo4j_driver: Optional[Neo4jDriver] = None
@@ -39,7 +44,7 @@ def _get_text_ai():
 
     base_url = os.environ.get("AIGC_API_URL", EMPTY_STRING)
     api_key = os.environ.get("AIGC_API_KEY", EMPTY_STRING)
-    model = os.environ.get("AIGC_API_MODEL", "gpt-4o-mini")
+    model = os.environ.get("AIGC_GPT_MODEL", "gpt-4o-mini")
     if not api_key:
         logger.warning("[relation_extractor] AIGC_API_KEY not configured")
         return None
@@ -229,19 +234,19 @@ def resolve_relations_via_atlas(
     Resolve subject and object via Atlas vector similarity search.
     If a similar node exists in knowledge_components, use its name; otherwise keep the parsed result.
     """
-    from app_know.repos import graph_node_repo
+    from app_know.repos import component_repo
 
     resolved = []
     for rel in relations:
         subject_resolved = rel.subject
         obj_resolved = rel.obj
 
-        similar_subject = graph_node_repo.find_similar_node(rel.subject, app_id, limit=1)
+        similar_subject = component_repo.find_similar_node(rel.subject, app_id, limit=1)
         if similar_subject and similar_subject.get("name"):
             subject_resolved = similar_subject["name"]
             logger.info("[relation_extractor] Resolved subject '%s' -> '%s'", rel.subject, subject_resolved)
 
-        similar_obj = graph_node_repo.find_similar_node(rel.obj, app_id, limit=1)
+        similar_obj = component_repo.find_similar_node(rel.obj, app_id, limit=1)
         if similar_obj and similar_obj.get("name"):
             obj_resolved = similar_obj["name"]
             logger.info("[relation_extractor] Resolved object '%s' -> '%s'", rel.obj, obj_resolved)
@@ -276,14 +281,14 @@ def store_relation_in_graph(
     Returns:
         Updated ExtractedRelation with node IDs and relationship ID
     """
-    from app_know.repos import graph_node_repo
+    from app_know.repos import component_repo
     from app_know.repos.component_mapping_repo import (
         create_mapping,
         TYPE_SUBJECT,
         TYPE_OBJECT,
     )
 
-    subject_node = graph_node_repo.get_or_create_node(
+    subject_node = component_repo.get_or_create_node(
         name=relation.subject,
         app_id=app_id,
         node_type="entity",
@@ -293,7 +298,7 @@ def store_relation_in_graph(
     logger.info("[relation_extractor] Subject node: %s (is_new=%s)",
                 subject_cid, subject_node.get("is_new"))
 
-    obj_node = graph_node_repo.get_or_create_node(
+    obj_node = component_repo.get_or_create_node(
         name=relation.obj,
         app_id=app_id,
         node_type="entity",
@@ -337,27 +342,20 @@ def store_relation_in_graph(
         predicate_val = "related_to"
         logger.warning("[relation_extractor] Empty predicate, using default 'related_to'")
 
-    existing_rel = driver.find_an_edge(subject_neo4j_node, obj_neo4j_node, REL_TYPE_PREDICATE)
+    rel_type = _sanitize_rel_type(predicate_val)
+    props = {"app_id": app_id, "knowledge_id": knowledge_id}
+
+    existing_rel = driver.find_an_edge(subject_neo4j_node, obj_neo4j_node, rel_type)
     if existing_rel is not None:
-        props = {
-            "predicate": predicate_val,
-            "app_id": app_id,
-            "knowledge_id": knowledge_id,
-        }
         driver.update_edge(existing_rel, props)
         relation.neo4j_relationship_id = existing_rel.identity if hasattr(existing_rel, "identity") else None
-        logger.info("[relation_extractor] Updated existing relationship id=%s predicate='%s'",
-                    relation.neo4j_relationship_id, predicate_val)
+        logger.info("[relation_extractor] Updated existing relationship id=%s type=%s",
+                    relation.neo4j_relationship_id, rel_type)
     else:
-        props = {
-            "predicate": predicate_val,
-            "app_id": app_id,
-            "knowledge_id": knowledge_id,
-        }
-        new_rel = driver.create_edge(subject_neo4j_node, obj_neo4j_node, REL_TYPE_PREDICATE, props)
+        new_rel = driver.create_edge(subject_neo4j_node, obj_neo4j_node, rel_type, props)
         relation.neo4j_relationship_id = new_rel.identity if hasattr(new_rel, "identity") else None
-        logger.info("[relation_extractor] Created new relationship id=%s predicate='%s'",
-                    relation.neo4j_relationship_id, predicate_val)
+        logger.info("[relation_extractor] Created new relationship id=%s type=%s",
+                    relation.neo4j_relationship_id, rel_type)
     
     return relation
 

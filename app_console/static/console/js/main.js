@@ -33,24 +33,74 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
     }
 });
 
-// Toast notification function
+/**
+ * Show toast or modal notification (app_console shared component).
+ *
+ * - success: Light green toast, auto-dismiss after 3 seconds
+ * - error: Light red modal with confirm button, stays open until user clicks 确认
+ * - info: Blue toast, auto-dismiss after 3 seconds
+ *
+ * Usage: showToast('message', 'success' | 'error' | 'info')
+ */
 function showToast(message, type = 'info') {
+    if (type === 'error') {
+        showErrorModal(message);
+        return;
+    }
+
     const container = document.getElementById('toast-container');
     if (!container) return;
-    
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.textContent = message;
-    
+
     container.appendChild(toast);
-    
+
     // Auto remove after 3 seconds
     setTimeout(() => {
         toast.style.animation = 'slideIn 0.3s ease reverse';
         setTimeout(() => {
-            container.removeChild(toast);
+            if (toast.parentNode) container.removeChild(toast);
         }, 300);
     }, 3000);
+}
+
+/**
+ * Show error modal: light red background, stays open until user clicks 确认.
+ */
+function showErrorModal(message) {
+    const existing = document.getElementById('console-error-modal-backdrop');
+    if (existing) existing.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'console-error-modal-backdrop';
+    backdrop.className = 'console-modal-backdrop';
+
+    const box = document.createElement('div');
+    box.className = 'console-modal-error';
+    box.innerHTML = `
+        <div class="console-modal-message">${escapeHtml(String(message || ''))}</div>
+        <button type="button" class="console-modal-confirm">确认</button>
+    `;
+
+    const btn = box.querySelector('.console-modal-confirm');
+    function close() {
+        backdrop.remove();
+    }
+    btn.addEventListener('click', close);
+    backdrop.addEventListener('click', function (e) {
+        if (e.target === backdrop) close();
+    });
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
 }
 
 // Confirm dialog helper

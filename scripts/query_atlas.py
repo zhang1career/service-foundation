@@ -12,6 +12,9 @@
   find [query]       查询当前集合，query 为 JSON，默认 {}
   update f u         对当前集合执行 updateMany，f=filter JSON，u=update JSON
   limit <n>          设置 find 返回数量上限（默认 20）
+  indexes            列出当前集合的索引
+  createIndex k [o]  创建索引，k=keys JSON，o=options JSON（可选）
+  dropIndex n        删除索引，n=索引名或 keys JSON
   help               显示帮助
   exit / quit        退出
 """
@@ -125,100 +128,168 @@ def repl(client):
         if cmd in ("exit", "quit", "q"):
             break
 
-        if cmd == "help":
-            print(__doc__)
-            continue
+        try:
+            if cmd == "help":
+                print(__doc__)
+                continue
 
-        if cmd == "dbs":
-            names = client.list_database_names()
-            print(json.dumps(names, indent=2, ensure_ascii=False))
-            continue
+            if cmd == "dbs":
+                names = client.list_database_names()
+                print(json.dumps(names, indent=2, ensure_ascii=False))
+                continue
 
-        if cmd == "use":
-            if not rest:
-                print("用法: use <db>")
+            if cmd == "use":
+                if not rest:
+                    print("用法: use <db>")
+                    continue
+                if rest not in client.list_database_names():
+                    print(f"数据库不存在: {rest}，请用 dbs 查看可用数据库")
+                    continue
+                db_name = rest
+                coll_name = None
+                print(f"当前数据库: {db_name}")
                 continue
-            if rest not in client.list_database_names():
-                print(f"数据库不存在: {rest}，请用 dbs 查看可用数据库")
-                continue
-            db_name = rest
-            coll_name = None
-            print(f"当前数据库: {db_name}")
-            continue
 
-        if cmd == "colls":
-            if not db_name:
-                print("请先用 use <db> 选择数据库")
+            if cmd == "colls":
+                if not db_name:
+                    print("请先用 use <db> 选择数据库")
+                    continue
+                names = client[db_name].list_collection_names()
+                print(json.dumps(names, indent=2, ensure_ascii=False))
                 continue
-            names = client[db_name].list_collection_names()
-            print(json.dumps(names, indent=2, ensure_ascii=False))
-            continue
 
-        if cmd == "coll":
-            if not db_name:
-                print("请先用 use <db> 选择数据库")
+            if cmd == "coll":
+                if not db_name:
+                    print("请先用 use <db> 选择数据库")
+                    continue
+                if not rest:
+                    print("用法: coll <collection>")
+                    continue
+                if rest not in client[db_name].list_collection_names():
+                    print(f"集合不存在: {rest}，请用 colls 查看可用集合")
+                    continue
+                coll_name = rest
+                print(f"当前集合: {db_name}.{coll_name}")
                 continue
-            if not rest:
-                print("用法: coll <collection>")
-                continue
-            if rest not in client[db_name].list_collection_names():
-                print(f"集合不存在: {rest}，请用 colls 查看可用集合")
-                continue
-            coll_name = rest
-            print(f"当前集合: {db_name}.{coll_name}")
-            continue
 
-        if cmd == "limit":
-            if rest and rest.isdigit():
-                limit = int(rest)
-                print(f"limit = {limit}")
-            else:
-                print(f"当前 limit = {limit}")
-            continue
+            if cmd == "limit":
+                if rest and rest.isdigit():
+                    limit = int(rest)
+                    print(f"limit = {limit}")
+                else:
+                    print(f"当前 limit = {limit}")
+                continue
 
-        if cmd == "find":
-            if not db_name or not coll_name:
-                print("请先用 use <db> 和 coll <collection> 选择数据库和集合")
+            if cmd == "find":
+                if not db_name or not coll_name:
+                    print("请先用 use <db> 和 coll <collection> 选择数据库和集合")
+                    continue
+                query_str, remainder = _extract_first_json(rest)
+                try:
+                    q = json.loads(query_str) if query_str else {}
+                except json.JSONDecodeError as e:
+                    print(f"无效的 query JSON: {e}")
+                    continue
+                lim = limit
+                if remainder:
+                    rem_parts = remainder.split()
+                    if len(rem_parts) >= 2 and rem_parts[0].lower() == "limit" and rem_parts[1].isdigit():
+                        lim = int(rem_parts[1])
+                coll = client[db_name][coll_name]
+                docs = _to_json_safe(list(coll.find(q).limit(lim)))
+                print(json.dumps(docs, indent=2, ensure_ascii=False))
                 continue
-            query_str, remainder = _extract_first_json(rest)
-            try:
-                q = json.loads(query_str) if query_str else {}
-            except json.JSONDecodeError as e:
-                print(f"无效的 query JSON: {e}")
-                continue
-            lim = limit
-            if remainder:
-                rem_parts = remainder.split()
-                if len(rem_parts) >= 2 and rem_parts[0].lower() == "limit" and rem_parts[1].isdigit():
-                    lim = int(rem_parts[1])
-            coll = client[db_name][coll_name]
-            docs = _to_json_safe(list(coll.find(q).limit(lim)))
-            print(json.dumps(docs, indent=2, ensure_ascii=False))
-            continue
 
-        if cmd in ("update", "updatemany"):
-            if not db_name or not coll_name:
-                print("请先用 use <db> 和 coll <collection> 选择数据库和集合")
+            if cmd in ("update", "updatemany"):
+                if not db_name or not coll_name:
+                    print("请先用 use <db> 和 coll <collection> 选择数据库和集合")
+                    continue
+                if not rest:
+                    print("用法: update <filter> <update>  例如: update {\"app_id\":\"0\"} {\"$set\":{\"app_id\":0}}")
+                    continue
+                filter_str, update_str = _split_two_json(rest)
+                if not filter_str or not update_str:
+                    print("需要两个 JSON 对象：filter 和 update")
+                    continue
+                try:
+                    f = json.loads(filter_str)
+                    u = json.loads(update_str)
+                except json.JSONDecodeError as e:
+                    print(f"无效的 JSON: {e}")
+                    continue
+                coll = client[db_name][coll_name]
+                result = coll.update_many(f, u)
+                print(f"matched={result.matched_count} modified={result.modified_count}")
                 continue
-            if not rest:
-                print("用法: update <filter> <update>  例如: update {\"app_id\":\"0\"} {\"$set\":{\"app_id\":0}}")
-                continue
-            filter_str, update_str = _split_two_json(rest)
-            if not filter_str or not update_str:
-                print("需要两个 JSON 对象：filter 和 update")
-                continue
-            try:
-                f = json.loads(filter_str)
-                u = json.loads(update_str)
-            except json.JSONDecodeError as e:
-                print(f"无效的 JSON: {e}")
-                continue
-            coll = client[db_name][coll_name]
-            result = coll.update_many(f, u)
-            print(f"matched={result.matched_count} modified={result.modified_count}")
-            continue
 
-        print(f"未知命令: {cmd}，输入 help 查看帮助")
+            if cmd == "indexes":
+                if not db_name or not coll_name:
+                    print("请先用 use <db> 和 coll <collection> 选择数据库和集合")
+                    continue
+                coll = client[db_name][coll_name]
+                idx_list = list(coll.list_indexes())
+                idx_safe = [{"name": i["name"], "key": dict(i["key"])} for i in idx_list]
+                print(json.dumps(idx_safe, indent=2, ensure_ascii=False))
+                continue
+
+            if cmd == "createindex":
+                if not db_name or not coll_name:
+                    print("请先用 use <db> 和 coll <collection> 选择数据库和集合")
+                    continue
+                if not rest:
+                    print("用法: createIndex <keys_json> [options_json]  例如: createIndex {\"app_id\":1}")
+                    continue
+                keys_str, opts_str = _extract_first_json(rest)
+                try:
+                    keys = json.loads(keys_str) if keys_str else {}
+                except json.JSONDecodeError as e:
+                    print(f"无效的 keys JSON: {e}")
+                    continue
+                if not keys:
+                    print("请提供有效的 keys JSON")
+                    continue
+                # PyMongo 复合索引需要 list of (key, direction)，dict 会报错
+                if isinstance(keys, dict):
+                    keys = list(keys.items())
+                options = {}
+                if opts_str and opts_str.strip().startswith("{"):
+                    opts_json, _ = _extract_first_json(opts_str)
+                    if opts_json:
+                        try:
+                            options = json.loads(opts_json)
+                        except json.JSONDecodeError as e:
+                            print(f"无效的 options JSON: {e}")
+                            continue
+                coll = client[db_name][coll_name]
+                name = coll.create_index(keys, **options)
+                print(f"已创建索引: {name}")
+                continue
+
+            if cmd == "dropindex":
+                if not db_name or not coll_name:
+                    print("请先用 use <db> 和 coll <collection> 选择数据库和集合")
+                    continue
+                if not rest:
+                    print("用法: dropIndex <index_name 或 keys_json>  例如: dropIndex app_id_1")
+                    continue
+                coll = client[db_name][coll_name]
+                idx_spec = rest.strip()
+                if idx_spec.startswith("{"):
+                    try:
+                        idx_spec = json.loads(idx_spec)
+                    except json.JSONDecodeError as e:
+                        print(f"无效的 keys JSON: {e}")
+                        continue
+                try:
+                    coll.drop_index(idx_spec)
+                    print(f"已删除索引")
+                except Exception as e:
+                    print(f"删除失败: {e}")
+                continue
+
+            print(f"未知命令: {cmd}，输入 help 查看帮助")
+        except Exception as e:
+            print(f"错误: {e}")
 
 
 def main():

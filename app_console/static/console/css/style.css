@@ -182,26 +182,71 @@
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* Toast notification styles */
+/* Toast notification styles (app_console shared) */
 .toast {
     padding: 12px 16px;
-    border-radius: 6px;
-    color: white;
+    border-radius: 8px;
     font-size: 14px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     animation: slideIn 0.3s ease;
 }
 
+/* Success: light green background, auto-dismiss 3s */
 .toast-success {
-    background-color: #10b981;
+    background-color: #d1fae5;
+    color: #065f46;
 }
 
+/* Error toast (used when no confirm needed) */
 .toast-error {
-    background-color: #ef4444;
+    background-color: #fee2e2;
+    color: #991b1b;
 }
 
 .toast-info {
-    background-color: #3b82f6;
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+/* Error modal: light red, stays open until confirm clicked */
+.console-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.console-modal-error {
+    background-color: #fef2f2;
+    color: #991b1b;
+    padding: 20px 24px;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-width: 420px;
+    width: 90%;
+}
+
+.console-modal-error .console-modal-message {
+    margin-bottom: 16px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.console-modal-error .console-modal-confirm {
+    padding: 8px 20px;
+    background-color: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.console-modal-error .console-modal-confirm:hover {
+    background-color: #b91c1c;
 }
 
 @keyframes slideIn {

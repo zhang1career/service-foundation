@@ -15,7 +15,7 @@ from app_know.repos.summary_repo import (
     search_summaries_by_text,
     SUMMARY_STORAGE_MAX_LEN,
     QUERY_SEARCH_MAX_LEN,
-    KEY_KNOWLEDGE_ID,
+    KEY_KID,
     KEY_APP_ID,
     KEY_SUMMARY,
     KEY_CT,
@@ -122,7 +122,7 @@ class SummaryRepoTest(TestCase):
             summary="My summary",
             app_id=1,
         )
-        self.assertEqual(out["knowledge_id"], 1)
+        self.assertEqual(out["kid"], 1)
         self.assertEqual(out["summary"], "My summary")
         self.assertEqual(out["app_id"], 1)
         self.assertIn("id", out)
@@ -166,13 +166,6 @@ class SummaryRepoTest(TestCase):
                 app_id=1,
             )
         self.assertIn("exceed", str(ctx.exception))
-
-    def test_save_summary_validation_source_not_string(self):
-        with self.assertRaises(ValueError) as ctx:
-            save_summary(
-                knowledge_id=1, summary="x", app_id=1, source=123
-            )
-        self.assertIn("source", str(ctx.exception))
 
     def test_save_summary_empty_string_summary_allowed(self):
         out = save_summary(
@@ -263,7 +256,7 @@ class SummaryRepoTest(TestCase):
                     return self
                 def __iter__(self):
                     yield {
-                        KEY_KNOWLEDGE_ID: 2,
+                        KEY_KID: 2,
                         KEY_SUMMARY: "Keyword match here",
                         KEY_APP_ID: 1,
                         KEY_CT: 1000,
@@ -274,7 +267,7 @@ class SummaryRepoTest(TestCase):
         self.mock_coll.find = mock_find
         items = search_summaries_by_text(query="keyword", limit=10)
         self.assertEqual(len(items), 1)
-        self.assertEqual(items[0]["knowledge_id"], 2)
+        self.assertEqual(items[0]["kid"], 2)
         self.assertEqual(items[0]["score"], 1.0)
         self.assertIn("Keyword", items[0]["summary"])
 

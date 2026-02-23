@@ -107,11 +107,11 @@ class SummaryServiceTest(TestCase):
         mock_entity.description = "Desc"
         mock_entity.source_type = "doc"
         mock_get_know.return_value = mock_entity
-        mock_save.return_value = {"knowledge_id": 1, "summary": "Title: Title Description: Desc", "app_id": 1}
+        mock_save.return_value = {"kid": 1, "summary": "Title: Title Description: Desc", "app_id": 1}
 
         svc = SummaryService()
         out = svc.generate_and_save(knowledge_id=1, app_id=1)
-        self.assertEqual(out["knowledge_id"], 1)
+        self.assertEqual(out["kid"], 1)
         mock_save.assert_called_once()
         call_kw = mock_save.call_args[1]
         self.assertEqual(call_kw["knowledge_id"], 1)
@@ -191,7 +191,7 @@ class SummaryServiceTest(TestCase):
 
     @patch("app_know.services.summary_service.repo_list_summaries")
     def test_list_summaries_success(self, mock_list):
-        mock_list.return_value = ([{"knowledge_id": 1, "summary": "S1"}], 1)
+        mock_list.return_value = ([{"kid": 1, "summary": "S1"}], 1)
         svc = SummaryService()
         out = svc.list_summaries(offset=0, limit=10)
         self.assertEqual(out["total_num"], 1)
@@ -215,7 +215,7 @@ class SummaryServiceTest(TestCase):
     def test_update_summary_success(self, mock_update):
         """update_summary calls repo and returns result."""
         mock_update.return_value = {
-            "knowledge_id": 1,
+            "kid": 1,
             "app_id": 1,
             "summary": "Updated summary",
         }
@@ -223,14 +223,14 @@ class SummaryServiceTest(TestCase):
         out = svc.update_summary(knowledge_id=1, app_id=1, summary="Updated summary")
         self.assertEqual(out["summary"], "Updated summary")
         mock_update.assert_called_once_with(
-            knowledge_id=1, app_id=1, summary="Updated summary", source=None
+            knowledge_id=1, app_id=1, summary="Updated summary"
         )
 
-    def test_update_summary_validation_missing_app_id(self):
-        """update_summary raises ValueError when app_id is missing."""
+    def test_update_summary_validation_invalid_app_id(self):
+        """update_summary raises ValueError when app_id is invalid (e.g. negative)."""
         svc = SummaryService()
         with self.assertRaises(ValueError) as ctx:
-            svc.update_summary(knowledge_id=1, app_id="")
+            svc.update_summary(knowledge_id=1, app_id=-1, summary="x")
         self.assertIn("app_id", str(ctx.exception))
 
     def test_update_summary_validation_invalid_knowledge_id(self):
@@ -238,6 +238,13 @@ class SummaryServiceTest(TestCase):
         svc = SummaryService()
         with self.assertRaises(ValueError):
             svc.update_summary(knowledge_id=0, app_id=1)
+
+    def test_update_summary_validation_missing_summary(self):
+        """update_summary raises ValueError when summary is None."""
+        svc = SummaryService()
+        with self.assertRaises(ValueError) as ctx:
+            svc.update_summary(knowledge_id=1, app_id=1, summary=None)
+        self.assertIn("summary", str(ctx.exception))
 
     @patch("app_know.services.summary_service.repo_update_summary")
     def test_update_summary_not_found(self, mock_update):
@@ -288,7 +295,7 @@ class SummaryServiceTest(TestCase):
         mock_get_know.return_value = mock_entity
         mock_save.return_value = {
             "id": "65a1b2c3d4e5f6",
-            "knowledge_id": 1,
+            "kid": 1,
             "summary": "S",
             "app_id": 1,
         }
@@ -303,7 +310,7 @@ class SummaryServiceTest(TestCase):
     @patch("app_know.services.summary_service.save_summary")
     @patch("app_know.services.summary_service.get_knowledge_by_id")
     def test_generate_and_save_with_ai(self, mock_get_know, mock_save, mock_text_ai):
-        """generate_and_save with use_ai=True sets source to ai_generated."""
+        """generate_and_save with use_ai=True calls save_summary with AI-generated summary."""
         mock_entity = MagicMock()
         mock_entity.title = "Title"
         mock_entity.description = "Desc"
@@ -312,9 +319,10 @@ class SummaryServiceTest(TestCase):
         mock_client = MagicMock()
         mock_client.ask_and_answer.return_value = ("prompt", "AI summary")
         mock_text_ai.return_value = mock_client
-        mock_save.return_value = {"knowledge_id": 1, "summary": "AI summary", "app_id": 1}
+        mock_save.return_value = {"kid": 1, "summary": "AI summary", "app_id": 1}
 
         svc = SummaryService()
         svc.generate_and_save(knowledge_id=1, app_id=1, use_ai=True)
         call_kw = mock_save.call_args[1]
-        self.assertEqual(call_kw["source"], "ai_generated")
+        self.assertEqual(call_kw["summary"], "AI summary")
+        self.assertNotIn("source", call_kw)

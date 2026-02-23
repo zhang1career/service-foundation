@@ -115,7 +115,7 @@ class LogicalQueryService(Singleton):
         summary_ids = []
 
         for item in atlas_results:
-            kid = item.get("knowledge_id")
+            kid = item.get("kid")
             summary_id = item.get("id")
             if summary_id:
                 summary_ids.append(summary_id)
