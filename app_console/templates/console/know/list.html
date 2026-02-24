@@ -27,6 +27,17 @@
             新增知识
         </button>
     </div>
+    <div class="border-b border-gray-200 px-4 py-3 bg-gray-50">
+        <div class="flex items-center gap-2">
+            <input type="text" id="filter-summary" class="form-input text-sm w-64" placeholder="摘要" />
+            <button type="button" onclick="applySummaryFilter()" class="btn btn-outline btn-sm p-1.5" title="搜索">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </button>
+            <button type="button" id="clear-summary-btn" onclick="clearSummaryFilter()" class="btn btn-outline btn-sm p-1.5 hidden" title="清除">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
     <div class="card-body p-0">
         <div id="knowledge-list">
             <div class="p-8 text-center text-gray-500">
@@ -103,6 +114,7 @@ function compactJsonForSave(str) {
 
 let descriptionEditor = null;
 let currentPage = 1;
+let currentSummaryFilter = '';  // 当前摘要筛选条件
 const pageSize = 20;
 
 // Load knowledge list
@@ -110,9 +122,13 @@ async function loadKnowledgeList(page = 1) {
     currentPage = page;
     const container = document.getElementById('knowledge-list');
     const offset = (page - 1) * pageSize;
-    
+    let url = `${API_BASE}?offset=${offset}&limit=${pageSize}`;
+    if (currentSummaryFilter) {
+        url += '&summary=' + encodeURIComponent(currentSummaryFilter);
+    }
+
     try {
-        const response = await fetch(`${API_BASE}?offset=${offset}&limit=${pageSize}`);
+        const response = await fetch(url);
         const data = await response.json();
         
         if (data.errorCode !== 0) {
@@ -122,8 +138,12 @@ async function loadKnowledgeList(page = 1) {
         if (data.data && data.data.data && data.data.data.length > 0) {
             const items = data.data.data;
             const totalNum = data.data.total_num;
-            const totalPages = Math.ceil(totalNum / pageSize);
-            
+            const filteredBySummary = data.data.filtered_by_summary === true;
+            const totalPages = filteredBySummary ? 1 : Math.ceil(totalNum / pageSize);
+
+            const clearBtn = document.getElementById('clear-summary-btn');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !currentSummaryFilter);
+
             let html = `
                 <table class="data-table">
                     <thead>
@@ -141,9 +161,12 @@ async function loadKnowledgeList(page = 1) {
             `;
             
             items.forEach(item => {
+                const titleCell = filteredBySummary && item.similarity != null
+                    ? listTitleCellWithSimilarity(item.title, '/console/know/' + item.id + '/', item.similarity)
+                    : listTitleCell(item.title, '/console/know/' + item.id + '/');
                 html += `<tr>
                         <td>${item.id}</td>
-                        ${listTitleCell(item.title, '/console/know/' + item.id + '/')}
+                        ${titleCell}
                         <td><span class="badge badge-info">${item.source_type || '-'}</span></td>
                         <td class="max-w-xs truncate">${item.description || '-'}</td>
                         <td class="max-w-xs truncate">${escapeHtml(item.content || '-')}</td>
@@ -154,13 +177,15 @@ async function loadKnowledgeList(page = 1) {
             
             html += '</tbody></table>';
             
-            // Pagination
-            if (totalPages > 1) {
+            // Pagination (no pagination when filtered by summary)
+            if (totalPages > 1 && !filteredBySummary) {
                 html += renderPagination({ current_page: currentPage, total_pages: totalPages, loadFn: 'loadKnowledgeList' });
             }
             
             container.innerHTML = html;
         } else {
+            const clearBtn = document.getElementById('clear-summary-btn');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !currentSummaryFilter);
             container.innerHTML = `
                 <div class="empty-state">
                     <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,6 +355,21 @@ document.getElementById('knowledge-form').addEventListener('submit', async funct
 document.getElementById('knowledge-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
+
+// Summary filter
+function applySummaryFilter() {
+    const input = document.getElementById('filter-summary');
+    currentSummaryFilter = input ? (input.value || '').trim() : '';
+    loadKnowledgeList(1);
+}
+
+function clearSummaryFilter() {
+    currentSummaryFilter = '';
+    const input = document.getElementById('filter-summary');
+    if (input) input.value = '';
+    document.getElementById('clear-summary-btn')?.classList.add('hidden');
+    loadKnowledgeList(1);
+}
 
 // Initial load
 document.addEventListener('DOMContentLoaded', function() {

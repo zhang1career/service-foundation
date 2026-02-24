@@ -369,6 +369,29 @@ def ensure_summary_vector_index() -> bool:
         return False
 
 
+def search_summaries_by_vector_filtered(
+    query: str,
+    app_id: Optional[int] = None,
+    top_k: int = 5,
+    min_score: Optional[float] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Search summaries by semantic similarity, filter by min_score, return top_k.
+    Used by knowledge list summary filter.
+    Returns list of dicts with kid, summary, app_id, ct, ut, score (ordered by score desc).
+    """
+    if min_score is None:
+        from service_foundation import settings
+        min_score = getattr(settings, "KNOW_SIMILARITY_MISMATCH_THRESHOLD", 0.5)
+    logger.info("[search_summaries_by_vector_filtered] query=%r, app_id=%s, min_score=%s, top_k=%s", query[:80] if query else "", app_id, min_score, top_k)
+    # Fetch more candidates to filter by threshold, then take top_k
+    raw = search_summaries_by_vector(query=query, app_id=app_id, limit=50)
+    logger.info("[search_summaries_by_vector_filtered] raw count=%s, scores=%s", len(raw), [round(r.get("score", 0), 3) for r in raw[:5]])
+    filtered = [r for r in raw if (r.get("score") or 0) >= min_score]
+    logger.info("[search_summaries_by_vector_filtered] after min_score filter: count=%s", len(filtered))
+    return filtered[:top_k]
+
+
 def search_summaries_by_vector(
     query: str,
     app_id: Optional[int] = None,
@@ -389,15 +412,18 @@ def search_summaries_by_vector(
         raise ValueError(f"limit must be an integer in 1..{LIMIT_LIST}")
 
     try:
+        logger.info("[search_summaries_by_vector] query=%r, app_id=%s, limit=%s", q[:80] if q else "", app_id, limit)
         helper = _get_text_helper()
         query_vec = helper.generate_vector(q)
         if not query_vec or len(query_vec) != SUMMARY_VEC_DIM:
-            logger.warning("[search_summaries_by_vector] Invalid embedding for query")
+            logger.warning("[search_summaries_by_vector] Invalid embedding for query (vec_len=%s)", len(query_vec) if query_vec else 0)
             return []
+        logger.info("[search_summaries_by_vector] embedding ok, vec_dim=%s", len(query_vec))
 
         driver = _get_mongo_driver()
         proj = {KEY_KID: 1, KEY_SUMMARY: 1, KEY_APP_ID: 1, KEY_CT: 1, KEY_UT: 1, "score": 1}
         filter_query = {KEY_APP_ID: app_id} if app_id is not None and isinstance(app_id, int) and app_id >= 0 else None
+        logger.info("[search_summaries_by_vector] filter_query=%s", filter_query)
         results = driver.vector_search(
             coll_name=COLLECTION_NAME,
             attr_name=KEY_SUMMARY_VEC,
@@ -408,7 +434,9 @@ def search_summaries_by_vector(
             filter_query=filter_query,
         )
         if not results or not isinstance(results, list):
+            logger.info("[search_summaries_by_vector] no results: results=%s", type(results).__name__ if results is not None else "None")
             return []
+        logger.info("[search_summaries_by_vector] vector_search returned %s docs, top scores=%s", len(results), [round(r.get("score", 0), 3) for r in results[:5]])
         items = []
         for r in results:
             item = _doc_to_item(r)

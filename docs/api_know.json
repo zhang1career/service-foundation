@@ -45,14 +45,15 @@
     "/knowledge": {
       "get": {
         "summary": "知识列表",
-        "description": "分页获取知识列表",
+        "description": "分页获取知识列表。当传入 summary 时，通过 AIGC embedding 转为向量，在 Atlas knowledge_summaries 集合中按语义相似度查询，返回相似度不低于 KNOW_SIMILARITY_MISMATCH_THRESHOLD 的 top5，结果中每项含 similarity 字段（0～1）。",
         "parameters": [
-          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "偏移量" },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100 }, "description": "每页数量" },
-          { "name": "source_type", "in": "query", "schema": { "type": "string" }, "description": "来源类型" }
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "偏移量（summary 筛选时无效）" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100 }, "description": "每页数量（summary 筛选时无效，固定 top5）" },
+          { "name": "source_type", "in": "query", "schema": { "type": "string" }, "description": "来源类型" },
+          { "name": "summary", "in": "query", "schema": { "type": "string" }, "description": "摘要筛选：输入文本经 embedding 后按语义相似度查询，返回匹配的 top5 知识" }
         ],
         "responses": {
-          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StdResponse" } } } }
+          "200": { "description": "成功。data 含 data、total_num、next_offset、filtered_by_summary。当 filtered_by_summary 为 true 时，data 中每项含 similarity 字段。", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StdResponse" } } } }
         }
       },
       "post": {

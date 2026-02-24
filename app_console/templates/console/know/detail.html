@@ -564,20 +564,19 @@ function renderRelationInputs(relation, relationCount) {
     const obj = escapeAttr(relation.object);
     const subjectCandidates = relation.subject_candidates || [];
     const objectCandidates = relation.object_candidates || [];
-    const pct = (s) => Math.min(100, Math.max(0, (parseFloat(s) || 0) * 100)).toFixed(0);
     const subjectItems = subjectCandidates.map(c => {
         const name = escapeHtml(c.name);
-        const score = pct(c.score);
+        const bar = (typeof renderSimilarityProgressBar === 'function') ? renderSimilarityProgressBar(c.score) : '';
         return `<li data-value="${escapeAttr(c.name)}" class="combobox-option relative overflow-hidden">
-            <div class="absolute inset-0 bg-blue-100 transition-all" style="width:${score}%;" title="相似度 ${score}%"></div>
+            ${bar}
             <span class="relative z-10 block px-3 py-2 cursor-pointer hover:bg-blue-50/50">${name}</span>
         </li>`;
     }).join('');
     const objectItems = objectCandidates.map(c => {
         const name = escapeHtml(c.name);
-        const score = pct(c.score);
+        const bar = (typeof renderSimilarityProgressBar === 'function') ? renderSimilarityProgressBar(c.score) : '';
         return `<li data-value="${escapeAttr(c.name)}" class="combobox-option relative overflow-hidden">
-            <div class="absolute inset-0 bg-blue-100 transition-all" style="width:${score}%;" title="相似度 ${score}%"></div>
+            ${bar}
             <span class="relative z-10 block px-3 py-2 cursor-pointer hover:bg-blue-50/50">${name}</span>
         </li>`;
     }).join('');

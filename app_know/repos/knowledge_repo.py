@@ -23,6 +23,27 @@ def _valid_entity_id(entity_id) -> bool:
     return entity_id > 0
 
 
+def get_knowledge_by_ids(entity_ids: List[int]) -> List[Knowledge]:
+    """
+    Get knowledge entities by a list of ids. Preserves order of ids in result.
+    Returns empty list if entity_ids is empty or invalid.
+    """
+    if not entity_ids:
+        return []
+    valid_ids = [i for i in entity_ids if _valid_entity_id(i)]
+    if not valid_ids:
+        return []
+    try:
+        qs = Knowledge.objects.using(_DB).filter(id__in=valid_ids)
+        items = list(qs)
+        # Preserve order of input ids
+        id_to_entity = {e.id: e for e in items}
+        return [id_to_entity[i] for i in valid_ids if i in id_to_entity]
+    except Exception as e:
+        logger.exception("[get_knowledge_by_ids] Error: %s", e)
+        raise
+
+
 def get_knowledge_by_id(entity_id: int) -> Optional[Knowledge]:
     """Get knowledge entity by id. Returns None if not found or invalid id."""
     if not _valid_entity_id(entity_id):

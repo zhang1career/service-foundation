@@ -7,6 +7,25 @@
  */
 
 /**
+ * 相似度进度条：将 0～1 转为 0～100 的百分比字符串
+ * @param {number} score - 相似度 0～1
+ * @returns {string} 如 "85"
+ */
+function similarityProgressPct(score) {
+    return Math.min(100, Math.max(0, (parseFloat(score) || 0) * 100)).toFixed(0);
+}
+
+/**
+ * 渲染相似度进度条背景（公共逻辑，供 listTitleCellWithSimilarity、知识详情关系栏等复用）
+ * @param {number} score - 相似度 0～1
+ * @returns {string} HTML 字符串，需放在 position:relative; overflow:hidden 的容器内
+ */
+function renderSimilarityProgressBar(score) {
+    const pct = similarityProgressPct(score);
+    return `<div class="absolute inset-0 bg-blue-100 transition-all" style="width:${pct}%;" title="相似度 ${pct}%"></div>`;
+}
+
+/**
  * 渲染可点击的标题单元格（用于进入详情/子页面）
  * @param {string} text - 显示文本
  * @param {string} url - 目标链接
@@ -18,6 +37,28 @@ function listTitleCell(text, url, cssClass = 'font-medium') {
     const escaped = String(display).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const escapedUrl = String(url || '').replace(/"/g, '&quot;');
     return `<td class="${cssClass}"><a href="${escapedUrl}" class="text-blue-600 hover:underline cursor-pointer">${escaped}</a></td>`;
+}
+
+/**
+ * 渲染可点击的标题单元格，当有 similarity 时显示相似度进度条背景
+ * @param {string} text - 显示文本
+ * @param {string} url - 目标链接
+ * @param {number|undefined|null} similarity - 相似度 0～1，仅在有值且为摘要筛选结果时显示进度条
+ * @param {string} [cssClass='font-medium'] - 额外 CSS 类
+ * @returns {string} HTML 字符串
+ */
+function listTitleCellWithSimilarity(text, url, similarity, cssClass = 'font-medium') {
+    if (similarity == null || similarity === undefined) {
+        return listTitleCell(text, url, cssClass);
+    }
+    const display = text || '-';
+    const escaped = String(display).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const escapedUrl = String(url || '').replace(/"/g, '&quot;');
+    const bar = renderSimilarityProgressBar(similarity);
+    return `<td class="${cssClass}"><a href="${escapedUrl}" class="text-blue-600 hover:underline cursor-pointer block relative overflow-hidden">
+        ${bar}
+        <span class="relative z-10">${escaped}</span>
+    </a></td>`;
 }
 
 /**

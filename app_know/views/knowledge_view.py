@@ -47,11 +47,15 @@ class KnowledgeListView(APIView):
             except (TypeError, ValueError):
                 raise ValueError("offset and limit must be integers")
             source_type = (request.GET.get("source_type") or "").strip() or None
+            summary = (request.GET.get("summary") or "").strip() or None
+            if summary:
+                logger.info("[KnowledgeListView.get] summary filter: query=%r", summary[:100] if summary else "")
             service = KnowledgeService()
             page_data = service.list_knowledge(
                 offset=offset,
                 limit=limit,
                 source_type=source_type,
+                summary=summary,
             )
             return resp_ok(page_data)
         except ValueError as e:
