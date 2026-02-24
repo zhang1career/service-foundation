@@ -1,7 +1,7 @@
 # app_know URL configuration. Generated.
 from django.urls import path
 
-from app_know.views.atlas_repl_view import AtlasReplView
+from common.views.atlas_repl_view import AtlasReplView
 from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
 from app_know.views.query_view import LogicalQueryView
 from app_know.views.relation_extract_view import (

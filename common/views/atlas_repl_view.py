@@ -8,7 +8,7 @@ from pymongo import MongoClient
 from rest_framework import status as http_status
 from rest_framework.views import APIView
 
-from atlas_repl import repl_step, get_mongo_uri
+from common.atlas_repl import repl_step, get_mongo_uri
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
 logger = logging.getLogger(__name__)

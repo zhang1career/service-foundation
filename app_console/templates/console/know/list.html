@@ -34,7 +34,7 @@
 </div>
 
 <!-- Create/Edit Modal -->
-<div id="knowledge-modal" class="modal-backdrop hidden">
+<div id="knowledge-modal" class="modal-backdrop hidden" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="modal-title" class="text-lg font-semibold">新增知识</h3>
@@ -181,11 +181,15 @@ function openCreateModal() {
     document.getElementById('modal-title').textContent = '新增知识';
     document.getElementById('knowledge-form').reset();
     document.getElementById('knowledge-id').value = '';
-    document.getElementById('knowledge-modal').classList.remove('hidden');
+    var modal = document.getElementById('knowledge-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
 }
 
 function closeModal() {
-    document.getElementById('knowledge-modal').classList.add('hidden');
+    var modal = document.getElementById('knowledge-modal');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
 }
 
 // View knowledge
@@ -210,7 +214,9 @@ async function editKnowledge(id) {
             document.getElementById('knowledge-source-type').value = data.data.source_type || '';
             document.getElementById('knowledge-description').value = data.data.description || '';
             document.getElementById('knowledge-content').value = data.data.content || '';
-            document.getElementById('knowledge-modal').classList.remove('hidden');
+            var modal = document.getElementById('knowledge-modal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
         }
     } catch (error) {
         showToast('获取数据失败: ' + error.message, 'error');
@@ -291,6 +297,7 @@ document.getElementById('knowledge-modal').addEventListener('click', function(e)
 
 // Initial load
 document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('knowledge-modal').style.display = 'none';
     loadKnowledgeList();
 });
 </script>

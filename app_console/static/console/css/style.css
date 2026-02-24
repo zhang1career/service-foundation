@@ -298,6 +298,10 @@
     justify-content: center;
     z-index: 100;
 }
+/* Ensure hidden modal is not displayed (overrides display:flex when .hidden is present) */
+.modal-backdrop.hidden {
+    display: none !important;
+}
 
 .modal-content {
     background: white;

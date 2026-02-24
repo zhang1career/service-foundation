@@ -6,20 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}控制台{% endblock %} - Service Foundation</title>
     <script src="https://unpkg.com/htmx.org@2.0.0"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'console/css/tailwind.css' %}">
     <link rel="stylesheet" href="{% static 'console/css/style.css' %}">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#3b82f6',
-                        sidebar: '#1f2937',
-                    }
-                }
-            }
-        }
-    </script>
 </head>
 <body class="bg-gray-100 min-h-screen text-sm">
     <div class="flex h-screen overflow-hidden">

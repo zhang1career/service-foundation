@@ -55,12 +55,16 @@ The `common` module provides shared utilities, services, and components used acr
    ```bash
    pip install -r requirements.txt
    ```
-3. Configure environment variables in `.env` file
-4. Run migrations:
+3. Build frontend assets (Tailwind CSS + Neo4j NVL):
+   ```bash
+   npm install && npm run build
+   ```
+4. Configure environment variables in `.env` file
+5. Run migrations:
    ```bash
    python manage.py migrate
    ```
-5. Start the development server:
+6. Start the development server:
    ```bash
    python manage.py runserver
    ```

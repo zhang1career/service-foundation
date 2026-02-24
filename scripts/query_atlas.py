@@ -37,7 +37,7 @@ if env_file.exists():
 else:
     print("警告: 未找到 .env 文件", file=sys.stderr)
 
-from atlas_repl import repl_step, get_mongo_uri
+from common.atlas_repl import repl_step, get_mongo_uri
 
 
 def main():

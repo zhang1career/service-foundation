@@ -4,7 +4,7 @@ Supports predicate logic structure: Subject --predicate-> Object.
 Generated.
 """
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # Node labels (Neo4j)
 NODE_LABEL_KNOWLEDGE = "Knowledge"

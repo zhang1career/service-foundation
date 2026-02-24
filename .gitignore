@@ -46,6 +46,9 @@ log/
 *.tar.gz
 *.rar
 
+# Node
+node_modules/
+
 # Frontend Files
 staticfiles/admin/css/vendor/
 staticfiles/admin/fonts/
