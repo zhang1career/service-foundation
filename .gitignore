@@ -46,6 +46,16 @@ log/
 *.tar.gz
 *.rar
 
+# Node
+node_modules/
+
+# Frontend Files
+staticfiles/admin/css/vendor/
+staticfiles/admin/fonts/
+staticfiles/admin/img/
+staticfiles/admin/js/vendor/
+staticfiles/rest_framework/
+
 # Docker
 docker/
 

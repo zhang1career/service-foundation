@@ -1,20 +1,29 @@
+import os
 from typing import Any
 
+from openai import OpenAI
+
 from common.components.singleton import Singleton
+
+# Vector dimension for compatibility with MongoDB index and component_repo.NAME_VEC_DIM
+VEC_DIM = 384
 
 
 class TextHelper(Singleton):
     def __init__(self):
-        # lazy load
-        from sentence_transformers import SentenceTransformer
-        # initialize properties
-        self._trans = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        base_url = os.environ.get("AIGC_API_URL", "")
+        api_key = os.environ.get("AIGC_API_KEY", "")
+        embedding_model = os.environ.get("AIGC_EMBEDDING_MODEL", "text-embedding-3-small")
+        self._client = OpenAI(base_url=base_url, api_key=api_key)
+        self._model = embedding_model
 
     def generate_vector(self, text: str) -> list[float]:
-        # calculate
-        embedding = self._trans.encode(text)
-        embedded_vect = embedding.tolist()
-        return embedded_vect
+        response = self._client.embeddings.create(
+            model=self._model,
+            input=text,
+            dimensions=VEC_DIM,
+        )
+        return response.data[0].embedding
 
     def find_most_similar_str(self, text_list: list[str], match_text: str) -> tuple[str, Any]:
         # lazy load

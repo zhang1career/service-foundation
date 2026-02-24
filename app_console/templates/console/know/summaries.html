@@ -1,0 +1,102 @@
+{% extends 'console/base.html' %}
+
+{% block title %}摘要列表{% endblock %}
+{% block page_title %}知识管理 - 摘要{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <!-- Sub navigation -->
+    <div class="flex space-x-4 mb-6">
+        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">知识条目</a>
+        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">关系管理</a>
+        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">摘要列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">摘要列表</h2>
+    </div>
+    <div class="card-body p-0">
+        <div id="summary-list">
+            <div class="p-8 text-center text-gray-500">
+                <div class="spinner"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '/api/know/knowledge/summaries';
+
+function formatTimestamp(ts) {
+    if (!ts || ts <= 0) return '-';
+    const date = new Date(ts);
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+async function loadSummaries() {
+    const container = document.getElementById('summary-list');
+    
+    try {
+        const response = await fetch(API_BASE);
+        const result = await response.json();
+        const items = result.data && result.data.data ? result.data.data : [];
+        
+        if (items.length > 0) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>知识 ID</th>
+                            <th>应用 ID</th>
+                            <th>摘要</th>
+                            <th>来源</th>
+                            <th>创建时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            items.forEach(item => {
+                html += `
+                    <tr>
+                        <td><a href="/console/know/${item.knowledge_id}/" class="text-blue-600 hover:underline">${item.knowledge_id}</a></td>
+                        <td>${item.app_id || '-'}</td>
+                        <td class="max-w-md truncate" title="${(item.summary || '').replace(/"/g, '&quot;')}">${item.summary || '-'}</td>
+                        <td><span class="badge badge-info">${item.source || '-'}</span></td>
+                        <td>${formatTimestamp(item.ct)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p class="text-lg font-medium">暂无摘要</p>
+                    <p class="text-sm">在知识详情页点击"生成摘要"来创建摘要</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        container.innerHTML = `
+            <div class="p-8 text-center text-red-500">
+                <p>加载失败: ${error.message}</p>
+                <button onclick="loadSummaries()" class="btn btn-outline btn-sm mt-4">重试</button>
+            </div>
+        `;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadSummaries);
+</script>
+{% endblock %}

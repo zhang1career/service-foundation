@@ -1,0 +1,207 @@
+{% extends 'console/base.html' %}
+
+{% block title %}关系管理{% endblock %}
+{% block page_title %}知识管理 - 关系{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <!-- Sub navigation -->
+    <div class="flex space-x-4 mb-6">
+        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">知识条目</a>
+        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">关系管理</a>
+        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">关系列表</h2>
+        <button onclick="openCreateModal()" class="btn btn-primary btn-sm">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            新增关系
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div id="relationship-list">
+            <div class="p-8 text-center text-gray-500">
+                <div class="spinner"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div id="relationship-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold">新增关系</h3>
+        </div>
+        <form id="relationship-form">
+            {% csrf_token %}
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="source-id">源知识 ID *</label>
+                    <input type="number" id="source-id" name="source_entity_id" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="relationship-type">关系类型 *</label>
+                    <input type="text" id="relationship-type" name="relationship_type" class="form-input" required placeholder="例如：related_to, belongs_to, etc.">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="target-id">目标知识 ID *</label>
+                    <input type="number" id="target-id" name="target_entity_id" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="relationship-weight">权重</label>
+                    <input type="number" id="relationship-weight" name="weight" class="form-input" step="0.1" value="1.0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeModal()" class="btn btn-outline">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '/api/know/knowledge/relationships';
+
+async function loadRelationships() {
+    const container = document.getElementById('relationship-list');
+    
+    try {
+        const response = await fetch(API_BASE);
+        const result = await response.json();
+        
+        if (result.data && result.data.length > 0) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>源知识</th>
+                            <th>关系类型</th>
+                            <th>目标知识</th>
+                            <th>权重</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            result.data.forEach(item => {
+                html += `
+                    <tr>
+                        <td>${item.relationship_id || item.id}</td>
+                        <td>${item.source_entity_id}</td>
+                        <td><span class="badge badge-info">${item.relationship_type}</span></td>
+                        <td>${item.target_entity_id}</td>
+                        <td>${item.weight || 1.0}</td>
+                        <td>
+                            <button onclick="deleteRelationship(${item.relationship_id || item.id})" class="btn btn-danger btn-sm">删除</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                    </svg>
+                    <p class="text-lg font-medium">暂无关系数据</p>
+                    <p class="text-sm">点击"新增关系"按钮创建知识关系</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        container.innerHTML = `
+            <div class="p-8 text-center text-red-500">
+                <p>加载失败: ${error.message}</p>
+                <button onclick="loadRelationships()" class="btn btn-outline btn-sm mt-4">重试</button>
+            </div>
+        `;
+    }
+}
+
+function openCreateModal() {
+    document.getElementById('relationship-form').reset();
+    document.getElementById('relationship-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('relationship-modal').classList.add('hidden');
+}
+
+async function deleteRelationship(id) {
+    if (!confirm('确认删除该关系？')) return;
+    
+    try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`${API_BASE}/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        
+        if (response.ok) {
+            showToast('删除成功', 'success');
+            loadRelationships();
+        } else {
+            throw new Error('删除失败');
+        }
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+document.getElementById('relationship-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        source_entity_id: parseInt(document.getElementById('source-id').value),
+        relationship_type: document.getElementById('relationship-type').value,
+        target_entity_id: parseInt(document.getElementById('target-id').value),
+        weight: parseFloat(document.getElementById('relationship-weight').value) || 1.0
+    };
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    try {
+        const response = await fetch(API_BASE, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showToast('创建成功', 'success');
+            closeModal();
+            loadRelationships();
+        } else {
+            const data = await response.json();
+            throw new Error(data.message || '创建失败');
+        }
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+});
+
+document.getElementById('relationship-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+document.addEventListener('DOMContentLoaded', loadRelationships);
+</script>
+{% endblock %}

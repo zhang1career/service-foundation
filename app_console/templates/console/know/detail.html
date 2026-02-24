@@ -1,0 +1,765 @@
+{% extends 'console/base.html' %}
+{% load static %}
+
+{% block title %}知识详情{% endblock %}
+{% block page_title %}知识详情{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="mb-6">
+    <a href="{% url 'console:know-list' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        返回列表
+    </a>
+</div>
+
+<div id="knowledge-detail">
+    <div class="p-8 text-center text-gray-500">
+        <div class="spinner"></div>
+        <p class="mt-2">加载中...</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script>
+const entityId = {{ entity_id }};
+const API_BASE = '/api/know/knowledge';
+
+function getCookie(name) {
+    let v = null;
+    if (document.cookie && document.cookie !== '') {
+        document.cookie.split(';').forEach(function(p) {
+            const part = p.trim();
+            if (part.indexOf(name + '=') === 0) {
+                v = decodeURIComponent(part.substring(name.length + 1));
+            }
+        });
+    }
+    return v;
+}
+
+function formatTimestamp(ts) {
+    if (!ts || ts <= 0) return '-';
+    const date = new Date(ts);
+    const pad = (n) => n.toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const seconds = pad(date.getSeconds());
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+async function loadDetail() {
+    const container = document.getElementById('knowledge-detail');
+    
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}`);
+        const result = await response.json();
+        
+        if (result.data) {
+            const data = result.data;
+            container.innerHTML = `
+                <div class="card mb-6">
+                    <div class="card-header">
+                        <h2 class="text-xl font-semibold">${data.title || '未命名'}</h2>
+                        <div class="flex space-x-2">
+                            <button onclick="window.location.href='{% url 'console:know-list' %}'" class="btn btn-outline btn-sm">返回</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">ID</p>
+                                <p class="font-medium">${data.id}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">来源类型</p>
+                                <span class="badge badge-info">${data.source_type || '-'}</span>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                                <p>${formatTimestamp(data.ct)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                                <p>${formatTimestamp(data.ut)}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6">
+                            <p class="text-sm text-gray-500 mb-2">描述</p>
+                            <p class="bg-gray-50 p-4 rounded-lg">${data.description || '无描述'}</p>
+                        </div>
+                        
+                        <div class="mt-6">
+                            <p class="text-sm text-gray-500 mb-2">内容</p>
+                            <div class="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">${data.content || '无内容'}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Summary Section -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="text-lg font-semibold">摘要</h3>
+                        <button onclick="generateSummary()" class="btn btn-primary btn-sm">生成摘要</button>
+                    </div>
+                    <div class="card-body" id="summary-content">
+                        <div class="flex items-center text-gray-500"><div class="spinner mr-2"></div>加载中...</div>
+                    </div>
+                    <div class="card-body border-t border-gray-200">
+                        <div class="flex items-center gap-2 mb-2">
+                            <label class="flex items-center cursor-pointer gap-2 text-sm">
+                                <input type="checkbox" id="atlas-terminal-toggle" onchange="toggleAtlasTerminal(this.checked)" class="rounded border-gray-300">
+                                <span>交互查询</span>
+                            </label>
+                        </div>
+                        <div id="atlas-terminal-section" class="hidden">
+                        <div class="bg-gray-900 rounded-lg overflow-hidden font-mono text-xs">
+                            <div id="atlas-terminal-output" class="p-3 text-green-400 min-h-[120px] max-h-[360px] overflow-y-auto whitespace-pre-wrap break-words"></div>
+                            <div class="flex border-t border-gray-700">
+                                <input type="text" id="atlas-terminal-input" placeholder="输入命令 (如 show dbs, help) 回车发送" class="flex-1 bg-transparent text-green-400 px-3 py-2 focus:outline-none placeholder-gray-500" onkeydown="handleAtlasTerminalKeydown(event)">
+                                <button type="button" onclick="sendAtlasCommand()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-green-400">发送</button>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Relations Section (extract button visible only when summary exists) -->
+                <div class="card mt-6" id="relations-section">
+                    <div class="card-header">
+                        <h3 class="text-lg font-semibold">关系</h3>
+                        <div class="flex space-x-2">
+                            <button id="extract-relations-btn" onclick="extractRelations()" class="btn btn-primary btn-sm" style="display:none">提取关系</button>
+                            <button id="save-relation-btn" onclick="saveRelation()" class="btn btn-outline btn-sm" style="display:none">保存关系</button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="relations-content">
+                        <p class="text-gray-500">点击"提取关系"按钮从内容中提取谓词逻辑关系。主语和宾语默认来自 AI 解析结果，可输入或从 Atlas 相似度匹配的候选项中选取后点击"保存关系"存储到 Neo4j</p>
+                    </div>
+                    <div class="card-body border-t border-gray-200">
+                        <p class="text-sm text-gray-500 mb-2">关系图</p>
+                        <div class="relative flex gap-4">
+                            <div id="relation-graph" class="flex-1" style="height: 400px; min-height: 300px; background: #f9fafb; border-radius: 0.5rem;"></div>
+                            <div id="relation-props-drawer" class="w-72 flex-shrink-0 border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden" style="display:none;">
+                                <div class="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+                                    <span class="font-semibold text-gray-700">属性</span>
+                                    <button type="button" onclick="closeRelationPropsDrawer()" class="text-gray-500 hover:text-gray-700">&times;</button>
+                                </div>
+                                <div id="relation-props-content" class="p-4 text-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            loadExistingSummary();
+            loadRelationGraph();
+        } else {
+            throw new Error('未找到数据');
+        }
+    } catch (error) {
+        container.innerHTML = `
+            <div class="card">
+                <div class="card-body text-center text-red-500">
+                    <p>加载失败: ${error.message}</p>
+                    <a href="{% url 'console:know-list' %}" class="btn btn-primary btn-sm mt-4">返回列表</a>
+                </div>
+            </div>
+        `;
+    }
+}
+
+async function loadExistingSummary() {
+    const container = document.getElementById('summary-content');
+    
+    try {
+        const url = `${API_BASE}/${entityId}/summary?app_id=0`;
+        console.log('[loadExistingSummary] Fetching:', url);
+        const response = await fetch(url);
+        const result = await response.json();
+        console.log('[loadExistingSummary] Response:', result);
+        
+        if (result.errorCode === 0 && result.data && result.data.summary) {
+            container.innerHTML = `
+                <div class="whitespace-pre-wrap">${result.data.summary}</div>
+                <div class="mt-3 text-xs text-gray-400">
+                    来源: ${result.data.source || '-'} | 
+                    更新时间: ${formatTimestamp(result.data.ut)}
+                </div>
+            `;
+            const extractBtn = document.getElementById('extract-relations-btn');
+            if (extractBtn) extractBtn.style.display = '';
+        } else {
+            console.log('[loadExistingSummary] No summary found, errorCode:', result.errorCode, 'msg:', result.message);
+            container.innerHTML = '<p class="text-gray-500">暂无摘要，点击"生成摘要"按钮创建</p>';
+            const extractBtn = document.getElementById('extract-relations-btn');
+            if (extractBtn) extractBtn.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('[loadExistingSummary] Error:', error);
+        container.innerHTML = '<p class="text-gray-500">暂无摘要，点击"生成摘要"按钮创建</p>';
+        const extractBtn = document.getElementById('extract-relations-btn');
+        if (extractBtn) extractBtn.style.display = 'none';
+    }
+}
+
+let atlasTerminalSession = null;
+
+function toggleAtlasTerminal(checked) {
+    const section = document.getElementById('atlas-terminal-section');
+    if (!section) return;
+    section.classList.toggle('hidden', !checked);
+    if (checked) {
+        document.getElementById('atlas-terminal-input')?.focus();
+        if (!atlasTerminalSession && document.getElementById('atlas-terminal-output').innerHTML === '') {
+            initAtlasTerminal();
+        }
+    }
+}
+
+function initAtlasTerminal() {
+    fetch('/api/know/atlas_repl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ line: 'init', session: null })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.errorCode === 0 && result.data) {
+            atlasTerminalSession = result.data.session || {};
+            const out = document.getElementById('atlas-terminal-output');
+            if (out) out.textContent = result.data.output || '';
+        } else {
+            const out = document.getElementById('atlas-terminal-output');
+            if (out) out.textContent = '连接失败: ' + (result.message || '未知错误');
+        }
+    })
+    .catch(e => {
+        const out = document.getElementById('atlas-terminal-output');
+        if (out) out.textContent = '连接失败: ' + (e.message || '网络错误');
+    });
+}
+
+function handleAtlasTerminalKeydown(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        sendAtlasCommand();
+    }
+}
+
+function sendAtlasCommand() {
+    const input = document.getElementById('atlas-terminal-input');
+    const output = document.getElementById('atlas-terminal-output');
+    if (!input || !output) return;
+    const line = input.value.trim();
+    if (!line) return;
+    input.value = '';
+    output.textContent = (output.textContent ? output.textContent + '\n\n' : '') + '> ' + line;
+    fetch('/api/know/atlas_repl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ line: line, session: atlasTerminalSession || {} })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.errorCode === 0 && result.data) {
+            atlasTerminalSession = result.data.session || {};
+            const resp = result.data.output || '';
+            output.textContent = output.textContent + '\n' + resp;
+        } else {
+            output.textContent = output.textContent + '\n' + ('错误: ' + (result.message || '未知错误'));
+        }
+        output.scrollTop = output.scrollHeight;
+    })
+    .catch(e => {
+        output.textContent = output.textContent + '\n' + ('错误: ' + (e.message || '网络错误'));
+        output.scrollTop = output.scrollHeight;
+    });
+}
+
+let relationGraphNvl = null;
+let relationGraphHandlers = [];
+let relationGraphData = { nodes: [], edges: [] };
+let relationPropsSelection = null;
+
+function closeRelationPropsDrawer() {
+    const drawer = document.getElementById('relation-props-drawer');
+    if (drawer) drawer.style.display = 'none';
+    relationPropsSelection = null;
+}
+
+function showRelationPropsDrawer(type, data) {
+    const drawer = document.getElementById('relation-props-drawer');
+    const content = document.getElementById('relation-props-content');
+    if (!drawer || !content) return;
+    relationPropsSelection = { type: type, data: Object.assign({}, data) };
+    let html = '';
+    if (type === 'node') {
+        const name = data.caption || data.label || data.id || '';
+        html = '<form id="relation-props-form" onsubmit="saveRelationProps(event)">' +
+            '<div class="space-y-3">' +
+            '<div><label class="block text-gray-500 text-xs mb-1">ID (cid)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.id || '-') + '</p></div>' +
+            '<div><label class="block text-gray-500 text-xs mb-1">名称</label><input type="text" name="name" value="' + escapeAttr(name) + '" class="w-full border rounded px-2 py-1.5 text-sm" placeholder="节点名称" /></div>' +
+            '<button type="submit" class="btn btn-primary btn-sm w-full">保存</button>' +
+            '</div></form>';
+    } else if (type === 'relationship') {
+        const typ = data.caption || data.label || '';
+        html = '<form id="relation-props-form" onsubmit="saveRelationProps(event)">' +
+            '<div class="space-y-3">' +
+            '<div><label class="block text-gray-500 text-xs mb-1">起点 (from)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.from || '-') + '</p></div>' +
+            '<div><label class="block text-gray-500 text-xs mb-1">终点 (to)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.to || '-') + '</p></div>' +
+            '<div><label class="block text-gray-500 text-xs mb-1">类型</label><input type="text" name="type" value="' + escapeAttr(typ) + '" class="w-full border rounded px-2 py-1.5 text-sm" placeholder="关系类型，如 related_to" /></div>' +
+            '<button type="submit" class="btn btn-primary btn-sm w-full">保存</button>' +
+            '</div></form>';
+    }
+    content.innerHTML = html || '<p class="text-gray-500">无属性</p>';
+    drawer.style.display = 'block';
+}
+
+async function saveRelationProps(ev) {
+    ev.preventDefault();
+    if (!relationPropsSelection) return;
+    const form = document.getElementById('relation-props-form');
+    if (!form) return;
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+    try {
+        const type = relationPropsSelection.type;
+        const data = relationPropsSelection.data;
+        if (type === 'node') {
+            const name = (form.querySelector('[name="name"]') || {}).value?.trim() || data.id;
+            const res = await fetch(`${API_BASE}/${entityId}/graph_node`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ cid: data.id, name: name, app_id: 0 })
+            });
+            const text = await res.text();
+            let result;
+            try { result = JSON.parse(text); } catch (_) {
+                showToast('保存失败: 服务器返回异常 (状态 ' + res.status + ')，请检查登录或网络', 'error');
+                return;
+            }
+            if (result.errorCode === 0) {
+                showToast('节点已更新', 'success');
+                const nd = relationGraphData.nodes.find(n => String(n.id) === String(data.id));
+                if (nd) nd.caption = name;
+                if (relationGraphNvl) relationGraphNvl.addAndUpdateElementsInGraph([{ id: data.id, caption: name }], []);
+            } else {
+                showToast('保存失败: ' + (result.message || '未知错误'), 'error');
+            }
+        } else if (type === 'relationship') {
+            const newType = (form.querySelector('[name="type"]') || {}).value?.trim();
+            if (!newType) { showToast('请输入关系类型', 'error'); return; }
+            const res = await fetch(`${API_BASE}/${entityId}/graph_edge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ from_cid: data.from, to_cid: data.to, old_type: data.caption || data.label || '', new_type: newType, app_id: 0 })
+            });
+            const text = await res.text();
+            let result;
+            try { result = JSON.parse(text); } catch (_) {
+                showToast('保存失败: 服务器返回异常 (状态 ' + res.status + ')，请检查登录或网络', 'error');
+                return;
+            }
+            if (result.errorCode === 0) {
+                showToast('关系已更新', 'success');
+                closeRelationPropsDrawer();
+                loadRelationGraph();
+            } else {
+                showToast('保存失败: ' + (result.message || '未知错误'), 'error');
+            }
+        }
+    } catch (e) {
+        showToast('保存失败: ' + (e.message || '未知错误'), 'error');
+    } finally {
+        const f = document.getElementById('relation-props-form');
+        if (f) { const b = f.querySelector('button[type="submit"]'); if (b) { b.disabled = false; b.textContent = '保存'; } }
+    }
+}
+
+async function loadRelationGraph() {
+    const container = document.getElementById('relation-graph');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/relation_graph?app_id=0`);
+        const result = await response.json();
+        if (result.errorCode !== 0 || !result.data) {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center">暂无关系图数据</p>';
+            return;
+        }
+        const data = result.data;
+        const nvlNodes = (data.nodes || []).map(n => ({
+            id: String(n.id),
+            caption: n.label || n.id || '?'
+        }));
+        const nvlRels = (data.edges || []).map((e, i) => ({
+            id: 'rel_' + i + '_' + e.from + '_' + e.to,
+            from: String(e.from),
+            to: String(e.to),
+            caption: e.label || '',
+            type: e.label || undefined
+        }));
+        if (nvlNodes.length === 0 && nvlRels.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center">暂无关系图（提取并保存关系后将显示）</p>';
+            return;
+        }
+        relationGraphData = { nodes: nvlNodes, edges: nvlRels };
+        if (relationGraphNvl) {
+            relationGraphHandlers.forEach(h => { try { h.destroy && h.destroy(); } catch (e) {} });
+            relationGraphHandlers = [];
+            relationGraphNvl.destroy();
+            relationGraphNvl = null;
+        }
+        const nvlMod = await import('{% static "console/js/nvl-bundle.js" %}');
+        const opts = {
+            layout: 'forceDirected',
+            initialZoom: 1.2,
+            disableTelemetry: true,
+            disableWebWorkers: true,
+            renderer: 'canvas',
+            callbacks: { onLayoutDone: () => { if (relationGraphNvl) relationGraphNvl.fit(nvlNodes.map(n => n.id)); } }
+        };
+        relationGraphNvl = new nvlMod.NVL(container, nvlNodes, nvlRels, opts, {});
+
+        const { DragNodeInteraction, PanInteraction, ZoomInteraction, ClickInteraction } = nvlMod;
+        const dragHandler = new DragNodeInteraction(relationGraphNvl);
+        const panHandler = new PanInteraction(relationGraphNvl);
+        const zoomHandler = new ZoomInteraction(relationGraphNvl);
+        const clickHandler = new ClickInteraction(relationGraphNvl);
+
+        clickHandler.updateCallback('onNodeClick', (node) => {
+            if (!node) return;
+            const nodeId = node.id ?? node.data?.id;
+            if (!nodeId) return;
+            relationGraphNvl.deselectAll();
+            relationGraphNvl.addAndUpdateElementsInGraph([{ id: nodeId, selected: true }], []);
+            const nd = relationGraphData.nodes.find(n => String(n.id) === String(nodeId));
+            showRelationPropsDrawer('node', nd ? { id: nd.id, caption: nd.caption, label: nd.caption } : { id: nodeId });
+        });
+        clickHandler.updateCallback('onRelationshipClick', (rel) => {
+            if (!rel) return;
+            const relId = rel.id ?? rel.data?.id;
+            if (!relId) return;
+            relationGraphNvl.deselectAll();
+            relationGraphNvl.addAndUpdateElementsInGraph([], [{ id: relId, selected: true }]);
+            const rd = relationGraphData.edges.find(r => r.id === relId);
+            showRelationPropsDrawer('relationship', rd ? { id: rd.id, from: rd.from, to: rd.to, caption: rd.caption, label: rd.caption } : { id: relId });
+        });
+        clickHandler.updateCallback('onSceneClick', () => {
+            relationGraphNvl.deselectAll();
+            closeRelationPropsDrawer();
+        });
+
+        relationGraphHandlers = [dragHandler, panHandler, zoomHandler, clickHandler];
+    } catch (error) {
+        console.error('[loadRelationGraph] Error:', error);
+        container.innerHTML = '<p class="text-red-500 p-4 text-center">加载关系图失败: ' + (error.message || '未知错误') + '</p>';
+    }
+}
+
+async function generateSummary() {
+    const container = document.getElementById('summary-content');
+    container.innerHTML = '<div class="flex items-center"><div class="spinner mr-2"></div>生成中...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/summary`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                app_id: 0,
+                use_ai: true
+            })
+        });
+        const result = await response.json();
+        
+        if (result.errorCode === 0 && result.data && result.data.summary) {
+            container.innerHTML = `
+                <div class="whitespace-pre-wrap">${result.data.summary}</div>
+                <div class="mt-3 text-xs text-gray-400">
+                    来源: ${result.data.source || '-'} | 
+                    更新时间: ${formatTimestamp(result.data.ut)}
+                </div>
+            `;
+            const extractBtn = document.getElementById('extract-relations-btn');
+            if (extractBtn) extractBtn.style.display = '';
+        } else if (result.message) {
+            container.innerHTML = `<p class="text-red-500">生成失败: ${result.message}</p>`;
+        } else {
+            container.innerHTML = '<p class="text-gray-500">暂无摘要</p>';
+        }
+    } catch (error) {
+        container.innerHTML = `<p class="text-red-500">生成失败: ${error.message}</p>`;
+    }
+}
+
+function escapeAttr(s) {
+    return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function escapeHtml(s) {
+    return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function initCustomDropdown(inputId, dropdownId, options) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    const wrapper = input && input.closest('.combobox-wrapper');
+    if (!input || !dropdown || !wrapper) return;
+
+    function openDropdown() {
+        dropdown.classList.remove('hidden');
+    }
+    function closeDropdown() {
+        dropdown.classList.add('hidden');
+    }
+    function toggleDropdown() {
+        dropdown.classList.toggle('hidden');
+    }
+
+    input.addEventListener('focus', openDropdown);
+    input.addEventListener('click', openDropdown);
+    wrapper.querySelector('.combobox-toggle')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleDropdown();
+    });
+
+    dropdown.querySelectorAll('li[data-value]').forEach(function(li) {
+        li.addEventListener('click', function() {
+            input.value = this.getAttribute('data-value') || '';
+            closeDropdown();
+        });
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!wrapper.contains(e.target)) closeDropdown();
+    });
+}
+
+function renderRelationInputs(relation, relationCount) {
+    const container = document.getElementById('relations-content');
+    const sub = escapeAttr(relation.subject);
+    const prd = escapeAttr(relation.predicate);
+    const obj = escapeAttr(relation.object);
+    const subjectCandidates = relation.subject_candidates || [];
+    const objectCandidates = relation.object_candidates || [];
+    const pct = (s) => Math.min(100, Math.max(0, (parseFloat(s) || 0) * 100)).toFixed(0);
+    const subjectItems = subjectCandidates.map(c => {
+        const name = escapeHtml(c.name);
+        const score = pct(c.score);
+        return `<li data-value="${escapeAttr(c.name)}" class="combobox-option relative overflow-hidden">
+            <div class="absolute inset-0 bg-blue-100 transition-all" style="width:${score}%;" title="相似度 ${score}%"></div>
+            <span class="relative z-10 block px-3 py-2 cursor-pointer hover:bg-blue-50/50">${name}</span>
+        </li>`;
+    }).join('');
+    const objectItems = objectCandidates.map(c => {
+        const name = escapeHtml(c.name);
+        const score = pct(c.score);
+        return `<li data-value="${escapeAttr(c.name)}" class="combobox-option relative overflow-hidden">
+            <div class="absolute inset-0 bg-blue-100 transition-all" style="width:${score}%;" title="相似度 ${score}%"></div>
+            <span class="relative z-10 block px-3 py-2 cursor-pointer hover:bg-blue-50/50">${name}</span>
+        </li>`;
+    }).join('');
+    const countNote = relationCount > 1 ? `<p class="text-sm text-gray-500 mb-3">共提取 ${relationCount} 条关系，当前显示第1条，可编辑后保存</p>` : '';
+    container.innerHTML = `
+        ${countNote}
+        <style>
+            #relations-section { overflow: visible; }
+            .combobox-wrapper { position: relative; overflow: visible; }
+            .combobox-input-wrap { display: flex; border: 1px solid #d1d5db; border-radius: 0.375rem; background: #fff; }
+            .combobox-input-wrap:focus-within { outline: 2px solid #3b82f6; outline-offset: 1px; border-color: #3b82f6; }
+            .combobox-wrapper input { flex: 1; border: none; border-radius: 0.375rem; }
+            .combobox-wrapper input:focus { outline: none; }
+            .combobox-toggle { padding: 0 0.5rem; color: #6b7280; background: transparent; border: none; cursor: pointer; border-left: 1px solid #e5e7eb; }
+            .combobox-toggle:hover { color: #374151; }
+            .combobox-dropdown { position: absolute; top: 100%; left: 0; right: 0; margin-top: 2px; background: #fff; border: 1px solid #e5e7eb; border-radius: 0.375rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); max-height: 200px; overflow-y: auto; z-index: 50; }
+            .combobox-option { position: relative; border-b: 1px solid #f3f4f6; }
+            .combobox-option:last-child { border-bottom: 0; }
+        </style>
+        <div class="space-y-3">
+            <div>
+                <label class="block text-sm text-gray-500 mb-1">主语</label>
+                <div class="combobox-wrapper">
+                    <div class="combobox-input-wrap">
+                        <input type="text" id="relation-subject" class="w-full px-3 py-2" value="${sub}" placeholder="主语（可输入或从下拉选择）" autocomplete="off" />
+                        <button type="button" class="combobox-toggle" aria-label="展开选项">▾</button>
+                    </div>
+                    <ul id="relation-subject-dropdown" class="combobox-dropdown hidden">
+                        ${subjectItems || '<li class="px-3 py-2 text-gray-400">无候选项</li>'}
+                    </ul>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm text-gray-500 mb-1">谓语</label>
+                <input type="text" id="relation-predicate" class="w-full border rounded px-3 py-2" value="${prd}" placeholder="谓语" />
+            </div>
+            <div>
+                <label class="block text-sm text-gray-500 mb-1">宾语</label>
+                <div class="combobox-wrapper">
+                    <div class="combobox-input-wrap">
+                        <input type="text" id="relation-object" class="w-full px-3 py-2" value="${obj}" placeholder="宾语（可输入或从下拉选择）" autocomplete="off" />
+                        <button type="button" class="combobox-toggle" aria-label="展开选项">▾</button>
+                    </div>
+                    <ul id="relation-object-dropdown" class="combobox-dropdown hidden">
+                        ${objectItems || '<li class="px-3 py-2 text-gray-400">无候选项</li>'}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+    initCustomDropdown('relation-subject', 'relation-subject-dropdown');
+    initCustomDropdown('relation-object', 'relation-object-dropdown');
+    const saveBtn = document.getElementById('save-relation-btn');
+    if (saveBtn) saveBtn.style.display = '';
+}
+
+async function extractRelations() {
+    const container = document.getElementById('relations-content');
+    container.innerHTML = '<div class="flex items-center"><div class="spinner mr-2"></div>提取中...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/extract_relations`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                app_id: 0
+            })
+        });
+        const result = await response.json();
+
+        if (result.errorCode === 0 && result.data) {
+            const relations = result.data.relations || [];
+            if (relations.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">未能从内容中提取到关系</p>';
+                const saveBtn = document.getElementById('save-relation-btn');
+                if (saveBtn) saveBtn.style.display = 'none';
+                return;
+            }
+            const first = relations[0];
+            renderRelationInputs(first, relations.length);
+        } else if (result.message) {
+            container.innerHTML = `<p class="text-red-500">提取失败: ${result.message}</p>`;
+            const saveBtn = document.getElementById('save-relation-btn');
+            if (saveBtn) saveBtn.style.display = 'none';
+        } else {
+            container.innerHTML = '<p class="text-gray-500">未能提取到关系</p>';
+            const saveBtn = document.getElementById('save-relation-btn');
+            if (saveBtn) saveBtn.style.display = 'none';
+        }
+    } catch (error) {
+        container.innerHTML = `<p class="text-red-500">提取失败: ${error.message}</p>`;
+        const saveBtn = document.getElementById('save-relation-btn');
+        if (saveBtn) saveBtn.style.display = 'none';
+    }
+}
+
+async function saveRelation() {
+    const subjectInput = document.getElementById('relation-subject');
+    const predicateInput = document.getElementById('relation-predicate');
+    const objectInput = document.getElementById('relation-object');
+    if (!subjectInput || !predicateInput || !objectInput) {
+        showToast('请先点击"提取关系"获取解析结果', 'error');
+        return;
+    }
+    const subject = subjectInput.value.trim();
+    const predicate = predicateInput.value.trim();
+    const obj = objectInput.value.trim();
+    if (!subject || !predicate || !obj) {
+        showToast('请填写完整的主语、谓语、宾语', 'error');
+        return;
+    }
+
+    const saveBtn = document.getElementById('save-relation-btn');
+    const originalText = saveBtn ? saveBtn.textContent : '保存关系';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = '保存中...';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/save_relation`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                app_id: 0,
+                subject: subject,
+                predicate: predicate,
+                object: obj
+            }),
+            credentials: 'same-origin'
+        });
+        const contentType = response.headers.get('Content-Type') || '';
+        const text = await response.text();
+        if (!contentType.includes('application/json')) {
+            const snippet = text.substring(0, 100).replace(/\s+/g, ' ');
+            showToast('保存失败: 接口返回了非 JSON 内容 (状态码: ' + response.status + ')。可能原因：请求地址有误、服务异常或需要登录。响应片段: ' + snippet, 'error');
+            return;
+        }
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch (e) {
+            showToast('保存失败: 响应无法解析为 JSON。状态码: ' + response.status, 'error');
+            return;
+        }
+
+        if (result.errorCode === 0 && result.data) {
+            const d = result.data;
+            showToast(`保存成功\n主语节点ID: ${d.subject_node_id || '-'}\n宾语节点ID: ${d.object_node_id || '-'}\n关系ID: ${d.neo4j_relationship_id || '-'}`, 'success');
+            loadRelationGraph();
+        } else {
+            showToast('保存失败: ' + (result.message || '未知错误'), 'error');
+        }
+    } catch (error) {
+        showToast('保存失败: ' + error.message, 'error');
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadDetail);
+</script>
+{% endblock %}

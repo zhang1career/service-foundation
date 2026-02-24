@@ -1,0 +1,240 @@
+{% extends 'console/base.html' %}
+
+{% block title %}邮件账户{% endblock %}
+{% block page_title %}邮件服务 - 账户管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">邮件账户列表</h2>
+        <button onclick="openCreateModal()" class="btn btn-primary btn-sm">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            新增账户
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div id="account-list">
+            <div class="p-8 text-center text-gray-500">
+                <div class="spinner"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Modal -->
+<div id="account-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title" class="text-lg font-semibold">新增账户</h3>
+        </div>
+        <form id="account-form">
+            {% csrf_token %}
+            <div class="modal-body">
+                <input type="hidden" id="account-id" name="id">
+                <div class="form-group">
+                    <label class="form-label" for="account-email">邮箱地址 *</label>
+                    <input type="email" id="account-email" name="email" class="form-input" required placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="account-password">密码 *</label>
+                    <input type="password" id="account-password" name="password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="account-display-name">显示名称</label>
+                    <input type="text" id="account-display-name" name="display_name" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" id="account-active" name="is_active" checked class="mr-2">
+                        启用账户
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeModal()" class="btn btn-outline">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '/api/mail/accounts';
+
+async function loadAccounts() {
+    const container = document.getElementById('account-list');
+    
+    try {
+        const response = await fetch(API_BASE);
+        const result = await response.json();
+        
+        if (result.data && result.data.length > 0) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>邮箱地址</th>
+                            <th>显示名称</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            result.data.forEach(item => {
+                html += `
+                    <tr>
+                        <td>${item.account_id || item.id}</td>
+                        <td class="font-medium">${item.email}</td>
+                        <td>${item.display_name || '-'}</td>
+                        <td>
+                            ${item.is_active 
+                                ? '<span class="badge badge-success">启用</span>' 
+                                : '<span class="badge badge-warning">禁用</span>'}
+                        </td>
+                        <td>${formatDate(item.created_at)}</td>
+                        <td>
+                            <div class="flex space-x-2">
+                                <a href="/console/mail/${item.account_id || item.id}/mailboxes/" class="btn btn-outline btn-sm">邮箱</a>
+                                <button onclick="editAccount(${item.account_id || item.id})" class="btn btn-outline btn-sm">编辑</button>
+                                <button onclick="deleteAccount(${item.account_id || item.id})" class="btn btn-danger btn-sm">删除</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    <p class="text-lg font-medium">暂无邮件账户</p>
+                    <p class="text-sm">点击"新增账户"按钮创建邮件账户</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        container.innerHTML = `
+            <div class="p-8 text-center text-red-500">
+                <p>加载失败: ${error.message}</p>
+                <button onclick="loadAccounts()" class="btn btn-outline btn-sm mt-4">重试</button>
+            </div>
+        `;
+    }
+}
+
+function openCreateModal() {
+    document.getElementById('modal-title').textContent = '新增账户';
+    document.getElementById('account-form').reset();
+    document.getElementById('account-id').value = '';
+    document.getElementById('account-password').required = true;
+    document.getElementById('account-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('account-modal').classList.add('hidden');
+}
+
+async function editAccount(id) {
+    try {
+        const response = await fetch(`${API_BASE}/${id}`);
+        const result = await response.json();
+        
+        if (result.data) {
+            document.getElementById('modal-title').textContent = '编辑账户';
+            document.getElementById('account-id').value = result.data.account_id || result.data.id;
+            document.getElementById('account-email').value = result.data.email;
+            document.getElementById('account-password').value = '';
+            document.getElementById('account-password').required = false;
+            document.getElementById('account-display-name').value = result.data.display_name || '';
+            document.getElementById('account-active').checked = result.data.is_active;
+            document.getElementById('account-modal').classList.remove('hidden');
+        }
+    } catch (error) {
+        showToast('获取数据失败: ' + error.message, 'error');
+    }
+}
+
+async function deleteAccount(id) {
+    if (!confirm('确认删除该邮件账户？此操作将同时删除该账户下的所有邮箱。')) return;
+    
+    try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`${API_BASE}/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        
+        if (response.ok) {
+            showToast('删除成功', 'success');
+            loadAccounts();
+        } else {
+            throw new Error('删除失败');
+        }
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+document.getElementById('account-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('account-id').value;
+    const formData = {
+        email: document.getElementById('account-email').value,
+        display_name: document.getElementById('account-display-name').value,
+        is_active: document.getElementById('account-active').checked
+    };
+    
+    const password = document.getElementById('account-password').value;
+    if (password) {
+        formData.password = password;
+    }
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    try {
+        const url = id ? `${API_BASE}/${id}` : API_BASE;
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            showToast(id ? '更新成功' : '创建成功', 'success');
+            closeModal();
+            loadAccounts();
+        } else {
+            const data = await response.json();
+            throw new Error(data.message || '操作失败');
+        }
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+});
+
+document.getElementById('account-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+document.addEventListener('DOMContentLoaded', loadAccounts);
+</script>
+{% endblock %}

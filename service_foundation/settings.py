@@ -59,6 +59,13 @@ THREAD = env("THREAD", default=1)
 # Timezone
 GMT = env("GMT", default="+00:00")
 
+# App enable switches (controlled via environment variables)
+APP_CONSOLE_ENABLED = env.bool("APP_CONSOLE_ENABLED", default=True)
+APP_KNOW_ENABLED = env.bool("APP_KNOW_ENABLED", default=True)
+APP_MAILSERVER_ENABLED = env.bool("APP_MAILSERVER_ENABLED", default=True)
+APP_OSS_ENABLED = env.bool("APP_OSS_ENABLED", default=True)
+APP_SNOWFLAKE_ENABLED = env.bool("APP_SNOWFLAKE_ENABLED", default=True)
+
 # Application definition
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -70,10 +77,19 @@ INSTALLED_APPS = [
     "django_crontab",
     "rest_framework",
     "corsheaders",
-    "app_mailserver",
-    "app_oss",
-    "app_snowflake",
 ]
+
+# Dynamically add enabled apps
+if APP_CONSOLE_ENABLED:
+    INSTALLED_APPS.append("app_console")
+if APP_KNOW_ENABLED:
+    INSTALLED_APPS.append("app_know")
+if APP_MAILSERVER_ENABLED:
+    INSTALLED_APPS.append("app_mailserver")
+if APP_OSS_ENABLED:
+    INSTALLED_APPS.append("app_oss")
+if APP_SNOWFLAKE_ENABLED:
+    INSTALLED_APPS.append("app_snowflake")
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
@@ -105,6 +121,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "app_console.context_processors.console_context",
             ],
         },
     },
@@ -129,6 +146,20 @@ DATABASES = {
         },
         "TEST": {
             "NAME": env("DB_DEFAULT_TEST_NAME", default="sf_test"),
+        },
+    },
+    "know_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_KNOW_NAME", default="sf_know"),
+        "USER": env("DB_KNOW_USER", default="zhang"),
+        "PASSWORD": env("DB_KNOW_PASS", default=""),
+        "HOST": env("DB_KNOW_HOST", default="127.0.0.1"),
+        "PORT": env("DB_KNOW_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_KNOW_TEST_NAME", default="sf_know_test"),
         },
     },
     "mailserver_rw": {
@@ -175,10 +206,14 @@ DATABASES = {
     }
 }
 
-DATABASE_ROUTERS = [
-    "app_snowflake.db_routers.ReadWriteRouter",
-    "app_oss.db_routers.ReadWriteRouter",
-]
+# Dynamically configure database routers based on enabled apps
+DATABASE_ROUTERS = []
+if APP_SNOWFLAKE_ENABLED:
+    DATABASE_ROUTERS.append("app_snowflake.db_routers.ReadWriteRouter")
+if APP_OSS_ENABLED:
+    DATABASE_ROUTERS.append("app_oss.db_routers.ReadWriteRouter")
+if APP_KNOW_ENABLED:
+    DATABASE_ROUTERS.append("app_know.db_routers.ReadWriteRouter")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -279,9 +314,32 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_SNOWFLAKE", default="INFO"),
             "handlers": [env("LOG_HANDLER", default="console")],
         },
+        "app_know": {
+            "level": env("LOG_LEVEL_APP_KNOW", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
+        "common": {
+            "level": env("LOG_LEVEL_COMMON", default="INFO"),
+            "handlers": [env("LOG_HANDLER", default="console")],
+        },
     }
 }
 
 # traceid
 LOG_REQUEST_ID_HEADER = "X_Request_Id"
 REQUEST_ID_RESPONSE_HEADER = "X_Request_Id"
+
+# MongoDB Atlas configuration (for app_know)
+MONGO_ATLAS_USER = env("MONGO_ATLAS_USER", default="")
+# Knowledge component similarity reuse threshold (vector score >= this treats as same entity)
+KNOW_SIMILARITY_REUSE_THRESHOLD = env.float("KNOW_SIMILARITY_REUSE_THRESHOLD", default=0.99)
+MONGO_ATLAS_PASS = env("MONGO_ATLAS_PASS", default="")
+MONGO_ATLAS_HOST = env("MONGO_ATLAS_HOST", default="cluster.mongodb.net")
+MONGO_ATLAS_CLUSTER = env("MONGO_ATLAS_CLUSTER", default="cluster0")
+MONGO_ATLAS_DB = env("MONGO_ATLAS_DB", default="know")
+
+# Neo4j configuration (for app_know)
+NEO4J_URI = env("NEO4J_URI", default="bolt://localhost:7687")
+NEO4J_USER = env("NEO4J_USER", default="neo4j")
+NEO4J_PASS = env("NEO4J_PASS", default="")
+NEO4J_DATABASE = env("NEO4J_DATABASE", default="neo4j")

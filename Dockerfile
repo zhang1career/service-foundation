@@ -1,3 +1,14 @@
+# Stage 1: Build Neo4j NVL bundle (same-origin for Web Worker support)
+FROM node:20-alpine AS nvl-builder
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install
+COPY app_console/frontend/ app_console/frontend/
+COPY tailwind.config.js ./
+COPY build-nvl.js ./
+RUN npm run build
+
+# Stage 2: Python application
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -27,13 +38,16 @@ RUN groupadd -r service_foundation && useradd -r -g service_foundation service_f
 COPY requirements.txt .
 
 # Install Python dependencies with pip cache mounting
-# This allows pip to reuse downloaded packages between builds
+# Use PyTorch CPU index for smaller image and faster install (no CUDA)
 RUN --mount=type=cache,target=/root/.cache/pip,uid=0,gid=0 \
     pip install --upgrade pip \
-    && pip install -r requirements.txt
+    && pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Copy application code (this layer will only rebuild when code changes)
 COPY --chown=service_foundation:service_foundation . .
+# Override with built assets from node stage
+COPY --from=nvl-builder /app/app_console/static/console/css/tailwind.css /app/app_console/static/console/css/tailwind.css
+COPY --from=nvl-builder /app/app_console/static/console/js/nvl-bundle.js /app/app_console/static/console/js/nvl-bundle.js
 
 # Copy and set permissions for entrypoint script
 COPY --chown=service_foundation:service_foundation docker-entrypoint.sh /app/docker-entrypoint.sh

@@ -1,7 +1,13 @@
 import os
+import unittest
 from unittest import TestCase
 
-from moviepy import editor
+try:
+    from moviepy import editor
+    _VIDEO_SKIP = None
+except ImportError as e:
+    editor = None
+    _VIDEO_SKIP = "moviepy not installed: %s" % e
 
 WORK_SPACE = "./"
 GIF_FILE_NAME = "Summary_Daily_mag_7.gif"
@@ -22,7 +28,8 @@ STRICT_EXPERIMENTAL = "-2"
 MOV_FLAG_FAST_START = "faststart"
 
 
-class Test(TestCase):
+@unittest.skipIf(editor is None, _VIDEO_SKIP or "moviepy not installed")
+class TestVideoService(TestCase):
 
     def test_gif_movie(self):
         _gif_path = os.path.join(WORK_SPACE, GIF_FILE_NAME)

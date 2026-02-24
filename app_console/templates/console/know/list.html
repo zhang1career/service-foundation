@@ -1,0 +1,304 @@
+{% extends 'console/base.html' %}
+
+{% block title %}知识管理{% endblock %}
+{% block page_title %}知识管理{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <!-- Sub navigation -->
+    <div class="flex space-x-4 mb-6">
+        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">知识条目</a>
+        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">关系管理</a>
+        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">知识条目列表</h2>
+        <button onclick="openCreateModal()" class="btn btn-primary btn-sm">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            新增知识
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div id="knowledge-list">
+            <div class="p-8 text-center text-gray-500">
+                <div class="spinner"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Modal -->
+<div id="knowledge-modal" class="modal-backdrop hidden" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title" class="text-lg font-semibold">新增知识</h3>
+        </div>
+        <form id="knowledge-form">
+            {% csrf_token %}
+            <div class="modal-body">
+                <input type="hidden" id="knowledge-id" name="id">
+                <div class="form-group">
+                    <label class="form-label" for="knowledge-title">标题 *</label>
+                    <input type="text" id="knowledge-title" name="title" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="knowledge-source-type">来源类型</label>
+                    <input type="text" id="knowledge-source-type" name="source_type" class="form-input" placeholder="例如：document, url, ingestion">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="knowledge-description">描述</label>
+                    <textarea id="knowledge-description" name="description" class="form-textarea" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="knowledge-content">内容</label>
+                    <textarea id="knowledge-content" name="content" class="form-textarea" rows="8" placeholder="知识的正文内容"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeModal()" class="btn btn-outline">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '/api/know/knowledge';
+let currentPage = 1;
+const pageSize = 20;
+
+// Load knowledge list
+async function loadKnowledgeList(page = 1) {
+    currentPage = page;
+    const container = document.getElementById('knowledge-list');
+    const offset = (page - 1) * pageSize;
+    
+    try {
+        const response = await fetch(`${API_BASE}?offset=${offset}&limit=${pageSize}`);
+        const data = await response.json();
+        
+        if (data.errorCode !== 0) {
+            throw new Error(data.message || '加载失败');
+        }
+        
+        if (data.data && data.data.data && data.data.data.length > 0) {
+            const items = data.data.data;
+            const totalNum = data.data.total_num;
+            const totalPages = Math.ceil(totalNum / pageSize);
+            
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>来源类型</th>
+                            <th>描述</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            items.forEach(item => {
+                html += `
+                    <tr>
+                        <td>${item.id}</td>
+                        <td class="font-medium">${item.title || '-'}</td>
+                        <td><span class="badge badge-info">${item.source_type || '-'}</span></td>
+                        <td class="max-w-xs truncate">${item.description || '-'}</td>
+                        <td>${formatDate(item.ct)}</td>
+                        <td>
+                            <div class="flex space-x-2">
+                                <button onclick="viewKnowledge(${item.id})" class="btn btn-outline btn-sm">查看</button>
+                                <button onclick="editKnowledge(${item.id})" class="btn btn-outline btn-sm">编辑</button>
+                                <button onclick="deleteKnowledge(${item.id})" class="btn btn-danger btn-sm">删除</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            
+            // Pagination
+            if (totalPages > 1) {
+                html += renderPagination({ current_page: currentPage, total_pages: totalPages });
+            }
+            
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                    </svg>
+                    <p class="text-lg font-medium">暂无知识条目</p>
+                    <p class="text-sm">点击"新增知识"按钮创建第一条知识</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        container.innerHTML = `
+            <div class="p-8 text-center text-red-500">
+                <p>加载失败: ${error.message}</p>
+                <button onclick="loadKnowledgeList()" class="btn btn-outline btn-sm mt-4">重试</button>
+            </div>
+        `;
+    }
+}
+
+function renderPagination(pagination) {
+    const { current_page, total_pages } = pagination;
+    if (total_pages <= 1) return '';
+    
+    let html = '<div class="pagination">';
+    
+    html += `<button class="pagination-btn" ${current_page <= 1 ? 'disabled' : ''} onclick="loadKnowledgeList(${current_page - 1})">上一页</button>`;
+    
+    for (let i = 1; i <= Math.min(total_pages, 5); i++) {
+        html += `<button class="pagination-btn ${i === current_page ? 'active' : ''}" onclick="loadKnowledgeList(${i})">${i}</button>`;
+    }
+    
+    html += `<button class="pagination-btn" ${current_page >= total_pages ? 'disabled' : ''} onclick="loadKnowledgeList(${current_page + 1})">下一页</button>`;
+    
+    html += '</div>';
+    return html;
+}
+
+// Modal functions
+function openCreateModal() {
+    document.getElementById('modal-title').textContent = '新增知识';
+    document.getElementById('knowledge-form').reset();
+    document.getElementById('knowledge-id').value = '';
+    var modal = document.getElementById('knowledge-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+}
+
+function closeModal() {
+    var modal = document.getElementById('knowledge-modal');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+}
+
+// View knowledge
+function viewKnowledge(id) {
+    window.location.href = `/console/know/${id}/`;
+}
+
+// Edit knowledge
+async function editKnowledge(id) {
+    try {
+        const response = await fetch(`${API_BASE}/${id}`);
+        const data = await response.json();
+        
+        if (data.errorCode !== 0) {
+            throw new Error(data.message || '获取数据失败');
+        }
+        
+        if (data.data) {
+            document.getElementById('modal-title').textContent = '编辑知识';
+            document.getElementById('knowledge-id').value = data.data.id;
+            document.getElementById('knowledge-title').value = data.data.title || '';
+            document.getElementById('knowledge-source-type').value = data.data.source_type || '';
+            document.getElementById('knowledge-description').value = data.data.description || '';
+            document.getElementById('knowledge-content').value = data.data.content || '';
+            var modal = document.getElementById('knowledge-modal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+    } catch (error) {
+        showToast('获取数据失败: ' + error.message, 'error');
+    }
+}
+
+// Delete knowledge
+async function deleteKnowledge(id) {
+    if (!confirm('确认删除该知识条目？此操作不可恢复。')) return;
+    
+    try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const response = await fetch(`${API_BASE}/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.errorCode !== 0) {
+            throw new Error(data.message || '删除失败');
+        }
+        
+        showToast('删除成功', 'success');
+        loadKnowledgeList(currentPage);
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+// Form submit
+document.getElementById('knowledge-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const id = document.getElementById('knowledge-id').value;
+    const formData = {
+        title: document.getElementById('knowledge-title').value,
+        source_type: document.getElementById('knowledge-source-type').value,
+        description: document.getElementById('knowledge-description').value,
+        content: document.getElementById('knowledge-content').value
+    };
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    try {
+        const url = id ? `${API_BASE}/${id}` : API_BASE;
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.errorCode !== 0) {
+            throw new Error(data.message || '操作失败');
+        }
+        
+        showToast(id ? '更新成功' : '创建成功', 'success');
+        closeModal();
+        loadKnowledgeList(currentPage);
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+});
+
+// Close modal on backdrop click
+document.getElementById('knowledge-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// Initial load
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('knowledge-modal').style.display = 'none';
+    loadKnowledgeList();
+});
+</script>
+{% endblock %}

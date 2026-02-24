@@ -1,0 +1,87 @@
+{% extends 'console/base.html' %}
+
+{% block title %}仪表盘{% endblock %}
+{% block page_title %}仪表盘{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-bold text-gray-800 mb-2">欢迎使用 Service Foundation 控制台</h2>
+    <p class="text-gray-600">在这里管理所有微服务应用</p>
+</div>
+
+<!-- App Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    {% for key, app in apps.items %}
+    <div class="card {% if not app.enabled %}opacity-50{% endif %}">
+        <div class="card-body">
+            <div class="flex items-center mb-4">
+                <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mr-4">
+                    {% if app.icon == 'book' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                    </svg>
+                    {% elif app.icon == 'mail' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    {% elif app.icon == 'folder' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                    </svg>
+                    {% elif app.icon == 'hash' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"></path>
+                    </svg>
+                    {% endif %}
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">{{ app.name }}</h3>
+                    {% if app.enabled %}
+                    <span class="badge badge-success">已启用</span>
+                    {% else %}
+                    <span class="badge badge-warning">未启用</span>
+                    {% endif %}
+                </div>
+            </div>
+            <p class="text-gray-600 text-sm mb-4">{{ app.description }}</p>
+            {% if app.enabled %}
+                {% if key == 'know' %}
+                <a href="{% url 'console:know-list' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'mail' %}
+                <a href="{% url 'console:mail-accounts' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'oss' %}
+                <a href="{% url 'console:oss-browser' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'snowflake' %}
+                <a href="{% url 'console:snowflake' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% endif %}
+            {% else %}
+            <button class="btn btn-outline btn-sm w-full" disabled>未启用</button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Quick Stats Section -->
+<div class="mt-8">
+    <h3 class="text-lg font-semibold text-gray-800 mb-4">系统信息</h3>
+    <div class="card">
+        <div class="card-body">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">API 端点</p>
+                    <p class="font-mono text-sm">/api/know/, /api/mail/, /api/oss/, /api/snowflake/</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">控制台版本</p>
+                    <p class="font-semibold">v1.0.0</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">Django 版本</p>
+                    <p class="font-semibold">4.1</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
