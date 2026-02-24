@@ -1,4 +1,4 @@
-{% load static %}
+{% load static console_static %}
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/htmx.org@2.0.0"></script>
     <link rel="stylesheet" href="{% static 'console/css/tailwind.css' %}">
     <link rel="stylesheet" href="{% static 'console/css/style.css' %}">
+    {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-gray-100 min-h-screen text-sm">
     <div class="flex h-screen overflow-hidden">
@@ -114,6 +115,7 @@
     <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
     
     <script src="{% static 'console/js/main.js' %}"></script>
+    <script src="{% static_mtime 'console/js/list-actions.js' %}"></script>
     <script>
     (function() {
         var SIDEBAR_KEY = 'console_sidebar_collapsed';

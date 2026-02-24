@@ -163,6 +163,24 @@ async function apiRequest(url, method = 'GET', data = null) {
     }
 }
 
+// Global ESC key: close any visible modal (use capture so we run before focused input/textarea)
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    // Error modal: click confirm button to close
+    var errModal = document.getElementById('console-error-modal-backdrop');
+    if (errModal) {
+        var btn = errModal.querySelector('.console-modal-confirm');
+        if (btn) btn.click();
+        return;
+    }
+    // .modal-backdrop (form modals): close by adding hidden + display:none
+    var modals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
+    modals.forEach(function (m) {
+        m.classList.add('hidden');
+        m.style.display = 'none';
+    });
+}, true);  // capture phase: run before event reaches focused input/textarea
+
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
     // Add any initialization code here

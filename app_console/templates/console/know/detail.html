@@ -9,15 +9,9 @@
 {% endblock %}
 
 {% block content %}
+{% url 'console:know-list' as know_list_url %}
 {% csrf_token %}
-<div class="mb-6">
-    <a href="{% url 'console:know-list' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
-        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-        </svg>
-        返回列表
-    </a>
-</div>
+{% include 'console/includes/detail_back_link.html' with back_url=know_list_url back_label="返回列表" %}
 
 <div id="knowledge-detail">
     <div class="p-8 text-center text-gray-500">
@@ -75,9 +69,6 @@ async function loadDetail() {
                 <div class="card mb-6">
                     <div class="card-header">
                         <h2 class="text-xl font-semibold">${data.title || '未命名'}</h2>
-                        <div class="flex space-x-2">
-                            <button onclick="window.location.href='{% url 'console:know-list' %}'" class="btn btn-outline btn-sm">返回</button>
-                        </div>
                     </div>
                     <div class="card-body">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
