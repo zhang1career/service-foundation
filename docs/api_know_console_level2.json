@@ -1,0 +1,417 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "知识库应用 API (app_know)",
+    "description": "知识库应用的 REST API 接口文档",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/know",
+      "description": "API base path"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "StdResponse": {
+        "type": "object",
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "0 表示成功"
+          },
+          "data": {
+            "description": "响应数据"
+          },
+          "message": {
+            "type": "string",
+            "description": "错误或提示信息"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/knowledge/{entity_id}": {
+      "put": {
+        "summary": "更新知识",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "source_type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/summary": {
+      "put": {
+        "summary": "更新摘要",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "app_id"
+                ],
+                "properties": {
+                  "app_id": {
+                    "type": "integer"
+                  },
+                  "summary": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/graph_node": {
+      "patch": {
+        "summary": "更新图节点名称",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "cid",
+                  "name"
+                ],
+                "properties": {
+                  "cid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "更新图节点名称（POST）",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "cid",
+                  "name"
+                ],
+                "properties": {
+                  "cid": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/graph_edge": {
+      "patch": {
+        "summary": "更新图关系类型",
+        "description": "删除旧关系并创建新类型关系",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "from_cid",
+                  "to_cid",
+                  "old_type",
+                  "new_type"
+                ],
+                "properties": {
+                  "from_cid": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "同 from_cid"
+                  },
+                  "to_cid": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "同 to_cid"
+                  },
+                  "old_type": {
+                    "type": "string"
+                  },
+                  "new_type": {
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "更新图关系类型（POST）",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "from_cid",
+                  "to_cid",
+                  "old_type",
+                  "new_type"
+                ],
+                "properties": {
+                  "from_cid": {
+                    "type": "string"
+                  },
+                  "to_cid": {
+                    "type": "string"
+                  },
+                  "old_type": {
+                    "type": "string"
+                  },
+                  "new_type": {
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/relationships/{relationship_id}": {
+      "put": {
+        "summary": "更新关系",
+        "parameters": [
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "app_id",
+                  "properties"
+                ],
+                "properties": {
+                  "app_id": {
+                    "type": "string"
+                  },
+                  "properties": {
+                    "type": "object",
+                    "description": "要更新的属性"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

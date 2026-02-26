@@ -1,0 +1,762 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "知识库应用 API (app_know)",
+    "description": "知识库应用的 REST API 接口文档",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/know",
+      "description": "API base path"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "StdResponse": {
+        "type": "object",
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "0 表示成功"
+          },
+          "data": {
+            "description": "响应数据"
+          },
+          "message": {
+            "type": "string",
+            "description": "错误或提示信息"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/knowledge": {
+      "get": {
+        "summary": "知识列表",
+        "description": "分页获取知识列表。当传入 summary 时，通过 AIGC embedding 转为向量，在 Atlas knowledge_summaries 集合中按语义相似度查询，返回相似度不低于 KNOW_SIMILARITY_MISMATCH_THRESHOLD 的 top5，结果中每项含 similarity 字段（0～1）。",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "偏移量（summary 筛选时无效）"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "每页数量（summary 筛选时无效，固定 top5）"
+          },
+          {
+            "name": "source_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "来源类型"
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "摘要筛选：输入文本经 embedding 后按语义相似度查询，返回匹配的 top5 知识"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功。data 含 data、total_num、next_offset、filtered_by_summary。当 filtered_by_summary 为 true 时，data 中每项含 similarity 字段。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建知识",
+        "description": "创建知识实体",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "description": "标题（必填）"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "描述"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "内容"
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "来源类型"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/query": {
+      "get": {
+        "summary": "逻辑查询（GET）",
+        "description": "自然语言或关键词逻辑查询，返回 Atlas、MySQL、Neo4j 的综合排序结果。支持多跳遍历、谓词过滤及 triple 格式输出。",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "查询字符串（query 或 q）"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "查询字符串（同 query）"
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "应用 ID"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "结果数量上限 1-1000"
+          },
+          {
+            "name": "max_hops",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1,
+              "maximum": 5
+            },
+            "description": "Neo4j 遍历深度"
+          },
+          {
+            "name": "predicate",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "按谓词过滤关系"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "list",
+                "triple"
+              ]
+            },
+            "description": "输出格式：list（默认）或 triple"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "逻辑查询（POST）",
+        "description": "同 GET，参数可通过 body 传递",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "q": {
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "default": 50
+                  },
+                  "max_hops": {
+                    "type": "integer",
+                    "default": 1
+                  },
+                  "predicate": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "list",
+                      "triple"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/summaries": {
+      "get": {
+        "summary": "摘要列表",
+        "description": "分页获取知识摘要列表",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "应用 ID"
+          },
+          {
+            "name": "knowledge_id",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "知识 ID 过滤"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "每页数量 1-1000"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "偏移量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/relationships": {
+      "get": {
+        "summary": "关系列表",
+        "description": "查询关系，支持 list 和 triple 格式",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "应用 ID（必填）"
+          },
+          {
+            "name": "knowledge_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "relationship_type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "predicate",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "list",
+                "triple"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建关系",
+        "description": "创建 knowledge_entity 或 knowledge_knowledge 类型的关系",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "app_id",
+                  "relationship_type",
+                  "source_knowledge_id"
+                ],
+                "properties": {
+                  "app_id": {
+                    "type": "string"
+                  },
+                  "relationship_type": {
+                    "type": "string"
+                  },
+                  "source_knowledge_id": {
+                    "type": "integer"
+                  },
+                  "target_knowledge_id": {
+                    "type": "integer",
+                    "description": "knowledge_knowledge 时必填"
+                  },
+                  "entity_type": {
+                    "type": "string",
+                    "description": "knowledge_entity 时必填"
+                  },
+                  "entity_id": {
+                    "type": "string",
+                    "description": "knowledge_entity 时必填"
+                  },
+                  "predicate": {
+                    "type": "string"
+                  },
+                  "properties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}": {
+      "get": {
+        "summary": "获取知识详情",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/summary": {
+      "get": {
+        "summary": "获取摘要",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "生成摘要",
+        "description": "触发摘要生成并持久化",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_id": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "use_ai": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/extract_relations": {
+      "post": {
+        "summary": "抽取关系",
+        "description": "从知识内容中抽取谓词逻辑关系，存入 Atlas + Neo4j。需先生成摘要。",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_id": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功，返回 relations 数组，每项含 subject, predicate, object, subject_candidates, object_candidates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/save_relation": {
+      "post": {
+        "summary": "保存关系",
+        "description": "将 (subject, predicate, object) 三元组保存到 Neo4j",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subject",
+                  "predicate",
+                  "object"
+                ],
+                "properties": {
+                  "app_id": {
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "predicate": {
+                    "type": "string"
+                  },
+                  "object": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/relation_graph": {
+      "get": {
+        "summary": "获取关系图",
+        "description": "获取指定知识的 Neo4j 关系图",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/relationships/{relationship_id}": {
+      "get": {
+        "summary": "获取关系详情",
+        "parameters": [
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

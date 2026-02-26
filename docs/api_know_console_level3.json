@@ -1,0 +1,171 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "知识库应用 API (app_know)",
+    "description": "知识库应用的 REST API 接口文档",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/know",
+      "description": "API base path"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "StdResponse": {
+        "type": "object",
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "0 表示成功"
+          },
+          "data": {
+            "description": "响应数据"
+          },
+          "message": {
+            "type": "string",
+            "description": "错误或提示信息"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/atlas_repl": {
+      "post": {
+        "summary": "Atlas REPL 执行",
+        "description": "执行一条 mongosh 风格命令，返回输出。用于知识详情页的终端交互框。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "line": {
+                    "type": "string",
+                    "description": "要执行的命令"
+                  },
+                  "session": {
+                    "type": "object",
+                    "description": "会话状态"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}": {
+      "delete": {
+        "summary": "删除知识",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/{entity_id}/summary": {
+      "delete": {
+        "summary": "删除摘要",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/relationships/{relationship_id}": {
+      "delete": {
+        "summary": "删除关系",
+        "parameters": [
+          {
+            "name": "relationship_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
