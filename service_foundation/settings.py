@@ -333,8 +333,6 @@ REQUEST_ID_RESPONSE_HEADER = "X_Request_Id"
 MONGO_ATLAS_USER = env("MONGO_ATLAS_USER", default="")
 # Knowledge component similarity reuse threshold (vector score >= this treats as same entity)
 KNOW_SIMILARITY_REUSE_THRESHOLD = env.float("KNOW_SIMILARITY_REUSE_THRESHOLD", default=0.99)
-# Knowledge list summary filter: minimum similarity score (0.0-1.0) to include in results
-KNOW_SIMILARITY_MISMATCH_THRESHOLD = env.float("KNOW_SIMILARITY_MISMATCH_THRESHOLD", default=0.5)
 MONGO_ATLAS_PASS = env("MONGO_ATLAS_PASS", default="")
 MONGO_ATLAS_HOST = env("MONGO_ATLAS_HOST", default="cluster.mongodb.net")
 MONGO_ATLAS_CLUSTER = env("MONGO_ATLAS_CLUSTER", default="cluster0")

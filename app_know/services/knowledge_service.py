@@ -4,7 +4,7 @@ Generated.
 """
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app_know.models import Knowledge
 from app_know.repos import (
@@ -65,17 +65,17 @@ class KnowledgeService(Singleton):
         """
         List knowledge entities with pagination.
         When summary is provided: semantic search via Atlas knowledge_summaries,
-        filter by KNOW_SIMILARITY_MISMATCH_THRESHOLD, return top 5 with similarity.
+        return top 5 with similarity.
         Otherwise: standard list with offset/limit/source_type.
         Returns dict with data, total_num, next_offset, filtered_by_summary (bool).
         """
         if summary is not None and str(summary).strip():
             # Filter by summary: vector search -> get kid list -> fetch from MySQL
             q = str(summary).strip()
-            logger.info("[list_knowledge] summary filter path: query=%r", q[:80])
+            logger.debug("[list_knowledge] summary filter path: query=%r", q[:80])
             try:
                 vector_results = search_summaries_by_vector_filtered(query=q, app_id=0, top_k=5)
-                logger.info("[list_knowledge] vector_results count=%s, kids=%s", len(vector_results), [r.get("kid") for r in vector_results[:5]])
+                logger.debug("[list_knowledge] vector_results count=%s, kids=%s", len(vector_results), [r.get("kid") for r in vector_results[:5]])
             except Exception as e:
                 logger.warning("[list_knowledge] summary vector search failed: %s", e)
                 return {
@@ -94,7 +94,7 @@ class KnowledgeService(Singleton):
             kid_to_score = {r["kid"]: r.get("score", 0.0) for r in vector_results}
             kids = [r["kid"] for r in vector_results]
             entities = get_knowledge_by_ids(kids)
-            logger.info("[list_knowledge] get_knowledge_by_ids: requested=%s, got=%s", kids, [e.id for e in entities])
+            logger.debug("[list_knowledge] get_knowledge_by_ids: requested=%s, got=%s", kids, [e.id for e in entities])
             items_with_sim = [
                 _entity_to_dict(e, similarity=kid_to_score.get(e.id))
                 for e in entities
@@ -118,6 +118,31 @@ class KnowledgeService(Singleton):
             "next_offset": next_offset,
             "filtered_by_summary": False,
         }
+
+    def query_knowledge_some_like(self, summary: str) -> List[Dict[str, Any]]:
+        """
+        Query knowledge by summary (semantic search).
+        Returns list of up to 5 knowledge dicts with similarity, ordered by similarity desc.
+        Returns empty list if not found.
+        """
+        q = (str(summary) or "").strip()
+        if not q:
+            return []
+        try:
+            vector_results = search_summaries_by_vector_filtered(query=q, app_id=0, top_k=5)
+        except Exception as e:
+            logger.warning("[query_knowledge_some_like] vector search failed: %s", e)
+            return []
+        if not vector_results:
+            return []
+        kid_to_score = {r["kid"]: r.get("score", 0.0) for r in vector_results}
+        kids = [r["kid"] for r in vector_results]
+        entities = get_knowledge_by_ids(kids)
+        return [
+            _entity_to_dict(e, similarity=kid_to_score.get(e.id))
+            for e in entities
+            if e.id in kid_to_score
+        ]
 
     def get_knowledge(self, entity_id: int) -> Dict[str, Any]:
         """Get one entity by id. Raises ValueError if invalid id or not found."""

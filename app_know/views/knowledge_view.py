@@ -49,7 +49,7 @@ class KnowledgeListView(APIView):
             source_type = (request.GET.get("source_type") or "").strip() or None
             summary = (request.GET.get("summary") or "").strip() or None
             if summary:
-                logger.info("[KnowledgeListView.get] summary filter: query=%r", summary[:100] if summary else "")
+                logger.debug("[KnowledgeListView.get] summary filter: query=%r", summary[:100] if summary else "")
             service = KnowledgeService()
             page_data = service.list_knowledge(
                 offset=offset,
@@ -102,6 +102,25 @@ class KnowledgeListView(APIView):
             return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception("[KnowledgeListView.post] Error: %s", e)
+            return resp_exception(e)
+
+
+class KnowledgeSomeLikeView(APIView):
+    """Query knowledge by summary (semantic search). Returns array of top 5 by similarity desc."""
+
+    def get(self, request, *args, **kwargs):
+        summary = (request.GET.get("summary") or "").strip()
+        if not summary:
+            return resp_err("summary is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+        try:
+            service = KnowledgeService()
+            out = service.query_knowledge_some_like(summary)
+            return resp_ok(out)
+        except (DatabaseError, IntegrityError) as e:
+            logger.exception("[KnowledgeSomeLikeView.get] DB error: %s", e)
+            return resp_err(str(e), code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("[KnowledgeSomeLikeView.get] Error: %s", e)
             return resp_exception(e)
 
 
