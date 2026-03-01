@@ -61,14 +61,30 @@ class KnowledgeService(Singleton):
         limit: int = 100,
         source_type: Optional[str] = None,
         summary: Optional[str] = None,
+        title: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         List knowledge entities with pagination.
-        When summary is provided: semantic search via Atlas knowledge_summaries,
+        When title is provided: left-aligned prefix match on title field (title takes priority over summary).
+        When summary is provided (and title is not): semantic search via Atlas knowledge_summaries,
         return top 5 with similarity.
         Otherwise: standard list with offset/limit/source_type.
         Returns dict with data, total_num, next_offset, filtered_by_summary (bool).
         """
+        if title is not None and str(title).strip():
+            t = str(title).strip()
+            if offset < 0:
+                raise ValueError("offset must be >= 0")
+            if limit <= 0 or limit > LIMIT_LIST:
+                raise ValueError(f"limit must be in 1..{LIMIT_LIST}")
+            items, total = list_knowledge(offset=offset, limit=limit, source_type=source_type, title=t)
+            next_offset = offset + len(items) if (offset + len(items)) < total else None
+            return {
+                "data": [_entity_to_dict(e) for e in items],
+                "total_num": total,
+                "next_offset": next_offset,
+                "filtered_by_summary": False,
+            }
         if summary is not None and str(summary).strip():
             # Filter by summary: vector search -> get kid list -> fetch from MySQL
             q = str(summary).strip()

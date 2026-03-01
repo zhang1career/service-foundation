@@ -59,9 +59,11 @@ def list_knowledge(
     offset: int = 0,
     limit: int = 100,
     source_type: Optional[str] = None,
+    title: Optional[str] = None,
 ) -> Tuple[List[Knowledge], int]:
     """
-    List knowledge entities with optional filter by source_type.
+    List knowledge entities with optional filter by source_type and title.
+    When title is provided, performs left-aligned prefix match (title LIKE 'xxx%').
     Returns (list of entities, total count).
     Raises ValueError for invalid offset or limit.
     """
@@ -73,6 +75,8 @@ def list_knowledge(
         qs = Knowledge.objects.using(_DB).all().order_by("-ut")
         if source_type is not None and source_type.strip():
             qs = qs.filter(source_type=source_type.strip())
+        if title is not None and title.strip():
+            qs = qs.filter(title__startswith=title.strip())
         total = qs.count()
         items = list(qs[offset : offset + limit])
         return items, total

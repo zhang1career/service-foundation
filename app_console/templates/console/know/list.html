@@ -29,11 +29,12 @@
     </div>
     <div class="border-b border-gray-200 px-4 py-3 bg-gray-50">
         <div class="flex items-center gap-2">
-            <input type="text" id="filter-summary" class="form-input text-sm w-64" placeholder="摘要" />
-            <button type="button" onclick="applySummaryFilter()" class="btn btn-outline btn-sm p-1.5" title="搜索">
+            <input type="text" id="filter-title" class="form-input text-sm w-48" placeholder="标题（前缀匹配）" />
+            <input type="text" id="filter-summary" class="form-input text-sm w-48" placeholder="摘要（语义搜索）" />
+            <button type="button" onclick="applyFilters()" class="btn btn-outline btn-sm p-1.5" title="搜索">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </button>
-            <button type="button" id="clear-summary-btn" onclick="clearSummaryFilter()" class="btn btn-outline btn-sm p-1.5 hidden" title="清除">
+            <button type="button" id="clear-filters-btn" onclick="clearFilters()" class="btn btn-outline btn-sm p-1.5 hidden" title="清除">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
         </div>
@@ -114,6 +115,7 @@ function compactJsonForSave(str) {
 
 let descriptionEditor = null;
 let currentPage = 1;
+let currentTitleFilter = '';    // 当前标题筛选条件
 let currentSummaryFilter = '';  // 当前摘要筛选条件
 const pageSize = 20;
 
@@ -123,7 +125,9 @@ async function loadKnowledgeList(page = 1) {
     const container = document.getElementById('knowledge-list');
     const offset = (page - 1) * pageSize;
     let url = `${API_BASE}?offset=${offset}&limit=${pageSize}`;
-    if (currentSummaryFilter) {
+    if (currentTitleFilter) {
+        url += '&title=' + encodeURIComponent(currentTitleFilter);
+    } else if (currentSummaryFilter) {
         url += '&summary=' + encodeURIComponent(currentSummaryFilter);
     }
 
@@ -141,8 +145,8 @@ async function loadKnowledgeList(page = 1) {
             const filteredBySummary = data.data.filtered_by_summary === true;
             const totalPages = filteredBySummary ? 1 : Math.ceil(totalNum / pageSize);
 
-            const clearBtn = document.getElementById('clear-summary-btn');
-            if (clearBtn) clearBtn.classList.toggle('hidden', !currentSummaryFilter);
+            const clearBtn = document.getElementById('clear-filters-btn');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !currentTitleFilter && !currentSummaryFilter);
 
             let html = `
                 <table class="data-table">
@@ -184,8 +188,8 @@ async function loadKnowledgeList(page = 1) {
             
             container.innerHTML = html;
         } else {
-            const clearBtn = document.getElementById('clear-summary-btn');
-            if (clearBtn) clearBtn.classList.toggle('hidden', !currentSummaryFilter);
+            const clearBtn = document.getElementById('clear-filters-btn');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !currentTitleFilter && !currentSummaryFilter);
             container.innerHTML = `
                 <div class="empty-state">
                     <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -356,18 +360,23 @@ document.getElementById('knowledge-modal').addEventListener('click', function(e)
     if (e.target === this) closeModal();
 });
 
-// Summary filter
-function applySummaryFilter() {
-    const input = document.getElementById('filter-summary');
-    currentSummaryFilter = input ? (input.value || '').trim() : '';
+// Filters
+function applyFilters() {
+    const titleInput = document.getElementById('filter-title');
+    const summaryInput = document.getElementById('filter-summary');
+    currentTitleFilter = titleInput ? (titleInput.value || '').trim() : '';
+    currentSummaryFilter = summaryInput ? (summaryInput.value || '').trim() : '';
     loadKnowledgeList(1);
 }
 
-function clearSummaryFilter() {
+function clearFilters() {
+    currentTitleFilter = '';
     currentSummaryFilter = '';
-    const input = document.getElementById('filter-summary');
-    if (input) input.value = '';
-    document.getElementById('clear-summary-btn')?.classList.add('hidden');
+    const titleInput = document.getElementById('filter-title');
+    const summaryInput = document.getElementById('filter-summary');
+    if (titleInput) titleInput.value = '';
+    if (summaryInput) summaryInput.value = '';
+    document.getElementById('clear-filters-btn')?.classList.add('hidden');
     loadKnowledgeList(1);
 }
 

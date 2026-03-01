@@ -37,7 +37,7 @@ class KnowledgeListView(APIView):
     """List and create knowledge entities."""
 
     def get(self, request, *args, **kwargs):
-        """List knowledge with optional offset, limit, source_type."""
+        """List knowledge with optional offset, limit, source_type, title, summary."""
         try:
             raw_offset = request.GET.get("offset", 0)
             raw_limit = request.GET.get("limit", 100)
@@ -47,8 +47,11 @@ class KnowledgeListView(APIView):
             except (TypeError, ValueError):
                 raise ValueError("offset and limit must be integers")
             source_type = (request.GET.get("source_type") or "").strip() or None
+            title = (request.GET.get("title") or "").strip() or None
             summary = (request.GET.get("summary") or "").strip() or None
-            if summary:
+            if title:
+                logger.debug("[KnowledgeListView.get] title filter: query=%r", title[:100] if title else "")
+            elif summary:
                 logger.debug("[KnowledgeListView.get] summary filter: query=%r", summary[:100] if summary else "")
             service = KnowledgeService()
             page_data = service.list_knowledge(
@@ -56,6 +59,7 @@ class KnowledgeListView(APIView):
                 limit=limit,
                 source_type=source_type,
                 summary=summary,
+                title=title,
             )
             return resp_ok(page_data)
         except ValueError as e:
