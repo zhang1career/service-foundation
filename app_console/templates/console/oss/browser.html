@@ -124,25 +124,58 @@ let currentBucket = '';
 let currentPrefix = '';
 let pathHistory = [];
 
-// Load bucket list
+// Load bucket list from ListBuckets API + manual input supplement
 async function loadBuckets() {
     const container = document.getElementById('bucket-list');
-    
-    // Note: S3 doesn't have a standard "list buckets" API in our implementation
-    // For now, we'll show a simple input to enter bucket name
+    container.innerHTML = `
+        <div class="p-4 text-center text-gray-500">
+            <div class="spinner"></div>
+            <p class="mt-2 text-sm">加载存储桶...</p>
+        </div>
+    `;
+
+    let apiBuckets = [];
+    try {
+        const response = await fetch(API_BASE + '/');
+        if (response.ok) {
+            const text = await response.text();
+            const parser = new DOMParser();
+            const xml = parser.parseFromString(text, 'text/xml');
+            apiBuckets = Array.from(xml.querySelectorAll('Bucket > Name')).map(n => n.textContent?.trim()).filter(Boolean);
+        }
+    } catch (e) {
+        console.warn('ListBuckets failed:', e);
+    }
+
     container.innerHTML = `
         <div class="p-4">
-            <div class="form-group mb-0">
+            <div id="api-bucket-list" class="mb-4">
+                <p class="text-sm text-gray-500 mb-2">存储桶列表</p>
+                <div id="api-bucket-list-content"></div>
+            </div>
+            <div class="form-group mb-0 border-t pt-4">
+                <label class="text-sm text-gray-500 mb-1 block">手动输入名称访问</label>
                 <input type="text" id="bucket-input" class="form-input" placeholder="输入存储桶名称">
                 <button onclick="selectBucketFromInput()" class="btn btn-primary btn-sm w-full mt-2">访问</button>
             </div>
             <div id="recent-buckets" class="mt-4">
-                <p class="text-sm text-gray-500 mb-2">最近访问:</p>
+                <p class="text-sm text-gray-500 mb-2">最近访问</p>
                 <div id="recent-bucket-list"></div>
             </div>
         </div>
     `;
-    
+
+    const apiListEl = document.getElementById('api-bucket-list-content');
+    if (apiBuckets.length > 0) {
+        apiListEl.innerHTML = apiBuckets.map(bucket => {
+            const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            return `<button data-bucket="${esc(bucket)}" onclick="selectBucket(this.dataset.bucket)" 
+                    class="block w-full text-left px-3 py-2 text-sm rounded hover:bg-gray-100 ${currentBucket === bucket ? 'bg-blue-50 text-blue-600' : ''}">${esc(bucket)}</button>`;
+        }).join('');
+    } else {
+        apiListEl.innerHTML = '<p class="text-sm text-gray-400">暂无存储桶</p>';
+    }
+
     loadRecentBuckets();
 }
 
@@ -296,8 +329,8 @@ async function loadObjects() {
                     <td>${formatDate(obj.lastModified)}</td>
                     <td>
                         <div class="flex space-x-2">
-                            <button onclick="downloadObject('${obj.key}')" class="btn btn-outline btn-sm">下载</button>
-                            <button onclick="deleteObject('${obj.key}')" class="btn btn-danger btn-sm">删除</button>
+                            <button type="button" onclick="downloadObject('${obj.key}')" class="btn btn-outline btn-sm p-1.5" title="下载"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg></button>
+                            <button type="button" onclick="deleteObject('${obj.key}')" class="btn btn-danger btn-sm p-1.5" title="删除"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                         </div>
                     </td>
                 </tr>

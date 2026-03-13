@@ -1,0 +1,50 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "知识库应用 API (app_know)",
+    "description": "知识库应用的 REST API 接口文档",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "/api/know", "description": "API base path" }
+  ],
+  "paths": {
+    "/knowledge/some_like": {
+      "get": {
+        "summary": "按摘要相似查询知识",
+        "description": "通过 summary 参数进行 Atlas 向量语义相似度检索，按相似度倒序返回 TOP5 知识。data 为知识数组，可为空。",
+        "parameters": [
+          {
+            "name": "summary",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "摘要文本，经 embedding 后按语义相似度检索"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功。data 为知识数组（按相似度倒序，最多 5 条），每项含 id, title, description, content, source_type, ct, ut, similarity；无匹配时为空数组 []",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "StdResponse": {
+        "type": "object",
+        "properties": {
+          "errorCode": { "type": "integer", "description": "0 表示成功" },
+          "data": { "description": "响应数据" },
+          "message": { "type": "string", "description": "错误或提示信息" }
+        }
+      }
+    }
+  }
+}

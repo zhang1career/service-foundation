@@ -23,6 +23,27 @@ def _valid_entity_id(entity_id) -> bool:
     return entity_id > 0
 
 
+def get_knowledge_by_ids(entity_ids: List[int]) -> List[Knowledge]:
+    """
+    Get knowledge entities by a list of ids. Preserves order of ids in result.
+    Returns empty list if entity_ids is empty or invalid.
+    """
+    if not entity_ids:
+        return []
+    valid_ids = [i for i in entity_ids if _valid_entity_id(i)]
+    if not valid_ids:
+        return []
+    try:
+        qs = Knowledge.objects.using(_DB).filter(id__in=valid_ids)
+        items = list(qs)
+        # Preserve order of input ids
+        id_to_entity = {e.id: e for e in items}
+        return [id_to_entity[i] for i in valid_ids if i in id_to_entity]
+    except Exception as e:
+        logger.exception("[get_knowledge_by_ids] Error: %s", e)
+        raise
+
+
 def get_knowledge_by_id(entity_id: int) -> Optional[Knowledge]:
     """Get knowledge entity by id. Returns None if not found or invalid id."""
     if not _valid_entity_id(entity_id):
@@ -38,9 +59,11 @@ def list_knowledge(
     offset: int = 0,
     limit: int = 100,
     source_type: Optional[str] = None,
+    title: Optional[str] = None,
 ) -> Tuple[List[Knowledge], int]:
     """
-    List knowledge entities with optional filter by source_type.
+    List knowledge entities with optional filter by source_type and title.
+    When title is provided, performs left-aligned prefix match (title LIKE 'xxx%').
     Returns (list of entities, total count).
     Raises ValueError for invalid offset or limit.
     """
@@ -52,6 +75,8 @@ def list_knowledge(
         qs = Knowledge.objects.using(_DB).all().order_by("-ut")
         if source_type is not None and source_type.strip():
             qs = qs.filter(source_type=source_type.strip())
+        if title is not None and title.strip():
+            qs = qs.filter(title__startswith=title.strip())
         total = qs.count()
         items = list(qs[offset : offset + limit])
         return items, total

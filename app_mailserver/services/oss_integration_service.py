@@ -183,7 +183,7 @@ class OSSIntegrationService(Singleton):
 
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
-            if error_code == '404':
+            if error_code == 'NoSuchKey':
                 logger.warning(f"[get_attachment_metadata] Attachment not found: {self.bucket}/{key}")
             else:
                 logger.error(f"[get_attachment_metadata] Failed to get metadata for {self.bucket}/{key}: {e}")

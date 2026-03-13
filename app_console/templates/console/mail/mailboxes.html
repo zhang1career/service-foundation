@@ -4,14 +4,8 @@
 {% block page_title %}邮件服务 - 邮箱管理{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <a href="{% url 'console:mail-accounts' %}" class="text-blue-600 hover:text-blue-800 flex items-center">
-        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-        </svg>
-        返回账户列表
-    </a>
-</div>
+{% url 'console:mail-accounts' as mail_accounts_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=mail_accounts_url back_label="返回账户列表" %}
 
 <div class="card mb-6">
     <div class="card-body">
@@ -139,21 +133,15 @@ async function loadMailboxes() {
             `;
             
             result.data.forEach(item => {
-                html += `
-                    <tr>
-                        <td>${item.mailbox_id || item.id}</td>
-                        <td class="font-medium">${item.name}</td>
+                const id = item.mailbox_id || item.id;
+                html += `<tr>
+                        <td>${id}</td>
+                        ${listPlainCell(item.name)}
                         <td><span class="badge badge-info">${item.mailbox_type || 'custom'}</span></td>
                         <td>${item.message_count || 0}</td>
                         <td>${formatDate(item.created_at)}</td>
-                        <td>
-                            <div class="flex space-x-2">
-                                <button onclick="editMailbox(${item.mailbox_id || item.id})" class="btn btn-outline btn-sm">编辑</button>
-                                <button onclick="deleteMailbox(${item.mailbox_id || item.id})" class="btn btn-danger btn-sm">删除</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                        ${listActions({ id, onEdit: 'editMailbox', onDelete: 'deleteMailbox' })}
+                    </tr>`;
             });
             
             html += '</tbody></table>';

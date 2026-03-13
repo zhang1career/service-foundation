@@ -7,7 +7,7 @@
 <div class="mb-6">
     <!-- Sub navigation -->
     <div class="flex space-x-4 mb-6">
-        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">知识条目</a>
+        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">知识列表</a>
         <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">关系管理</a>
         <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
     </div>
@@ -96,18 +96,15 @@ async function loadRelationships() {
             `;
             
             result.data.forEach(item => {
-                html += `
-                    <tr>
-                        <td>${item.relationship_id || item.id}</td>
-                        <td>${item.source_entity_id}</td>
+                const id = item.relationship_id || item.id;
+                html += `<tr>
+                        <td>${id}</td>
+                        ${listTitleCell(String(item.source_entity_id), '/console/know/' + item.source_entity_id + '/', '')}
                         <td><span class="badge badge-info">${item.relationship_type}</span></td>
-                        <td>${item.target_entity_id}</td>
+                        ${listTitleCell(String(item.target_entity_id), '/console/know/' + item.target_entity_id + '/', '')}
                         <td>${item.weight || 1.0}</td>
-                        <td>
-                            <button onclick="deleteRelationship(${item.relationship_id || item.id})" class="btn btn-danger btn-sm">删除</button>
-                        </td>
-                    </tr>
-                `;
+                        ${listActions({ id, onDelete: 'deleteRelationship' })}
+                    </tr>`;
             });
             
             html += '</tbody></table>';

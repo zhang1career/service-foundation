@@ -2,7 +2,11 @@
 from django.urls import path
 
 from common.views.atlas_repl_view import AtlasReplView
-from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
+from app_know.views.knowledge_view import (
+    KnowledgeListView,
+    KnowledgeDetailView,
+    KnowledgeSomeLikeView,
+)
 from app_know.views.query_view import LogicalQueryView
 from app_know.views.relation_extract_view import (
     RelationExtractView,
@@ -20,6 +24,7 @@ from app_know.views.summary_view import (
 urlpatterns = [
     path("atlas_repl", AtlasReplView.as_view(), name="atlas-repl"),
     path("knowledge", KnowledgeListView.as_view(), name="knowledge-list"),
+    path("knowledge/some_like", KnowledgeSomeLikeView.as_view(), name="knowledge-query-by-summary"),
     path("knowledge/<int:entity_id>", KnowledgeDetailView.as_view(), name="knowledge-detail"),
     path(
         "knowledge/<int:entity_id>/summary",

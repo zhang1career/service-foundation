@@ -1,7 +1,6 @@
 import os
 import pprint
 import unittest
-from dataclasses import asdict
 from datetime import datetime
 from unittest import TestCase
 
@@ -91,27 +90,6 @@ class TestMangoDriver(TestCase):
 class TestTechnicSpecRepo(TestCase):
     def setUp(self):
         self.dut = MongoDriver("koi3w9q.mongodb.net", "rongjinzh", "Z6RdcXfmkYUZOgHd", "cluster0", "tech_xiangshan")
-
-    def test_insert(self):
-        # lazy load
-        from sentence_transformers import SentenceTransformer
-
-        spec_dict = {
-            "field": "s2xlate",
-            "feature": "区分 stage",
-            "feature_detail": {
-                "noS2xlate": 0,
-                "allStage": 3,
-                "onlyStage1": 1,
-                "onlyStage2": 2
-            }
-        }
-        spec_model = TechnicSpecModel(**spec_dict)
-
-        trans = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-        spec_model.feature_emvec = trans.encode(spec_model.feature).tolist()
-        result = self.dut.insert("spec", asdict(spec_model))
-        print(result)
 
     def test_create_search_index(self):
         result = self.dut.create_vector_search_index("spec", "feature_emvec", 384)

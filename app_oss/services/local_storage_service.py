@@ -239,87 +239,169 @@ class LocalStorageService:
             'Metadata': metadata.get('Metadata', {}),
         }
 
+    def _list_objects_raw(
+            self,
+            bucket_name: str,
+            prefix: Optional[str] = None,
+            delimiter: Optional[str] = None,
+    ) -> tuple:
+        """Collect objects (and common prefixes if delimiter). Returns (objects, common_prefixes)."""
+        bucket_path = self._get_bucket_path(bucket_name)
+        objects = []
+        common_prefixes_set = set()
+
+        if not bucket_path.exists():
+            return objects, []
+
+        prefix_norm = (prefix or '').lstrip('/')
+        delim = delimiter or ''
+
+        if delim:
+            prefix_path = bucket_path / prefix_norm if prefix_norm else bucket_path
+            if not prefix_path.exists():
+                return objects, []
+            if prefix_path.is_file():
+                rel = str(prefix_path.relative_to(bucket_path)).replace('\\', '/')
+                if not prefix_norm or rel.startswith(prefix_norm):
+                    self._append_result(objects, prefix_path, bucket_name, rel)
+                return objects, []
+            for item in prefix_path.iterdir():
+                rel = str(item.relative_to(bucket_path)).replace('\\', '/')
+                if prefix_norm and not rel.startswith(prefix_norm):
+                    continue
+                if item.is_dir():
+                    cp = rel + delim if not rel.endswith(delim) else rel
+                    common_prefixes_set.add(cp)
+                elif item.is_file():
+                    self._append_result(objects, item, bucket_name, rel)
+        else:
+            prefix_path = bucket_path / prefix_norm if prefix_norm else bucket_path
+            if prefix_path.exists() and prefix_path.is_dir():
+                for root, dirs, files in os.walk(prefix_path):
+                    for file in files:
+                        file_path = Path(root) / file
+                        rel_path = file_path.relative_to(bucket_path)
+                        object_key = str(rel_path).replace('\\', '/')
+                        if prefix_norm and not object_key.startswith(prefix_norm):
+                            continue
+                        self._append_result(objects, file_path, bucket_name, object_key)
+            elif prefix_path.exists() and prefix_path.is_file():
+                rel_path = prefix_path.relative_to(bucket_path)
+                object_key = str(rel_path).replace('\\', '/')
+                self._append_result(objects, prefix_path, bucket_name, object_key)
+
+        objects.sort(key=lambda x: x['Key'])
+        common_prefixes = sorted([{'Prefix': p} for p in common_prefixes_set], key=lambda x: x['Prefix'])
+        return objects, common_prefixes
+
     def list_objects_v2(
             self,
             bucket_name: str,
             prefix: Optional[str] = None,
             max_keys: int = 1000,
-            continuation_token: Optional[str] = None
+            continuation_token: Optional[str] = None,
+            start_after: Optional[str] = None,
+            delimiter: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List objects in a bucket (S3 ListObjectsV2 API)
-        
-        Args:
-            bucket_name: Bucket name
-            prefix: Optional prefix filter
-            max_keys: Maximum number of keys to return
-            continuation_token: Optional continuation token for pagination
-            
-        Returns:
-            Dictionary with list of objects
-        """
-        bucket_path = self._get_bucket_path(bucket_name)
+        """List objects in a bucket (S3 ListObjectsV2 API)."""
+        objects, common_prefixes = self._list_objects_raw(bucket_name, prefix, delimiter)
 
-        if not bucket_path.exists():
-            return {
-                'IsTruncated': False,
-                'KeyCount': 0,
-                'Contents': [],
-            }
+        all_items = objects + common_prefixes
+        all_items.sort(key=lambda x: x.get('Key', x.get('Prefix', '')))
 
-        # Collect all objects
-        objects = []
-        prefix_path = bucket_path
-        if prefix:
-            prefix_path = bucket_path / prefix.lstrip('/')
+        if start_after:
+            all_items = [x for x in all_items if (x.get('Key') or x.get('Prefix', '')) > start_after]
 
-        # Walk through directory structure
-        if prefix_path.exists() and prefix_path.is_dir():
-            for root, dirs, files in os.walk(prefix_path):
-                for file in files:
-                    file_path = Path(root) / file
-                    rel_path = file_path.relative_to(bucket_path)
-                    object_key = str(rel_path).replace('\\', '/')
-
-                    # Check prefix match
-                    if prefix and not object_key.startswith(prefix.lstrip('/')):
-                        continue
-
-                    self._append_result(objects, file_path, bucket_name, object_key)
-        elif prefix_path.exists() and prefix_path.is_file():
-            # Single file match
-            rel_path = prefix_path.relative_to(bucket_path)
-            object_key = str(rel_path).replace('\\', '/')
-            self._append_result(objects, prefix_path, bucket_name, object_key)
-
-        # Sort by key
-        objects.sort(key=lambda x: x['Key'])
-
-        # Apply pagination
         start_index = 0
         if continuation_token:
             try:
-                # Simple continuation token: index in the list
                 start_index = int(continuation_token)
-            except:
+            except (ValueError, TypeError):
                 pass
 
-        end_index = start_index + max_keys
-        paginated_objects = objects[start_index:end_index]
-        is_truncated = end_index < len(objects)
+        start_index = min(start_index, len(all_items))
+        end_index = min(start_index + max_keys, len(all_items))
+        page = all_items[start_index:end_index]
+        contents = [x for x in page if 'Key' in x]
+        common = [x for x in page if 'Prefix' in x]
+        is_truncated = end_index < len(all_items)
 
         result = {
             'IsTruncated': is_truncated,
-            'KeyCount': len(paginated_objects),
-            'Contents': paginated_objects,
+            'KeyCount': len(contents) + len(common),
+            'Contents': contents,
+            'CommonPrefixes': common,
         }
-
         if is_truncated:
             result['NextContinuationToken'] = str(end_index)
 
-        logger.info(f"[list_objects_v2] Found {len(paginated_objects)} objects in {bucket_name}")
-
+        logger.info(f"[list_objects_v2] Found {len(contents)} objects in {bucket_name}")
         return result
+
+    def list_objects_v1(
+            self,
+            bucket_name: str,
+            prefix: Optional[str] = None,
+            delimiter: Optional[str] = None,
+            max_keys: int = 1000,
+            marker: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List objects in a bucket (S3 ListObjects V1 API)."""
+        objects, common_prefixes = self._list_objects_raw(bucket_name, prefix, delimiter)
+
+        all_items = objects + common_prefixes
+        all_items.sort(key=lambda x: x.get('Key', x.get('Prefix', '')))
+
+        start_index = 0
+        if marker:
+            for i, item in enumerate(all_items):
+                k = item.get('Key', item.get('Prefix', ''))
+                if k > marker:
+                    start_index = i
+                    break
+
+        end_index = min(start_index + max_keys, len(all_items))
+        page = all_items[start_index:end_index]
+        contents = [x for x in page if 'Key' in x]
+        common = [x for x in page if 'Prefix' in x]
+        is_truncated = end_index < len(all_items)
+        next_marker = ''
+        if is_truncated and page:
+            last = page[-1]
+            next_marker = last.get('Key', last.get('Prefix', ''))
+
+        return {
+            'Marker': marker or '',
+            'IsTruncated': is_truncated,
+            'Contents': contents,
+            'CommonPrefixes': common,
+            'NextMarker': next_marker,
+        }
+
+    def list_buckets(self) -> list:
+        """List all bucket names (directories under storage path)."""
+        if not self.storage_path.exists():
+            return []
+        return [
+            d.name for d in self.storage_path.iterdir()
+            if d.is_dir() and not d.name.startswith('.')
+        ]
+
+    def delete_objects(
+            self,
+            bucket_name: str,
+            keys: list,
+    ) -> Dict[str, Any]:
+        """Delete multiple objects. Returns deleted and errors lists."""
+        deleted = []
+        errors = []
+        for key in keys:
+            try:
+                self.delete_object(bucket_name, key)
+                deleted.append({'Key': key})
+            except Exception as e:
+                errors.append({'Key': key, 'Code': 'InternalError', 'Message': str(e)})
+        return {'Deleted': deleted, 'Errors': errors}
 
     def _append_result(self, objects, file_path, bucket_name, object_key):
         stat = file_path.stat()

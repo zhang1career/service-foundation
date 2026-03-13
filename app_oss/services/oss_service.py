@@ -1,9 +1,11 @@
 import logging
-from django.http import HttpResponse
 from urllib.parse import unquote
+
+from django.http import HttpResponse
 
 from app_oss.exceptions.object_not_found_exception import ObjectNotFoundException
 from app_oss.services.oss_client import OSSClient
+from app_oss.utils.s3_error_response import s3_error_response
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +25,14 @@ def handle_copy(request, bucket: str, key: str, copy_source: str):
         # URL decode the copy source in case it's encoded
         copy_source = unquote(copy_source).lstrip('/')
         if '/' not in copy_source:
-            return HttpResponse("Invalid x-amz-copy-source format", status=400)
+            return s3_error_response('InvalidRequest', 'Invalid x-amz-copy-source format', resource=f'/{bucket}/{key}')
 
         source_parts = copy_source.split('/', 1)
         source_bucket = source_parts[0]
         source_key = source_parts[1] if len(source_parts) > 1 else ''
 
         if not source_key:
-            return HttpResponse("Invalid x-amz-copy-source: missing key", status=400)
+            return s3_error_response('InvalidRequest', 'Invalid x-amz-copy-source: missing key', resource=f'/{bucket}/{key}')
 
         # Get metadata directive (COPY or REPLACE)
         metadata_directive = request.META.get('HTTP_X_AMZ_METADATA_DIRECTIVE', 'COPY').upper()
@@ -108,10 +110,10 @@ def handle_copy(request, bucket: str, key: str, copy_source: str):
 
     except ObjectNotFoundException as e:
         logger.error(f"[s3put] Source object not found: {e}")
-        return HttpResponse("Source object not found", status=404)
+        return s3_error_response('NoSuchKey', 'Source object not found', resource=f'/{bucket}/{key}')
     except Exception as e:
         logger.exception(f"[s3put] Error copying {copy_source} to {bucket}/{key}: {e}")
-        return HttpResponse(str(e), status=500)
+        return s3_error_response('InternalError', str(e), resource=f'/{bucket}/{key}')
 
 
 def handle_upload(request, bucket: str, key: str):
@@ -130,9 +132,9 @@ def handle_upload(request, bucket: str, key: str):
         
         # Validate parameters
         if not bucket:
-            return HttpResponse("Bucket name is required", status=400)
+            return s3_error_response('InvalidRequest', 'Bucket name is required', resource=f'/{bucket or ""}/{key or ""}')
         if not key:
-            return HttpResponse("Object key is required", status=400)
+            return s3_error_response('InvalidRequest', 'Object key is required', resource=f'/{bucket}/{key or ""}')
         
         client = OSSClient()
 
@@ -169,4 +171,4 @@ def handle_upload(request, bucket: str, key: str):
     
     except Exception as e:
         logger.exception(f"[handle_upload] Error uploading {bucket}/{key}: {e}")
-        return HttpResponse(str(e), status=500)
+        return s3_error_response('InternalError', str(e), resource=f'/{bucket}/{key}')

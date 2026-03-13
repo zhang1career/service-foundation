@@ -1,6 +1,7 @@
 # app_know repositories. Generated.
 from app_know.repos.knowledge_repo import (
     get_knowledge_by_id,
+    get_knowledge_by_ids,
     list_knowledge,
     create_knowledge,
     update_knowledge,
@@ -15,6 +16,7 @@ from app_know.repos.relationship_repo import (
 
 __all__ = [
     "get_knowledge_by_id",
+    "get_knowledge_by_ids",
     "list_knowledge",
     "create_knowledge",
     "update_knowledge",

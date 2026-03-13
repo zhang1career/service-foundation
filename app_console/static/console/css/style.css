@@ -81,6 +81,17 @@
     background-color: #f9fafb;
 }
 
+/* 知识列表：按列序号设置（需 table-layout: fixed 才能使 th 宽度生效） */
+#knowledge-list .data-table {
+    table-layout: fixed;
+}
+#knowledge-list .data-table th:nth-child(1) { width: 52px; }   /* ID */
+#knowledge-list .data-table th:nth-child(2) { width: 15%; }    /* 标题 */
+#knowledge-list .data-table th:nth-child(3) { width: 108px; }  /* 来源类型 */
+#knowledge-list .data-table th:nth-child(4) { width: 20%; }    /* 描述 */
+#knowledge-list .data-table th:nth-child(5) { width: 25%; }    /* 内容 */
+#knowledge-list .data-table th:nth-child(6) { width: 15%; }    /* 创建时间 */
+
 /* Card styles */
 .card {
     background: white;

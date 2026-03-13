@@ -215,14 +215,15 @@ class TestS3PutObjectView(TestCase):
         self.assertEqual(metadata.get('additional'), 'additional_value')
 
     def test_copy_nonexistent_source(self):
-        """测试复制不存在的源文件"""
+        """测试复制不存在的源文件 - 返回 S3 NoSuchKey XML"""
         request = self.factory.put(f'/{self.bucket1}/{self.dest_key}')
         request.META['HTTP_X_AMZ_COPY_SOURCE'] = f'/{self.bucket1}/nonexistent.txt'
         
         response = self.view(request, bucket=self.bucket1, key=self.dest_key)
         
         self.assertEqual(response.status_code, 404)
-        self.assertIn(b'Source object not found', response.content)
+        self.assertEqual(response['Content-Type'], 'application/xml')
+        self.assertIn(b'<Code>NoSuchKey</Code>', response.content)
 
     def test_copy_with_url_encoded_source(self):
         """测试URL编码的copy-source"""
@@ -256,24 +257,26 @@ class TestS3PutObjectView(TestCase):
         self.assertEqual(dest_result['Body'], self.test_content)
 
     def test_copy_with_invalid_source_format_missing_slash(self):
-        """测试无效的copy-source格式（缺少斜杠）"""
+        """测试无效的copy-source格式（缺少斜杠）- 返回 S3 InvalidRequest XML"""
         request = self.factory.put(f'/{self.bucket1}/{self.dest_key}')
         request.META['HTTP_X_AMZ_COPY_SOURCE'] = 'invalid-format'
         
         response = self.view(request, bucket=self.bucket1, key=self.dest_key)
         
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b'Invalid x-amz-copy-source format', response.content)
+        self.assertEqual(response['Content-Type'], 'application/xml')
+        self.assertIn(b'<Code>InvalidRequest</Code>', response.content)
 
     def test_copy_with_invalid_source_format_missing_key(self):
-        """测试无效的copy-source格式（缺少key）"""
+        """测试无效的copy-source格式（缺少key）- 返回 S3 InvalidRequest XML"""
         request = self.factory.put(f'/{self.bucket1}/{self.dest_key}')
         request.META['HTTP_X_AMZ_COPY_SOURCE'] = f'/{self.bucket1}/'
         
         response = self.view(request, bucket=self.bucket1, key=self.dest_key)
         
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b'Invalid x-amz-copy-source: missing key', response.content)
+        self.assertEqual(response['Content-Type'], 'application/xml')
+        self.assertIn(b'<Code>InvalidRequest</Code>', response.content)
 
     def test_copy_with_copy_source_without_leading_slash(self):
         """测试copy-source不带前导斜杠（应该也能正常工作）"""

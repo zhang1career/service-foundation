@@ -90,26 +90,17 @@ async function loadAccounts() {
             `;
             
             result.data.forEach(item => {
-                html += `
-                    <tr>
-                        <td>${item.account_id || item.id}</td>
-                        <td class="font-medium">${item.email}</td>
+                const id = item.account_id || item.id;
+                html += `<tr>
+                        <td>${id}</td>
+                        ${listTitleCell(item.email, '/console/mail/' + id + '/mailboxes/')}
                         <td>${item.display_name || '-'}</td>
-                        <td>
-                            ${item.is_active 
-                                ? '<span class="badge badge-success">启用</span>' 
-                                : '<span class="badge badge-warning">禁用</span>'}
-                        </td>
+                        <td>${item.is_active 
+                            ? '<span class="badge badge-success">启用</span>' 
+                            : '<span class="badge badge-warning">禁用</span>'}</td>
                         <td>${formatDate(item.created_at)}</td>
-                        <td>
-                            <div class="flex space-x-2">
-                                <a href="/console/mail/${item.account_id || item.id}/mailboxes/" class="btn btn-outline btn-sm">邮箱</a>
-                                <button onclick="editAccount(${item.account_id || item.id})" class="btn btn-outline btn-sm">编辑</button>
-                                <button onclick="deleteAccount(${item.account_id || item.id})" class="btn btn-danger btn-sm">删除</button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                        ${listActions({ id, onEdit: 'editAccount', onDelete: 'deleteAccount' })}
+                    </tr>`;
             });
             
             html += '</tbody></table>';
