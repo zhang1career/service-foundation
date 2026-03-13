@@ -8,12 +8,14 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Load APP_NAME from .env
+# Load APP_NAME and LOG_FILE_PATH from .env
 load_app_name() {
     if [ -f .env ]; then
         APP_NAME=$(grep -E "^APP_NAME=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
+        LOG_FILE_PATH=$(grep -E "^LOG_FILE_PATH=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
     fi
     APP_NAME=${APP_NAME:-service-foundation}
+    LOG_FILE_PATH=${LOG_FILE_PATH:-log}
 }
 
 # PID file path: /var/run/<APP_NAME>/app.pid
@@ -45,39 +47,24 @@ start() {
     load_app_name
     local pid_dir="/var/run/${APP_NAME}"
     local pid_file="${pid_dir}/app.pid"
-    local log_dir="/var/log/${APP_NAME}"
-    local log_file="${log_dir}/app.log"
+    local django_log_path="${LOG_FILE_PATH}/${APP_NAME}/django.log"
 
     if is_running; then
         echo "App is already running (PID: $(get_pid))"
         exit 1
     fi
 
-    # Ensure PID and log directories exist (may need sudo for /var/run, /var/log)
     if [ ! -d "$pid_dir" ]; then
         mkdir -p "$pid_dir" || { echo "Error: cannot create $pid_dir (may need sudo)"; exit 1; }
     fi
-    if [ ! -d "$log_dir" ]; then
-        mkdir -p "$log_dir" || { echo "Error: cannot create $log_dir (may need sudo)"; exit 1; }
-    fi
+    mkdir -p "$(dirname "$django_log_path")" || { echo "Error: cannot create log dir for $django_log_path"; exit 1; }
 
-    # Load .env for HOST, PORT, etc.
-    if [ -f .env ]; then
-        set -a
-        # shellcheck source=/dev/null
-        source .env 2>/dev/null || true
-        set +a
-    fi
-
-    HOST=${HOST:-0.0.0.0}
-    PORT=${PORT:-8000}
-
-    echo "Starting app on ${HOST}:${PORT}..."
-    nohup python manage.py runserver "${HOST}:${PORT}" >> "$log_file" 2>&1 &
+    echo "Starting app (HOST/PORT/logging from .env via manage.py)..."
+    echo "Django runserver output: $django_log_path"
+    nohup python manage.py runserver >> "$django_log_path" 2>&1 &
     local pid=$!
     echo "$pid" > "$pid_file"
     echo "App started (PID: $pid)"
-    echo "Log: $log_file"
 }
 
 stop() {
