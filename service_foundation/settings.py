@@ -254,6 +254,51 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Build logging config with resilient logfile handler
+_log_handler = env("LOG_HANDLER", default="console")
+_log_file_path = env("LOG_FILE_PATH", default="log")
+_log_path = Path(_log_file_path)
+if not _log_path.is_absolute():
+    _log_path = BASE_DIR / _log_path
+_log_path = _log_path / env("APP_NAME", default="service-foundation") / env("LOG_FILE", default="app.log")
+_logfile_ok = False
+if _log_handler == "logfile":
+    try:
+        _log_path.parent.mkdir(parents=True, exist_ok=True)
+        # Test if we can open the file (same check TimedRotatingFileHandler will do)
+        with open(_log_path, "a", encoding="utf-8"):
+            pass
+        _logfile_ok = True
+    except (OSError, PermissionError) as e:
+        import sys
+
+        print(
+            f"[Django Settings] logfile handler unavailable ({e}), falling back to console",
+            file=sys.stderr,
+        )
+        _log_handler = "console"
+
+_logging_handlers = {
+    "console": {
+        "level": "DEBUG",
+        "filters": ["request_id", "require_debug_true"],
+        "class": "logging.StreamHandler",
+        "formatter": "simple",
+    }
+}
+if _logfile_ok:
+    _logging_handlers["logfile"] = {
+        "level": env("LOG_LEVEL", default="INFO"),
+        "filters": ["request_id"],
+        "class": "logging.handlers.TimedRotatingFileHandler",
+        "filename": str(_log_path),
+        "when": "D",
+        "interval": 1,
+        "backupCount": 14,
+        "formatter": "verbose",
+        "encoding": "utf8",
+    }
+
 LOGGING = {
     "version": 1,
     "formatters": {
@@ -274,57 +319,35 @@ LOGGING = {
             "()": "django.utils.log.RequireDebugTrue",
         }
     },
-    "handlers": {
-        "logfile": {
-            "level": env("LOG_LEVEL", default="INFO"),
-            "filters": ["request_id"],
-            "class": "logging.handlers.TimedRotatingFileHandler",
-            "filename": str(
-                Path(env("LOG_FILE_PATH", default="log"))
-                / env("APP_NAME", default="service-foundation")
-                / env("LOG_FILE", default="app.log")
-            ),
-            "when": "D",
-            "interval": 1,
-            "backupCount": 14,
-            "formatter": "verbose",
-            "encoding": "utf8",
-        },
-        "console": {
-            "level": "DEBUG",
-            "filters": ["request_id", "require_debug_true"],
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        }
-    },
+    "handlers": _logging_handlers,
     "loggers": {
         "django.db.backends": {
             "level": env("LOG_LEVEL_DJANGO_DB", default="INFO"),
-            "handlers": [env("LOG_HANDLER", default="console")],
+            "handlers": [_log_handler],
         },
         "service_foundation": {
             "level": env("LOG_LEVEL_APP_SERV_FD", default="INFO"),
-            "handlers": [env("LOG_HANDLER", default="console")],
+            "handlers": [_log_handler],
         },
         "app_mailserver": {
             "level": env("LOG_LEVEL_APP_MAILSERVER", default="INFO"),
-            "handlers": [env("LOG_HANDLER", default="console")],
+            "handlers": [_log_handler],
         },
         "app_oss": {
             "level": env("LOG_LEVEL_APP_OSS", default="INFO"),
-            "handlers": [env("LOG_HANDLER", default="console")],
+            "handlers": [_log_handler],
         },
         "app_snowflake": {
             "level": env("LOG_LEVEL_APP_SNOWFLAKE", default="INFO"),
-            "handlers": [env("LOG_HANDLER", default="console")],
+            "handlers": [_log_handler],
         },
         "app_know": {
             "level": env("LOG_LEVEL_APP_KNOW", default="INFO"),
-            "handlers": [env("LOG_HANDLER", default="console")],
+            "handlers": [_log_handler],
         },
         "common": {
             "level": env("LOG_LEVEL_COMMON", default="INFO"),
-            "handlers": [env("LOG_HANDLER", default="console")],
+            "handlers": [_log_handler],
         },
     }
 }
