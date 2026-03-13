@@ -7,4 +7,3 @@ class ConfigurationErrorException(OSSException):
     def __init__(self, message="Configuration error"):
         self.message = message
         super().__init__(self.message)
-

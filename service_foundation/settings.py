@@ -279,7 +279,11 @@ LOGGING = {
             "level": env("LOG_LEVEL", default="INFO"),
             "filters": ["request_id"],
             "class": "logging.handlers.TimedRotatingFileHandler",
-            "filename": env("LOG_DIR", default="log") + '/' + env("LOG_FILE", default="app.log"),
+            "filename": str(
+                Path(env("LOG_FILE_PATH", default="log"))
+                / env("APP_NAME", default="service-foundation")
+                / env("LOG_FILE", default="app.log")
+            ),
             "when": "D",
             "interval": 1,
             "backupCount": 14,
