@@ -13,6 +13,14 @@
 {% csrf_token %}
 {% include 'console/includes/detail_back_link.html' with back_url=know_list_url back_label="返回列表" %}
 
+<div class="flex space-x-4 mb-4">
+    <a href="{% url 'console:know-list' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">知识列表</a>
+    <a href="{% url 'console:know-relationships' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">关系管理</a>
+    <a href="{% url 'console:know-summaries' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">摘要列表</a>
+    <a href="{% url 'console:know-perspectives' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">视角</a>
+    <a href="{% url 'console:know-insights' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">观点</a>
+</div>
+
 <div id="knowledge-detail">
     <div class="p-8 text-center text-gray-500">
         <div class="spinner"></div>
@@ -65,6 +73,7 @@ async function loadDetail() {
         
         if (result.data) {
             const data = result.data;
+            window.currentBatchContent = data.content || '';
             container.innerHTML = `
                 <div class="card mb-6">
                     <div class="card-header">
@@ -99,6 +108,21 @@ async function loadDetail() {
                             <p class="text-sm text-gray-500 mb-2">内容</p>
                             <div class="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">${data.content || '无内容'}</div>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Sentences Section -->
+                <div class="card mb-6" id="sentences-section">
+                    <div class="card-header">
+                        <h3 class="text-lg font-semibold">句子解析</h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="runParse()" class="btn btn-primary btn-sm" id="parse-btn">解析</button>
+                            <button onclick="runExtract()" class="btn btn-outline btn-sm" id="extract-btn" title="解析后再抽取" disabled>抽取</button>
+                            <span class="text-xs text-gray-400">解析拆句 → 抽取摘要与主谓宾 → 生成句子图谱</span>
+                        </div>
+                    </div>
+                    <div class="card-body" id="sentences-content">
+                        <div class="flex items-center text-gray-500"><div class="spinner mr-2"></div>加载中...</div>
                     </div>
                 </div>
                 
@@ -137,13 +161,20 @@ async function loadDetail() {
                         <div class="flex space-x-2">
                             <button id="extract-relations-btn" onclick="extractRelations()" class="btn btn-primary btn-sm" style="display:none">提取关系</button>
                             <button id="save-relation-btn" onclick="saveRelation()" class="btn btn-outline btn-sm" style="display:none">保存关系</button>
+                            <button id="generate-insights-btn" onclick="runGenerateInsights()" class="btn btn-outline btn-sm" title="从句子图谱生成路径推理等观点">生成观点</button>
                         </div>
                     </div>
                     <div class="card-body" id="relations-content">
                         <p class="text-gray-500">点击"提取关系"按钮从内容中提取谓词逻辑关系。主语和宾语默认来自 AI 解析结果，可输入或从 Atlas 相似度匹配的候选项中选取后点击"保存关系"存储到 Neo4j</p>
                     </div>
                     <div class="card-body border-t border-gray-200">
-                        <p class="text-sm text-gray-500 mb-2">关系图</p>
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm text-gray-500">知识图谱 · 句子图谱由「抽取」生成，关系图谱由「提取关系」生成</p>
+                            <div class="flex gap-1 text-sm">
+                                <button type="button" id="graph-toggle-sentence" onclick="switchGraphType('sentence')" class="px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50">句子图谱</button>
+                                <button type="button" id="graph-toggle-relation" onclick="switchGraphType('relation')" class="px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100">关系图谱</button>
+                            </div>
+                        </div>
                         <div class="relative flex gap-4">
                             <div id="relation-graph" class="flex-1" style="height: 400px; min-height: 300px; background: #f9fafb; border-radius: 0.5rem;"></div>
                             <div id="relation-props-drawer" class="w-72 flex-shrink-0 border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden" style="display:none;">
@@ -157,8 +188,9 @@ async function loadDetail() {
                     </div>
                 </div>
             `;
+            loadSentences();
             loadExistingSummary();
-            loadRelationGraph();
+            switchGraphType('sentence');
         } else {
             throw new Error('未找到数据');
         }
@@ -171,6 +203,207 @@ async function loadDetail() {
                 </div>
             </div>
         `;
+    }
+}
+
+async function loadSentences() {
+    const container = document.getElementById('sentences-content');
+    if (!container) return;
+    try {
+        const response = await fetch(\`\${API_BASE}/\${entityId}/sentences?offset=0&limit=200\`);
+        const result = await response.json();
+        if (result.errorCode === 0 && result.data) {
+            const items = result.data.data || [];
+            const total = result.data.total_num || 0;
+            if (items.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">暂无句子，点击"解析"按钮从内容中拆句、分类并向量化</p>';
+                return;
+            }
+            const stageLabels = { 0: '创建', 1: '清洗', 2: '成分解析', 3: '向量化' };
+            const statusLabels = { 0: '未完成', 1: '完成', 2: '待审核' };
+            let html = '<p class="text-sm text-gray-500 mb-3">共 ' + total + ' 句</p><div class="overflow-x-auto"><table class="data-table"><thead><tr><th>序</th><th>内容</th><th>分类</th><th>阶段</th><th>状态</th><th>摘要</th><th>主谓宾</th></tr></thead><tbody>';
+            items.forEach(function(s) {
+                const stageStr = stageLabels[s.stage] != null ? stageLabels[s.stage] : s.stage;
+                const statusStr = statusLabels[s.status] != null ? statusLabels[s.status] : s.status;
+                const svo = (s.graph_subject && s.graph_object) ? (escapeHtml(s.graph_subject) + '→' + escapeHtml(s.graph_object)) : '-';
+                html += '<tr><td>' + (s.seq + 1) + '</td><td class="max-w-md truncate" title="' + escapeAttr(s.content || '') + '">' + escapeHtml((s.content || '').substring(0, 80)) + (s.content && s.content.length > 80 ? '...' : '') + '</td><td><span class="badge badge-info">' + escapeHtml(s.classification || '-') + '</span></td><td>' + escapeHtml(stageStr) + '</td><td>' + escapeHtml(statusStr) + '</td><td class="max-w-xs truncate" title="' + escapeAttr(s.brief || '') + '">' + escapeHtml((s.brief || '-').substring(0, 40)) + ((s.brief || '').length > 40 ? '...' : '') + '</td><td class="max-w-xs truncate text-gray-600" title="' + escapeAttr(s.graph_brief || '') + '">' + svo + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+            const extractBtn = document.getElementById('extract-btn');
+            if (extractBtn) extractBtn.disabled = false;
+        } else {
+            container.innerHTML = '<p class="text-gray-500">暂无句子，点击"解析"按钮从内容中拆句、分类并向量化</p>';
+            const extractBtn = document.getElementById('extract-btn');
+            if (extractBtn) extractBtn.disabled = true;
+        }
+    } catch (error) {
+        container.innerHTML = '<p class="text-gray-500">加载失败: ' + escapeHtml(error.message) + '</p>';
+        const extractBtn = document.getElementById('extract-btn');
+        if (extractBtn) extractBtn.disabled = true;
+    }
+}
+
+async function runParse() {
+    const container = document.getElementById('sentences-content');
+    const btn = document.getElementById('parse-btn');
+    if (!container || !btn) return;
+    container.innerHTML = '<div class="flex items-center"><div class="spinner mr-2"></div>解析中...</div>';
+    btn.disabled = true;
+    try {
+        const content = window.currentBatchContent || '';
+        if (!content) {
+            container.innerHTML = '<p class="text-red-500">无内容可解析，请先上传或编辑批次</p>';
+            if (btn) btn.disabled = false;
+            return;
+        }
+        const response = await fetch(\`\${API_BASE}/\${entityId}/parse\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ content, use_ai_classify: true, write_sentence_raw: true })
+        });
+        const result = await response.json();
+        if (result.errorCode === 0 && result.data) {
+            showToast('解析完成，共 ' + (result.data.sentence_count || 0) + ' 句', 'success');
+            loadSentences();
+        } else {
+            container.innerHTML = '<p class="text-red-500">解析失败: ' + escapeHtml(result.message || '未知错误') + '</p>';
+        }
+    } catch (error) {
+        container.innerHTML = '<p class="text-red-500">解析失败: ' + escapeHtml(error.message) + '</p>';
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function runExtract() {
+    const container = document.getElementById('sentences-content');
+    const btn = document.getElementById('extract-btn');
+    if (!container || !btn) return;
+    container.innerHTML = '<div class="flex items-center"><div class="spinner mr-2"></div>抽取中（摘要+主谓宾）...</div>';
+    btn.disabled = true;
+    try {
+        const response = await fetch(\`\${API_BASE}/\${entityId}/extract_sentences\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ use_ai: true })
+        });
+        const result = await response.json();
+        if (result.errorCode === 0 && result.data) {
+            const d = result.data;
+            showToast(\`抽取完成: \${d.extracted_count || 0}/\${d.total_count || 0} 句, 图: \${d.graph?.created_nodes || 0} 节点, \${d.graph?.created_edges || 0} 边\`, 'success');
+            loadSentences();
+            loadSentenceGraph();
+        } else {
+            container.innerHTML = '<p class="text-red-500">抽取失败: ' + escapeHtml(result.message || '未知错误') + '</p>';
+        }
+    } catch (error) {
+        container.innerHTML = '<p class="text-red-500">抽取失败: ' + escapeHtml(error.message) + '</p>';
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function runGenerateInsights() {
+    const btn = document.getElementById('generate-insights-btn');
+    if (btn) btn.disabled = true;
+    try {
+        const response = await fetch('/api/know/insights/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ kid: entityId })
+        });
+        const result = await response.json();
+        if (result.errorCode === 0 && result.data) {
+            const d = result.data;
+            const msg = '生成完成，共 ' + (d.generated || 0) + ' 条观点';
+            if (typeof showToast === 'function') showToast(msg, 'success');
+            else alert(msg);
+            if (d.generated > 0 && confirm('是否前往观点列表查看？')) {
+                window.location.href = '/console/know/insights/?kid=' + entityId;
+            }
+        } else {
+            const msg = '生成失败: ' + (result.message || '未知错误');
+            if (typeof showToast === 'function') showToast(msg, 'error');
+            else alert(msg);
+        }
+    } catch (error) {
+        const msg = '生成失败: ' + (error.message || '网络错误');
+        if (typeof showToast === 'function') showToast(msg, 'error');
+        else alert(msg);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function loadSentenceGraph() {
+    const container = document.getElementById('relation-graph');
+    if (!container) return;
+    if (currentGraphType !== 'sentence') return;
+    try {
+        const response = await fetch(\`\${API_BASE}/\${entityId}/sentence_graph\`);
+        const result = await response.json();
+        if (result.errorCode !== 0 || !result.data) {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center">暂无句子图谱</p>';
+            return;
+        }
+        const data = result.data;
+        const nvlNodes = (data.nodes || []).map(n => ({ id: String(n.id), caption: n.label || n.id || '?' }));
+        const nvlRels = (data.edges || []).map((e, i) => ({
+            id: 'rel_' + i + '_' + e.from + '_' + e.to,
+            from: String(e.from), to: String(e.to), caption: e.label || '', type: e.label || undefined
+        }));
+        if (nvlNodes.length === 0 && nvlRels.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center">暂无句子图谱，请先解析并点击「抽取」按钮</p>';
+            return;
+        }
+        relationGraphData = { nodes: nvlNodes, edges: nvlRels };
+        if (relationGraphNvl) {
+            relationGraphHandlers.forEach(h => { try { h.destroy && h.destroy(); } catch (e) {} });
+            relationGraphHandlers = [];
+            relationGraphNvl.destroy();
+            relationGraphNvl = null;
+        }
+        const nvlMod = await import('{% static "console/js/nvl-bundle.js" %}');
+        const opts = {
+            layout: 'forceDirected', initialZoom: 1.2, disableTelemetry: true, disableWebWorkers: true, renderer: 'canvas',
+            callbacks: { onLayoutDone: () => { if (relationGraphNvl) relationGraphNvl.fit(nvlNodes.map(n => n.id)); } }
+        };
+        relationGraphNvl = new nvlMod.NVL(container, nvlNodes, nvlRels, opts, {});
+        const { DragNodeInteraction, PanInteraction, ZoomInteraction, ClickInteraction } = nvlMod;
+        relationGraphHandlers = [
+            new DragNodeInteraction(relationGraphNvl),
+            new PanInteraction(relationGraphNvl),
+            new ZoomInteraction(relationGraphNvl),
+            (() => {
+                const h = new ClickInteraction(relationGraphNvl);
+                h.updateCallback('onNodeClick', (node) => {
+                    if (!node) return;
+                    const nodeId = node.id ?? node.data?.id;
+                    if (!nodeId) return;
+                    relationGraphNvl.deselectAll();
+                    relationGraphNvl.addAndUpdateElementsInGraph([{ id: nodeId, selected: true }], []);
+                    const nd = relationGraphData.nodes.find(n => String(n.id) === String(nodeId));
+                    showRelationPropsDrawer('node', nd ? { id: nd.id, caption: nd.caption, label: nd.caption } : { id: nodeId });
+                });
+                h.updateCallback('onRelationshipClick', (rel) => {
+                    if (!rel) return;
+                    const relId = rel.id ?? rel.data?.id;
+                    if (!relId) return;
+                    relationGraphNvl.deselectAll();
+                    relationGraphNvl.addAndUpdateElementsInGraph([], [{ id: relId, selected: true }]);
+                    const rd = relationGraphData.edges.find(r => r.id === relId);
+                    showRelationPropsDrawer('relationship', rd ? { id: rd.id, from: rd.from, to: rd.to, caption: rd.caption, label: rd.caption } : { id: relId });
+                });
+                h.updateCallback('onSceneClick', () => { relationGraphNvl.deselectAll(); closeRelationPropsDrawer(); });
+                return h;
+            })()
+        ];
+    } catch (e) {
+        console.error('[loadSentenceGraph] Error:', e);
     }
 }
 
@@ -288,6 +521,7 @@ let relationGraphNvl = null;
 let relationGraphHandlers = [];
 let relationGraphData = { nodes: [], edges: [] };
 let relationPropsSelection = null;
+let currentGraphType = 'sentence';  // 'sentence' | 'relation'
 
 function closeRelationPropsDrawer() {
     const drawer = document.getElementById('relation-props-drawer');
@@ -300,24 +534,37 @@ function showRelationPropsDrawer(type, data) {
     const content = document.getElementById('relation-props-content');
     if (!drawer || !content) return;
     relationPropsSelection = { type: type, data: Object.assign({}, data) };
+    const readOnly = currentGraphType === 'sentence';
     let html = '';
     if (type === 'node') {
         const name = data.caption || data.label || data.id || '';
+        if (readOnly) {
+            html = '<div class="space-y-2"><div><label class="block text-gray-500 text-xs mb-1">节点</label><p class="text-gray-700">' + escapeHtml(name || '-') + '</p></div><p class="text-xs text-gray-400">句子图谱为只读</p></div>';
+        } else {
         html = '<form id="relation-props-form" onsubmit="saveRelationProps(event)">' +
             '<div class="space-y-3">' +
             '<div><label class="block text-gray-500 text-xs mb-1">ID (cid)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.id || '-') + '</p></div>' +
             '<div><label class="block text-gray-500 text-xs mb-1">名称</label><input type="text" name="name" value="' + escapeAttr(name) + '" class="w-full border rounded px-2 py-1.5 text-sm" placeholder="节点名称" /></div>' +
             '<button type="submit" class="btn btn-primary btn-sm w-full">保存</button>' +
             '</div></form>';
+        }
     } else if (type === 'relationship') {
         const typ = data.caption || data.label || '';
-        html = '<form id="relation-props-form" onsubmit="saveRelationProps(event)">' +
-            '<div class="space-y-3">' +
-            '<div><label class="block text-gray-500 text-xs mb-1">起点 (from)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.from || '-') + '</p></div>' +
-            '<div><label class="block text-gray-500 text-xs mb-1">终点 (to)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.to || '-') + '</p></div>' +
-            '<div><label class="block text-gray-500 text-xs mb-1">类型</label><input type="text" name="type" value="' + escapeAttr(typ) + '" class="w-full border rounded px-2 py-1.5 text-sm" placeholder="关系类型，如 related_to" /></div>' +
-            '<button type="submit" class="btn btn-primary btn-sm w-full">保存</button>' +
-            '</div></form>';
+        if (readOnly) {
+            html = '<div class="space-y-2">' +
+                '<div><label class="block text-gray-500 text-xs mb-1">关系</label><p class="text-gray-700">' + escapeHtml(typ || '-') + '</p></div>' +
+                '<div><label class="block text-gray-500 text-xs mb-1">起点</label><p class="font-mono text-xs text-gray-600">' + escapeHtml(data.from || '-') + '</p></div>' +
+                '<div><label class="block text-gray-500 text-xs mb-1">终点</label><p class="font-mono text-xs text-gray-600">' + escapeHtml(data.to || '-') + '</p></div>' +
+                '<p class="text-xs text-gray-400">句子图谱为只读</p></div>';
+        } else {
+            html = '<form id="relation-props-form" onsubmit="saveRelationProps(event)">' +
+                '<div class="space-y-3">' +
+                '<div><label class="block text-gray-500 text-xs mb-1">起点 (from)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.from || '-') + '</p></div>' +
+                '<div><label class="block text-gray-500 text-xs mb-1">终点 (to)</label><p class="font-mono text-xs break-all text-gray-600">' + escapeHtml(data.to || '-') + '</p></div>' +
+                '<div><label class="block text-gray-500 text-xs mb-1">类型</label><input type="text" name="type" value="' + escapeAttr(typ) + '" class="w-full border rounded px-2 py-1.5 text-sm" placeholder="关系类型，如 related_to" /></div>' +
+                '<button type="submit" class="btn btn-primary btn-sm w-full">保存</button>' +
+                '</div></form>';
+        }
     }
     content.innerHTML = html || '<p class="text-gray-500">无属性</p>';
     drawer.style.display = 'block';
@@ -373,7 +620,7 @@ async function saveRelationProps(ev) {
             if (result.errorCode === 0) {
                 showToast('关系已更新', 'success');
                 closeRelationPropsDrawer();
-                loadRelationGraph();
+                switchGraphType('relation');
             } else {
                 showToast('保存失败: ' + (result.message || '未知错误'), 'error');
             }
@@ -386,9 +633,27 @@ async function saveRelationProps(ev) {
     }
 }
 
+function switchGraphType(type) {
+    currentGraphType = type;
+    const btnSent = document.getElementById('graph-toggle-sentence');
+    const btnRel = document.getElementById('graph-toggle-relation');
+    if (btnSent) {
+        btnSent.className = type === 'sentence' ? 'px-2 py-1 rounded border border-blue-500 bg-blue-50 text-blue-700' : 'px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50';
+    }
+    if (btnRel) {
+        btnRel.className = type === 'relation' ? 'px-2 py-1 rounded border border-blue-500 bg-blue-50 text-blue-700' : 'px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100';
+    }
+    if (type === 'sentence') {
+        loadSentenceGraph();
+    } else {
+        loadRelationGraph();
+    }
+}
+
 async function loadRelationGraph() {
     const container = document.getElementById('relation-graph');
     if (!container) return;
+    if (currentGraphType !== 'relation') return;
 
     try {
         const response = await fetch(`${API_BASE}/${entityId}/relation_graph?app_id=0`);

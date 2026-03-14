@@ -1,0 +1,383 @@
+{% extends 'console/base.html' %}
+{% load static %}
+
+{% block title %}观点{% endblock %}
+{% block page_title %}知识管理 - 观点{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="mb-6">
+    <div class="flex space-x-4 mb-6">
+        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">知识列表</a>
+        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">关系管理</a>
+        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
+        <a href="{% url 'console:know-perspectives' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">视角</a>
+        <a href="{% url 'console:know-insights' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">观点</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">观点列表</h2>
+        <div class="flex gap-2">
+            <button onclick="openGenerateModal()" class="btn btn-primary btn-sm">生成观点</button>
+            <button onclick="openCreateModal()" class="btn btn-outline btn-sm">手动新增</button>
+        </div>
+    </div>
+    <div class="border-b border-gray-200 px-4 py-2 bg-gray-50">
+        <div class="flex gap-2">
+            <input type="number" id="filter-kid" class="form-input text-sm w-32" placeholder="批次/知识 ID">
+            <select id="filter-perspective" class="form-input text-sm w-28">
+                <option value="">全部视角</option>
+                <option value="0">人物</option>
+                <option value="1">概念</option>
+                <option value="2">指标</option>
+            </select>
+            <select id="filter-type" class="form-input text-sm w-28">
+                <option value="">全部类型</option>
+                <option value="0">矛盾发现</option>
+                <option value="1">路径推理</option>
+                <option value="2">跨文本综合</option>
+            </select>
+            <select id="filter-status" class="form-input text-sm w-24">
+                <option value="">全部</option>
+                <option value="0">草稿</option>
+                <option value="1">已采纳</option>
+            </select>
+            <button type="button" onclick="loadInsights()" class="btn btn-outline btn-sm">筛选</button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div id="insight-list">
+            <div class="p-8 text-center text-gray-500">
+                <div class="spinner"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div id="insight-create-modal" class="modal-backdrop hidden" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold">新增观点</h3>
+        </div>
+        <form id="insight-create-form" onsubmit="saveInsight(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">内容 *</label>
+                    <textarea id="insight-content" name="content" class="form-input" rows="3" required placeholder="观点内容"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">类型</label>
+                    <select id="insight-type" name="type" class="form-input">
+                        <option value="0">矛盾发现</option>
+                        <option value="1" selected>路径推理</option>
+                        <option value="2">跨文本综合</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">知识 ID (kid)</label>
+                    <input type="number" id="insight-kid" name="kid" class="form-input" placeholder="可选，关联知识点">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">视角类型</label>
+                    <select id="insight-perspective" name="perspective" class="form-input">
+                        <option value="">不指定</option>
+                        <option value="0">人物</option>
+                        <option value="1">概念</option>
+                        <option value="2">指标</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeCreateModal()" class="btn btn-outline">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="insight-edit-modal" class="modal-backdrop hidden" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold">编辑观点</h3>
+        </div>
+        <form id="insight-edit-form" onsubmit="updateInsight(event)">
+            <input type="hidden" id="edit-insight-id" name="id">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">内容 *</label>
+                    <textarea id="edit-insight-content" name="content" class="form-input" rows="3" required placeholder="观点内容"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">类型</label>
+                    <select id="edit-insight-type" name="type" class="form-input">
+                        <option value="0">矛盾发现</option>
+                        <option value="1">路径推理</option>
+                        <option value="2">跨文本综合</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">视角类型</label>
+                    <select id="edit-insight-perspective" name="perspective" class="form-input">
+                        <option value="">不指定</option>
+                        <option value="0">人物</option>
+                        <option value="1">概念</option>
+                        <option value="2">指标</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeEditModal()" class="btn btn-outline">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Generate Modal -->
+<div id="insight-generate-modal" class="modal-backdrop hidden" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold">生成观点</h3>
+        </div>
+        <form id="insight-generate-form" onsubmit="runGenerate(event)">
+            <div class="modal-body">
+                <p class="text-sm text-gray-500 mb-3">从知识图谱中自动生成路径推理等观点（需先完成解析和抽取）</p>
+                <div class="form-group">
+                    <label class="form-label">批次 ID *</label>
+                    <input type="number" id="gen-kid" name="kid" class="form-input" required placeholder="输入批次 ID (batch_id)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeGenerateModal()" class="btn btn-outline">取消</button>
+                <button type="submit" id="gen-btn" class="btn btn-primary">生成</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '/api/know/insights';
+
+function formatTimestamp(ts) {
+    if (!ts || ts <= 0) return '-';
+    const d = new Date(ts);
+    const pad = n => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+function typeLabel(t) {
+    const m = { 0: '矛盾发现', 1: '路径推理', 2: '跨文本综合' };
+    return m[t] !== undefined ? m[t] : (t !== undefined ? String(t) : '-');
+}
+function perspectiveLabel(p) {
+    const m = { 0: '人物', 1: '概念', 2: '指标' };
+    return m[p] !== undefined ? m[p] : (p !== undefined && p !== null ? String(p) : '-');
+}
+
+async function loadInsights() {
+    const container = document.getElementById('insight-list');
+    let url = API_BASE + '?limit=100';
+    const kid = document.getElementById('filter-kid')?.value;
+    const perspective = document.getElementById('filter-perspective')?.value;
+    const type = document.getElementById('filter-type')?.value;
+    const status = document.getElementById('filter-status')?.value;
+    if (kid) url += '&kid=' + encodeURIComponent(kid);
+    if (perspective !== '' && perspective !== undefined) url += '&perspective=' + encodeURIComponent(perspective);
+    if (type !== '' && type !== undefined) url += '&type=' + encodeURIComponent(type);
+    if (status !== '' && status !== undefined) url += '&status=' + encodeURIComponent(status);
+    try {
+        const res = await fetch(url);
+        const result = await res.json();
+        const items = (result.data && result.data.data) || [];
+        if (items.length > 0) {
+            let html = '<table class="data-table"><thead><tr><th>ID</th><th>内容</th><th>类型</th><th>状态</th><th>知识ID</th><th>视角</th><th>更新时间</th><th>操作</th></tr></thead><tbody>';
+            items.forEach(i => {
+                const pers = i.perspective != null ? i.perspective : i.pid;
+                html += `<tr>
+                    <td>${i.id}</td>
+                    <td class="max-w-md" title="${escapeHtml(i.content || '')}">${escapeHtml((i.content || '').substring(0, 80))}${(i.content || '').length > 80 ? '...' : ''}</td>
+                    <td><span class="badge badge-info">${typeLabel(i.type)}</span></td>
+                    <td>${i.status === 1 ? '<span class="text-green-600">已采纳</span>' : '<span class="text-gray-500">草稿</span>'}</td>
+                    <td>${i.kid != null && i.kid !== '' ? i.kid : '-'}</td>
+                    <td>${perspectiveLabel(pers)}</td>
+                    <td>${formatTimestamp(i.ut)}</td>
+                    <td><button onclick="toggleStatus(${i.id}, ${i.status})" class="btn btn-outline btn-sm mr-1">${i.status === 1 ? '取消采纳' : '采纳'}</button><button onclick="openEditModal(${i.id})" class="btn btn-outline btn-sm mr-1">编辑</button><button onclick="deleteInsight(${i.id})" class="btn btn-outline btn-sm text-red-600">删除</button></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div class="p-8 text-center text-gray-500"><p>暂无观点</p><p class="text-sm mt-2">点击「生成观点」从知识图谱自动生成，或「手动新增」创建</p></div>';
+        }
+    } catch (e) {
+        container.innerHTML = '<div class="p-8 text-center text-red-500"><p>加载失败: ' + escapeHtml(e.message) + '</p><button onclick="loadInsights()" class="btn btn-outline btn-sm mt-4">重试</button></div>';
+    }
+}
+
+function openCreateModal() {
+    document.getElementById('insight-create-form').reset();
+    document.getElementById('insight-create-modal').classList.remove('hidden');
+    document.getElementById('insight-create-modal').style.display = 'flex';
+}
+function closeCreateModal() {
+    document.getElementById('insight-create-modal').classList.add('hidden');
+    document.getElementById('insight-create-modal').style.display = 'none';
+}
+function openEditModal(id) {
+    fetch(API_BASE + '/' + id)
+        .then(r => r.json())
+        .then(result => {
+            if (result.errorCode === 0 && result.data) {
+                const d = result.data;
+                document.getElementById('edit-insight-id').value = d.id;
+                document.getElementById('edit-insight-content').value = d.content || '';
+                document.getElementById('edit-insight-type').value = String(d.type !== undefined && d.type !== null ? d.type : 1);
+                const pers = d.perspective != null ? d.perspective : d.pid;
+                document.getElementById('edit-insight-perspective').value = (pers !== undefined && pers !== null) ? String(pers) : '';
+                document.getElementById('insight-edit-modal').classList.remove('hidden');
+                document.getElementById('insight-edit-modal').style.display = 'flex';
+            } else alert('加载失败');
+        })
+        .catch(e => alert('加载失败: ' + e.message));
+}
+function closeEditModal() {
+    document.getElementById('insight-edit-modal').classList.add('hidden');
+    document.getElementById('insight-edit-modal').style.display = 'none';
+}
+function openGenerateModal() {
+    document.getElementById('insight-generate-form').reset();
+    const filterKid = document.getElementById('filter-kid')?.value;
+    if (filterKid) document.getElementById('gen-kid').value = filterKid;
+    document.getElementById('insight-generate-modal').classList.remove('hidden');
+    document.getElementById('insight-generate-modal').style.display = 'flex';
+}
+function closeGenerateModal() {
+    document.getElementById('insight-generate-modal').classList.add('hidden');
+    document.getElementById('insight-generate-modal').style.display = 'none';
+}
+
+async function saveInsight(ev) {
+    ev.preventDefault();
+    const persVal = document.getElementById('insight-perspective')?.value;
+    const data = {
+        content: document.getElementById('insight-content').value.trim(),
+        type: parseInt(document.getElementById('insight-type').value, 10),
+        kid: document.getElementById('insight-kid').value ? parseInt(document.getElementById('insight-kid').value) : null,
+        perspective: (persVal && persVal !== '') ? parseInt(persVal, 10) : null
+    };
+    if (!data.content) { alert('请输入内容'); return; }
+    try {
+        const res = await fetch(API_BASE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (result.errorCode === 0) { closeCreateModal(); loadInsights(); }
+        else { alert('保存失败: ' + (result.message || '未知错误')); }
+    } catch (e) { alert('保存失败: ' + e.message); }
+}
+
+async function updateInsight(ev) {
+    ev.preventDefault();
+    const id = parseInt(document.getElementById('edit-insight-id').value);
+    const persVal = document.getElementById('edit-insight-perspective')?.value;
+    const data = {
+        content: document.getElementById('edit-insight-content').value.trim(),
+        type: parseInt(document.getElementById('edit-insight-type').value, 10),
+        perspective: (persVal && persVal !== '') ? parseInt(persVal, 10) : null
+    };
+    if (!data.content) { alert('请输入内容'); return; }
+    try {
+        const res = await fetch(API_BASE + '/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (result.errorCode === 0) { closeEditModal(); loadInsights(); }
+        else { alert('更新失败: ' + (result.message || '未知错误')); }
+    } catch (e) { alert('更新失败: ' + e.message); }
+}
+
+async function runGenerate(ev) {
+    ev.preventDefault();
+    const kid = parseInt(document.getElementById('gen-kid').value);
+    if (!kid) { alert('请输入批次 ID'); return; }
+    const btn = document.getElementById('gen-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '生成中...'; }
+    try {
+        const res = await fetch(API_BASE + '/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ kid })
+        });
+        const result = await res.json();
+        if (result.errorCode === 0) {
+            const d = result.data;
+            alert('生成完成，共 ' + (d.generated || 0) + ' 条观点');
+            closeGenerateModal();
+            loadInsights();
+        } else {
+            alert('生成失败: ' + (result.message || '未知错误'));
+        }
+    } catch (e) { alert('生成失败: ' + e.message); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = '生成'; } }
+}
+
+async function toggleStatus(id, currentStatus) {
+    const newStatus = currentStatus === 1 ? 0 : 1;
+    try {
+        const res = await fetch(API_BASE + '/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ status: newStatus })
+        });
+        const result = await res.json();
+        if (result.errorCode === 0) loadInsights();
+        else alert('操作失败: ' + (result.message || '未知错误'));
+    } catch (e) { alert('操作失败: ' + e.message); }
+}
+
+async function deleteInsight(id) {
+    if (!confirm('确定删除此观点？')) return;
+    try {
+        const res = await fetch(API_BASE + '/' + id, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '' } });
+        const result = await res.json();
+        if (result.errorCode === 0) loadInsights();
+        else alert('删除失败: ' + (result.message || '未知错误'));
+    } catch (e) { alert('删除失败: ' + e.message); }
+}
+
+document.getElementById('insight-create-modal').addEventListener('click', function(e) { if (e.target === this) closeCreateModal(); });
+document.getElementById('insight-edit-modal').addEventListener('click', function(e) { if (e.target === this) closeEditModal(); });
+document.getElementById('insight-generate-modal').addEventListener('click', function(e) { if (e.target === this) closeGenerateModal(); });
+document.addEventListener('DOMContentLoaded', function() {
+    const params = new URLSearchParams(window.location.search);
+    const kid = params.get('kid');
+    if (kid) {
+        const el = document.getElementById('filter-kid');
+        if (el) el.value = kid;
+    }
+    loadInsights();
+});
+</script>
+{% endblock %}

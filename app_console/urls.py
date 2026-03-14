@@ -6,6 +6,8 @@ from app_console.views import (
     KnowDetailView,
     KnowRelationshipView,
     KnowSummaryView,
+    KnowPerspectiveView,
+    KnowInsightView,
     MailAccountListView,
     MailboxListView,
     OssBrowserView,
@@ -23,6 +25,8 @@ urlpatterns = [
     path('know/<int:entity_id>/', KnowDetailView.as_view(), name='know-detail'),
     path('know/relationships/', KnowRelationshipView.as_view(), name='know-relationships'),
     path('know/summaries/', KnowSummaryView.as_view(), name='know-summaries'),
+    path('know/perspectives/', KnowPerspectiveView.as_view(), name='know-perspectives'),
+    path('know/insights/', KnowInsightView.as_view(), name='know-insights'),
 
     # Mail management
     path('mail/', MailAccountListView.as_view(), name='mail-accounts'),

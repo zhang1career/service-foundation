@@ -1,5 +1,12 @@
 from .dashboard_view import DashboardView
-from .know_view import KnowListView, KnowDetailView, KnowRelationshipView, KnowSummaryView
+from .know_view import (
+    KnowListView,
+    KnowDetailView,
+    KnowRelationshipView,
+    KnowSummaryView,
+    KnowPerspectiveView,
+    KnowInsightView,
+)
 from .mail_view import MailAccountListView, MailboxListView
 from .oss_view import OssBrowserView
 from .snowflake_view import SnowflakeView
@@ -10,6 +17,8 @@ __all__ = [
     'KnowDetailView',
     'KnowRelationshipView',
     'KnowSummaryView',
+    'KnowPerspectiveView',
+    'KnowInsightView',
     'MailAccountListView',
     'MailboxListView',
     'OssBrowserView',

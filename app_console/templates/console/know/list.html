@@ -3,9 +3,6 @@
 {% block title %}知识管理{% endblock %}
 {% block page_title %}知识管理{% endblock %}
 
-{% block extra_head %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@10.0.3/dist/jsoneditor.min.css">
-{% endblock %}
 
 {% block content %}
 <div class="mb-6">
@@ -14,30 +11,25 @@
         <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">知识列表</a>
         <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">关系管理</a>
         <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
+        <a href="{% url 'console:know-perspectives' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">视角</a>
+        <a href="{% url 'console:know-insights' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">观点</a>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header">
         <h2 class="text-lg font-semibold">知识列表</h2>
-        <button onclick="openCreateModal()" class="btn btn-primary btn-sm">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-            </svg>
-            新增知识
-        </button>
-    </div>
-    <div class="border-b border-gray-200 px-4 py-3 bg-gray-50">
-        <div class="flex items-center gap-2">
-            <input type="text" id="filter-title" class="form-input text-sm w-48" placeholder="标题（前缀匹配）" />
-            <input type="text" id="filter-summary" class="form-input text-sm w-48" placeholder="摘要（语义搜索）" />
-            <button type="button" onclick="applyFilters()" class="btn btn-outline btn-sm p-1.5" title="搜索">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </button>
-            <button type="button" id="clear-filters-btn" onclick="clearFilters()" class="btn btn-outline btn-sm p-1.5 hidden" title="清除">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        <div class="flex gap-2">
+            <button onclick="openUploadModal()" class="btn btn-primary btn-sm">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                </svg>
+                上传文件
             </button>
         </div>
+    </div>
+    <div class="border-b border-gray-200 px-4 py-2 bg-gray-50">
+        <p class="text-sm text-gray-500">批次列表（按 batch_id 分组）。新增批次请使用「上传文件」。</p>
     </div>
     <div class="card-body p-0">
         <div id="knowledge-list">
@@ -49,36 +41,34 @@
     </div>
 </div>
 
-<!-- Create/Edit Modal -->
-<div id="knowledge-modal" class="modal-backdrop hidden" style="display: none;">
+<!-- Upload Modal -->
+<div id="upload-modal" class="modal-backdrop hidden" style="display: none;">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 id="modal-title" class="text-lg font-semibold">新增知识</h3>
+            <h3 class="text-lg font-semibold">上传文件</h3>
         </div>
-        <form id="knowledge-form">
+        <form id="upload-form" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="modal-body">
-                <input type="hidden" id="knowledge-id" name="id">
+                <p class="text-sm text-gray-500 mb-3">仅支持 .txt 文件，编码 UTF-8，最大 5MB</p>
                 <div class="form-group">
-                    <label class="form-label" for="knowledge-title">标题 *</label>
-                    <input type="text" id="knowledge-title" name="title" class="form-input" required>
+                    <label class="form-label" for="upload-file">选择文件 *</label>
+                    <input type="file" id="upload-file" name="file" accept=".txt" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="knowledge-source-type">来源类型</label>
-                    <input type="text" id="knowledge-source-type" name="source_type" class="form-input" placeholder="例如：document, url, ingestion">
+                    <label class="form-label" for="upload-title">标题（可选，默认使用文件名）</label>
+                    <input type="text" id="upload-title" name="title" class="form-input" placeholder="留空则使用文件名">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">描述</label>
-                    <div id="knowledge-description-editor" class="border border-gray-300 rounded-lg overflow-hidden" style="min-height: 120px;"></div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="knowledge-content">内容</label>
-                    <textarea id="knowledge-content" name="content" class="form-textarea" rows="8" placeholder="知识的正文内容"></textarea>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="upload-parse" name="parse" checked>
+                        <span class="text-sm">上传后自动解析（拆句、分类、向量化），抽取需在详情页操作</span>
+                    </label>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" onclick="closeModal()" class="btn btn-outline">取消</button>
-                <button type="submit" class="btn btn-primary">保存</button>
+                <button type="button" onclick="closeUploadModal()" class="btn btn-outline">取消</button>
+                <button type="submit" class="btn btn-primary" id="upload-submit-btn">上传</button>
             </div>
         </form>
     </div>
@@ -87,304 +77,167 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/jsoneditor@10.0.3/dist/jsoneditor.min.js"></script>
 <script>
 const API_BASE = '/api/know/knowledge';
 
-// 格式化 JSON：添加空格和换行
-function formatJsonForDisplay(str) {
-    if (!str || String(str).trim() === '') return '{}';
-    try {
-        const parsed = typeof str === 'string' ? JSON.parse(str) : str;
-        return JSON.stringify(parsed, null, 2);
-    } catch {
-        return str;
-    }
+function escapeHtml(s) {
+    if (!s) return '';
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
 }
 
-// compact JSON：去除空格和换行
-function compactJsonForSave(str) {
-    if (!str || String(str).trim() === '') return '';
-    try {
-        const parsed = typeof str === 'string' ? JSON.parse(str) : str;
-        return JSON.stringify(parsed);
-    } catch (e) {
-        throw new Error('描述必须是有效的 JSON 格式');
-    }
-}
-
-let descriptionEditor = null;
-let currentPage = 1;
-let currentTitleFilter = '';    // 当前标题筛选条件
-let currentSummaryFilter = '';  // 当前摘要筛选条件
-const pageSize = 20;
-
-// Load knowledge list
-async function loadKnowledgeList(page = 1) {
-    currentPage = page;
+// Load batch list (batches = batch_ids with title)
+async function loadKnowledgeList() {
     const container = document.getElementById('knowledge-list');
-    const offset = (page - 1) * pageSize;
-    let url = `${API_BASE}?offset=${offset}&limit=${pageSize}`;
-    if (currentTitleFilter) {
-        url += '&title=' + encodeURIComponent(currentTitleFilter);
-    } else if (currentSummaryFilter) {
-        url += '&summary=' + encodeURIComponent(currentSummaryFilter);
-    }
-
     try {
-        const response = await fetch(url);
+        const response = await fetch(`${API_BASE}?limit=100`);
         const data = await response.json();
-        
         if (data.errorCode !== 0) {
             throw new Error(data.message || '加载失败');
         }
-        
-        if (data.data && data.data.data && data.data.data.length > 0) {
-            const items = data.data.data;
-            const totalNum = data.data.total_num;
-            const filteredBySummary = data.data.filtered_by_summary === true;
-            const totalPages = filteredBySummary ? 1 : Math.ceil(totalNum / pageSize);
-
-            const clearBtn = document.getElementById('clear-filters-btn');
-            if (clearBtn) clearBtn.classList.toggle('hidden', !currentTitleFilter && !currentSummaryFilter);
-
+        const items = (data.data && data.data.data) || [];
+        const totalNum = (data.data && data.data.total_num) || 0;
+        if (items.length > 0) {
             let html = `
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>批次 ID</th>
                             <th>标题</th>
-                            <th>来源类型</th>
-                            <th>描述</th>
-                            <th>内容</th>
-                            <th>创建时间</th>
                             <th>操作</th>
                         </tr>
                     </thead>
-                    <tbody>
-            `;
-            
+                    <tbody>`;
             items.forEach(item => {
-                const titleCell = filteredBySummary && item.similarity != null
-                    ? listTitleCellWithSimilarity(item.title, '/console/know/' + item.id + '/', item.similarity)
-                    : listTitleCell(item.title, '/console/know/' + item.id + '/');
+                const title = item.title || ('Batch ' + item.id);
                 html += `<tr>
-                        <td>${item.id}</td>
-                        ${titleCell}
-                        <td><span class="badge badge-info">${item.source_type || '-'}</span></td>
-                        <td class="max-w-xs truncate">${item.description || '-'}</td>
-                        <td class="max-w-xs truncate">${escapeHtml(item.content || '-')}</td>
-                        <td>${formatDate(item.ct)}</td>
-                        ${listActions({ id: item.id, onEdit: 'editKnowledge', onDelete: 'deleteKnowledge' })}
-                    </tr>`;
+                    <td>${item.id}</td>
+                    <td class="font-medium"><a href="/console/know/${item.id}/" class="text-blue-600 hover:underline">${escapeHtml(title)}</a></td>
+                    <td>
+                        <a href="/console/know/${item.id}/" class="btn btn-outline btn-sm mr-2">查看</a>
+                        <button type="button" onclick="deleteKnowledge(${item.id})" class="btn btn-danger btn-sm" title="删除">删除</button>
+                    </td>
+                </tr>`;
             });
-            
             html += '</tbody></table>';
-            
-            // Pagination (no pagination when filtered by summary)
-            if (totalPages > 1 && !filteredBySummary) {
-                html += renderPagination({ current_page: currentPage, total_pages: totalPages, loadFn: 'loadKnowledgeList' });
-            }
-            
             container.innerHTML = html;
         } else {
-            const clearBtn = document.getElementById('clear-filters-btn');
-            if (clearBtn) clearBtn.classList.toggle('hidden', !currentTitleFilter && !currentSummaryFilter);
             container.innerHTML = `
                 <div class="empty-state">
                     <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                     </svg>
-                    <p class="text-lg font-medium">暂无知识条目</p>
-                    <p class="text-sm">点击"新增知识"按钮创建第一条知识</p>
-                </div>
-            `;
+                    <p class="text-lg font-medium">暂无批次</p>
+                    <p class="text-sm">点击「上传文件」创建第一个批次</p>
+                </div>`;
         }
     } catch (error) {
-        container.innerHTML = `
-            <div class="p-8 text-center text-red-500">
-                <p>加载失败: ${error.message}</p>
-                <button onclick="loadKnowledgeList()" class="btn btn-outline btn-sm mt-4">重试</button>
-            </div>
-        `;
+        container.innerHTML = `<div class="p-8 text-center text-red-500">
+            <p>加载失败: ${escapeHtml(error.message)}</p>
+            <button onclick="loadKnowledgeList()" class="btn btn-outline btn-sm mt-4">重试</button>
+        </div>`;
     }
 }
 
-// Modal functions
-function initDescriptionEditor() {
-    if (descriptionEditor) return;
-    const container = document.getElementById('knowledge-description-editor');
-    if (!container) return;
-    descriptionEditor = new JSONEditor(container, {
-        mode: 'code',
-        modes: ['code'],
-        search: false,
-        mainMenuBar: false,
-        statusBar: false
-    });
-    descriptionEditor.set({});
-}
-
-function openCreateModal() {
-    document.getElementById('modal-title').textContent = '新增知识';
-    document.getElementById('knowledge-form').reset();
-    document.getElementById('knowledge-id').value = '';
-    initDescriptionEditor();
-    descriptionEditor.setText('{}');
-    var modal = document.getElementById('knowledge-modal');
+// Upload modal
+function openUploadModal() {
+    document.getElementById('upload-form').reset();
+    document.getElementById('upload-parse').checked = true;
+    var modal = document.getElementById('upload-modal');
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
-    if (descriptionEditor && typeof descriptionEditor.resize === 'function') {
-        setTimeout(function() { descriptionEditor.resize(); }, 50);
-    }
 }
 
-function closeModal() {
-    var modal = document.getElementById('knowledge-modal');
+function closeUploadModal() {
+    var modal = document.getElementById('upload-modal');
     modal.classList.add('hidden');
     modal.style.display = 'none';
 }
 
-// View knowledge
-function viewKnowledge(id) {
-    window.location.href = `/console/know/${id}/`;
-}
-
-// Edit knowledge
-async function editKnowledge(id) {
-    try {
-        const response = await fetch(`${API_BASE}/${id}`);
-        const data = await response.json();
-        
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '获取数据失败');
-        }
-        
-        if (data.data) {
-            document.getElementById('modal-title').textContent = '编辑知识';
-            document.getElementById('knowledge-id').value = data.data.id;
-            document.getElementById('knowledge-title').value = data.data.title || '';
-            document.getElementById('knowledge-source-type').value = data.data.source_type || '';
-            initDescriptionEditor();
-            descriptionEditor.setText(formatJsonForDisplay(data.data.description || ''));
-            document.getElementById('knowledge-content').value = data.data.content || '';
-            var modal = document.getElementById('knowledge-modal');
-            modal.classList.remove('hidden');
-            modal.style.display = 'flex';
-            if (descriptionEditor && typeof descriptionEditor.resize === 'function') {
-                setTimeout(function() { descriptionEditor.resize(); }, 50);
-            }
-        }
-    } catch (error) {
-        showToast('获取数据失败: ' + error.message, 'error');
+document.getElementById('upload-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('upload-file');
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showToast('请选择文件', 'error');
+        return;
     }
-}
-
-// Delete knowledge
-async function deleteKnowledge(id) {
-    if (!confirm('确认删除该知识条目？此操作不可恢复。')) return;
-    
+    const file = fileInput.files[0];
+    if (!file.name.toLowerCase().endsWith('.txt')) {
+        showToast('仅支持 .txt 文件', 'error');
+        return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+        showToast('文件不能超过 5MB', 'error');
+        return;
+    }
+    const btn = document.getElementById('upload-submit-btn');
+    const origText = btn ? btn.textContent : '上传';
+    if (btn) { btn.disabled = true; btn.textContent = '上传中...'; }
     try {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('parse', document.getElementById('upload-parse').checked ? 'true' : 'false');
+        const title = (document.getElementById('upload-title').value || '').trim();
+        if (title) formData.append('title', title);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        const response = await fetch(`${API_BASE}/upload`, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await response.json();
+        if (data.errorCode === 0 && data.data) {
+            const d = data.data;
+            showToast(d.parse ? `上传成功，已解析 ${d.sentence_count || 0} 句` : '上传成功', 'success');
+            closeUploadModal();
+            loadKnowledgeList();
+            if (d.id && d.parse && d.sentence_count > 0) {
+                setTimeout(function() { window.location.href = '/console/know/' + d.id + '/'; }, 500);
+            }
+        } else {
+            showToast(data.message || '上传失败', 'error');
+        }
+    } catch (err) {
+        showToast('上传失败: ' + err.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+});
+
+document.getElementById('upload-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeUploadModal();
+});
+
+// Delete batch
+async function deleteKnowledge(id) {
+    if (!confirm('确认删除该批次及其所有知识点？此操作不可恢复。')) return;
+    try {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
         const response = await fetch(`${API_BASE}/${id}`, {
             method: 'DELETE',
-            headers: {
-                'X-CSRFToken': csrfToken
-            }
+            headers: { 'X-CSRFToken': csrfToken || '' }
         });
-        
         const data = await response.json();
-        
         if (data.errorCode !== 0) {
             throw new Error(data.message || '删除失败');
         }
-        
-        showToast('删除成功', 'success');
-        loadKnowledgeList(currentPage);
-    } catch (error) {
-        showToast(error.message, 'error');
-    }
-}
-
-// Form submit
-document.getElementById('knowledge-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    let descriptionValue;
-    try {
-        descriptionValue = compactJsonForSave(descriptionEditor ? descriptionEditor.getText() : '');
-    } catch (err) {
-        showToast(err.message, 'error');
-        return;
-    }
-    
-    const id = document.getElementById('knowledge-id').value;
-    const formData = {
-        title: document.getElementById('knowledge-title').value,
-        source_type: document.getElementById('knowledge-source-type').value,
-        description: descriptionValue,
-        content: document.getElementById('knowledge-content').value
-    };
-    
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    
-    try {
-        const url = id ? `${API_BASE}/${id}` : API_BASE;
-        const method = id ? 'PUT' : 'POST';
-        
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(formData)
-        });
-        
-        const data = await response.json();
-        
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '操作失败');
+        if (typeof showToast === 'function') {
+            showToast('删除成功', 'success');
+        } else {
+            alert('删除成功');
         }
-        
-        showToast(id ? '更新成功' : '创建成功', 'success');
-        closeModal();
-        loadKnowledgeList(currentPage);
+        loadKnowledgeList();
     } catch (error) {
-        showToast(error.message, 'error');
+        if (typeof showToast === 'function') {
+            showToast(error.message, 'error');
+        } else {
+            alert(error.message);
+        }
     }
-});
-
-// Close modal on backdrop click
-document.getElementById('knowledge-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
-
-// Filters
-function applyFilters() {
-    const titleInput = document.getElementById('filter-title');
-    const summaryInput = document.getElementById('filter-summary');
-    currentTitleFilter = titleInput ? (titleInput.value || '').trim() : '';
-    currentSummaryFilter = summaryInput ? (summaryInput.value || '').trim() : '';
-    loadKnowledgeList(1);
 }
 
-function clearFilters() {
-    currentTitleFilter = '';
-    currentSummaryFilter = '';
-    const titleInput = document.getElementById('filter-title');
-    const summaryInput = document.getElementById('filter-summary');
-    if (titleInput) titleInput.value = '';
-    if (summaryInput) summaryInput.value = '';
-    document.getElementById('clear-filters-btn')?.classList.add('hidden');
-    loadKnowledgeList(1);
-}
-
-// Initial load
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('knowledge-modal').style.display = 'none';
-    loadKnowledgeList();
-    // 延迟初始化 JSON 编辑器，确保 DOM 已准备好（首次打开弹窗时再创建）
-});
+document.addEventListener('DOMContentLoaded', loadKnowledgeList);
 </script>
 {% endblock %}

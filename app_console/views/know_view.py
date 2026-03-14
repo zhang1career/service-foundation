@@ -20,3 +20,11 @@ class KnowRelationshipView(TemplateView):
 
 class KnowSummaryView(TemplateView):
     template_name = 'console/know/summaries.html'
+
+
+class KnowPerspectiveView(TemplateView):
+    template_name = 'console/know/perspectives.html'
+
+
+class KnowInsightView(TemplateView):
+    template_name = 'console/know/insights.html'
