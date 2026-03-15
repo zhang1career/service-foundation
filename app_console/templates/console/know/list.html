@@ -14,7 +14,14 @@
         <h2 class="text-lg font-semibold">知识列表</h2>
     </div>
     <div class="border-b border-gray-200 px-4 py-2 bg-gray-50">
-        <p class="text-sm text-gray-500">按 batch_id 分组的批次列表。新增批次请在「批次列表」中使用「添加文字」或「上传文件」。</p>
+        <p class="text-sm text-gray-500 mb-3">按 batch_id 分组的批次列表。新增批次请在「批次列表」中使用「添加文字」或「上传文件」。</p>
+        <form id="knowledge-list-filter" class="flex flex-wrap items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">批次号</label>
+            <input type="number" name="batch_id" id="filter-batch-id" min="1" step="1" placeholder="可选"
+                   class="border border-gray-300 rounded px-2 py-1.5 text-sm w-28">
+            <button type="submit" class="btn btn-outline btn-sm">查询</button>
+            <button type="button" id="clear-filter" class="btn btn-outline btn-sm">清空</button>
+        </form>
     </div>
     <div class="card-body p-0">
         <div id="knowledge-list">
@@ -39,11 +46,28 @@ function escapeHtml(s) {
     return div.innerHTML;
 }
 
+function getBatchIdFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('batch_id');
+    if (v === null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) || n < 1 ? null : n;
+}
+
+function applyBatchIdToInput() {
+    const bid = getBatchIdFromUrl();
+    const input = document.getElementById('filter-batch-id');
+    if (input) input.value = bid !== null ? String(bid) : '';
+}
+
 // Load batch list (batches = batch_ids with title)
 async function loadKnowledgeList() {
     const container = document.getElementById('knowledge-list');
+    const batchId = getBatchIdFromUrl();
+    const query = new URLSearchParams({ limit: '100' });
+    if (batchId !== null) query.set('batch_id', String(batchId));
     try {
-        const response = await fetch(`${API_BASE}?limit=100`);
+        const response = await fetch(`${API_BASE}?${query.toString()}`);
         const data = await response.json();
         if (data.errorCode !== 0) {
             throw new Error(data.message || '加载失败');
@@ -118,6 +142,32 @@ async function deleteKnowledge(id) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', loadKnowledgeList);
+document.addEventListener('DOMContentLoaded', function() {
+    applyBatchIdToInput();
+    loadKnowledgeList();
+});
+
+document.getElementById('knowledge-list-filter').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const input = document.getElementById('filter-batch-id');
+    const val = input ? input.value.trim() : '';
+    const url = new URL(window.location.href);
+    url.searchParams.delete('batch_id');
+    if (val) {
+        const n = parseInt(val, 10);
+        if (!Number.isNaN(n) && n >= 1) url.searchParams.set('batch_id', String(n));
+    }
+    window.history.replaceState({}, '', url.pathname + url.search);
+    loadKnowledgeList();
+});
+
+document.getElementById('clear-filter').addEventListener('click', function() {
+    const input = document.getElementById('filter-batch-id');
+    if (input) input.value = '';
+    const url = new URL(window.location.href);
+    url.searchParams.delete('batch_id');
+    window.history.replaceState({}, '', url.pathname + (url.search || ''));
+    loadKnowledgeList();
+});
 </script>
 {% endblock %}

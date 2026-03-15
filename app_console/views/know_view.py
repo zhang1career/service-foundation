@@ -99,9 +99,17 @@ class KnowBatchDetailView(TemplateView):
         context = super().get_context_data(**kwargs)
         context['entity_id'] = kwargs.get('entity_id')
         context['batch_data'] = getattr(self, 'batch_data', None)
+        show_know_list_btn = False
         if context['batch_data']:
             context['batch_data']['ct_fmt'] = _format_ts(context['batch_data'].get('ct'))
             context['batch_data']['ut_fmt'] = _format_ts(context['batch_data'].get('ut'))
+            try:
+                sc = int(context['batch_data'].get('sentence_count') or 0)
+            except (TypeError, ValueError):
+                sc = 0
+            context['batch_data']['sentence_count'] = sc
+            show_know_list_btn = sc > 0
+        context['show_know_list_btn'] = show_know_list_btn
         return context
 
 

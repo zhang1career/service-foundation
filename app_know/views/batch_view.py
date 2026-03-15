@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from app_know.consts import SOURCE_TYPE_INSTANT
 from app_know.repos.batch_repo import get_batch_detail, get_by_id, list_batches, count_batches, update_content
+from app_know.utils.text_util import normalize_single_paragraph
 from app_know.services.batch_service import (
     create_from_text,
     create_from_upload,
@@ -142,7 +143,10 @@ class BatchCreateTextView(APIView):
         """Body: { content: string (required) }"""
         try:
             data = getattr(request, "data", None) or request.POST or {}
-            content = (data.get("content") or "").strip()
+            raw = (data.get("content") or "").strip()
+            if not raw:
+                return resp_err("content is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+            content = normalize_single_paragraph(raw)
             if not content:
                 return resp_err("content is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
             result = create_from_text(content)

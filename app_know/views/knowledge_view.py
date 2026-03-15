@@ -39,11 +39,30 @@ class KnowledgeListView(APIView):
     """List batches (entity_id = batch_id)."""
 
     def get(self, request, *args, **kwargs):
-        """List batches. Returns batch_ids with synthetic title from first knowledge point."""
+        """List batches. Returns batch_ids with synthetic title from first knowledge point.
+        Query params: limit, batch_id (optional, filter by batch id).
+        """
         try:
             limit = int(with_type(request.GET.get("limit") or 100))
             if limit <= 0 or limit > 500:
                 limit = 100
+            batch_id_param = request.GET.get("batch_id")
+            if batch_id_param is not None and batch_id_param != "":
+                try:
+                    bid = int(batch_id_param)
+                    if bid <= 0:
+                        bid = None
+                except (TypeError, ValueError):
+                    bid = None
+                if bid is not None:
+                    items, _ = list_by_batch(bid, limit=1)
+                    first = (items[0].content or "") if items else ""
+                    data = [_batch_to_dict(bid, first)] if items else []
+                    return resp_ok({
+                        "data": data,
+                        "total_num": len(data),
+                        "next_offset": None,
+                    })
             batch_ids = list_distinct_batch_ids(limit=limit)
             data = []
             for bid in batch_ids:

@@ -89,10 +89,10 @@ document.getElementById('batch-edit-form').addEventListener('submit', async func
             var id = parseInt(entityId, 10) || 0;
             window.location.replace(window.location.origin + '/console/know/batches/' + id + '/?saved=1');
         } else {
-            showTopNotice(data && data.message ? data.message : '保存失败', 'error');
+            showToast(data && data.message ? data.message : '保存失败', 'error');
         }
     } catch (err) {
-        showTopNotice('保存失败: ' + (err.message || ''), 'error');
+        showToast('保存失败: ' + (err.message || ''), 'error');
     } finally {
         if (!succeeded && btn) btn.disabled = false;
     }

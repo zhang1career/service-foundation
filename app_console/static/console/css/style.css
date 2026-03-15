@@ -1,5 +1,11 @@
 /* Custom styles for console app */
 
+/* 隐藏控件但不改变布局：保留占位，不触发重排；全 app_console 统一用此类 */
+.console-hide-no-shift {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 /* 护眼背景：浅绿色，减轻视觉疲劳 */
 body {
     background-color: #dcf5e0;

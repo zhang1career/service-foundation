@@ -49,7 +49,7 @@
         <form id="add-text-form">
             {% csrf_token %}
             <div class="modal-body">
-                <p class="text-sm text-gray-500 mb-3">输入一段文字创建批次，拆句请在批次详情页点击「分析」。</p>
+                <p class="text-sm text-gray-500 mb-3">输入一段文字创建批次</p>
                 <div class="form-group">
                     <label class="form-label" for="add-text-content">文字内容 *</label>
                     <textarea id="add-text-content" name="content" class="form-input" rows="8" placeholder="在此输入文字..." required></textarea>
@@ -77,7 +77,6 @@
                     <label class="form-label" for="upload-file">选择文件 *</label>
                     <input type="file" id="upload-file" name="file" accept=".txt" class="form-input" required>
                 </div>
-                <p class="text-sm text-gray-500 mt-2">拆句请在批次详情页点击「分析」</p>
             </div>
             <div class="modal-footer">
                 <button type="button" onclick="closeUploadModal()" class="btn btn-outline">取消</button>
@@ -204,23 +203,19 @@ document.getElementById('add-text-form').addEventListener('submit', async functi
         });
         const data = await response.json();
         if (data.errorCode === 0 && data.data) {
-            const d = data.data;
-            if (typeof showToast === 'function') showToast('已创建批次，可在详情页点击「分析」进行拆句', 'success');
-            else alert('已创建批次');
             closeAddTextModal();
-            loadBatchList();
-            if (d.id) {
-                setTimeout(function() { window.location.href = '/console/know/batches/' + d.id + '/'; }, 500);
+            var listEl = document.getElementById('batch-list');
+            if (listEl) {
+                listEl.innerHTML = '<div class="p-8 text-center text-gray-500"><div class="spinner"></div><p class="mt-2">刷新中...</p></div>';
             }
+            await new Promise(function(r) { setTimeout(r, 80); });
+            await loadBatchList();
+            if (typeof showToast === 'function') showToast('已创建批次', 'success');
         } else {
-            const msg = data.message || '添加失败';
-            if (typeof showToast === 'function') showToast(msg, 'error');
-            else alert(msg);
+            showToast(data.message || '添加失败', 'error');
         }
     } catch (err) {
-        const msg = '添加失败: ' + err.message;
-        if (typeof showToast === 'function') showToast(msg, 'error');
-        else alert(msg);
+        showToast('添加失败: ' + (err.message || ''), 'error');
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = origText; }
     }

@@ -7,15 +7,13 @@
    - **取消**：返回**列表页**（不进入详情页）。
 
 2. **保存操作（表单提交）的通知**：
-   - 所有保存操作（提交表单）在**成功**或**失败**时都应在屏幕顶部展示通知。
-   - 使用顶部通知条：`showTopNotice(message, 'success' | 'warning' | 'error')`（见下）。
+   - 所有保存操作在**成功**或**失败**时都应用**同一套通知**展示（见下）。
 
-## 顶部通知条（全页面复用）
+## 通知（全控制台唯一）
 
-- **组件**：base 中提供 `#console-top-notice`，默认不显示。由 `main.js` 的 `showTopNotice(message, type)` 控制。
-- **类型与颜色**：`success` 绿、`warning` 黄、`error` 红；约 3 秒后自动隐藏。
-- **用法**：任意页面直接调用 `showTopNotice('提示文案', 'success' | 'warning' | 'error')`，无需再写 DOM 或样式。
-- **不阻塞**：仅展示提示，不阻塞跳转或操作。
+- **唯一方式**：`main.js` 的 `showToast(message, type)`，顶部右侧移入/移出的 toast；`error` 为弹窗确认。
+- **类型**：`success` 绿、`info` 蓝、`warning` 黄（约 3 秒消失）；`error` 红色弹窗（需点确认）。
+- **用法**：任意页面统一调用 `showToast('提示文案', 'success' | 'info' | 'warning' | 'error')`。从它页跳转后提示（如编辑保存后带 `?saved=1` 进详情页）：目标页 load 后检测参数并调用 `showToast('已保存', 'success')`，再清理 URL。
 
 ---
 

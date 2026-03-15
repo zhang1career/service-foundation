@@ -1,6 +1,17 @@
 -- Perspective and Insight tables for Phase 3
 -- Run against know_rw database
 
+CREATE TABLE `batch`
+(
+    `id`          BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `source_type` TINYINT(4)          NOT NULL DEFAULT '0' COMMENT '0-instant, 1-file',
+    `content`     TEXT                NULL     DEFAULT NULL,
+    `ct`          BIGINT(20) UNSIGNED NOT NULL DEFAULT '0' COMMENT '创建时间',
+    `ut`          BIGINT(20) UNSIGNED NOT NULL DEFAULT '0' COMMENT '更新时间',
+    PRIMARY KEY (`id`) USING BTREE,
+    INDEX `idx_src` (`ut`) USING BTREE
+);
+
 CREATE TABLE `knowledge`
 (
     `id`             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
