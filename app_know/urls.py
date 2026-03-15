@@ -4,6 +4,8 @@ from django.urls import path
 from common.views.atlas_repl_view import AtlasReplView
 from app_know.views.knowledge_view import (
     KnowledgeListView,
+    KnowledgeListItemsView,
+    KnowledgePointDetailView,
     KnowledgeDetailView,
     KnowledgeSomeLikeView,
 )
@@ -36,10 +38,14 @@ from app_know.views.batch_view import (
     BatchCreateUploadView,
     BatchAnalyzeView,
 )
+from app_know.views.dict_view import DictView
 
 urlpatterns = [
     path("atlas_repl", AtlasReplView.as_view(), name="atlas-repl"),
+    path("dict", DictView.as_view(), name="dict"),
     path("knowledge", KnowledgeListView.as_view(), name="knowledge-list"),
+    path("knowledge/items", KnowledgeListItemsView.as_view(), name="knowledge-list-items"),
+    path("knowledge/points/<int:point_id>", KnowledgePointDetailView.as_view(), name="knowledge-point-detail"),
     path("batches", BatchListView.as_view(), name="batch-list"),
     path("batches/add_text", BatchCreateTextView.as_view(), name="batch-add-text"),
     path("batches/upload", BatchCreateUploadView.as_view(), name="batch-upload"),

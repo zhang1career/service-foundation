@@ -52,6 +52,68 @@ class KnowDetailView(TemplateView):
         return context
 
 
+class KnowPointDetailView(TemplateView):
+    """知识详情：单条知识点（knowledge 表一行）。"""
+    template_name = 'console/know/point_detail.html'
+
+    def get(self, request, *args, **kwargs):
+        point_id = kwargs.get('point_id')
+        if not point_id or point_id <= 0:
+            raise Http404('无效的知识 ID')
+        point_id = int(point_id)
+        client = Client()
+        resp = client.get(f'/api/know/knowledge/points/{point_id}')
+        if resp.status_code != 200:
+            raise Http404(f'知识 {point_id} 不存在')
+        try:
+            result = json.loads(resp.content.decode('utf-8'))
+        except json.JSONDecodeError:
+            raise Http404(f'知识 {point_id} 不存在')
+        if result.get('errorCode') != 0 or not result.get('data'):
+            raise Http404(f'知识 {point_id} 不存在')
+        self.point_data = result['data']
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['point_id'] = kwargs.get('point_id')
+        context['point_data'] = getattr(self, 'point_data', None)
+        if context['point_data']:
+            d = context['point_data']
+            d['ct_fmt'] = _format_ts(d.get('ct'))
+            d['ut_fmt'] = _format_ts(d.get('ut'))
+        return context
+
+
+class KnowPointEditView(TemplateView):
+    """知识编辑：单条知识点的编辑页。"""
+    template_name = 'console/know/point_edit.html'
+
+    def get(self, request, *args, **kwargs):
+        point_id = kwargs.get('point_id')
+        if not point_id or point_id <= 0:
+            raise Http404('无效的知识 ID')
+        point_id = int(point_id)
+        client = Client()
+        resp = client.get(f'/api/know/knowledge/points/{point_id}')
+        if resp.status_code != 200:
+            raise Http404(f'知识 {point_id} 不存在')
+        try:
+            result = json.loads(resp.content.decode('utf-8'))
+        except json.JSONDecodeError:
+            raise Http404(f'知识 {point_id} 不存在')
+        if result.get('errorCode') != 0 or not result.get('data'):
+            raise Http404(f'知识 {point_id} 不存在')
+        self.point_data = result['data']
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['point_id'] = kwargs.get('point_id')
+        context['point_data'] = getattr(self, 'point_data', None)
+        return context
+
+
 class KnowRelationshipView(TemplateView):
     template_name = 'console/know/relationships.html'
 

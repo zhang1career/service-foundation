@@ -140,6 +140,18 @@ def update(kid: int, **kwargs) -> bool:
     return updated > 0
 
 
+def delete_by_id(kid: int) -> bool:
+    """Delete one knowledge point by id. Returns True if deleted."""
+    if kid is None or not isinstance(kid, int) or kid <= 0:
+        return False
+    try:
+        deleted, _ = KnowledgePoint.objects.using(_DB).filter(id=kid).delete()
+        return deleted > 0
+    except Exception as e:
+        logger.exception("[delete_by_id] Error: %s", e)
+        return False
+
+
 def get_ids_by_batch(batch_id: int) -> List[int]:
     """Get all ids for a batch."""
     if batch_id is None or not isinstance(batch_id, int) or batch_id <= 0:
@@ -149,6 +161,26 @@ def get_ids_by_batch(batch_id: int) -> List[int]:
         .filter(batch_id=batch_id)
         .values_list("id", flat=True)
     )
+
+
+def list_knowledge_points(
+    batch_id: Optional[int] = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> Tuple[List[KnowledgePoint], int]:
+    """List knowledge points (rows from knowledge table). Optional batch_id filter."""
+    if offset < 0:
+        offset = 0
+    if limit <= 0 or limit > LIMIT_LIST:
+        limit = min(100, LIMIT_LIST)
+    qs = KnowledgePoint.objects.using(_DB)
+    if batch_id is not None and isinstance(batch_id, int) and batch_id > 0:
+        qs = qs.filter(batch_id=batch_id).order_by("seq")
+    else:
+        qs = qs.order_by("-ct")
+    total = qs.count()
+    items = list(qs[offset : offset + limit])
+    return items, total
 
 
 def list_distinct_batch_ids(limit: int = 100) -> List[int]:

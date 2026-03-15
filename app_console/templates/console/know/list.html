@@ -14,7 +14,7 @@
         <h2 class="text-lg font-semibold">知识列表</h2>
     </div>
     <div class="border-b border-gray-200 px-4 py-2 bg-gray-50">
-        <p class="text-sm text-gray-500 mb-3">按 batch_id 分组的批次列表。新增批次请在「批次列表」中使用「添加文字」或「上传文件」。</p>
+        <p class="text-sm text-gray-500 mb-3">展示 knowledge 表中的知识点（句子）。可按批次号筛选。新增内容请在「批次列表」中创建批次并在批次详情中点击「分析」。</p>
         <form id="knowledge-list-filter" class="flex flex-wrap items-center gap-2">
             <label class="text-sm font-medium text-gray-700">批次号</label>
             <input type="number" name="batch_id" id="filter-batch-id" min="1" step="1" placeholder="可选"
@@ -37,7 +37,7 @@
 
 {% block extra_js %}
 <script>
-const API_BASE = '/api/know/knowledge';
+const API_KNOWLEDGE_ITEMS = '/api/know/knowledge/items';
 
 function escapeHtml(s) {
     if (!s) return '';
@@ -60,41 +60,55 @@ function applyBatchIdToInput() {
     if (input) input.value = bid !== null ? String(bid) : '';
 }
 
-// Load batch list (batches = batch_ids with title)
+// Load knowledge list (rows from knowledge table)
 async function loadKnowledgeList() {
     const container = document.getElementById('knowledge-list');
     const batchId = getBatchIdFromUrl();
-    const query = new URLSearchParams({ limit: '100' });
+    const query = new URLSearchParams({ limit: '100', offset: '0' });
     if (batchId !== null) query.set('batch_id', String(batchId));
     try {
-        const response = await fetch(`${API_BASE}?${query.toString()}`);
-        const data = await response.json();
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '加载失败');
+        const response = await fetch(`${API_KNOWLEDGE_ITEMS}?${query.toString()}`);
+        const result = await response.json();
+        if (result.errorCode !== 0) {
+            throw new Error(result.message || '加载失败');
         }
-        const items = (data.data && data.data.data) || [];
-        const totalNum = (data.data && data.data.total_num) || 0;
+        const items = (result.data && result.data.data) || [];
+        const totalNum = (result.data && result.data.total_num) || 0;
         if (items.length > 0) {
             let html = `
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>批次 ID</th>
-                            <th>标题</th>
+                            <th>知识 ID</th>
+                            <th>批次号</th>
+                            <th>内容（预览）</th>
+                            <th>分类</th>
+                            <th>序号</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>`;
             items.forEach(item => {
-                const title = item.title || ('Batch ' + item.id);
-                const detailUrl = '/console/know/' + item.id + '/';
+                const pointDetailUrl = '/console/know/points/' + item.id + '/';
+                const contentPreview = item.content_preview || item.content || '-';
+                const batchId = item.batch_id != null && item.batch_id !== '' ? item.batch_id : null;
+                const batchDetailUrl = batchId !== null ? '/console/know/batches/' + batchId + '/' : '';
+                const batchIdCell = batchId !== null
+                    ? listTitleCell(String(batchId), batchDetailUrl, '')
+                    : '<td>-</td>';
                 html += `<tr>
-                    <td>${item.id}</td>
-                    ${listTitleCell(title, detailUrl)}
-                    ${listActions({ id: item.id, onDelete: 'deleteKnowledge' })}
+                    <td>${escapeHtml(String(item.id))}</td>
+                    ${batchIdCell}
+                    ${listTitleCell(contentPreview, pointDetailUrl, 'font-medium max-w-md')}
+                    <td>${escapeHtml(item.classification || '-')}</td>
+                    <td>${escapeHtml(String(item.seq != null ? item.seq : '-'))}</td>
+                    ${listActions({ id: item.id, onEdit: 'editKnowledgePoint', onDelete: 'deleteKnowledgePoint' })}
                 </tr>`;
             });
             html += '</tbody></table>';
+            if (totalNum > items.length) {
+                html += `<p class="px-4 py-2 text-sm text-gray-500">共 ${totalNum} 条，当前显示 ${items.length} 条</p>`;
+            }
             container.innerHTML = html;
         } else {
             container.innerHTML = `
@@ -102,8 +116,8 @@ async function loadKnowledgeList() {
                     <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                     </svg>
-                    <p class="text-lg font-medium">暂无批次</p>
-                    <p class="text-sm">请在「批次列表」中创建批次</p>
+                    <p class="text-lg font-medium">暂无知识点</p>
+                    <p class="text-sm">请在「批次列表」中创建批次，并在批次详情中点击「分析」生成知识点</p>
                 </div>`;
         }
     } catch (error) {
@@ -114,33 +128,39 @@ async function loadKnowledgeList() {
     }
 }
 
-// Delete batch (use batch API)
-async function deleteKnowledge(id) {
-    if (!confirm('确认删除该批次及其所有知识点？此操作不可恢复。')) return;
+function editKnowledgePoint(id) {
+    if (!id) return;
+    window.location.href = '/console/know/points/' + id + '/edit/';
+}
+
+async function deleteKnowledgePoint(id) {
+    if (!id) return;
+    if (!confirm('确认删除该条知识？此操作不可恢复。')) return;
     try {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-        const response = await fetch(`/api/know/batches/${id}`, {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        const response = await fetch('/api/know/knowledge/points/' + id, {
             method: 'DELETE',
-            headers: { 'X-CSRFToken': csrfToken || '' }
+            headers: { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
         });
-        const data = await response.json();
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '删除失败');
-        }
-        if (typeof showToast === 'function') {
-            showToast('删除成功', 'success');
+        const result = await response.json();
+        if (result.errorCode === 0) {
+            if (typeof showToast === 'function') showToast('已删除', 'success');
+            else alert('已删除');
+            loadKnowledgeList();
         } else {
-            alert('删除成功');
+            const msg = result.message || '删除失败';
+            if (typeof showToast === 'function') showToast(msg, 'error');
+            else alert(msg);
         }
-        loadKnowledgeList();
-    } catch (error) {
-        if (typeof showToast === 'function') {
-            showToast(error.message, 'error');
-        } else {
-            alert(error.message);
-        }
+    } catch (err) {
+        const msg = '删除失败: ' + (err.message || '网络错误');
+        if (typeof showToast === 'function') showToast(msg, 'error');
+        else alert(msg);
     }
 }
+window.editKnowledgePoint = editKnowledgePoint;
+window.deleteKnowledgePoint = deleteKnowledgePoint;
 
 document.addEventListener('DOMContentLoaded', function() {
     applyBatchIdToInput();

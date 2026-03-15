@@ -1,0 +1,59 @@
+{% extends 'console/base.html' %}
+
+{% block title %}知识详情{% endblock %}
+{% block page_title %}知识详情{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+{% url 'console:know-list' as know_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=know_list_url back_label="返回知识列表" %}
+
+{% include 'console/includes/know_subnav.html' with active='know-list' size='small' mb='mb-4' %}
+
+{% if point_data %}
+<div class="card mb-6">
+    <div class="card-header flex items-center justify-between">
+        <h2 class="text-xl font-semibold">知识点 {{ point_data.id }}</h2>
+        <a href="{% url 'console:know-point-edit' point_id=point_id %}" class="btn btn-primary btn-sm">编辑</a>
+    </div>
+    <div class="card-body space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">知识 ID</p>
+                <p class="font-medium">{{ point_data.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">批次号</p>
+                {% if point_data.batch_id %}
+                <a href="{% url 'console:know-batch-detail' entity_id=point_data.batch_id %}" class="text-blue-600 hover:underline">{{ point_data.batch_id }}</a>
+                {% else %}
+                <span>-</span>
+                {% endif %}
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">分类</p>
+                <p>{{ point_data.classification|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">序号</p>
+                <p>{{ point_data.seq|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                <p>{{ point_data.ct_fmt|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                <p>{{ point_data.ut_fmt|default:"-" }}</p>
+            </div>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">内容</p>
+            <div class="whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.content|default:"-" }}</div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="p-8 text-center text-gray-500">加载中...</div>
+{% endif %}
+{% endblock %}

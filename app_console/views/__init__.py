@@ -2,6 +2,8 @@ from .dashboard_view import DashboardView
 from .know_view import (
     KnowListView,
     KnowDetailView,
+    KnowPointDetailView,
+    KnowPointEditView,
     KnowRelationshipView,
     KnowSummaryView,
     KnowPerspectiveView,
@@ -18,6 +20,8 @@ __all__ = [
     'DashboardView',
     'KnowListView',
     'KnowDetailView',
+    'KnowPointDetailView',
+    'KnowPointEditView',
     'KnowRelationshipView',
     'KnowSummaryView',
     'KnowPerspectiveView',
