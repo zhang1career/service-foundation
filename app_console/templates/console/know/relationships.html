@@ -5,14 +5,7 @@
 
 {% block content %}
 <div class="mb-6">
-    <!-- Sub navigation -->
-    <div class="flex space-x-4 mb-6">
-        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">知识列表</a>
-        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">关系管理</a>
-        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
-        <a href="{% url 'console:know-perspectives' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">视角</a>
-        <a href="{% url 'console:know-insights' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">观点</a>
-    </div>
+    {% include 'console/includes/know_subnav.html' with active='relationships' %}
 </div>
 
 <div class="card">

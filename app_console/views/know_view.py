@@ -66,3 +66,76 @@ class KnowPerspectiveView(TemplateView):
 
 class KnowInsightView(TemplateView):
     template_name = 'console/know/insights.html'
+
+
+class KnowBatchListView(TemplateView):
+    """批次列表：从 app_know batches API 获取数据"""
+    template_name = 'console/know/batch_list.html'
+
+
+class KnowBatchDetailView(TemplateView):
+    """批次详情：从 app_know batch detail API 获取数据"""
+    template_name = 'console/know/batch_detail.html'
+
+    def get(self, request, *args, **kwargs):
+        entity_id = kwargs.get('entity_id')
+        if not entity_id or entity_id <= 0:
+            raise Http404('无效的批次 ID')
+        entity_id = int(entity_id)
+        client = Client()
+        resp = client.get(f'/api/know/batches/{entity_id}')
+        if resp.status_code != 200:
+            raise Http404(f'批次 {entity_id} 不存在')
+        try:
+            result = json.loads(resp.content.decode('utf-8'))
+        except json.JSONDecodeError:
+            raise Http404(f'批次 {entity_id} 不存在')
+        if result.get('errorCode') != 0 or not result.get('data'):
+            raise Http404(f'批次 {entity_id} 不存在')
+        self.batch_data = result['data']
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['entity_id'] = kwargs.get('entity_id')
+        context['batch_data'] = getattr(self, 'batch_data', None)
+        if context['batch_data']:
+            context['batch_data']['ct_fmt'] = _format_ts(context['batch_data'].get('ct'))
+            context['batch_data']['ut_fmt'] = _format_ts(context['batch_data'].get('ut'))
+        return context
+
+
+class KnowBatchEditView(TemplateView):
+    """批次编辑：仅支持来源类型为文字（source_type=0）的批次"""
+    template_name = 'console/know/batch_edit.html'
+
+    def get(self, request, *args, **kwargs):
+        entity_id = kwargs.get('entity_id')
+        if not entity_id or entity_id <= 0:
+            raise Http404('无效的批次 ID')
+        entity_id = int(entity_id)
+        client = Client()
+        resp = client.get(f'/api/know/batches/{entity_id}')
+        if resp.status_code != 200:
+            raise Http404(f'批次 {entity_id} 不存在')
+        try:
+            result = json.loads(resp.content.decode('utf-8'))
+        except json.JSONDecodeError:
+            raise Http404(f'批次 {entity_id} 不存在')
+        if result.get('errorCode') != 0 or not result.get('data'):
+            raise Http404(f'批次 {entity_id} 不存在')
+        batch_data = result['data']
+        if batch_data.get('source_type') != 0:
+            from django.shortcuts import redirect
+            return redirect('console:know-batch-detail', entity_id=entity_id)
+        self.batch_data = batch_data
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['entity_id'] = kwargs.get('entity_id')
+        context['batch_data'] = getattr(self, 'batch_data', None)
+        if context['batch_data']:
+            context['batch_data']['ct_fmt'] = _format_ts(context['batch_data'].get('ct'))
+            context['batch_data']['ut_fmt'] = _format_ts(context['batch_data'].get('ut'))
+        return context

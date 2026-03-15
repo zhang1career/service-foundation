@@ -84,3 +84,8 @@ INSIGHT_TYPES = [
 INSIGHT_DRAFT = 0
 INSIGHT_APPROVED = 1
 INSIGHT_STATUS = [(INSIGHT_DRAFT, "草稿"), (INSIGHT_APPROVED, "已采纳")]
+
+# Batch source type: 0-instant (form text), 1-file (uploaded file)
+SOURCE_TYPE_INSTANT = 0
+SOURCE_TYPE_FILE = 1
+SOURCE_TYPE_CHOICES = [(SOURCE_TYPE_INSTANT, "instant"), (SOURCE_TYPE_FILE, "file")]

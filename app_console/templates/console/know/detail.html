@@ -13,13 +13,7 @@
 {% csrf_token %}
 {% include 'console/includes/detail_back_link.html' with back_url=know_list_url back_label="返回列表" %}
 
-<div class="flex space-x-4 mb-4">
-    <a href="{% url 'console:know-list' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">知识列表</a>
-    <a href="{% url 'console:know-relationships' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">关系管理</a>
-    <a href="{% url 'console:know-summaries' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">摘要列表</a>
-    <a href="{% url 'console:know-perspectives' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">视角</a>
-    <a href="{% url 'console:know-insights' %}" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">观点</a>
-</div>
+{% include 'console/includes/know_subnav.html' with active='know-list' size='small' mb='mb-4' %}
 
 <div id="knowledge-detail">
 {% if batch_data %}

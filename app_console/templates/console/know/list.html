@@ -6,36 +6,15 @@
 
 {% block content %}
 <div class="mb-6">
-    <!-- Sub navigation -->
-    <div class="flex space-x-4 mb-6">
-        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">知识列表</a>
-        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">关系管理</a>
-        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
-        <a href="{% url 'console:know-perspectives' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">视角</a>
-        <a href="{% url 'console:know-insights' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">观点</a>
-    </div>
+    {% include 'console/includes/know_subnav.html' with active='know-list' %}
 </div>
 
 <div class="card">
     <div class="card-header">
         <h2 class="text-lg font-semibold">知识列表</h2>
-        <div class="flex gap-2">
-            <button onclick="openAddTextModal()" class="btn btn-primary btn-sm">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                添加文字
-            </button>
-            <button onclick="openUploadModal()" class="btn btn-outline btn-sm">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                </svg>
-                上传文件
-            </button>
-        </div>
     </div>
     <div class="border-b border-gray-200 px-4 py-2 bg-gray-50">
-        <p class="text-sm text-gray-500">批次列表（按 batch_id 分组）。新增批次请使用「添加文字」或「上传文件」。</p>
+        <p class="text-sm text-gray-500">按 batch_id 分组的批次列表。新增批次请在「批次列表」中使用「添加文字」或「上传文件」。</p>
     </div>
     <div class="card-body p-0">
         <div id="knowledge-list">
@@ -44,62 +23,6 @@
                 <p class="mt-2">加载中...</p>
             </div>
         </div>
-    </div>
-</div>
-
-<!-- Add Text Modal -->
-<div id="add-text-modal" class="modal-backdrop hidden" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="text-lg font-semibold">添加文字</h3>
-        </div>
-        <form id="add-text-form">
-            {% csrf_token %}
-            <div class="modal-body">
-                <p class="text-sm text-gray-500 mb-3">输入一段文字，将自动拆分为多个句子，并保存到 knowledge 表（每个句子一条记录）。</p>
-                <div class="form-group">
-                    <label class="form-label" for="add-text-content">文字内容 *</label>
-                    <textarea id="add-text-content" name="content" class="form-input" rows="8" placeholder="在此输入文字..." required></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" onclick="closeAddTextModal()" class="btn btn-outline">取消</button>
-                <button type="submit" class="btn btn-primary" id="add-text-submit-btn">添加</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Upload Modal -->
-<div id="upload-modal" class="modal-backdrop hidden" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="text-lg font-semibold">上传文件</h3>
-        </div>
-        <form id="upload-form" enctype="multipart/form-data">
-            {% csrf_token %}
-            <div class="modal-body">
-                <p class="text-sm text-gray-500 mb-3">仅支持 .txt 文件，编码 UTF-8，最大 5MB</p>
-                <div class="form-group">
-                    <label class="form-label" for="upload-file">选择文件 *</label>
-                    <input type="file" id="upload-file" name="file" accept=".txt" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="upload-title">标题（可选，默认使用文件名）</label>
-                    <input type="text" id="upload-title" name="title" class="form-input" placeholder="留空则使用文件名">
-                </div>
-                <div class="form-group">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" id="upload-parse" name="parse" checked>
-                        <span class="text-sm">上传后自动解析（拆句、分类、向量化），抽取需在详情页操作</span>
-                    </label>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" onclick="closeUploadModal()" class="btn btn-outline">取消</button>
-                <button type="submit" class="btn btn-primary" id="upload-submit-btn">上传</button>
-            </div>
-        </form>
     </div>
 </div>
 
@@ -140,13 +63,11 @@ async function loadKnowledgeList() {
                     <tbody>`;
             items.forEach(item => {
                 const title = item.title || ('Batch ' + item.id);
+                const detailUrl = '/console/know/' + item.id + '/';
                 html += `<tr>
                     <td>${item.id}</td>
-                    <td class="font-medium"><a href="/console/know/${item.id}/" class="text-blue-600 hover:underline">${escapeHtml(title)}</a></td>
-                    <td>
-                        <a href="/console/know/${item.id}/" class="btn btn-outline btn-sm mr-2">查看</a>
-                        <button type="button" onclick="deleteKnowledge(${item.id})" class="btn btn-danger btn-sm" title="删除">删除</button>
-                    </td>
+                    ${listTitleCell(title, detailUrl)}
+                    ${listActions({ id: item.id, onDelete: 'deleteKnowledge' })}
                 </tr>`;
             });
             html += '</tbody></table>';
@@ -158,7 +79,7 @@ async function loadKnowledgeList() {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                     </svg>
                     <p class="text-lg font-medium">暂无批次</p>
-                    <p class="text-sm">点击「添加文字」或「上传文件」创建第一个批次</p>
+                    <p class="text-sm">请在「批次列表」中创建批次</p>
                 </div>`;
         }
     } catch (error) {
@@ -169,149 +90,12 @@ async function loadKnowledgeList() {
     }
 }
 
-// Add text modal
-function openAddTextModal() {
-    document.getElementById('add-text-form').reset();
-    const modal = document.getElementById('add-text-modal');
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-}
-
-function closeAddTextModal() {
-    const modal = document.getElementById('add-text-modal');
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-}
-
-document.getElementById('add-text-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const content = (document.getElementById('add-text-content').value || '').trim();
-    if (!content) {
-        if (typeof showToast === 'function') showToast('请输入文字内容', 'error');
-        else alert('请输入文字内容');
-        return;
-    }
-    const btn = document.getElementById('add-text-submit-btn');
-    const origText = btn ? btn.textContent : '添加';
-    if (btn) { btn.disabled = true; btn.textContent = '添加中...'; }
-    try {
-        const response = await fetch(`${API_BASE}/add_text`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ content })
-        });
-        const data = await response.json();
-        if (data.errorCode === 0 && data.data) {
-            const d = data.data;
-            if (typeof showToast === 'function') {
-                showToast('操作完成', 'success');
-            } else {
-                alert('操作完成');
-            }
-            closeAddTextModal();
-            loadKnowledgeList();
-            if (d.id && d.sentence_count > 0) {
-                setTimeout(function() { window.location.href = '/console/know/' + d.id + '/'; }, 500);
-            }
-        } else {
-            const msg = data.message || '添加失败';
-            if (typeof showToast === 'function') showToast(msg, 'error');
-            else alert(msg);
-        }
-    } catch (err) {
-        const msg = '添加失败: ' + err.message;
-        if (typeof showToast === 'function') showToast(msg, 'error');
-        else alert(msg);
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = origText; }
-    }
-});
-
-document.getElementById('add-text-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeAddTextModal();
-});
-
-// Upload modal
-function openUploadModal() {
-    document.getElementById('upload-form').reset();
-    document.getElementById('upload-parse').checked = true;
-    var modal = document.getElementById('upload-modal');
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-}
-
-function closeUploadModal() {
-    var modal = document.getElementById('upload-modal');
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-}
-
-document.getElementById('upload-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const fileInput = document.getElementById('upload-file');
-    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-        showToast('请选择文件', 'error');
-        return;
-    }
-    const file = fileInput.files[0];
-    if (!file.name.toLowerCase().endsWith('.txt')) {
-        showToast('仅支持 .txt 文件', 'error');
-        return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-        showToast('文件不能超过 5MB', 'error');
-        return;
-    }
-    const btn = document.getElementById('upload-submit-btn');
-    const origText = btn ? btn.textContent : '上传';
-    if (btn) { btn.disabled = true; btn.textContent = '上传中...'; }
-    try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('parse', document.getElementById('upload-parse').checked ? 'true' : 'false');
-        const title = (document.getElementById('upload-title').value || '').trim();
-        if (title) formData.append('title', title);
-        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-        const response = await fetch(`${API_BASE}/upload`, {
-            method: 'POST',
-            body: formData,
-            credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        const data = await response.json();
-        if (data.errorCode === 0 && data.data) {
-            const d = data.data;
-            showToast(d.parse ? `上传成功，已解析 ${d.sentence_count || 0} 句` : '上传成功', 'success');
-            closeUploadModal();
-            loadKnowledgeList();
-            if (d.id && d.parse && d.sentence_count > 0) {
-                setTimeout(function() { window.location.href = '/console/know/' + d.id + '/'; }, 500);
-            }
-        } else {
-            showToast(data.message || '上传失败', 'error');
-        }
-    } catch (err) {
-        showToast('上传失败: ' + err.message, 'error');
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = origText; }
-    }
-});
-
-document.getElementById('upload-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeUploadModal();
-});
-
-// Delete batch
+// Delete batch (use batch API)
 async function deleteKnowledge(id) {
     if (!confirm('确认删除该批次及其所有知识点？此操作不可恢复。')) return;
     try {
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-        const response = await fetch(`${API_BASE}/${id}`, {
+        const response = await fetch(`/api/know/batches/${id}`, {
             method: 'DELETE',
             headers: { 'X-CSRFToken': csrfToken || '' }
         });

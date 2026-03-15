@@ -8,6 +8,9 @@ from app_console.views import (
     KnowSummaryView,
     KnowPerspectiveView,
     KnowInsightView,
+    KnowBatchListView,
+    KnowBatchDetailView,
+    KnowBatchEditView,
     MailAccountListView,
     MailboxListView,
     OssBrowserView,
@@ -22,6 +25,9 @@ urlpatterns = [
 
     # Knowledge management
     path('know/', KnowListView.as_view(), name='know-list'),
+    path('know/batches/', KnowBatchListView.as_view(), name='know-batch-list'),
+    path('know/batches/<int:entity_id>/', KnowBatchDetailView.as_view(), name='know-batch-detail'),
+    path('know/batches/<int:entity_id>/edit/', KnowBatchEditView.as_view(), name='know-batch-edit'),
     path('know/<int:entity_id>/', KnowDetailView.as_view(), name='know-detail'),
     path('know/relationships/', KnowRelationshipView.as_view(), name='know-relationships'),
     path('know/summaries/', KnowSummaryView.as_view(), name='know-summaries'),

@@ -2,11 +2,12 @@
 Add text view: accept raw text, create batch, split into sentences, save to knowledge table.
 """
 import logging
-import time
 
 from rest_framework import status as http_status
 from rest_framework.views import APIView
 
+from app_know.consts import SOURCE_TYPE_INSTANT
+from app_know.repos.batch_repo import create_batch
 from app_know.services.parser_agent import parse_and_store
 from common.consts.response_const import RET_INVALID_PARAM, RET_MISSING_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception
@@ -36,8 +37,9 @@ class AddTextKnowledgeView(APIView):
                     status=http_status.HTTP_200_OK,
                 )
 
-            batch_id = int(time.time() * 1000)
             title = (content[:80] + "...") if len(content) > 80 else content
+            batch_record = create_batch(title=title, source_type=SOURCE_TYPE_INSTANT, filename=None)
+            batch_id = batch_record.id
 
             sentences = parse_and_store(
                 batch_id=batch_id,

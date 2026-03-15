@@ -34,6 +34,39 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 });
 
 /**
+ * 屏幕顶部通知条（全页面复用）：默认不显示，调用时展示 success=绿 / warning=黄 / error=红，约 3 秒后自动隐藏。
+ * 优先使用 base 中的 #console-top-notice，不存在时再动态创建一条。
+ * Usage: showTopNotice('message', 'success' | 'warning' | 'error')
+ */
+function showTopNotice(message, type) {
+    var colors = {
+        success: { bg: '#059669', text: '#fff' },
+        warning: { bg: '#d97706', text: '#fff' },
+        error: { bg: '#dc2626', text: '#fff' }
+    };
+    var style = colors[type] || colors.success;
+    var bar = document.getElementById('console-top-notice');
+    if (bar) {
+        bar.textContent = message;
+        bar.style.background = style.bg;
+        bar.style.color = style.text;
+        bar.style.display = 'block';
+        setTimeout(function() {
+            bar.style.display = 'none';
+        }, 3000);
+        return;
+    }
+    bar = document.createElement('div');
+    bar.setAttribute('role', 'alert');
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:12px 16px;background:' + style.bg + ';color:' + style.text + ';font-size:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);';
+    bar.textContent = message;
+    document.body.insertBefore(bar, document.body.firstChild);
+    setTimeout(function() {
+        if (bar.parentNode) bar.remove();
+    }, 3000);
+}
+
+/**
  * Show toast or modal notification (app_console shared component).
  *
  * - success: Light green toast, auto-dismiss 3s

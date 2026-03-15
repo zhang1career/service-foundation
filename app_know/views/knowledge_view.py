@@ -11,6 +11,7 @@ from app_know.repos.knowledge_point_repo import (
     list_distinct_batch_ids,
     delete_by_batch,
 )
+from app_know.repos.batch_repo import delete_batch
 from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception, with_type
 
@@ -105,11 +106,12 @@ class KnowledgeDetailView(APIView):
         return resp_err("Use POST .../parse with content to update batch", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
 
     def delete(self, request, entity_id, *args, **kwargs):
-        """Delete batch (all knowledge points)."""
+        """Delete batch (all knowledge points + batch record)."""
         try:
             batch_id = _parse_entity_id(entity_id)
             count = delete_by_batch(batch_id)
-            if count == 0:
+            batch_deleted = delete_batch(batch_id)
+            if count == 0 and not batch_deleted:
                 raise ValueError(f"Batch {batch_id} not found")
             return resp_ok({"deleted": count})
         except ValueError as e:

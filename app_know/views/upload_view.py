@@ -2,12 +2,13 @@
 Upload view: accept txt file (UTF-8), create batch of knowledge points, optionally parse.
 """
 import logging
-import time
 
 from rest_framework import status as http_status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.views import APIView
 
+from app_know.consts import SOURCE_TYPE_FILE
+from app_know.repos.batch_repo import create_batch
 from app_know.services.parser_agent import parse_and_store
 from common.consts.response_const import RET_INVALID_PARAM, RET_MISSING_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception
@@ -54,9 +55,11 @@ class KnowledgeUploadView(APIView):
                 )
 
             do_parse = str(request.data.get("parse") or request.POST.get("parse") or "").lower() in ("true", "1", "yes")
-            batch_id = int(time.time() * 1000)
+            title = request.data.get("title") or request.POST.get("title") or file_obj.name or "uploaded"
+            batch_record = create_batch(title=title, source_type=SOURCE_TYPE_FILE, filename=file_obj.name or None)
+            batch_id = batch_record.id
 
-            result = {"id": batch_id, "title": request.data.get("title") or request.POST.get("title") or file_obj.name or "uploaded", "parse": do_parse}
+            result = {"id": batch_id, "title": title, "parse": do_parse}
             if do_parse:
                 try:
                     sentences = parse_and_store(

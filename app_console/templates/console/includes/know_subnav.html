@@ -1,0 +1,39 @@
+{% comment %}
+知识管理模块子导航（复用组件）
+菜单项顺序：批次列表、知识列表、关系管理、摘要列表、视角、观点
+
+用法:
+  {% include 'console/includes/know_subnav.html' with active='batch-list' %}           {# 大按钮，默认 #}
+  {% include 'console/includes/know_subnav.html' with active='know-list' size='large' %}
+  {% include 'console/includes/know_subnav.html' with active='relationships' size='small' mb='mb-4' %}
+
+参数:
+  active - 当前激活项: batch-list | know-list | relationships | summaries | perspectives | insights
+  size   - large(默认): 大按钮 px-4 py-2; small: 小链接 px-3 py-1.5 text-sm
+  mb     - 外边距: mb-6(默认) | mb-4
+{% endcomment %}
+{% with size=size|default:'large' mb=mb|default:'mb-6' %}
+{% if size == 'small' %}
+{% with active_cls='bg-blue-100 text-blue-700 rounded' inactive_cls='bg-gray-100 text-gray-700 rounded hover:bg-gray-200' base_cls='px-3 py-1.5 text-sm' %}
+<nav class="flex space-x-4 {{ mb }}">
+    <a href="{% url 'console:know-batch-list' %}" class="{{ base_cls }} {% if active == 'batch-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">批次列表</a>
+    <a href="{% url 'console:know-list' %}" class="{{ base_cls }} {% if active == 'know-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">知识列表</a>
+    <a href="{% url 'console:know-relationships' %}" class="{{ base_cls }} {% if active == 'relationships' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">关系管理</a>
+    <a href="{% url 'console:know-summaries' %}" class="{{ base_cls }} {% if active == 'summaries' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">摘要列表</a>
+    <a href="{% url 'console:know-perspectives' %}" class="{{ base_cls }} {% if active == 'perspectives' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">视角</a>
+    <a href="{% url 'console:know-insights' %}" class="{{ base_cls }} {% if active == 'insights' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">观点</a>
+</nav>
+{% endwith %}
+{% else %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex space-x-4 {{ mb }}">
+    <a href="{% url 'console:know-batch-list' %}" class="{{ base_cls }} {% if active == 'batch-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">批次列表</a>
+    <a href="{% url 'console:know-list' %}" class="{{ base_cls }} {% if active == 'know-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">知识列表</a>
+    <a href="{% url 'console:know-relationships' %}" class="{{ base_cls }} {% if active == 'relationships' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">关系管理</a>
+    <a href="{% url 'console:know-summaries' %}" class="{{ base_cls }} {% if active == 'summaries' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">摘要列表</a>
+    <a href="{% url 'console:know-perspectives' %}" class="{{ base_cls }} {% if active == 'perspectives' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">视角</a>
+    <a href="{% url 'console:know-insights' %}" class="{{ base_cls }} {% if active == 'insights' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">观点</a>
+</nav>
+{% endwith %}
+{% endif %}
+{% endwith %}

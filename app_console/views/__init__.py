@@ -6,6 +6,9 @@ from .know_view import (
     KnowSummaryView,
     KnowPerspectiveView,
     KnowInsightView,
+    KnowBatchListView,
+    KnowBatchDetailView,
+    KnowBatchEditView,
 )
 from .mail_view import MailAccountListView, MailboxListView
 from .oss_view import OssBrowserView
@@ -19,6 +22,9 @@ __all__ = [
     'KnowSummaryView',
     'KnowPerspectiveView',
     'KnowInsightView',
+    'KnowBatchListView',
+    'KnowBatchDetailView',
+    'KnowBatchEditView',
     'MailAccountListView',
     'MailboxListView',
     'OssBrowserView',

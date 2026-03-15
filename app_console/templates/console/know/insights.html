@@ -7,13 +7,7 @@
 {% block content %}
 {% csrf_token %}
 <div class="mb-6">
-    <div class="flex space-x-4 mb-6">
-        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">知识列表</a>
-        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">关系管理</a>
-        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
-        <a href="{% url 'console:know-perspectives' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">视角</a>
-        <a href="{% url 'console:know-insights' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">观点</a>
-    </div>
+    {% include 'console/includes/know_subnav.html' with active='insights' %}
 </div>
 
 <div class="card">
@@ -207,15 +201,18 @@ async function loadInsights() {
             let html = '<table class="data-table"><thead><tr><th>ID</th><th>内容</th><th>类型</th><th>状态</th><th>知识ID</th><th>视角</th><th>更新时间</th><th>操作</th></tr></thead><tbody>';
             items.forEach(i => {
                 const pers = i.perspective != null ? i.perspective : i.pid;
+                const contentShort = (i.content || '').substring(0, 80) + ((i.content || '').length > 80 ? '...' : '');
+                const toggleLabel = i.status === 1 ? '取消采纳' : '采纳';
+                const extra = [{ label: toggleLabel, onclick: 'toggleStatus(' + i.id + ',' + i.status + ')' }];
                 html += `<tr>
                     <td>${i.id}</td>
-                    <td class="max-w-md" title="${escapeHtml(i.content || '')}">${escapeHtml((i.content || '').substring(0, 80))}${(i.content || '').length > 80 ? '...' : ''}</td>
+                    <td class="max-w-md" title="${escapeHtml(i.content || '')}">${escapeHtml(contentShort)}</td>
                     <td><span class="badge badge-info">${typeLabel(i.type)}</span></td>
                     <td>${i.status === 1 ? '<span class="text-green-600">已采纳</span>' : '<span class="text-gray-500">草稿</span>'}</td>
                     <td>${i.kid != null && i.kid !== '' ? i.kid : '-'}</td>
                     <td>${perspectiveLabel(pers)}</td>
                     <td>${formatTimestamp(i.ut)}</td>
-                    <td><button onclick="toggleStatus(${i.id}, ${i.status})" class="btn btn-outline btn-sm mr-1">${i.status === 1 ? '取消采纳' : '采纳'}</button><button onclick="openEditModal(${i.id})" class="btn btn-outline btn-sm mr-1">编辑</button><button onclick="deleteInsight(${i.id})" class="btn btn-outline btn-sm text-red-600">删除</button></td>
+                    ${listActions({ id: i.id, onEdit: 'openEditModal', onDelete: 'deleteInsight', extra })}
                 </tr>`;
             });
             html += '</tbody></table>';

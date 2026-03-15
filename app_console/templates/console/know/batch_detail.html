@@ -1,0 +1,149 @@
+{% extends 'console/base.html' %}
+
+{% block title %}批次详情{% endblock %}
+{% block page_title %}批次详情{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+{% url 'console:know-batch-list' as batch_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=batch_list_url back_label="返回批次列表" %}
+
+{% include 'console/includes/know_subnav.html' with active='batch-list' size='small' mb='mb-4' %}
+
+{% if batch_data %}
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-xl font-semibold">批次 {{ batch_data.id }}</h2>
+        <div class="flex gap-2">
+            <button type="button" onclick="runAnalyze()" class="btn btn-primary btn-sm" id="analyze-btn">分析</button>
+            <a href="/console/know/{{ entity_id }}/" class="btn btn-outline btn-sm">知识详情</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">批次 ID</p>
+                <p class="font-medium">{{ batch_data.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">来源类型</p>
+                <span class="badge {% if batch_data.source_type == 1 %}badge-info{% else %}badge-secondary{% endif %}">{% if batch_data.source_type == 1 %}上传{% else %}文字{% endif %}</span>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">内容</p>
+                <p class="break-words">{{ batch_data.content|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">句子数</p>
+                <p>{{ batch_data.sentence_count|default:0 }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                <p>{{ batch_data.ct_fmt|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                <p>{{ batch_data.ut_fmt|default:"-" }}</p>
+            </div>
+        </div>
+        <div class="mt-6">
+            <p class="text-sm text-gray-500 mb-2">解析内容（可编辑后点击「分析」拆句）</p>
+            <textarea id="batch-content-input" class="w-full border rounded-lg p-4 font-mono text-sm min-h-[120px] max-h-96" rows="8" placeholder="输入或粘贴文字，点击「分析」拆分为多个句子">{{ batch_data.aggregated_content|default:"" }}</textarea>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="p-8 text-center text-gray-500">加载中...</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+const entityId = {{ entity_id|default:0 }};
+const API_BASE = '/api/know/batches';
+
+// 编辑页保存成功后带 ?saved=1 跳转过来，在详情页 load 后再显示顶部通知（保证已绘制）
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('saved') !== '1') return;
+    function run() {
+        var bar = document.getElementById('console-top-notice');
+        if (bar) {
+            bar.textContent = '已保存';
+            bar.style.background = '#059669';
+            bar.style.color = '#fff';
+            bar.style.display = 'block';
+            setTimeout(function() {
+                bar.style.display = 'none';
+                if (window.history.replaceState) {
+                    var u = new URL(window.location.href);
+                    u.searchParams.delete('saved');
+                    window.history.replaceState({}, '', u.pathname + (u.search || '') + u.hash);
+                }
+            }, 3000);
+        }
+    }
+    if (document.readyState === 'complete') setTimeout(run, 50);
+    else window.addEventListener('load', function() { setTimeout(run, 50); });
+})();
+
+function getCookie(name) {
+    let v = null;
+    if (document.cookie && document.cookie !== '') {
+        document.cookie.split(';').forEach(function(p) {
+            const part = p.trim();
+            if (part.indexOf(name + '=') === 0) {
+                v = decodeURIComponent(part.substring(name.length + 1));
+            }
+        });
+    }
+    return v;
+}
+
+async function runAnalyze() {
+    const content = (document.getElementById('batch-content-input') || {}).value || '';
+    if (!content.trim()) {
+        if (typeof showToast === 'function') showToast('请先输入或粘贴要分析的文字', 'error');
+        else alert('请先输入或粘贴要分析的文字');
+        return;
+    }
+    const btn = document.getElementById('analyze-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '分析中...'; }
+    try {
+        const response = await fetch(`${API_BASE}/${entityId}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ content: content.trim(), use_ai_classify: true, write_sentence_raw: true })
+        });
+        const result = await response.json();
+        if (result.errorCode === 0 && result.data) {
+            const d = result.data;
+            if (typeof showToast === 'function') showToast('分析完成，共 ' + (d.sentence_count || 0) + ' 句', 'success');
+            else alert('分析完成，共 ' + (d.sentence_count || 0) + ' 句');
+            if (d.sentence_count > 0 && confirm('是否前往知识详情查看解析结果？')) {
+                window.location.href = '/console/know/' + entityId + '/';
+            } else {
+                window.location.reload();
+            }
+        } else {
+            const msg = result.message || '分析失败';
+            if (typeof showToast === 'function') showToast(msg, 'error');
+            else alert(msg);
+        }
+    } catch (err) {
+        const msg = '分析失败: ' + (err.message || '网络错误');
+        if (typeof showToast === 'function') showToast(msg, 'error');
+        else alert(msg);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '分析'; }
+    }
+}
+})();
+</script>
+{% endblock %}
