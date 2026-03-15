@@ -60,6 +60,10 @@
             </div>
         </div>
         <div>
+            <p class="text-sm text-gray-500 mb-1">内容</p>
+            <div class="whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.content|default:"-" }}</div>
+        </div>
+        <div>
             <p class="text-sm text-gray-500 mb-1">摘要</p>
             <div class="flex items-center gap-2">
                 <div id="brief-display" class="flex-1 whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.brief|default:"-" }}</div>
@@ -88,8 +92,30 @@
             </div>
         </div>
         <div>
-            <p class="text-sm text-gray-500 mb-1">内容</p>
-            <div class="whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.content|default:"-" }}</div>
+            <div class="flex items-center justify-between mb-1">
+                <p class="text-sm text-gray-500">成分分析</p>
+                <div class="flex gap-2">
+                    <button type="button" id="btn-analyze-components" class="btn btn-primary btn-sm">分析</button>
+                    <button type="button" id="btn-save-components" class="btn btn-outline btn-sm">保存关系</button>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <input type="text" id="comp-attributive-subject" class="form-input w-24 text-sm" placeholder="定语(主)" title="定语(主语)">
+                <input type="text" id="comp-subject" class="form-input w-24 text-sm" placeholder="主语">
+                <input type="text" id="comp-adverbial" class="form-input w-24 text-sm" placeholder="状语">
+                <input type="text" id="comp-predicate" class="form-input w-24 text-sm" placeholder="谓语">
+                <input type="text" id="comp-attributive-object" class="form-input w-24 text-sm" placeholder="定语(宾)" title="定语(宾语)">
+                <input type="text" id="comp-object" class="form-input w-24 text-sm" placeholder="宾语">
+                <input type="text" id="comp-complement" class="form-input w-24 text-sm" placeholder="补语">
+            </div>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">成分关系</p>
+            <div class="flex gap-2 mb-2">
+                <input type="text" id="cypher-input" class="form-input flex-1 font-mono text-sm" placeholder="MATCH (s:svo_sub)-[r]-(o:svo_obj) WHERE s.name = '...' AND o.name = '...' RETURN s, r, o">
+                <button type="button" id="btn-run-cypher" class="btn btn-primary btn-sm">查询</button>
+            </div>
+            <div id="components-graph" class="w-full rounded-lg bg-gray-50" style="height: 320px; min-height: 200px;"></div>
         </div>
     </div>
 </div>
@@ -177,6 +203,133 @@
             btn.disabled = false;
             btn.textContent = '摘要';
         }
+    });
+
+    var componentsGraphNvl = null;
+    var componentsGraphHandlers = [];
+
+    function getComp(id) { return document.getElementById(id); }
+    function getCompVal(id) { var el = getComp(id); return el ? (el.value || '').trim() : ''; }
+    function setCompVal(id, v) { var el = getComp(id); if (el) el.value = v || ''; }
+
+    var btnAnalyze = getComp('btn-analyze-components');
+    if (btnAnalyze) btnAnalyze.addEventListener('click', async function() {
+        btnAnalyze.disabled = true;
+        btnAnalyze.textContent = '分析中...';
+        try {
+            var res = await fetch('/api/know/knowledge/points/' + pointId + '/analyze_components', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: '{}'
+            });
+            var data = await res.json().catch(function() { return {}; });
+            if (data.errorCode === 0 && data.data) {
+                var d = data.data;
+                setCompVal('comp-attributive-subject', d.attributive_subject);
+                setCompVal('comp-subject', d.subject);
+                setCompVal('comp-adverbial', d.adverbial);
+                setCompVal('comp-predicate', d.predicate);
+                setCompVal('comp-attributive-object', d.attributive_object);
+                setCompVal('comp-object', d.object);
+                setCompVal('comp-complement', d.complement);
+            } else {
+                alert(data.msg || '分析失败');
+            }
+        } catch (e) {
+            alert('请求失败');
+        }
+        btnAnalyze.disabled = false;
+        btnAnalyze.textContent = '分析';
+    });
+
+    var btnSaveComp = getComp('btn-save-components');
+    if (btnSaveComp) btnSaveComp.addEventListener('click', async function() {
+        var payload = {
+            attributive_subject: getCompVal('comp-attributive-subject'),
+            subject: getCompVal('comp-subject'),
+            adverbial: getCompVal('comp-adverbial'),
+            predicate: getCompVal('comp-predicate'),
+            attributive_object: getCompVal('comp-attributive-object'),
+            object: getCompVal('comp-object'),
+            complement: getCompVal('comp-complement')
+        };
+        btnSaveComp.disabled = true;
+        try {
+            var res = await fetch('/api/know/knowledge/points/' + pointId + '/save_components', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            });
+            var data = await res.json().catch(function() { return {}; });
+            if (data.errorCode === 0) {
+                var sub = (payload.subject || '_').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                var obj = (payload.object || '_').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                var cypher = "MATCH (s:svo_sub)-[r]-(o:svo_obj) WHERE s.name = '" + sub + "' AND o.name = '" + obj + "' RETURN s, r, o";
+                var cypherEl = getComp('cypher-input');
+                if (cypherEl) { cypherEl.value = cypher; }
+                if (getComp('btn-run-cypher')) getComp('btn-run-cypher').click();
+            } else {
+                alert(data.msg || '保存失败');
+            }
+        } catch (e) {
+            alert('请求失败');
+        }
+        btnSaveComp.disabled = false;
+    });
+
+    function renderComponentsGraph(nodes, edges) {
+        var container = getComp('components-graph');
+        if (!container) return;
+        if (componentsGraphNvl) {
+            componentsGraphHandlers.forEach(function(h) { try { if (h.destroy) h.destroy(); } catch (e) {} });
+            componentsGraphHandlers = [];
+            componentsGraphNvl.destroy();
+            componentsGraphNvl = null;
+        }
+        var nvlNodes = (nodes || []).map(function(n) { return { id: String(n.id), caption: n.label || n.id || '?' }; });
+        var nvlRels = (edges || []).map(function(e, i) { return { id: 'rel_' + i + '_' + e.from + '_' + e.to, from: String(e.from), to: String(e.to), caption: e.label || '', type: e.label || undefined }; });
+        if (nvlNodes.length === 0 && nvlRels.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center text-sm">执行 Cypher 查询后显示图谱</p>';
+            return;
+        }
+        import('{% static "console/js/nvl-bundle.js" %}').then(function(nvlMod) {
+            container.innerHTML = '';
+            var opts = { layout: 'forceDirected', initialZoom: 1.2, disableTelemetry: true, disableWebWorkers: true, renderer: 'canvas' };
+            componentsGraphNvl = new nvlMod.NVL(container, nvlNodes, nvlRels, opts, {});
+            var ZoomInteraction = nvlMod.ZoomInteraction, PanInteraction = nvlMod.PanInteraction;
+            componentsGraphHandlers = [new nvlMod.DragNodeInteraction(componentsGraphNvl), new PanInteraction(componentsGraphNvl), new ZoomInteraction(componentsGraphNvl)];
+        }).catch(function() {
+            container.innerHTML = '<p class="text-gray-500 p-4 text-center text-sm">加载图谱组件失败</p>';
+        });
+    }
+
+    var btnRunCypher = getComp('btn-run-cypher');
+    if (btnRunCypher) btnRunCypher.addEventListener('click', async function() {
+        var cypherEl = getComp('cypher-input');
+        var cypher = cypherEl ? (cypherEl.value || '').trim() : '';
+        if (!cypher) { alert('请输入 Cypher'); return; }
+        btnRunCypher.disabled = true;
+        try {
+            var params = {};
+            if (cypher.indexOf('$kid') !== -1) params.kid = pointId;
+            var res = await fetch('/api/know/neo4j_cypher', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ cypher: cypher, params: params })
+            });
+            var data = await res.json().catch(function() { return {}; });
+            if (data.errorCode === 0 && data.data) {
+                renderComponentsGraph(data.data.nodes || [], data.data.edges || []);
+            } else {
+                alert(data.msg || '查询失败');
+            }
+        } catch (e) {
+            alert('请求失败');
+        }
+        btnRunCypher.disabled = false;
     });
 })();
 </script>

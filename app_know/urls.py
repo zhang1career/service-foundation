@@ -23,7 +23,14 @@ from app_know.views.summary_view import (
     KnowledgeSummaryListView,
 )
 from app_know.views.sentence_view import SentenceListView
-from app_know.views.extract_view import KnowledgeExtractView, SentenceGraphView, ExtractBriefView
+from app_know.views.extract_view import (
+    KnowledgeExtractView,
+    SentenceGraphView,
+    ExtractBriefView,
+    AnalyzeComponentsView,
+    SaveComponentsView,
+    Neo4jCypherView,
+)
 from app_know.views.perspective_view import PerspectiveListView
 from app_know.views.parse_view import KnowledgeParseView
 from app_know.views.insight_view import (
@@ -47,6 +54,9 @@ urlpatterns = [
     path("knowledge/items", KnowledgeListItemsView.as_view(), name="knowledge-list-items"),
     path("knowledge/points/<int:point_id>", KnowledgePointDetailView.as_view(), name="knowledge-point-detail"),
     path("knowledge/points/<int:point_id>/extract_brief", ExtractBriefView.as_view(), name="knowledge-point-extract-brief"),
+    path("knowledge/points/<int:point_id>/analyze_components", AnalyzeComponentsView.as_view(), name="knowledge-point-analyze-components"),
+    path("knowledge/points/<int:point_id>/save_components", SaveComponentsView.as_view(), name="knowledge-point-save-components"),
+    path("neo4j_cypher", Neo4jCypherView.as_view(), name="neo4j-cypher"),
     path("batches", BatchListView.as_view(), name="batch-list"),
     path("batches/add_text", BatchCreateTextView.as_view(), name="batch-add-text"),
     path("batches/upload", BatchCreateUploadView.as_view(), name="batch-upload"),

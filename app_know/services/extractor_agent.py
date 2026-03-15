@@ -17,7 +17,7 @@ from app_know.repos import knowledge_point_repo
 logger = logging.getLogger(__name__)
 
 EXTRACT_PROMPT = (
-    "对下面这句话做成分分析，提取：主语、谓语、宾语、定语（修饰主语或宾语的）、状语、补语。\n"
+    "对下面这句话做成分分析，提取：主语、谓语、宾语、定语（修饰主语或宾语的）、状语（修饰谓语的）、补语（补充宾语的）。\n"
     "同时给出该句的摘要（一句话概括）。\n\n"
     "规则：\n"
     "1. 主语、谓语、宾语：提取核心语义，可适度概括（如「我们」->「团队」）\n"
@@ -28,6 +28,20 @@ EXTRACT_PROMPT = (
     "输出纯JSON，不要其他内容。格式：\n"
     '{"brief": "摘要", "subject": "主语", "predicate": "谓语", "object": "宾语", '
     '"attributive": "定语", "adverbial": "状语", "complement": "补语"}'
+)
+
+# 成分分析专用：区分 定语(主语) 与 定语(宾语)，避免混淆。同一字段多个元素用中文分号「；」分隔。
+COMPONENTS_PROMPT = (
+    "对下面这句话做成分分析，按（定语-主语）-（状语-谓语）-（定语-宾语-补语）结构提取。\n\n"
+    "规则：\n"
+    "1. 定语(主)：只填修饰主语的定语，若无则留空\n"
+    "2. 定语(宾)：只填修饰宾语的定语，若无则留空\n"
+    "3. 主语、谓语、宾语：提取核心语义\n"
+    "4. 状语、补语若无则留空\n"
+    "5. 若某字段有多个元素（如多个状语），用英文竖线「|」分隔，例如：\"20世纪初|给美国\"\n\n"
+    "输出纯JSON，不要其他内容。格式：\n"
+    '{"attributive_subject": "定语(主语)", "subject": "主语", "adverbial": "状语", "predicate": "谓语", '
+    '"attributive_object": "定语(宾语)", "object": "宾语", "complement": "补语"}'
 )
 
 # 定制单选题：按（定语-主语）-谓语-（定语-宾语-补语）提取摘要，主语/谓语从给定选项中选或 -1
@@ -74,6 +88,28 @@ def _parse_extract_response(response: str) -> Optional[Dict[str, Any]]:
         return None
     resp = response.strip()
     # Try to find JSON block
+    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', resp, re.DOTALL)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group())
+            if isinstance(parsed, dict) and "subject" in parsed and "predicate" in parsed:
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    try:
+        parsed = json.loads(resp)
+        if isinstance(parsed, dict) and "subject" in parsed and "predicate" in parsed:
+            return parsed
+    except json.JSONDecodeError:
+        pass
+    return None
+
+
+def _parse_components_response(response: str) -> Optional[Dict[str, Any]]:
+    """Parse JSON from 成分分析 response (attributive_subject / attributive_object 分开)."""
+    if not response or not isinstance(response, str):
+        return None
+    resp = response.strip()
     json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', resp, re.DOTALL)
     if json_match:
         try:
@@ -280,3 +316,51 @@ def extract_and_store_for_batch(
             logger.warning("[extractor_agent] update_sentence failed for id=%s: %s", s.id, e)
         results.append(rec)
     return results
+
+
+def analyze_components(sentence_content: str) -> Optional[Dict[str, Any]]:
+    """
+    Get sentence components under (定语-主语)-(状语-谓语)-(定语-宾语-补语).
+    Returns dict with: attributive_subject, subject, adverbial, predicate,
+    attributive_object, object, complement (all strings). 定语(主)与定语(宾)分开，不混淆。
+    """
+    if not sentence_content or not isinstance(sentence_content, str):
+        return None
+    content = sentence_content.strip()
+    if not content:
+        return None
+    client = _get_text_ai()
+    if client is None:
+        return None
+    try:
+        _, result = client.ask_and_answer(
+            text=content[:1500],
+            role="成分分析助手",
+            question=COMPONENTS_PROMPT,
+            additional_question="必须严格按上述JSON格式输出，不要输出其他文字。",
+            temperature=0,
+        )
+        if not result:
+            return None
+        parsed = _parse_components_response(result)
+        if not parsed:
+            return None
+        attributive_subject = (parsed.get("attributive_subject") or "").strip()
+        attributive_object = (parsed.get("attributive_object") or "").strip()
+        subject = (parsed.get("subject") or "").strip()
+        adverbial = (parsed.get("adverbial") or "").strip()
+        predicate = (parsed.get("predicate") or "").strip()
+        obj = (parsed.get("object") or "").strip()
+        complement = (parsed.get("complement") or "").strip()
+        return {
+            "attributive_subject": attributive_subject,
+            "subject": subject,
+            "adverbial": adverbial,
+            "predicate": predicate,
+            "attributive_object": attributive_object,
+            "object": obj,
+            "complement": complement,
+        }
+    except Exception as e:
+        logger.exception("[extractor_agent] analyze_components error: %s", e)
+        return None

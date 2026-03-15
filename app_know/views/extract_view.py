@@ -8,11 +8,19 @@ from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.repos.knowledge_point_repo import list_by_batch, get_by_id, update as update_knowledge_point
-from app_know.services.extractor_agent import extract_and_store_for_batch, extract_sentence, extract_brief_with_options
+from app_know.services.extractor_agent import (
+    extract_and_store_for_batch,
+    extract_sentence,
+    extract_brief_with_options,
+    analyze_components as do_analyze_components,
+)
 from app_know.services.graph_builder_agent import (
     build_graph_for_knowledge,
+    build_graph_expressions,
     get_top_noun_nodes,
     get_top_predicate_edges,
+    save_components as do_save_components,
+    run_cypher_to_graph,
 )
 from app_know.enums.stage_enum import StageEnum
 from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
@@ -130,6 +138,75 @@ class ExtractBriefView(APIView):
             return resp_exception(e)
 
 
+class AnalyzeComponentsView(APIView):
+    """POST: AI 成分分析，返回 (定语-主语)-(状语-谓语)-(定语-宾语-补语) 七项。"""
+
+    def post(self, request, point_id, *args, **kwargs):
+        try:
+            if point_id is None or not isinstance(point_id, int) or point_id <= 0:
+                return resp_err("point_id required", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            point = get_by_id(point_id)
+            if not point:
+                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+            content = (point.content or "").strip()
+            if not content:
+                return resp_err("Point content is empty", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            result = do_analyze_components(content)
+            if not result:
+                return resp_err("Analyze failed or AI unavailable", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_ok(result)
+        except Exception as e:
+            logger.exception("[AnalyzeComponentsView] Error: %s", e)
+            return resp_exception(e)
+
+
+class SaveComponentsView(APIView):
+    """POST: 将成分分析七项保存到 Neo4j（主语/宾语/定语/补语为点，谓语为边）。"""
+
+    def post(self, request, point_id, *args, **kwargs):
+        try:
+            if point_id is None or not isinstance(point_id, int) or point_id <= 0:
+                return resp_err("point_id required", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            point = get_by_id(point_id)
+            if not point:
+                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+            data = getattr(request, "data", None) or {}
+            batch_id = point.batch_id if point.batch_id is not None else 0
+            result = do_save_components(
+                point_id=point_id,
+                batch_id=batch_id,
+                attributive_subject=data.get("attributive_subject", ""),
+                subject=data.get("subject", ""),
+                adverbial=data.get("adverbial", ""),
+                predicate=data.get("predicate", ""),
+                attributive_object=data.get("attributive_object", ""),
+                object_name=data.get("object", ""),
+                complement=data.get("complement", ""),
+            )
+            if result.get("errors"):
+                return resp_err("; ".join(result["errors"]), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            # 将 (定语)-主语-谓语-(定语)-宾语-(补语) 及状语 组成 Cypher 写入 knowledge 的 graph_brief / graph_subject / graph_object
+            expressions = build_graph_expressions(
+                attributive_subject=data.get("attributive_subject", ""),
+                subject=data.get("subject", ""),
+                adverbial=data.get("adverbial", ""),
+                predicate=data.get("predicate", ""),
+                attributive_object=data.get("attributive_object", ""),
+                object_name=data.get("object", ""),
+                complement=data.get("complement", ""),
+            )
+            update_knowledge_point(
+                point_id,
+                graph_brief=expressions.get("graph_brief", ""),
+                graph_subject=expressions.get("graph_subject", ""),
+                graph_object=expressions.get("graph_object", ""),
+            )
+            return resp_ok(result)
+        except Exception as e:
+            logger.exception("[SaveComponentsView] Error: %s", e)
+            return resp_exception(e)
+
+
 class SentenceGraphView(APIView):
     """GET sentence-level SVO graph for a knowledge document."""
 
@@ -154,4 +231,23 @@ class SentenceGraphView(APIView):
             return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception("[SentenceGraphView] Error: %s", e)
+            return resp_exception(e)
+
+
+class Neo4jCypherView(APIView):
+    """POST: 执行 Neo4j Cypher，返回图数据 { nodes, edges } 用于前端图谱展示。"""
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = getattr(request, "data", None) or {}
+            cypher = (data.get("cypher") or "").strip()
+            params = data.get("params")
+            if not isinstance(params, dict):
+                params = {}
+            result = run_cypher_to_graph(cypher, params)
+            if result.get("error"):
+                return resp_err(result["error"], code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_ok({"nodes": result.get("nodes", []), "edges": result.get("edges", [])})
+        except Exception as e:
+            logger.exception("[Neo4jCypherView] Error: %s", e)
             return resp_exception(e)
