@@ -88,16 +88,51 @@ class KnowledgeListView(APIView):
         return resp_err("Use POST /api/know/knowledge/upload to create", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
 
 
+def _stage_label(stage_val) -> str:
+    """Resolve stage number to display label (k) from StageEnum."""
+    try:
+        from app_know.enums.stage_enum import StageEnum
+        for id_, label in StageEnum.ITEMS:
+            if id_ == stage_val:
+                return label
+    except Exception:
+        pass
+    return str(stage_val) if stage_val is not None else ""
+
+
+def _classification_label(classification_val) -> str:
+    """Resolve classification id to code (k) from ClassificationEnum."""
+    try:
+        from app_know.enums.classification_enum import ClassificationEnum
+        for id_, code in ClassificationEnum.ITEMS:
+            if id_ == classification_val:
+                return code
+    except Exception:
+        pass
+    return str(classification_val) if classification_val is not None else ""
+
+
 def _knowledge_point_to_dict(k) -> dict:
     """Convert KnowledgePoint to API dict."""
     content = (k.content or "").strip()
+    stage_val = getattr(k, "stage", 0)
+    cls_val = getattr(k, "classification", 0)
+    if cls_val is None:
+        cls_val = 0
+    try:
+        cls_val = int(cls_val)
+    except (TypeError, ValueError):
+        cls_val = 0
     return {
         "id": k.id,
         "batch_id": k.batch_id,
         "content": content,
         "content_preview": (content[:100] + "..." if len(content) > 100 else content) or "",
         "seq": getattr(k, "seq", 0),
-        "classification": getattr(k, "classification", "") or "",
+        "classification": cls_val,
+        "classification_label": _classification_label(cls_val),
+        "stage": stage_val,
+        "stage_label": _stage_label(stage_val),
         "ct": getattr(k, "ct", 0),
         "ut": getattr(k, "ut", 0),
     }
@@ -156,7 +191,7 @@ class KnowledgePointDetailView(APIView):
             return resp_exception(e)
 
     def put(self, request, point_id, *args, **kwargs):
-        """Update knowledge point. Body: { content?, classification?, seq? }."""
+        """Update knowledge point. Body: { content?, classification?, stage?, seq? }."""
         try:
             kid = _parse_entity_id(point_id)
             k = get_by_id(kid)
@@ -166,8 +201,16 @@ class KnowledgePointDetailView(APIView):
             updates = {}
             if "content" in data:
                 updates["content"] = (data.get("content") or "").strip()
-            if "classification" in data:
-                updates["classification"] = (data.get("classification") or "").strip()[:32]
+            if "classification" in data and data["classification"] is not None:
+                try:
+                    updates["classification"] = int(data["classification"])
+                except (TypeError, ValueError):
+                    pass
+            if "stage" in data and data["stage"] is not None:
+                try:
+                    updates["stage"] = int(data["stage"])
+                except (TypeError, ValueError):
+                    pass
             if "seq" in data and data["seq"] is not None:
                 try:
                     updates["seq"] = int(data["seq"])

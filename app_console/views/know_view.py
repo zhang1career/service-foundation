@@ -112,7 +112,17 @@ class KnowPointEditView(TemplateView):
         context = super().get_context_data(**kwargs)
         point_id = kwargs.get('point_id')
         context['point_id'] = point_id
-        context['point_data'] = getattr(self, 'point_data', None)
+        point_data = getattr(self, 'point_data', None)
+        context['point_data'] = point_data
+        # 保证 stage=0 时下拉能正确选中（模板里 |default:'' 会把 0 当假值）
+        if point_data and point_data.get('stage') is not None:
+            context['initial_stage'] = str(point_data['stage'])
+        else:
+            context['initial_stage'] = ''
+        if point_data and point_data.get('classification') is not None:
+            context['initial_classification'] = str(point_data['classification'])
+        else:
+            context['initial_classification'] = ''
         context.update(get_edit_return_context(
             self.request,
             list_url_name='console:know-list',

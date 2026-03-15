@@ -10,7 +10,8 @@ from typing import List, Optional
 
 from common.consts.string_const import EMPTY_STRING
 
-from app_know.consts import CLASS_CHOICES, CLASS_FACT, STAGE_CREATED, STATUS_INCOMPLETE
+from app_know.consts import CLASS_CHOICES, CLASS_FACT, STATUS_INCOMPLETE
+from app_know.enums.classification_enum import ClassificationEnum
 from app_know.repos import knowledge_point_repo
 from app_know.repos.sentence_raw_repo import delete_by_sentence_ids, save_sentence_raw
 
@@ -127,14 +128,17 @@ def parse_and_store(
             logger.warning("[parser_agent] delete_by_sentence_ids failed: %s", e)
     knowledge_point_repo.delete_by_batch(batch_id)
 
-    # Batch create in MySQL
+    # Batch create in MySQL（classification 存为 int）
     contents = [c[0] for c in classified]
-    classifications = [c[1] for c in classified]
+    classifications = [
+        ClassificationEnum.CODE_TO_ID.get(c[1], ClassificationEnum.FACT)
+        for c in classified
+    ]
     created = knowledge_point_repo.batch_create(batch_id, contents, classifications=classifications)
 
     results = []
     for i, s in enumerate(created):
-        cls = classified[i][1]
+        cls_id = classifications[i] if i < len(classifications) else ClassificationEnum.FACT
         if write_sentence_raw:
             try:
                 save_sentence_raw(sentence_id=s.id, content=s.content)
@@ -143,7 +147,7 @@ def parse_and_store(
         results.append({
             "id": s.id,
             "content": s.content,
-            "classification": cls or CLASS_FACT,
+            "classification": cls_id,
             "seq": s.seq,
         })
 

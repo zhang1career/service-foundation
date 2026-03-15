@@ -25,7 +25,12 @@
                 <select id="point-classification" name="classification" class="form-input w-48">
                     <option value="">请选择</option>
                 </select>
-                <p class="text-sm text-gray-500 mt-1">选项来自字典查询接口，展示 k，提交 v</p>
+            </div>
+            <div class="form-group mt-4">
+                <label class="form-label" for="point-stage">阶段</label>
+                <select id="point-stage" name="stage" class="form-input w-48">
+                    <option value="">请选择</option>
+                </select>
             </div>
             <div class="form-group mt-4">
                 <label class="form-label">序号</label>
@@ -50,41 +55,66 @@ const pointId = {{ point_id|default:0 }};
 const detailUrl = "{% url 'console:know-point-detail' point_id=point_id %}";
 const API_POINT = '/api/know/knowledge/points/' + pointId;
 const API_DICT = '/api/know/dict';
-const initialClassification = "{{ point_data.classification|default:''|escapejs }}";
+const initialClassification = "{{ initial_classification|escapejs }}";
+const initialStage = "{{ initial_stage|escapejs }}";
 
-async function loadClassificationOptions() {
-    const sel = document.getElementById('point-classification');
-    if (!sel) return;
+async function loadDictOptions() {
     try {
-        const res = await fetch(API_DICT + '?codes=classification');
+        const res = await fetch(API_DICT + '?codes=classification,stage');
         const result = await res.json();
-        if (result.errorCode !== 0 || !result.data || !result.data.classification) {
-            sel.innerHTML = '<option value="">请选择</option>';
-            return;
+        if (result.errorCode !== 0 || !result.data) return;
+        var data = result.data;
+
+        var selClass = document.getElementById('point-classification');
+        if (selClass && data.classification) {
+            selClass.innerHTML = '<option value="">请选择</option>';
+            data.classification.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.v;
+                opt.textContent = item.k;
+                selClass.appendChild(opt);
+            });
+            if (initialClassification !== '' && initialClassification != null) selClass.value = initialClassification;
         }
-        const items = result.data.classification;
-        sel.innerHTML = '<option value="">请选择</option>';
-        items.forEach(function(item) {
-            var opt = document.createElement('option');
-            opt.value = item.v;
-            opt.textContent = item.k;
-            sel.appendChild(opt);
-        });
-        if (initialClassification !== '' && initialClassification != null) {
-            sel.value = initialClassification;
+
+        var selStage = document.getElementById('point-stage');
+        if (selStage && data.stage) {
+            selStage.innerHTML = '<option value="">请选择</option>';
+            data.stage.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.v;
+                opt.textContent = item.k;
+                selStage.appendChild(opt);
+            });
+            if (initialStage !== '' && initialStage != null) selStage.value = initialStage;
         }
     } catch (e) {
-        sel.innerHTML = '<option value="">加载失败</option>';
+        var selClass = document.getElementById('point-classification');
+        if (selClass) selClass.innerHTML = '<option value="">加载失败</option>';
+        var selStage = document.getElementById('point-stage');
+        if (selStage) selStage.innerHTML = '<option value="">加载失败</option>';
     }
 }
-loadClassificationOptions();
+loadDictOptions();
 
 document.getElementById('point-edit-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const content = (document.getElementById('point-content') || {}).value || '';
-    const classification = (document.getElementById('point-classification') || {}).value || '';
+    const classificationEl = document.getElementById('point-classification');
+    const classificationVal = classificationEl && classificationEl.value !== '' ? classificationEl.value : null;
+    const stageEl = document.getElementById('point-stage');
+    const stageVal = stageEl && stageEl.value !== '' ? stageEl.value : null;
     const btn = document.getElementById('save-btn');
     if (btn) btn.disabled = true;
+    var body = { content: content };
+    if (classificationVal !== null) {
+        var clsNum = parseInt(classificationVal, 10);
+        if (!isNaN(clsNum)) body.classification = clsNum;
+    }
+    if (stageVal !== null) {
+        var stageNum = parseInt(stageVal, 10);
+        if (!isNaN(stageNum)) body.stage = stageNum;
+    }
     try {
         const response = await fetch(API_POINT, {
             method: 'PUT',
@@ -94,7 +124,7 @@ document.getElementById('point-edit-form').addEventListener('submit', async func
                 'X-Requested-With': 'XMLHttpRequest'
             },
             credentials: 'same-origin',
-            body: JSON.stringify({ content: content, classification: classification })
+            body: JSON.stringify(body)
         });
         const result = await response.json();
         if (result.errorCode === 0) {

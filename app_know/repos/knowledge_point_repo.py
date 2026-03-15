@@ -6,6 +6,7 @@ import time
 from typing import List, Optional, Tuple
 
 from app_know.models import KnowledgePoint
+from app_know.enums.classification_enum import ClassificationEnum
 from common.consts.query_const import LIMIT_LIST
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ def create_knowledge_point(
     content: str,
     batch_id: Optional[int] = None,
     seq: int = 0,
-    classification: str = "",
+    classification: int = 0,
     stage: int = 0,
     status: int = 0,
 ) -> KnowledgePoint:
@@ -25,6 +26,7 @@ def create_knowledge_point(
     if not content or not isinstance(content, str):
         raise ValueError("content must be a non-empty string")
     now_ms = int(time.time() * 1000)
+    cls_val = int(classification) if classification is not None else ClassificationEnum.FACT
     k = KnowledgePoint(
         batch_id=batch_id,
         content=content.strip(),
@@ -33,7 +35,7 @@ def create_knowledge_point(
         graph_brief="",
         graph_subject="",
         graph_object="",
-        classification=classification or "",
+        classification=cls_val,
         stage=stage,
         status=status,
         ct=now_ms,
@@ -46,9 +48,9 @@ def create_knowledge_point(
 def batch_create(
     batch_id: Optional[int],
     contents: List[str],
-    classifications: Optional[List[str]] = None,
+    classifications: Optional[List[int]] = None,
 ) -> List[KnowledgePoint]:
-    """Create knowledge points for a batch."""
+    """Create knowledge points for a batch. classifications: list of classification ids (int)."""
     if not contents:
         return []
     result = []
@@ -56,7 +58,8 @@ def batch_create(
     for i, c in enumerate(contents):
         if not c or not str(c).strip():
             continue
-        cls = classifications[i] if i < len(classifications) else ""
+        cls = classifications[i] if i < len(classifications) else ClassificationEnum.FACT
+        cls = int(cls) if cls is not None else ClassificationEnum.FACT
         k = create_knowledge_point(
             content=c.strip(),
             batch_id=batch_id,

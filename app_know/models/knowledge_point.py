@@ -4,11 +4,9 @@ Renamed from Sentence. Table: knowledge. Uses batch_id to group points from same
 """
 from django.db import models
 
-from app_know.consts import (
-    CLASS_CHOICES,
-    STAGE_CREATED,
-    STATUS_INCOMPLETE,
-)
+from app_know.consts import STATUS_INCOMPLETE
+from app_know.enums.stage_enum import StageEnum
+from app_know.enums.classification_enum import ClassificationEnum
 
 
 class KnowledgePoint(models.Model):
@@ -24,8 +22,8 @@ class KnowledgePoint(models.Model):
     graph_subject = models.TextField(blank=True, null=True)
     graph_object = models.TextField(blank=True, null=True)
 
-    classification = models.CharField(max_length=32, db_index=True, blank=True, default="")
-    stage = models.SmallIntegerField(db_index=True, default=STAGE_CREATED)
+    classification = models.SmallIntegerField(db_index=True, default=ClassificationEnum.FACT)
+    stage = models.SmallIntegerField(db_index=True, default=StageEnum.CREATED)  # 0=已创建
     status = models.SmallIntegerField(db_index=True, default=STATUS_INCOMPLETE)
 
     ct = models.BigIntegerField(default=0, db_index=True)

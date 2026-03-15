@@ -13,7 +13,23 @@ from common.utils.http_util import resp_ok, resp_err, resp_exception
 logger = logging.getLogger(__name__)
 
 
+def _classification_label(cls_val):
+    try:
+        from app_know.enums.classification_enum import ClassificationEnum
+        for id_, code in ClassificationEnum.ITEMS:
+            if id_ == cls_val:
+                return code
+    except Exception:
+        pass
+    return str(cls_val) if cls_val is not None else ""
+
+
 def _knowledge_point_to_dict(k):
+    cls_val = getattr(k, "classification", 0)
+    try:
+        cls_val = int(cls_val) if cls_val is not None else 0
+    except (TypeError, ValueError):
+        cls_val = 0
     return {
         "id": k.id,
         "batch_id": k.batch_id,
@@ -22,7 +38,8 @@ def _knowledge_point_to_dict(k):
         "graph_brief": k.graph_brief,
         "graph_subject": k.graph_subject,
         "graph_object": k.graph_object,
-        "classification": k.classification,
+        "classification": cls_val,
+        "classification_label": _classification_label(cls_val),
         "stage": k.stage,
         "status": k.status,
         "seq": k.seq,

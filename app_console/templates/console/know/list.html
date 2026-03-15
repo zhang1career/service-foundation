@@ -100,7 +100,7 @@ async function loadKnowledgeList() {
                     <td>${escapeHtml(String(item.id))}</td>
                     ${batchIdCell}
                     ${listTitleCell(contentPreview, pointDetailUrl, 'font-medium max-w-md')}
-                    <td>${escapeHtml(item.classification || '-')}</td>
+                    <td>${escapeHtml(item.classification_label != null ? item.classification_label : (item.classification != null ? String(item.classification) : '-'))}</td>
                     <td>${escapeHtml(String(item.seq != null ? item.seq : '-'))}</td>
                     ${listActions({ id: item.id, onEdit: 'editKnowledgePoint', onDelete: 'deleteKnowledgePoint' })}
                 </tr>`;

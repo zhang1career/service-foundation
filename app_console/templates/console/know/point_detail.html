@@ -35,11 +35,15 @@
             </div>
             <div>
                 <p class="text-sm text-gray-500 mb-1">分类</p>
-                <p>{{ point_data.classification|default:"-" }}</p>
+                <p>{{ point_data.classification_label|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">阶段</p>
+                <p>{{ point_data.stage_label|default:"-" }}</p>
             </div>
             <div>
                 <p class="text-sm text-gray-500 mb-1">序号</p>
-                <p>{{ point_data.seq|default:"-" }}</p>
+                <p>{% if point_data.seq is not None %}{{ point_data.seq }}{% else %}-{% endif %}</p>
             </div>
             <div>
                 <p class="text-sm text-gray-500 mb-1">创建时间</p>

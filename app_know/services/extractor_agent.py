@@ -10,7 +10,8 @@ from typing import Any, Dict, List, Optional
 
 from common.consts.string_const import EMPTY_STRING
 
-from app_know.consts import STAGE_PARSED, STATUS_COMPLETED
+from app_know.consts import STATUS_COMPLETED
+from app_know.enums.stage_enum import StageEnum
 from app_know.repos import knowledge_point_repo
 
 logger = logging.getLogger(__name__)
@@ -179,7 +180,7 @@ def extract_and_store_for_batch(
                 graph_brief=extracted.get("graph_brief"),
                 graph_subject=extracted.get("graph_subject"),
                 graph_object=extracted.get("graph_object"),
-                stage=STAGE_PARSED,
+                stage=StageEnum.PARSED,
                 status=STATUS_COMPLETED,
             )
             rec["ok"] = True

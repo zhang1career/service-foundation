@@ -32,12 +32,6 @@ def validate_app_id(app_id, default=None) -> int:
     except (TypeError, ValueError):
         raise ValueError("app_id must be an integer")
 
-# Sentence workflow stage
-STAGE_CREATED = 0
-STAGE_CLEANED = 1
-STAGE_PARSED = 2
-STAGE_VECTORIZED = 3
-
 # Sentence workflow status
 STATUS_INCOMPLETE = 0
 STATUS_COMPLETED = 1
