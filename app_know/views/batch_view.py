@@ -1,6 +1,7 @@
 """
 Batch REST API: create, list, get, delete, analyze for batch table.
 """
+import json
 import logging
 
 from rest_framework import status as http_status
@@ -32,6 +33,28 @@ def _parse_entity_id(entity_id) -> int:
     if eid is None or eid <= 0:
         raise ValueError("entity_id must be a positive integer")
     return eid
+
+
+def _get_request_body(request):
+    """Get POST body as dict; parse JSON from request.body when data not already parsed."""
+    body = getattr(request, "data", None)
+    if body is not None and isinstance(body, dict):
+        return body
+    post = getattr(request, "POST", None) or {}
+    if post:
+        return post
+    raw = getattr(request, "body", None)
+    if raw:
+        ct = (getattr(request, "content_type", "") or "").split(";")[0].strip().lower()
+        if ct == "application/json":
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", errors="replace")
+            if isinstance(raw, str) and raw.strip():
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError:
+                    pass
+    return {}
 
 
 def _batch_to_dict(b) -> dict:
@@ -216,10 +239,15 @@ class BatchAnalyzeView(APIView):
             if not get_by_id(batch_id):
                 raise ValueError(f"Batch {batch_id} not found")
 
-            data = getattr(request, "data", None) or {}
+            data = _get_request_body(request)
             content = (data.get("content") or "").strip()
             if not content:
-                return resp_err("content is required in body", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                # Fallback: use batch detail aggregated/content (e.g. when request body was not parsed)
+                detail = get_batch_detail(batch_id)
+                if detail:
+                    content = (detail.get("aggregated_content") or detail.get("content") or "").strip()
+                if not content:
+                    return resp_err("content is required in body", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
 
             use_ai_classify = data.get("use_ai_classify", True)
             write_sentence_raw = data.get("write_sentence_raw", True)

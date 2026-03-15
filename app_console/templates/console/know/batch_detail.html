@@ -139,6 +139,7 @@ async function runAnalyze() {
         if (btn) { btn.disabled = false; btn.textContent = '分析'; }
     }
 }
+window.runAnalyze = runAnalyze;
 // 兜底：根据页面上的「句子数」在客户端隐藏「知识列表」按钮（服务端异常时仍能隐藏）
 (function() {
     var cardBody = document.querySelector('.card-body');

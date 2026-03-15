@@ -51,7 +51,7 @@ function listTitleCell(text, url, cssClass = 'font-medium') {
  * @returns {string} HTML 字符串
  */
 function listTitleCellWithSimilarity(text, url, similarity, cssClass = 'font-medium') {
-    if (similarity == null || similarity === undefined) {
+    if (similarity == null) {
         return listTitleCell(text, url, cssClass);
     }
     const display = text || '-';
