@@ -4,7 +4,7 @@
 CREATE TABLE `knowledge`
 (
     `id`             BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-    `batch_id`       INT(10) UNSIGNED    NOT NULL DEFAULT '0',
+    `batch_id`       BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
     `content`        TEXT                NULL     DEFAULT NULL COMMENT '知识内容',
     `seq`            INT(10) UNSIGNED    NOT NULL DEFAULT '0',
     `brief`          VARCHAR(200)        NOT NULL DEFAULT '',

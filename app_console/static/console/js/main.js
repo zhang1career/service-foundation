@@ -36,11 +36,12 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 /**
  * Show toast or modal notification (app_console shared component).
  *
- * - success: Light green toast, auto-dismiss after 3 seconds
+ * - success: Light green toast, auto-dismiss 3s
+ * - info: Blue toast, auto-dismiss 3s
+ * - warning: Amber toast, auto-dismiss 3s
  * - error: Light red modal with confirm button, stays open until user clicks 确认
- * - info: Blue toast, auto-dismiss after 3 seconds
  *
- * Usage: showToast('message', 'success' | 'error' | 'info')
+ * Usage: showToast('message', 'success' | 'info' | 'warning' | 'error')
  */
 function showToast(message, type = 'info') {
     if (type === 'error') {

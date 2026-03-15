@@ -22,20 +22,132 @@
 </div>
 
 <div id="knowledge-detail">
+{% if batch_data %}
+    <div class="card mb-6">
+        <div class="card-header">
+            <h2 class="text-xl font-semibold">{{ batch_data.title|default:"未命名" }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">ID</p>
+                    <p class="font-medium">{{ batch_data.id }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">来源类型</p>
+                    <span class="badge badge-info">{{ batch_data.source_type|default:"-" }}</span>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                    <p>{{ batch_data.ct_fmt|default:"-" }}</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                    <p>{{ batch_data.ut_fmt|default:"-" }}</p>
+                </div>
+            </div>
+            <div class="mt-6">
+                <p class="text-sm text-gray-500 mb-2">描述</p>
+                <p class="bg-gray-50 p-4 rounded-lg">{{ batch_data.description|default:"无描述" }}</p>
+            </div>
+            <div class="mt-6">
+                <p class="text-sm text-gray-500 mb-2">内容</p>
+                <div class="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">{{ batch_data.content|default:"无内容" }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="card mb-6" id="sentences-section">
+        <div class="card-header">
+            <h3 class="text-lg font-semibold">句子解析</h3>
+            <div class="flex gap-2">
+                <button onclick="runParse()" class="btn btn-primary btn-sm" id="parse-btn">解析</button>
+                <button onclick="runExtract()" class="btn btn-outline btn-sm" id="extract-btn" title="解析后再抽取" disabled>抽取</button>
+                <span class="text-xs text-gray-400">解析拆句 → 抽取摘要与主谓宾 → 生成句子图谱</span>
+            </div>
+        </div>
+        <div class="card-body" id="sentences-content">
+            <div class="flex items-center text-gray-500"><div class="spinner mr-2"></div>加载中...</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="text-lg font-semibold">摘要</h3>
+            <button onclick="generateSummary()" class="btn btn-primary btn-sm">生成摘要</button>
+        </div>
+        <div class="card-body" id="summary-content">
+            <div class="flex items-center text-gray-500"><div class="spinner mr-2"></div>加载中...</div>
+        </div>
+        <div class="card-body border-t border-gray-200">
+            <div class="flex items-center gap-2 mb-2">
+                <label class="flex items-center cursor-pointer gap-2 text-sm">
+                    <input type="checkbox" id="atlas-terminal-toggle" onchange="toggleAtlasTerminal(this.checked)" class="rounded border-gray-300">
+                    <span>交互查询</span>
+                </label>
+            </div>
+            <div id="atlas-terminal-section" class="hidden">
+            <div class="bg-gray-900 rounded-lg overflow-hidden font-mono text-xs">
+                <div id="atlas-terminal-output" class="p-3 text-green-400 min-h-[120px] max-h-[360px] overflow-y-auto whitespace-pre-wrap break-words"></div>
+                <div class="flex border-t border-gray-700">
+                    <input type="text" id="atlas-terminal-input" placeholder="输入命令 (如 show dbs, help) 回车发送" class="flex-1 bg-transparent text-green-400 px-3 py-2 focus:outline-none placeholder-gray-500" onkeydown="handleAtlasTerminalKeydown(event)">
+                    <button type="button" onclick="sendAtlasCommand()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-green-400">发送</button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+    <div class="card mt-6" id="relations-section">
+        <div class="card-header">
+            <h3 class="text-lg font-semibold">关系</h3>
+            <div class="flex space-x-2">
+                <button id="extract-relations-btn" onclick="extractRelations()" class="btn btn-primary btn-sm" style="display:none">提取关系</button>
+                <button id="save-relation-btn" onclick="saveRelation()" class="btn btn-outline btn-sm" style="display:none">保存关系</button>
+                <button id="generate-insights-btn" onclick="runGenerateInsights()" class="btn btn-outline btn-sm" title="从句子图谱生成路径推理等观点">生成观点</button>
+            </div>
+        </div>
+        <div class="card-body" id="relations-content">
+            <p class="text-gray-500">点击"提取关系"按钮从内容中提取谓词逻辑关系。主语和宾语默认来自 AI 解析结果，可输入或从 Atlas 相似度匹配的候选项中选取后点击"保存关系"存储到 Neo4j</p>
+        </div>
+        <div class="card-body border-t border-gray-200">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-sm text-gray-500">知识图谱 · 句子图谱由「抽取」生成，关系图谱由「提取关系」生成</p>
+                <div class="flex gap-1 text-sm">
+                    <button type="button" id="graph-toggle-sentence" onclick="switchGraphType('sentence')" class="px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50">句子图谱</button>
+                    <button type="button" id="graph-toggle-relation" onclick="switchGraphType('relation')" class="px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100">关系图谱</button>
+                </div>
+            </div>
+            <div class="relative flex gap-4">
+                <div id="relation-graph" class="flex-1" style="height: 400px; min-height: 300px; background: #f9fafb; border-radius: 0.5rem;"></div>
+                <div id="relation-props-drawer" class="w-72 flex-shrink-0 border border-gray-200 rounded-lg bg-white shadow-sm overflow-hidden" style="display:none;">
+                    <div class="px-4 py-3 bg-gray-50 border-b flex justify-between items-center">
+                        <span class="font-semibold text-gray-700">属性</span>
+                        <button type="button" onclick="closeRelationPropsDrawer()" class="text-gray-500 hover:text-gray-700">&times;</button>
+                    </div>
+                    <div id="relation-props-content" class="p-4 text-sm"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
     <div class="p-8 text-center text-gray-500">
         <div class="spinner"></div>
         <p class="mt-2">加载中...</p>
     </div>
+{% endif %}
 </div>
+{% if batch_data %}
+{{ batch_data.content|default:""|json_script:"batch-content-json" }}
+{% endif %}
 
 {% endblock %}
 
 {% block extra_js %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
-<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js" defer></script>
 <script>
-const entityId = {{ entity_id }};
+(function() {
+'use strict';
+const entityId = parseInt({{ entity_id|default:0 }}, 10) || 0;
 const API_BASE = '/api/know/knowledge';
 
 function getCookie(name) {
@@ -66,18 +178,43 @@ function formatTimestamp(ts) {
 
 async function loadDetail() {
     const container = document.getElementById('knowledge-detail');
-    
+    if (!container) return;
+
+    if (!entityId || entityId <= 0) {
+        container.innerHTML = `
+            <div class="card">
+                <div class="card-body text-center text-red-500">
+                    <p>无效的批次 ID</p>
+                    <a href="{% url 'console:know-list' %}" class="btn btn-primary btn-sm mt-4">返回列表</a>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
     try {
-        const response = await fetch(`${API_BASE}/${entityId}`);
-        const result = await response.json();
-        
+        const url = API_BASE + '/' + entityId;
+        const response = await fetch(url, { credentials: 'same-origin' });
+        const text = await response.text();
+        if (!response.ok) {
+            throw new Error('请求失败: HTTP ' + response.status + ' ' + url);
+        }
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch (e) {
+            throw new Error('响应非 JSON，前 200 字符: ' + (text || '').substring(0, 200));
+        }
+        if (result.errorCode !== 0) {
+            throw new Error(result.message || '加载失败');
+        }
         if (result.data) {
             const data = result.data;
             window.currentBatchContent = data.content || '';
             container.innerHTML = `
                 <div class="card mb-6">
                     <div class="card-header">
-                        <h2 class="text-xl font-semibold">${data.title || '未命名'}</h2>
+                        <h2 class="text-xl font-semibold">${escapeHtml(data.title || '未命名')}</h2>
                     </div>
                     <div class="card-body">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -87,7 +224,7 @@ async function loadDetail() {
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 mb-1">来源类型</p>
-                                <span class="badge badge-info">${data.source_type || '-'}</span>
+                                <span class="badge badge-info">${escapeHtml(data.source_type || '-')}</span>
                             </div>
                             <div>
                                 <p class="text-sm text-gray-500 mb-1">创建时间</p>
@@ -101,12 +238,12 @@ async function loadDetail() {
                         
                         <div class="mt-6">
                             <p class="text-sm text-gray-500 mb-2">描述</p>
-                            <p class="bg-gray-50 p-4 rounded-lg">${data.description || '无描述'}</p>
+                            <p class="bg-gray-50 p-4 rounded-lg">${escapeHtml(data.description || '无描述')}</p>
                         </div>
                         
                         <div class="mt-6">
                             <p class="text-sm text-gray-500 mb-2">内容</p>
-                            <div class="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">${data.content || '无内容'}</div>
+                            <div class="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">${escapeHtml(data.content || '无内容')}</div>
                         </div>
                     </div>
                 </div>
@@ -1015,6 +1152,24 @@ async function saveRelation() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', loadDetail);
+function initDetailPage() {
+    var el = document.getElementById('batch-content-json');
+    if (el) {
+        try {
+            window.currentBatchContent = JSON.parse(el.textContent || '""');
+        } catch (e) {
+            window.currentBatchContent = '';
+        }
+        if (typeof loadSentences === 'function') loadSentences();
+        if (typeof loadExistingSummary === 'function') loadExistingSummary();
+        if (typeof switchGraphType === 'function') switchGraphType('sentence');
+    }
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDetailPage);
+} else {
+    initDetailPage();
+}
+})();
 </script>
 {% endblock %}

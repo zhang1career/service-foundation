@@ -1,5 +1,10 @@
 /* Custom styles for console app */
 
+/* 护眼背景：浅绿色，减轻视觉疲劳 */
+body {
+    background-color: #dcf5e0;
+}
+
 /* Sidebar collapse / resize */
 #console-sidebar {
     --sidebar-width: 256px;
@@ -245,6 +250,11 @@
 .toast-info {
     background-color: #dbeafe;
     color: #1e40af;
+}
+
+.toast-warning {
+    background-color: #fef3c7;
+    color: #92400e;
 }
 
 /* Error modal: light red, stays open until confirm clicked */

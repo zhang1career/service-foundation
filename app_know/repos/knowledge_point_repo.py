@@ -29,6 +29,10 @@ def create_knowledge_point(
         batch_id=batch_id,
         content=content.strip(),
         seq=seq,
+        brief="",
+        graph_brief="",
+        graph_subject="",
+        graph_object="",
         classification=classification or "",
         stage=stage,
         status=status,
@@ -125,6 +129,10 @@ def update(kid: int, **kwargs) -> bool:
         "classification", "stage", "status", "content", "batch_id", "seq",
     }
     updates = {k: v for k, v in kwargs.items() if k in allowed}
+    # DB columns brief/graph_brief/graph_subject/graph_object are NOT NULL; normalize None to ""
+    for key in ("brief", "graph_brief", "graph_subject", "graph_object"):
+        if key in updates and updates[key] is None:
+            updates[key] = ""
     if not updates:
         return False
     updates["ut"] = int(time.time() * 1000)

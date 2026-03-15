@@ -21,6 +21,7 @@ from app_know.views.summary_view import (
     KnowledgeSummaryListView,
 )
 from app_know.views.upload_view import KnowledgeUploadView
+from app_know.views.add_text_view import AddTextKnowledgeView
 from app_know.views.parse_view import KnowledgeParseView
 from app_know.views.sentence_view import SentenceListView
 from app_know.views.extract_view import KnowledgeExtractView, SentenceGraphView
@@ -35,6 +36,7 @@ urlpatterns = [
     path("atlas_repl", AtlasReplView.as_view(), name="atlas-repl"),
     path("knowledge", KnowledgeListView.as_view(), name="knowledge-list"),
     path("knowledge/upload", KnowledgeUploadView.as_view(), name="knowledge-upload"),
+    path("knowledge/add_text", AddTextKnowledgeView.as_view(), name="knowledge-add-text"),
     path("knowledge/some_like", KnowledgeSomeLikeView.as_view(), name="knowledge-query-by-summary"),
     path("knowledge/<int:entity_id>", KnowledgeDetailView.as_view(), name="knowledge-detail"),
     path(
