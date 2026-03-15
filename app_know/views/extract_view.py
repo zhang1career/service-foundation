@@ -7,9 +7,15 @@ import logging
 from rest_framework import status as http_status
 from rest_framework.views import APIView
 
-from app_know.repos.knowledge_point_repo import list_by_batch
-from app_know.services.extractor_agent import extract_and_store_for_batch
-from app_know.services.graph_builder_agent import build_graph_for_knowledge
+from app_know.repos.knowledge_point_repo import list_by_batch, get_by_id, update as update_knowledge_point
+from app_know.services.extractor_agent import extract_and_store_for_batch, extract_sentence, extract_brief_with_options
+from app_know.services.graph_builder_agent import (
+    build_graph_for_knowledge,
+    get_top_noun_nodes,
+    get_top_predicate_edges,
+)
+from app_know.enums.stage_enum import StageEnum
+from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
 from common.consts.response_const import RET_INVALID_PARAM, RET_RESOURCE_NOT_FOUND
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
@@ -71,6 +77,56 @@ class KnowledgeExtractView(APIView):
             return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
         except Exception as e:
             logger.exception("[KnowledgeExtractView] Error: %s", e)
+            return resp_exception(e)
+
+
+class ExtractBriefView(APIView):
+    """POST to extract brief for a single knowledge point; writes brief and sets stage=1 (已清洗)."""
+
+    def post(self, request, point_id, *args, **kwargs):
+        try:
+            if point_id is None or not isinstance(point_id, int) or point_id <= 0:
+                return resp_err("point_id must be a positive integer", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            point = get_by_id(point_id)
+            if not point:
+                return resp_err(
+                    f"Knowledge point {point_id} not found",
+                    code=RET_RESOURCE_NOT_FOUND,
+                    status=http_status.HTTP_200_OK,
+                )
+            content = (point.content or "").strip()
+            if not content:
+                return resp_err("Point content is empty", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            subject_list = get_top_noun_nodes(100)
+            predicate_list = get_top_predicate_edges(100)
+            extracted = extract_brief_with_options(content, subject_list, predicate_list)
+            if not extracted:
+                return resp_err(
+                    "Extract failed or AI unavailable",
+                    code=RET_INVALID_PARAM,
+                    status=http_status.HTTP_200_OK,
+                )
+            brief = (extracted.get("brief") or "").strip() or content[:100]
+            sub_idx = extracted.get("sub_idx", -1)
+            prd_idx = extracted.get("prd_idx", -1)
+            if sub_idx < 0 or prd_idx < 0:
+                new_status = KnowledgeStatusEnum.PENDING_REVIEW
+            else:
+                new_status = KnowledgeStatusEnum.COMPLETED
+            ok = update_knowledge_point(
+                point_id, brief=brief, stage=StageEnum.CLEANED, status=new_status
+            )
+            if not ok:
+                return resp_err("Update failed", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_ok({
+                "brief": brief,
+                "stage": StageEnum.CLEANED,
+                "status": new_status,
+                "sub_idx": sub_idx,
+                "prd_idx": prd_idx,
+            })
+        except Exception as e:
+            logger.exception("[ExtractBriefView] Error: %s", e)
             return resp_exception(e)
 
 

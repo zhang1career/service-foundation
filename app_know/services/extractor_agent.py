@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Optional
 
 from common.consts.string_const import EMPTY_STRING
 
-from app_know.consts import STATUS_COMPLETED
 from app_know.enums.stage_enum import StageEnum
+from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
 from app_know.repos import knowledge_point_repo
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,20 @@ EXTRACT_PROMPT = (
     '{"brief": "摘要", "subject": "主语", "predicate": "谓语", "object": "宾语", '
     '"attributive": "定语", "adverbial": "状语", "complement": "补语"}'
 )
+
+# 定制单选题：按（定语-主语）-谓语-（定语-宾语-补语）提取摘要，主语/谓语从给定选项中选或 -1
+PROMPT_BRIEF_SINGLE_CHOICE = """把以下的句子，按照（定语-主语）-谓语-（定语-宾语-补语）的句子成分结构，提取成摘要信息。其中，主语、谓语的可选范围下面给出，如果可选项不合适就使用你认为合适的词语。
+答案格式：json。
+答案内容：brief（摘要），要求一句话、50 字内；sub_idx(主语选项集的选中序号，-1表示没选中)；prd_idx(谓语选项集的选中序号，-1表示没选中)。
+说明：定语、补语可空缺；括号仅表示局部完整的句子成分，连线号仅表示句子成分之间的划分，这些都不要出现在结果中。
+
+主语选项（序号从0开始）：
+{subject_options}
+
+谓语选项（序号从0开始）：
+{predicate_options}
+
+请只输出一个 JSON 对象，不要其他文字。"""
 
 _text_ai_client = None
 
@@ -93,6 +107,83 @@ def _build_graph_brief(parsed: Dict[str, Any]) -> str:
     if parsed.get("complement"):
         parts.append(f"补:{parsed['complement']}")
     return " | ".join(parts) if parts else ""
+
+
+def _parse_brief_single_choice_response(response: str) -> Optional[Dict[str, Any]]:
+    """Parse JSON from custom single-choice brief response: brief, sub_idx, prd_idx."""
+    if not response or not isinstance(response, str):
+        return None
+    resp = response.strip()
+    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', resp, re.DOTALL)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group())
+            if isinstance(parsed, dict) and "brief" in parsed:
+                return {
+                    "brief": (parsed.get("brief") or "").strip(),
+                    "sub_idx": int(parsed.get("sub_idx", -1)) if parsed.get("sub_idx") is not None else -1,
+                    "prd_idx": int(parsed.get("prd_idx", -1)) if parsed.get("prd_idx") is not None else -1,
+                }
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    try:
+        parsed = json.loads(resp)
+        if isinstance(parsed, dict) and "brief" in parsed:
+            return {
+                "brief": (parsed.get("brief") or "").strip(),
+                "sub_idx": int(parsed.get("sub_idx", -1)) if parsed.get("sub_idx") is not None else -1,
+                "prd_idx": int(parsed.get("prd_idx", -1)) if parsed.get("prd_idx") is not None else -1,
+            }
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return None
+
+
+def extract_brief_with_options(
+    sentence_content: str,
+    subject_options: List[str],
+    predicate_options: List[str],
+) -> Optional[Dict[str, Any]]:
+    """
+    Extract brief using 题目限定: single-choice over subject and predicate option lists.
+    Calls OpenAI-compatible API with custom prompt; returns { brief, sub_idx, prd_idx } or None.
+    """
+    if not sentence_content or not isinstance(sentence_content, str):
+        return None
+    content = sentence_content.strip()
+    if not content:
+        return None
+    subject_list = list(subject_options) if subject_options else []
+    predicate_list = list(predicate_options) if predicate_options else []
+    subject_options_str = "\n".join(f"{i}. {s}" for i, s in enumerate(subject_list))
+    predicate_options_str = "\n".join(f"{i}. {p}" for i, p in enumerate(predicate_list))
+    client = _get_text_ai()
+    if client is None:
+        return None
+    try:
+        question_part = PROMPT_BRIEF_SINGLE_CHOICE.format(
+            subject_options=subject_options_str or "（无）",
+            predicate_options=predicate_options_str or "（无）",
+        )
+        _, result = client.ask_and_answer(
+            text=content[:1500],
+            role="摘要提取助手",
+            question=question_part,
+            additional_question="必须只输出一个 JSON 对象，包含 brief、sub_idx、prd_idx，不要其他文字。",
+            temperature=0,
+        )
+        if not result:
+            return None
+        parsed = _parse_brief_single_choice_response(result)
+        if not parsed:
+            logger.warning("[extractor_agent] Failed to parse brief single-choice: %s", result[:200])
+            return None
+        brief = (parsed.get("brief") or "").strip() or content[:100]
+        parsed["brief"] = brief
+        return parsed
+    except Exception as e:
+        logger.exception("[extractor_agent] extract_brief_with_options error: %s", e)
+        return None
 
 
 def extract_sentence(sentence_content: str) -> Optional[Dict[str, Any]]:
@@ -181,7 +272,7 @@ def extract_and_store_for_batch(
                 graph_subject=extracted.get("graph_subject"),
                 graph_object=extracted.get("graph_object"),
                 stage=StageEnum.PARSED,
-                status=STATUS_COMPLETED,
+                status=KnowledgeStatusEnum.COMPLETED,
             )
             rec["ok"] = True
         except Exception as e:

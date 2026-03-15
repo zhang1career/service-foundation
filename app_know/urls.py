@@ -23,7 +23,7 @@ from app_know.views.summary_view import (
     KnowledgeSummaryListView,
 )
 from app_know.views.sentence_view import SentenceListView
-from app_know.views.extract_view import KnowledgeExtractView, SentenceGraphView
+from app_know.views.extract_view import KnowledgeExtractView, SentenceGraphView, ExtractBriefView
 from app_know.views.perspective_view import PerspectiveListView
 from app_know.views.parse_view import KnowledgeParseView
 from app_know.views.insight_view import (
@@ -46,6 +46,7 @@ urlpatterns = [
     path("knowledge", KnowledgeListView.as_view(), name="knowledge-list"),
     path("knowledge/items", KnowledgeListItemsView.as_view(), name="knowledge-list-items"),
     path("knowledge/points/<int:point_id>", KnowledgePointDetailView.as_view(), name="knowledge-point-detail"),
+    path("knowledge/points/<int:point_id>/extract_brief", ExtractBriefView.as_view(), name="knowledge-point-extract-brief"),
     path("batches", BatchListView.as_view(), name="batch-list"),
     path("batches/add_text", BatchCreateTextView.as_view(), name="batch-add-text"),
     path("batches/upload", BatchCreateUploadView.as_view(), name="batch-upload"),

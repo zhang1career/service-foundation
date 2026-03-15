@@ -112,6 +112,18 @@ def _classification_label(classification_val) -> str:
     return str(classification_val) if classification_val is not None else ""
 
 
+def _status_label(status_val) -> str:
+    """Resolve status number to display label from KnowledgeStatusEnum."""
+    try:
+        from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
+        for id_, label in KnowledgeStatusEnum.ITEMS:
+            if id_ == status_val:
+                return label
+    except Exception:
+        pass
+    return str(status_val) if status_val is not None else ""
+
+
 def _knowledge_point_to_dict(k) -> dict:
     """Convert KnowledgePoint to API dict."""
     content = (k.content or "").strip()
@@ -123,16 +135,20 @@ def _knowledge_point_to_dict(k) -> dict:
         cls_val = int(cls_val)
     except (TypeError, ValueError):
         cls_val = 0
+    status_val = getattr(k, "status", 0)
     return {
         "id": k.id,
         "batch_id": k.batch_id,
         "content": content,
         "content_preview": (content[:100] + "..." if len(content) > 100 else content) or "",
+        "brief": (getattr(k, "brief", None) or "").strip() or "",
         "seq": getattr(k, "seq", 0),
         "classification": cls_val,
         "classification_label": _classification_label(cls_val),
         "stage": stage_val,
         "stage_label": _stage_label(stage_val),
+        "status": status_val,
+        "status_label": _status_label(status_val),
         "ct": getattr(k, "ct", 0),
         "ut": getattr(k, "ut", 0),
     }
@@ -191,7 +207,7 @@ class KnowledgePointDetailView(APIView):
             return resp_exception(e)
 
     def put(self, request, point_id, *args, **kwargs):
-        """Update knowledge point. Body: { content?, classification?, stage?, seq? }."""
+        """Update knowledge point. Body: { content?, brief?, classification?, stage?, seq? }."""
         try:
             kid = _parse_entity_id(point_id)
             k = get_by_id(kid)
@@ -201,6 +217,8 @@ class KnowledgePointDetailView(APIView):
             updates = {}
             if "content" in data:
                 updates["content"] = (data.get("content") or "").strip()
+            if "brief" in data:
+                updates["brief"] = (data.get("brief") or "").strip()
             if "classification" in data and data["classification"] is not None:
                 try:
                     updates["classification"] = int(data["classification"])

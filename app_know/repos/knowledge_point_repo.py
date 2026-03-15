@@ -7,6 +7,7 @@ from typing import List, Optional, Tuple
 
 from app_know.models import KnowledgePoint
 from app_know.enums.classification_enum import ClassificationEnum
+from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
 from common.consts.query_const import LIMIT_LIST
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ def batch_create(
             seq=len(result),
             classification=cls,
             stage=0,
-            status=0,
+            status=KnowledgeStatusEnum.INCOMPLETE,
         )
         result.append(k)
     return result

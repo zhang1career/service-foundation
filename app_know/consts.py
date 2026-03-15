@@ -32,11 +32,6 @@ def validate_app_id(app_id, default=None) -> int:
     except (TypeError, ValueError):
         raise ValueError("app_id must be an integer")
 
-# Sentence workflow status
-STATUS_INCOMPLETE = 0
-STATUS_COMPLETED = 1
-STATUS_PENDING_REVIEW = 2
-
 # Sentence classification (Claim / Fact / Event / Concept / Definition / Argument)
 CLASS_CLAIM = "claim"
 CLASS_FACT = "fact"

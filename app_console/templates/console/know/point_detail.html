@@ -42,6 +42,10 @@
                 <p>{{ point_data.stage_label|default:"-" }}</p>
             </div>
             <div>
+                <p class="text-sm text-gray-500 mb-1">状态</p>
+                <p>{{ point_data.status_label|default:"-" }}</p>
+            </div>
+            <div>
                 <p class="text-sm text-gray-500 mb-1">序号</p>
                 <p>{% if point_data.seq is not None %}{{ point_data.seq }}{% else %}-{% endif %}</p>
             </div>
@@ -55,11 +59,127 @@
             </div>
         </div>
         <div>
+            <p class="text-sm text-gray-500 mb-1">摘要</p>
+            <div class="flex items-center gap-2">
+                <div id="brief-display" class="flex-1 whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.brief|default:"-" }}</div>
+                <div class="flex gap-2 shrink-0">
+                    <button type="button" id="btn-extract-brief" class="btn btn-primary btn-sm">摘要</button>
+                    {% if point_data.status == 2 %}
+                    <button type="button" id="btn-review-brief" class="btn btn-outline btn-sm">复核</button>
+                    {% else %}
+                    <span class="btn btn-outline btn-sm console-hide-no-shift" aria-hidden="true" style="visibility:hidden;pointer-events:none">复核</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <!-- 审核摘要弹窗 -->
+        <div id="brief-modal" class="fixed inset-0 z-50 hidden" aria-hidden="true">
+            <div class="fixed inset-0 bg-black/50" id="brief-modal-backdrop"></div>
+            <div class="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-lg shadow-xl p-6 z-10">
+                <h3 class="text-lg font-semibold mb-4">编辑摘要</h3>
+                <textarea id="brief-modal-input" class="form-input w-full font-mono text-sm min-h-[100px]" rows="4" placeholder="摘要"></textarea>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" id="brief-modal-cancel" class="btn btn-outline">取消</button>
+                    <button type="button" id="brief-modal-save" class="btn btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+        <div>
             <p class="text-sm text-gray-500 mb-1">内容</p>
             <div class="whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.content|default:"-" }}</div>
         </div>
     </div>
 </div>
+<script>
+(function() {
+    const pointId = {{ point_id|default:0 }};
+    if (!pointId) return;
+    const btn = document.getElementById('btn-extract-brief');
+    const briefDisplay = document.getElementById('brief-display');
+    const btnReview = document.getElementById('btn-review-brief');
+    const modal = document.getElementById('brief-modal');
+    const modalInput = document.getElementById('brief-modal-input');
+    const modalBackdrop = document.getElementById('brief-modal-backdrop');
+    const modalCancel = document.getElementById('brief-modal-cancel');
+    const modalSave = document.getElementById('brief-modal-save');
+
+    function getCsrf() {
+        return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    }
+
+    function openBriefModal() {
+        var text = (briefDisplay && briefDisplay.textContent) ? briefDisplay.textContent.trim() : '';
+        if (text === '-') text = '';
+        if (modalInput) modalInput.value = text;
+        if (modal) { modal.classList.remove('hidden'); modal.setAttribute('aria-hidden', 'false'); }
+    }
+    function closeBriefModal() {
+        if (modal) { modal.classList.add('hidden'); modal.setAttribute('aria-hidden', 'true'); }
+    }
+
+    if (btnReview) btnReview.addEventListener('click', openBriefModal);
+    if (modalBackdrop) modalBackdrop.addEventListener('click', closeBriefModal);
+    if (modalCancel) modalCancel.addEventListener('click', closeBriefModal);
+
+    if (modalSave) modalSave.addEventListener('click', async function() {
+        var brief = (modalInput && modalInput.value) ? modalInput.value.trim() : '';
+        var saveBtn = modalSave;
+        if (saveBtn) saveBtn.disabled = true;
+        try {
+            var res = await fetch('/api/know/knowledge/points/' + pointId, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ brief: brief })
+            });
+            var result = await res.json().catch(function() { return {}; });
+            if (result.errorCode === 0) {
+                if (briefDisplay) briefDisplay.textContent = brief || '-';
+                closeBriefModal();
+            } else {
+                alert(result.msg || '保存失败');
+            }
+        } catch (e) {
+            alert('请求失败');
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
+        }
+    });
+
+    if (btn) btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.textContent = '生成中...';
+        try {
+            const res = await fetch('/api/know/knowledge/points/' + pointId + '/extract_brief', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: '{}',
+                credentials: 'same-origin'
+            });
+            const data = await res.json().catch(function() { return {}; });
+            if (data.errorCode === 0 && data.data) {
+                if (briefDisplay) briefDisplay.textContent = data.data.brief || '-';
+                window.location.reload();
+            } else {
+                alert(data.msg || '提取摘要失败');
+            }
+        } catch (e) {
+            alert('请求失败');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '摘要';
+        }
+    });
+})();
+</script>
 {% else %}
 <div class="p-8 text-center text-gray-500">加载中...</div>
 {% endif %}

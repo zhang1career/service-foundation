@@ -1,9 +1,11 @@
 """
 Graph Builder Agent: build Neo4j graph from sentence-level 主谓宾.
 Creates (subject)-[predicate]->(object) edges per sentence, scoped by kid.
+Nodes use sp_type=1 (名词/主语), edges use sp_type=2 (谓语) for candidate queries.
 """
 import logging
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 from common.drivers.neo4j_driver import Neo4jDriver
@@ -17,6 +19,9 @@ logger = logging.getLogger(__name__)
 LABEL_SVO_NODE = "svo_entity"
 # Default app_id for sentence graph (no multi-tenant)
 APP_ID_SENTENCE = 0
+# sp_type: 1 = 名词节点, 2 = 谓语边 (for TOP100 candidate queries)
+SP_TYPE_NOUN = 1
+SP_TYPE_PREDICATE = 2
 
 
 def _sanitize_rel_type(predicate: str) -> str:
@@ -82,17 +87,26 @@ def build_graph_for_knowledge(kid: int) -> Dict[str, Any]:
         try:
             sub_key = _node_key(subject, kid)
             obj_key = _node_key(obj, kid)
+            ut_ms = int(time.time() * 1000)
             if sub_key and sub_key not in nodes_cache:
                 existing = driver.find_node(
                     LABEL_SVO_NODE,
                     {"name": subject, "kid": kid, "app_id": APP_ID_SENTENCE},
                 )
                 if existing:
+                    driver.update_node(existing, {"sp_type": SP_TYPE_NOUN, "ut": ut_ms})
                     nodes_cache[sub_key] = existing
                 else:
                     node = driver.create_node(
                         LABEL_SVO_NODE,
-                        {"name": subject, "kid": kid, "app_id": APP_ID_SENTENCE, "sid": s.id},
+                        {
+                            "name": subject,
+                            "kid": kid,
+                            "app_id": APP_ID_SENTENCE,
+                            "sid": s.id,
+                            "sp_type": SP_TYPE_NOUN,
+                            "ut": ut_ms,
+                        },
                     )
                     nodes_cache[sub_key] = node
                     created_nodes += 1
@@ -102,11 +116,19 @@ def build_graph_for_knowledge(kid: int) -> Dict[str, Any]:
                     {"name": obj, "kid": kid, "app_id": APP_ID_SENTENCE},
                 )
                 if existing:
+                    driver.update_node(existing, {"sp_type": SP_TYPE_NOUN, "ut": ut_ms})
                     nodes_cache[obj_key] = existing
                 else:
                     node = driver.create_node(
                         LABEL_SVO_NODE,
-                        {"name": obj, "kid": kid, "app_id": APP_ID_SENTENCE, "sid": s.id},
+                        {
+                            "name": obj,
+                            "kid": kid,
+                            "app_id": APP_ID_SENTENCE,
+                            "sid": s.id,
+                            "sp_type": SP_TYPE_NOUN,
+                            "ut": ut_ms,
+                        },
                     )
                     nodes_cache[obj_key] = node
                     created_nodes += 1
@@ -119,9 +141,17 @@ def build_graph_for_knowledge(kid: int) -> Dict[str, Any]:
                         sub_node,
                         obj_node,
                         pred_type,
-                        {"kid": kid, "sid": s.id, "app_id": APP_ID_SENTENCE},
+                        {
+                            "kid": kid,
+                            "sid": s.id,
+                            "app_id": APP_ID_SENTENCE,
+                            "sp_type": SP_TYPE_PREDICATE,
+                            "ut": ut_ms,
+                        },
                     )
                     created_edges += 1
+                else:
+                    driver.update_edge(existing_edge, {"sp_type": SP_TYPE_PREDICATE, "ut": ut_ms})
         except Exception as e:
             errors.append({"sentence_id": s.id, "error": str(e)})
             logger.warning("[graph_builder] Error for sentence %s: %s", s.id, e)
@@ -172,3 +202,52 @@ def get_sentence_graph(kid: int) -> Dict[str, Any]:
     except Exception as e:
         logger.exception("[graph_builder] get_sentence_graph error: %s", e)
         return {"nodes": [], "edges": []}
+
+
+def get_top_noun_nodes(limit: int = 100) -> List[str]:
+    """
+    Query Neo4j for noun nodes (sp_type=1), ordered by recent update (ut desc), return distinct names.
+    Used as candidate subject list for 摘要 single-choice extraction.
+    """
+    if limit <= 0 or limit > 500:
+        limit = 100
+    driver = _get_driver()
+    query = """
+        MATCH (n:""" + LABEL_SVO_NODE + """)
+        WHERE n.sp_type = $sp_type AND n.name IS NOT NULL AND trim(n.name) <> ''
+        WITH n.name AS name, max(COALESCE(n.ut, 0)) AS ut
+        ORDER BY ut DESC
+        LIMIT $limit
+        RETURN name
+    """
+    try:
+        cursor = driver.run(query, {"sp_type": SP_TYPE_NOUN, "limit": limit})
+        return [str(r["name"]).strip() for r in cursor if r.get("name")]
+    except Exception as e:
+        logger.warning("[graph_builder] get_top_noun_nodes error: %s", e)
+        return []
+
+
+def get_top_predicate_edges(limit: int = 100) -> List[str]:
+    """
+    Query Neo4j for predicate edges (sp_type=2), ordered by recent update (ut desc), return distinct relationship types.
+    Used as candidate predicate list for 摘要 single-choice extraction.
+    """
+    if limit <= 0 or limit > 500:
+        limit = 100
+    driver = _get_driver()
+    # type(r) in py2neo returns the relationship type; we need to match any svo_entity-to-svo_entity edges with sp_type=2
+    query = """
+        MATCH (a:""" + LABEL_SVO_NODE + """)-[r]-(b:""" + LABEL_SVO_NODE + """)
+        WHERE r.sp_type = $sp_type
+        WITH type(r) AS pred, max(COALESCE(r.ut, 0)) AS ut
+        ORDER BY ut DESC
+        LIMIT $limit
+        RETURN pred
+    """
+    try:
+        cursor = driver.run(query, {"sp_type": SP_TYPE_PREDICATE, "limit": limit})
+        return [str(r["pred"]).strip() for r in cursor if r.get("pred")]
+    except Exception as e:
+        logger.warning("[graph_builder] get_top_predicate_edges error: %s", e)
+        return []
