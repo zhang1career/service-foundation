@@ -5,9 +5,7 @@
 
 {% block content %}
 {% csrf_token %}
-{% url 'console:know-batch-list' as batch_list_url %}
-{% url 'console:know-batch-detail' entity_id=entity_id as detail_url %}
-{% include 'console/includes/detail_back_link.html' with back_url=batch_list_url back_label="返回批次列表" %}
+{% include 'console/includes/detail_back_link.html' with back_url=edit_cancel_url back_label=edit_back_label %}
 
 {% include 'console/includes/know_subnav.html' with active='batch-list' size='small' mb='mb-4' %}
 
@@ -25,7 +23,7 @@
             </div>
             <div class="flex gap-2 mt-4">
                 <button type="submit" class="btn btn-primary" id="save-btn" disabled>保存</button>
-                <a href="{{ batch_list_url }}" class="btn btn-outline">取消</a>
+                <a href="{{ edit_cancel_url }}" class="btn btn-outline">取消</a>
             </div>
         </form>
     </div>

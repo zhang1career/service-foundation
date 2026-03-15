@@ -108,9 +108,19 @@ class KnowPointEditView(TemplateView):
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
+        from app_console.utils import get_edit_return_context
         context = super().get_context_data(**kwargs)
-        context['point_id'] = kwargs.get('point_id')
+        point_id = kwargs.get('point_id')
+        context['point_id'] = point_id
         context['point_data'] = getattr(self, 'point_data', None)
+        context.update(get_edit_return_context(
+            self.request,
+            list_url_name='console:know-list',
+            list_label='返回知识列表',
+            detail_url_name='console:know-point-detail',
+            detail_url_kwargs={'point_id': point_id},
+            detail_label='返回知识详情',
+        ))
         return context
 
 
@@ -202,10 +212,20 @@ class KnowBatchEditView(TemplateView):
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
+        from app_console.utils import get_edit_return_context
         context = super().get_context_data(**kwargs)
-        context['entity_id'] = kwargs.get('entity_id')
+        entity_id = kwargs.get('entity_id')
+        context['entity_id'] = entity_id
         context['batch_data'] = getattr(self, 'batch_data', None)
         if context['batch_data']:
             context['batch_data']['ct_fmt'] = _format_ts(context['batch_data'].get('ct'))
             context['batch_data']['ut_fmt'] = _format_ts(context['batch_data'].get('ut'))
+        context.update(get_edit_return_context(
+            self.request,
+            list_url_name='console:know-batch-list',
+            list_label='返回批次列表',
+            detail_url_name='console:know-batch-detail',
+            detail_url_kwargs={'entity_id': entity_id},
+            detail_label='返回批次详情',
+        ))
         return context

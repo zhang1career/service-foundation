@@ -5,9 +5,7 @@
 
 {% block content %}
 {% csrf_token %}
-{% url 'console:know-list' as know_list_url %}
-{% url 'console:know-point-detail' point_id=point_id as detail_url %}
-{% include 'console/includes/detail_back_link.html' with back_url=detail_url back_label="返回知识详情" %}
+{% include 'console/includes/detail_back_link.html' with back_url=edit_cancel_url back_label=edit_back_label %}
 
 {% include 'console/includes/know_subnav.html' with active='know-list' size='small' mb='mb-4' %}
 
@@ -35,7 +33,7 @@
             </div>
             <div class="flex gap-2 mt-6">
                 <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
-                <a href="{{ detail_url }}" class="btn btn-outline">取消</a>
+                <a href="{{ edit_cancel_url }}" class="btn btn-outline">取消</a>
             </div>
         </form>
     </div>
