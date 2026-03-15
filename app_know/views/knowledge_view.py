@@ -207,7 +207,7 @@ class KnowledgePointDetailView(APIView):
             return resp_exception(e)
 
     def put(self, request, point_id, *args, **kwargs):
-        """Update knowledge point. Body: { content?, brief?, classification?, stage?, seq? }."""
+        """Update knowledge point. Body: { content?, brief?, classification?, stage?, seq?, status? }."""
         try:
             kid = _parse_entity_id(point_id)
             k = get_by_id(kid)
@@ -219,6 +219,11 @@ class KnowledgePointDetailView(APIView):
                 updates["content"] = (data.get("content") or "").strip()
             if "brief" in data:
                 updates["brief"] = (data.get("brief") or "").strip()
+            if "status" in data and data["status"] is not None:
+                try:
+                    updates["status"] = int(data["status"])
+                except (TypeError, ValueError):
+                    pass
             if "classification" in data and data["classification"] is not None:
                 try:
                     updates["classification"] = int(data["classification"])
