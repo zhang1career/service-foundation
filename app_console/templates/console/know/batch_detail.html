@@ -1,0 +1,177 @@
+{% extends 'console/base.html' %}
+
+{% block title %}批次详情{% endblock %}
+{% block page_title %}批次详情{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+{% url 'console:know-batch-list' as batch_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=batch_list_url back_label="返回批次列表" %}
+
+{% include 'console/includes/know_subnav.html' with active='batch-list' size='small' mb='mb-4' %}
+
+{% if batch_data %}
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-xl font-semibold">批次 {{ batch_data.id }}</h2>
+        <div class="flex gap-2">
+            {% if batch_data.source_type == 0 %}
+            {% url 'console:know-batch-edit' entity_id=entity_id as batch_edit_base %}
+            {% with detail_edit_url=batch_edit_base|add:"?from=detail" %}
+            {% include 'console/includes/detail_edit_icon.html' with detail_edit_url=detail_edit_url %}
+            {% endwith %}
+            {% endif %}
+            <button type="button" onclick="runAnalyze()" class="btn btn-primary btn-sm" id="analyze-btn">分析</button>
+            {% if show_know_list_btn %}
+            <a href="/console/know/?batch_id={{ entity_id }}" class="btn btn-outline btn-sm">知识列表</a>
+            {% else %}
+            <span class="btn btn-outline btn-sm console-hide-no-shift" aria-hidden="true" style="visibility:hidden;pointer-events:none">知识列表</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body space-y-6">
+        <div>
+            <p class="text-sm text-gray-500 mb-1">批次 ID</p>
+            <p class="font-medium">{{ batch_data.id }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">来源类型</p>
+            <span class="badge {% if batch_data.source_type == 1 %}badge-info{% else %}badge-secondary{% endif %}">{% if batch_data.source_type == 1 %}上传{% else %}文字{% endif %}</span>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">内容</p>
+            <div class="whitespace-pre-wrap break-words overflow-visible">{{ batch_data.content|default:"-" }}</div>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">句子数</p>
+            <p>{{ batch_data.sentence_count|default:0 }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">创建时间</p>
+            <p>{{ batch_data.ct_fmt|default:"-" }}</p>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">更新时间</p>
+            <p>{{ batch_data.ut_fmt|default:"-" }}</p>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="p-8 text-center text-gray-500">加载中...</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+const entityId = {{ entity_id|default:0 }};
+const API_BASE = '/api/know/batches';
+
+// 编辑页保存成功后带 ?saved=1 跳转过来，用 showToast 显示「已保存」
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('saved') !== '1') return;
+    function cleanUrl() {
+        if (window.history.replaceState) {
+            var u = new URL(window.location.href);
+            u.searchParams.delete('saved');
+            window.history.replaceState({}, '', u.pathname + (u.search || '') + u.hash);
+        }
+    }
+    function run() {
+        if (typeof showToast === 'function') showToast('已保存', 'success');
+        setTimeout(cleanUrl, 500);
+    }
+    if (document.readyState === 'complete') setTimeout(run, 50);
+    else window.addEventListener('load', function() { setTimeout(run, 50); });
+})();
+
+function getCookie(name) {
+    let v = null;
+    if (document.cookie && document.cookie !== '') {
+        document.cookie.split(';').forEach(function(p) {
+            const part = p.trim();
+            if (part.indexOf(name + '=') === 0) {
+                v = decodeURIComponent(part.substring(name.length + 1));
+            }
+        });
+    }
+    return v;
+}
+
+async function runAnalyze() {
+    const btn = document.getElementById('analyze-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '分析中...'; }
+    try {
+        const detailRes = await fetch(API_BASE + '/' + entityId);
+        const detailData = await detailRes.json();
+        var content = (detailData.data && (detailData.data.aggregated_content || detailData.data.content)) || '';
+        if (!content.trim()) {
+            if (typeof showToast === 'function') showToast('请先在批次编辑页填写内容后再分析', 'error');
+            else alert('请先在批次编辑页填写内容后再分析');
+            if (btn) { btn.disabled = false; btn.textContent = '分析'; }
+            return;
+        }
+        const response = await fetch(`${API_BASE}/${entityId}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ content: content.trim(), use_ai_classify: true, write_sentence_raw: true })
+        });
+        const result = await response.json();
+        if (result.errorCode === 0 && result.data) {
+            const d = result.data;
+            if (typeof showToast === 'function') showToast('分析完成，共 ' + (d.sentence_count || 0) + ' 句', 'success');
+            else alert('分析完成，共 ' + (d.sentence_count || 0) + ' 句');
+            if (d.sentence_count > 0 && confirm('是否前往知识列表查看解析结果？')) {
+                window.location.href = '/console/know/?batch_id=' + entityId;
+            } else {
+                window.location.reload();
+            }
+        } else {
+            const msg = result.message || '分析失败';
+            if (typeof showToast === 'function') showToast(msg, 'error');
+            else alert(msg);
+        }
+    } catch (err) {
+        const msg = '分析失败: ' + (err.message || '网络错误');
+        if (typeof showToast === 'function') showToast(msg, 'error');
+        else alert(msg);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '分析'; }
+    }
+}
+window.runAnalyze = runAnalyze;
+// 兜底：根据页面上的「句子数」在客户端隐藏「知识列表」按钮（服务端异常时仍能隐藏）
+(function() {
+    var cardBody = document.querySelector('.card-body');
+    if (!cardBody) return;
+    var ps = cardBody.querySelectorAll('p');
+    var num = -1;
+    for (var i = 0; i < ps.length; i++) {
+        if ((ps[i].textContent || '').trim() === '句子数') {
+            var nextP = ps[i].nextElementSibling;
+            if (nextP) num = parseInt((nextP.textContent || '').trim(), 10);
+            break;
+        }
+    }
+    if (Number.isNaN(num) || num > 0) return;
+    var header = document.querySelector('.card-header');
+    if (!header) return;
+    var links = header.querySelectorAll('a[href*="batch_id="]');
+    for (var j = 0; j < links.length; j++) {
+        if ((links[j].textContent || '').trim() === '知识列表') {
+            links[j].classList.add('console-hide-no-shift');
+            links[j].style.visibility = 'hidden';
+            links[j].style.pointerEvents = 'none';
+            break;
+        }
+    }
+})();
+})();
+</script>
+{% endblock %}

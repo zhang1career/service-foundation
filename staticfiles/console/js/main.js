@@ -33,24 +33,70 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
     }
 });
 
-// Toast notification function
+/**
+ * 控制台唯一通知：顶部右侧 toast（移入/移出），success=绿 / info=蓝 / warning=黄，约 3 秒消失；error=弹窗确认。
+ * Usage: showToast('message', 'success' | 'info' | 'warning' | 'error')
+ */
 function showToast(message, type = 'info') {
+    if (type === 'error') {
+        showErrorModal(message);
+        return;
+    }
+
     const container = document.getElementById('toast-container');
     if (!container) return;
-    
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    
-    container.appendChild(toast);
-    
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        toast.style.animation = 'slideIn 0.3s ease reverse';
-        setTimeout(() => {
-            container.removeChild(toast);
-        }, 300);
-    }, 3000);
+
+    // 延后一帧再插入 DOM，避免在关弹窗/刷新列表后立刻调用时被遮挡或未绘制
+    requestAnimationFrame(function() {
+        const toast = document.createElement('div');
+        toast.className = 'toast toast-' + type;
+        toast.textContent = message;
+        container.appendChild(toast);
+
+        setTimeout(function() {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(function() {
+                if (toast.parentNode) container.removeChild(toast);
+            }, 300);
+        }, 3000);
+    });
+}
+
+/**
+ * Show error modal: light red background, stays open until user clicks 确认.
+ */
+function showErrorModal(message) {
+    const existing = document.getElementById('console-error-modal-backdrop');
+    if (existing) existing.remove();
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'console-error-modal-backdrop';
+    backdrop.className = 'console-modal-backdrop';
+
+    const box = document.createElement('div');
+    box.className = 'console-modal-error';
+    box.innerHTML = `
+        <div class="console-modal-message">${escapeHtml(String(message || ''))}</div>
+        <button type="button" class="console-modal-confirm">确认</button>
+    `;
+
+    const btn = box.querySelector('.console-modal-confirm');
+    function close() {
+        backdrop.remove();
+    }
+    btn.addEventListener('click', close);
+    backdrop.addEventListener('click', function (e) {
+        if (e.target === backdrop) close();
+    });
+
+    backdrop.appendChild(box);
+    document.body.appendChild(backdrop);
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
 }
 
 // Confirm dialog helper
@@ -112,6 +158,24 @@ async function apiRequest(url, method = 'GET', data = null) {
         throw error;
     }
 }
+
+// Global ESC key: close any visible modal (use capture so we run before focused input/textarea)
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    // Error modal: click confirm button to close
+    var errModal = document.getElementById('console-error-modal-backdrop');
+    if (errModal) {
+        var btn = errModal.querySelector('.console-modal-confirm');
+        if (btn) btn.click();
+        return;
+    }
+    // .modal-backdrop (form modals): close by adding hidden + display:none
+    var modals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
+    modals.forEach(function (m) {
+        m.classList.add('hidden');
+        m.style.display = 'none';
+    });
+}, true);  // capture phase: run before event reaches focused input/textarea
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {

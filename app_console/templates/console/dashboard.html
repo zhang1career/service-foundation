@@ -46,7 +46,7 @@
             <p class="text-gray-600 text-sm mb-4">{{ app.description }}</p>
             {% if app.enabled %}
                 {% if key == 'know' %}
-                <a href="{% url 'console:know-list' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                <a href="{% url 'console:know-batch-list' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
                 {% elif key == 'mail' %}
                 <a href="{% url 'console:mail-accounts' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
                 {% elif key == 'oss' %}

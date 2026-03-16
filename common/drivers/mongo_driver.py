@@ -232,13 +232,14 @@ class MongoDriver(Singleton):
                       cand_num: int = 50,
                       limit: int = 3,
                       proj: dict = None,
-                      filter_query: dict = None) -> list:
+                      filter_query: dict = None,
+                      index_name: str = None) -> list:
         # check arguments
         if proj is None:
             proj = {}
         # prepare data
         vs_stage = {
-            "index": _build_vector_index_name(attr_name),
+            "index": index_name if index_name else _build_vector_index_name(attr_name),
             "path": attr_name,
             "queryVector": embedded_vec,
             "numCandidates": min(max(limit * 20, cand_num), 10000),
@@ -260,5 +261,10 @@ class MongoDriver(Singleton):
             results = coll.aggregate(pipeline)
             return list(results)
         except Exception as e:
-            logger.exception(e)
+            logger.warning(
+                "[MongoDriver] vector_search failed coll=%s index=%s: %s",
+                coll_name,
+                vs_stage.get("index"),
+                e,
+            )
             return []

@@ -260,6 +260,9 @@ _log_file_path = env("LOG_FILE_PATH", default="log")
 _log_path = Path(_log_file_path)
 if not _log_path.is_absolute():
     _log_path = BASE_DIR / _log_path
+# 日志路径（当 LOG_HANDLER=logfile 时写入该文件）：
+# 默认 = <项目根目录>/log/service-foundation/app.log
+# 可通过环境变量 LOG_FILE_PATH、APP_NAME、LOG_FILE 覆盖
 _log_path = _log_path / env("APP_NAME", default="service-foundation") / env("LOG_FILE", default="app.log")
 _logfile_ok = False
 if _log_handler == "logfile":

@@ -4,7 +4,18 @@ Summary service: generate and persist knowledge summaries; keep in sync with kno
 import logging
 from typing import Any, Dict, Optional
 
-from app_know.repos import get_knowledge_by_id
+from app_know.repos.knowledge_point_repo import get_batch_as_entity
+
+def _get_knowledge_as_entity(entity_id):
+    d = get_batch_as_entity(entity_id)
+    if d is None:
+        return None
+    class _Entity:
+        pass
+    e = _Entity()
+    for k, v in d.items():
+        setattr(e, k, v)
+    return e
 from app_know.repos.summary_mapping_repo import (
     create_or_update_mapping,
     delete_mapping_by_knowledge_id,
@@ -93,7 +104,7 @@ class SummaryService(Singleton):
             "[generate_and_save] Starting for knowledge_id=%s, app_id=%s, use_ai=%s",
             knowledge_id, app_id, use_ai
         )
-        entity = get_knowledge_by_id(knowledge_id)
+        entity = _get_knowledge_as_entity(knowledge_id)
         if not entity:
             raise ValueError(f"Knowledge entity with id {knowledge_id} not found")
         title = entity.title or ""

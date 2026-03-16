@@ -1,6 +1,10 @@
-# app_know models. Generated.
-from app_know.models.knowledge import Knowledge
-from app_know.models.summary_mapping import KnowledgeSummaryMapping
-from app_know.models.component_mapping import KnowledgeComponentMapping
+# app_know models.
+from app_know.models.knowledge_point import KnowledgePoint
+from app_know.models.insight import Insight
+from app_know.models.batch import Batch
 
-__all__ = ['Knowledge', 'KnowledgeSummaryMapping', 'KnowledgeComponentMapping']
+__all__ = [
+    "KnowledgePoint",
+    "Insight",
+    "Batch",
+]

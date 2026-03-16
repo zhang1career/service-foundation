@@ -1,0 +1,18 @@
+{% comment %}
+通用编辑弹窗。用法：{% include 'console/includes/modal_edit.html' with modal_id='my-modal' modal_title='标题' %}
+在 block modal_body 中放入表单项（如 textarea）。
+通过 JS ConsoleModal.open() 打开，并传入 onSave、onCancel、getValue、anchorEl 等回调。
+{% endcomment %}
+<div id="{{ modal_id|default:'console-modal-edit' }}" class="fixed inset-0 z-50 hidden" aria-hidden="true">
+    <div class="fixed inset-0 z-[1]" id="{{ modal_id }}-backdrop" style="background: rgba(0,0,0,0.5);"></div>
+    <div id="{{ modal_id }}-content" class="fixed left-1/2 -translate-x-1/2 w-full z-[2] bg-white rounded-lg shadow-xl p-6" style="max-width: 48rem; left: 50%; transform: translateX(-50%);">
+        <h3 class="text-lg font-semibold mb-4" id="{{ modal_id }}-title"></h3>
+        <div id="{{ modal_id }}-body">
+            {% block modal_body %}{% endblock %}
+        </div>
+        <div class="flex justify-end gap-2 mt-4">
+            <button type="button" id="{{ modal_id }}-save" class="btn btn-primary">保存</button>
+            <button type="button" id="{{ modal_id }}-cancel" class="btn btn-outline">取消</button>
+        </div>
+    </div>
+</div>

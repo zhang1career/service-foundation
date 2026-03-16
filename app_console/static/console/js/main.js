@@ -34,13 +34,8 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 });
 
 /**
- * Show toast or modal notification (app_console shared component).
- *
- * - success: Light green toast, auto-dismiss after 3 seconds
- * - error: Light red modal with confirm button, stays open until user clicks 确认
- * - info: Blue toast, auto-dismiss after 3 seconds
- *
- * Usage: showToast('message', 'success' | 'error' | 'info')
+ * 控制台唯一通知：顶部右侧 toast（移入/移出），success=绿 / info=蓝 / warning=黄，约 3 秒消失；error=弹窗确认。
+ * Usage: showToast('message', 'success' | 'info' | 'warning' | 'error')
  */
 function showToast(message, type = 'info') {
     if (type === 'error') {
@@ -51,19 +46,20 @@ function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
 
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
+    // 延后一帧再插入 DOM，避免在关弹窗/刷新列表后立刻调用时被遮挡或未绘制
+    requestAnimationFrame(function() {
+        const toast = document.createElement('div');
+        toast.className = 'toast toast-' + type;
+        toast.textContent = message;
+        container.appendChild(toast);
 
-    container.appendChild(toast);
-
-    // Auto remove after 3 seconds
-    setTimeout(() => {
-        toast.style.animation = 'slideIn 0.3s ease reverse';
-        setTimeout(() => {
-            if (toast.parentNode) container.removeChild(toast);
-        }, 300);
-    }, 3000);
+        setTimeout(function() {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(function() {
+                if (toast.parentNode) container.removeChild(toast);
+            }, 300);
+        }, 3000);
+    });
 }
 
 /**

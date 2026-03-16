@@ -1,5 +1,16 @@
 /* Custom styles for console app */
 
+/* 隐藏控件但不改变布局：保留占位，不触发重排；全 app_console 统一用此类 */
+.console-hide-no-shift {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* 护眼背景：浅绿色，减轻视觉疲劳 */
+body {
+    background-color: #dcf5e0;
+}
+
 /* Sidebar collapse / resize */
 #console-sidebar {
     --sidebar-width: 256px;
@@ -57,6 +68,15 @@
     100% { transform: rotate(360deg); }
 }
 
+/* 成分关系 Neo4j 风格图：深色背景、边与节点区分明显 */
+.components-graph-neo4j {
+    background-color: #1e1e1e;
+    border: 1px solid #3d3d3d;
+}
+.components-graph-neo4j canvas {
+    display: block;
+}
+
 /* Table styles */
 .data-table {
     width: 100%;
@@ -112,7 +132,10 @@
     padding: 14px 16px;
 }
 
-/* Button styles */
+/* Button styles (app_console 通用，此处为唯一维护点)
+ * 主操作：btn btn-primary btn-sm  次操作：btn btn-outline btn-sm
+ * 开发时 Django 从本 app 的 static 读取；部署前请执行 collectstatic，staticfiles/ 由该命令生成勿手改。
+ */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -172,9 +195,25 @@
     background-color: #f9fafb;
 }
 
-.btn-sm {
-    padding: 4px 12px;
-    font-size: 12px;
+/* 小按钮：固定宽高，全应用复用。primary 与 outline 统一 1px border 保证盒模型一致、“分析”“保存关系”等宽 */
+.btn.btn-sm,
+.btn.btn-primary.btn-sm,
+.btn.btn-outline.btn-sm {
+    box-sizing: border-box !important;
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 10px !important;
+    border: 1px solid transparent !important;
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    flex: 0 0 88px !important;
+}
+.btn.btn-outline.btn-sm {
+    border-color: #d1d5db !important;
 }
 
 /* Form styles */
@@ -203,6 +242,29 @@
     outline: none;
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 观点页 - 思路：同一行，输入框占满剩余宽度，下拉框固定较窄 */
+.insights-approximate-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.insights-approximate-row #approximate-query-input {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.insights-approximate-row #approximate-relation-type,
+.insights-approximate-row select.insights-relation-select {
+    flex: 0 0 auto;
+    width: 6.5rem !important;
+    min-width: 6.5rem !important;
+    max-width: 6.5rem !important;
+}
+.insights-approximate-row #btn-approximate-query {
+    flex: 0 0 auto;
 }
 
 .form-textarea {
@@ -245,6 +307,11 @@
 .toast-info {
     background-color: #dbeafe;
     color: #1e40af;
+}
+
+.toast-warning {
+    background-color: #fef3c7;
+    color: #92400e;
 }
 
 /* Error modal: light red, stays open until confirm clicked */

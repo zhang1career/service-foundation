@@ -1,5 +1,44 @@
 /* Custom styles for console app */
 
+/* 隐藏控件但不改变布局：保留占位，不触发重排；全 app_console 统一用此类 */
+.console-hide-no-shift {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* 护眼背景：浅绿色，减轻视觉疲劳 */
+body {
+    background-color: #dcf5e0;
+}
+
+/* Sidebar collapse / resize */
+#console-sidebar {
+    --sidebar-width: 256px;
+}
+#sidebar-handle {
+    width: 6px;
+    cursor: col-resize;
+}
+#sidebar-handle:hover,
+#sidebar-handle:active {
+    background: rgba(59, 130, 246, 0.4);
+}
+#sidebar-toggle {
+    transition: transform 0.2s ease;
+}
+#sidebar-toggle:hover {
+    transform: scale(1.05);
+}
+.sidebar-collapsed .sidebar-link {
+    justify-content: center;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+.sidebar-collapsed nav ul {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
 /* HTMX loading indicator */
 .htmx-indicator {
     display: none;
@@ -37,7 +76,7 @@
 
 .data-table th {
     background-color: #f9fafb;
-    padding: 12px 16px;
+    padding: 8px 12px;
     text-align: left;
     font-weight: 600;
     color: #374151;
@@ -45,13 +84,24 @@
 }
 
 .data-table td {
-    padding: 12px 16px;
+    padding: 8px 12px;
     border-bottom: 1px solid #e5e7eb;
 }
 
 .data-table tr:hover {
     background-color: #f9fafb;
 }
+
+/* 知识列表：按列序号设置（需 table-layout: fixed 才能使 th 宽度生效） */
+#knowledge-list .data-table {
+    table-layout: fixed;
+}
+#knowledge-list .data-table th:nth-child(1) { width: 52px; }   /* ID */
+#knowledge-list .data-table th:nth-child(2) { width: 15%; }    /* 标题 */
+#knowledge-list .data-table th:nth-child(3) { width: 108px; }  /* 来源类型 */
+#knowledge-list .data-table th:nth-child(4) { width: 20%; }    /* 描述 */
+#knowledge-list .data-table th:nth-child(5) { width: 25%; }    /* 内容 */
+#knowledge-list .data-table th:nth-child(6) { width: 15%; }    /* 创建时间 */
 
 /* Card styles */
 .card {
@@ -62,7 +112,7 @@
 }
 
 .card-header {
-    padding: 16px 20px;
+    padding: 12px 16px;
     border-bottom: 1px solid #e5e7eb;
     display: flex;
     justify-content: space-between;
@@ -70,10 +120,13 @@
 }
 
 .card-body {
-    padding: 20px;
+    padding: 14px 16px;
 }
 
-/* Button styles */
+/* Button styles (app_console 通用，此处为唯一维护点)
+ * 主操作：btn btn-primary btn-sm  次操作：btn btn-outline btn-sm
+ * 开发时 Django 从本 app 的 static 读取；部署前请执行 collectstatic，staticfiles/ 由该命令生成勿手改。
+ */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -133,9 +186,25 @@
     background-color: #f9fafb;
 }
 
-.btn-sm {
-    padding: 4px 12px;
-    font-size: 12px;
+/* 小按钮：固定宽高，全应用复用。primary 与 outline 统一 1px border 保证盒模型一致、“分析”“保存关系”等宽 */
+.btn.btn-sm,
+.btn.btn-primary.btn-sm,
+.btn.btn-outline.btn-sm {
+    box-sizing: border-box !important;
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 10px !important;
+    border: 1px solid transparent !important;
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    flex: 0 0 88px !important;
+}
+.btn.btn-outline.btn-sm {
+    border-color: #d1d5db !important;
 }
 
 /* Form styles */
@@ -182,26 +251,76 @@
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* Toast notification styles */
+/* Toast notification styles (app_console shared) */
 .toast {
     padding: 12px 16px;
-    border-radius: 6px;
-    color: white;
+    border-radius: 8px;
     font-size: 14px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     animation: slideIn 0.3s ease;
 }
 
+/* Success: light green background, auto-dismiss 3s */
 .toast-success {
-    background-color: #10b981;
+    background-color: #d1fae5;
+    color: #065f46;
 }
 
+/* Error toast (used when no confirm needed) */
 .toast-error {
-    background-color: #ef4444;
+    background-color: #fee2e2;
+    color: #991b1b;
 }
 
 .toast-info {
-    background-color: #3b82f6;
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.toast-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+/* Error modal: light red, stays open until confirm clicked */
+.console-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.console-modal-error {
+    background-color: #fef2f2;
+    color: #991b1b;
+    padding: 20px 24px;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-width: 420px;
+    width: 90%;
+}
+
+.console-modal-error .console-modal-message {
+    margin-bottom: 16px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.console-modal-error .console-modal-confirm {
+    padding: 8px 20px;
+    background-color: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.console-modal-error .console-modal-confirm:hover {
+    background-color: #b91c1c;
 }
 
 @keyframes slideIn {
@@ -225,6 +344,10 @@
     justify-content: center;
     z-index: 100;
 }
+/* Ensure hidden modal is not displayed (overrides display:flex when .hidden is present) */
+.modal-backdrop.hidden {
+    display: none !important;
+}
 
 .modal-content {
     background: white;
@@ -241,7 +364,7 @@
 }
 
 .modal-body {
-    padding: 20px;
+    padding: 16px;
 }
 
 .modal-footer {

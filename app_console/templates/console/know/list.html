@@ -3,41 +3,25 @@
 {% block title %}知识管理{% endblock %}
 {% block page_title %}知识管理{% endblock %}
 
-{% block extra_head %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@10.0.3/dist/jsoneditor.min.css">
-{% endblock %}
 
 {% block content %}
 <div class="mb-6">
-    <!-- Sub navigation -->
-    <div class="flex space-x-4 mb-6">
-        <a href="{% url 'console:know-list' %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg">知识列表</a>
-        <a href="{% url 'console:know-relationships' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">关系管理</a>
-        <a href="{% url 'console:know-summaries' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">摘要列表</a>
-    </div>
+    {% include 'console/includes/know_subnav.html' with active='know-list' %}
 </div>
 
 <div class="card">
     <div class="card-header">
         <h2 class="text-lg font-semibold">知识列表</h2>
-        <button onclick="openCreateModal()" class="btn btn-primary btn-sm">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-            </svg>
-            新增知识
-        </button>
     </div>
-    <div class="border-b border-gray-200 px-4 py-3 bg-gray-50">
-        <div class="flex items-center gap-2">
-            <input type="text" id="filter-title" class="form-input text-sm w-48" placeholder="标题（前缀匹配）" />
-            <input type="text" id="filter-summary" class="form-input text-sm w-48" placeholder="摘要（语义搜索）" />
-            <button type="button" onclick="applyFilters()" class="btn btn-outline btn-sm p-1.5" title="搜索">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            </button>
-            <button type="button" id="clear-filters-btn" onclick="clearFilters()" class="btn btn-outline btn-sm p-1.5 hidden" title="清除">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-        </div>
+    <div class="border-b border-gray-200 px-4 py-2 bg-gray-50">
+        <p class="text-sm text-gray-500 mb-3">展示 knowledge 表中的知识点（句子）。可按批次号筛选。新增内容请在「批次列表」中创建批次并在批次详情中点击「分析」。</p>
+        <form id="knowledge-list-filter" class="flex flex-wrap items-center gap-2">
+            <label class="text-sm font-medium text-gray-700">批次号</label>
+            <input type="number" name="batch_id" id="filter-batch-id" min="1" step="1" placeholder="可选"
+                   class="border border-gray-300 rounded px-2 py-1.5 text-sm w-28">
+            <button type="submit" class="btn btn-outline btn-sm">查询</button>
+            <button type="button" id="clear-filter" class="btn btn-outline btn-sm">清空</button>
+        </form>
     </div>
     <div class="card-body p-0">
         <div id="knowledge-list">
@@ -49,342 +33,161 @@
     </div>
 </div>
 
-<!-- Create/Edit Modal -->
-<div id="knowledge-modal" class="modal-backdrop hidden" style="display: none;">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="modal-title" class="text-lg font-semibold">新增知识</h3>
-        </div>
-        <form id="knowledge-form">
-            {% csrf_token %}
-            <div class="modal-body">
-                <input type="hidden" id="knowledge-id" name="id">
-                <div class="form-group">
-                    <label class="form-label" for="knowledge-title">标题 *</label>
-                    <input type="text" id="knowledge-title" name="title" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="knowledge-source-type">来源类型</label>
-                    <input type="text" id="knowledge-source-type" name="source_type" class="form-input" placeholder="例如：document, url, ingestion">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">描述</label>
-                    <div id="knowledge-description-editor" class="border border-gray-300 rounded-lg overflow-hidden" style="min-height: 120px;"></div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="knowledge-content">内容</label>
-                    <textarea id="knowledge-content" name="content" class="form-textarea" rows="8" placeholder="知识的正文内容"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" onclick="closeModal()" class="btn btn-outline">取消</button>
-                <button type="submit" class="btn btn-primary">保存</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/jsoneditor@10.0.3/dist/jsoneditor.min.js"></script>
 <script>
-const API_BASE = '/api/know/knowledge';
+const API_KNOWLEDGE_ITEMS = '/api/know/knowledge/items';
 
-// 格式化 JSON：添加空格和换行
-function formatJsonForDisplay(str) {
-    if (!str || String(str).trim() === '') return '{}';
-    try {
-        const parsed = typeof str === 'string' ? JSON.parse(str) : str;
-        return JSON.stringify(parsed, null, 2);
-    } catch {
-        return str;
-    }
+function escapeHtml(s) {
+    if (!s) return '';
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
 }
 
-// compact JSON：去除空格和换行
-function compactJsonForSave(str) {
-    if (!str || String(str).trim() === '') return '';
-    try {
-        const parsed = typeof str === 'string' ? JSON.parse(str) : str;
-        return JSON.stringify(parsed);
-    } catch (e) {
-        throw new Error('描述必须是有效的 JSON 格式');
-    }
+function getBatchIdFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('batch_id');
+    if (v === null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) || n < 1 ? null : n;
 }
 
-let descriptionEditor = null;
-let currentPage = 1;
-let currentTitleFilter = '';    // 当前标题筛选条件
-let currentSummaryFilter = '';  // 当前摘要筛选条件
-const pageSize = 20;
+function applyBatchIdToInput() {
+    const bid = getBatchIdFromUrl();
+    const input = document.getElementById('filter-batch-id');
+    if (input) input.value = bid !== null ? String(bid) : '';
+}
 
-// Load knowledge list
-async function loadKnowledgeList(page = 1) {
-    currentPage = page;
+// Load knowledge list (rows from knowledge table)
+async function loadKnowledgeList() {
     const container = document.getElementById('knowledge-list');
-    const offset = (page - 1) * pageSize;
-    let url = `${API_BASE}?offset=${offset}&limit=${pageSize}`;
-    if (currentTitleFilter) {
-        url += '&title=' + encodeURIComponent(currentTitleFilter);
-    } else if (currentSummaryFilter) {
-        url += '&summary=' + encodeURIComponent(currentSummaryFilter);
-    }
-
+    const batchId = getBatchIdFromUrl();
+    const query = new URLSearchParams({ limit: '100', offset: '0' });
+    if (batchId !== null) query.set('batch_id', String(batchId));
     try {
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '加载失败');
+        const response = await fetch(`${API_KNOWLEDGE_ITEMS}?${query.toString()}`);
+        const result = await response.json();
+        if (result.errorCode !== 0) {
+            throw new Error(result.message || '加载失败');
         }
-        
-        if (data.data && data.data.data && data.data.data.length > 0) {
-            const items = data.data.data;
-            const totalNum = data.data.total_num;
-            const filteredBySummary = data.data.filtered_by_summary === true;
-            const totalPages = filteredBySummary ? 1 : Math.ceil(totalNum / pageSize);
-
-            const clearBtn = document.getElementById('clear-filters-btn');
-            if (clearBtn) clearBtn.classList.toggle('hidden', !currentTitleFilter && !currentSummaryFilter);
-
+        const items = (result.data && result.data.data) || [];
+        const totalNum = (result.data && result.data.total_num) || 0;
+        if (items.length > 0) {
             let html = `
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>标题</th>
-                            <th>来源类型</th>
-                            <th>描述</th>
-                            <th>内容</th>
-                            <th>创建时间</th>
+                            <th>知识 ID</th>
+                            <th>批次号</th>
+                            <th>内容（预览）</th>
+                            <th>分类</th>
+                            <th>序号</th>
                             <th>操作</th>
                         </tr>
                     </thead>
-                    <tbody>
-            `;
-            
+                    <tbody>`;
             items.forEach(item => {
-                const titleCell = filteredBySummary && item.similarity != null
-                    ? listTitleCellWithSimilarity(item.title, '/console/know/' + item.id + '/', item.similarity)
-                    : listTitleCell(item.title, '/console/know/' + item.id + '/');
+                const pointDetailUrl = '/console/know/points/' + item.id + '/';
+                const contentPreview = item.content_preview || item.content || '-';
+                const batchId = item.batch_id != null && item.batch_id !== '' ? item.batch_id : null;
+                const batchDetailUrl = batchId !== null ? '/console/know/batches/' + batchId + '/' : '';
+                const batchIdCell = batchId !== null
+                    ? listTitleCell(String(batchId), batchDetailUrl, '')
+                    : '<td>-</td>';
                 html += `<tr>
-                        <td>${item.id}</td>
-                        ${titleCell}
-                        <td><span class="badge badge-info">${item.source_type || '-'}</span></td>
-                        <td class="max-w-xs truncate">${item.description || '-'}</td>
-                        <td class="max-w-xs truncate">${escapeHtml(item.content || '-')}</td>
-                        <td>${formatDate(item.ct)}</td>
-                        ${listActions({ id: item.id, onEdit: 'editKnowledge', onDelete: 'deleteKnowledge' })}
-                    </tr>`;
+                    <td>${escapeHtml(String(item.id))}</td>
+                    ${batchIdCell}
+                    ${listTitleCell(contentPreview, pointDetailUrl, 'font-medium max-w-md')}
+                    <td>${escapeHtml(item.classification_label != null ? item.classification_label : (item.classification != null ? String(item.classification) : '-'))}</td>
+                    <td>${escapeHtml(String(item.seq != null ? item.seq : '-'))}</td>
+                    ${listActions({ id: item.id, onEdit: 'editKnowledgePoint', onDelete: 'deleteKnowledgePoint' })}
+                </tr>`;
             });
-            
             html += '</tbody></table>';
-            
-            // Pagination (no pagination when filtered by summary)
-            if (totalPages > 1 && !filteredBySummary) {
-                html += renderPagination({ current_page: currentPage, total_pages: totalPages, loadFn: 'loadKnowledgeList' });
+            if (totalNum > items.length) {
+                html += `<p class="px-4 py-2 text-sm text-gray-500">共 ${totalNum} 条，当前显示 ${items.length} 条</p>`;
             }
-            
             container.innerHTML = html;
         } else {
-            const clearBtn = document.getElementById('clear-filters-btn');
-            if (clearBtn) clearBtn.classList.toggle('hidden', !currentTitleFilter && !currentSummaryFilter);
             container.innerHTML = `
                 <div class="empty-state">
                     <svg class="mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                     </svg>
-                    <p class="text-lg font-medium">暂无知识条目</p>
-                    <p class="text-sm">点击"新增知识"按钮创建第一条知识</p>
-                </div>
-            `;
+                    <p class="text-lg font-medium">暂无知识点</p>
+                    <p class="text-sm">请在「批次列表」中创建批次，并在批次详情中点击「分析」生成知识点</p>
+                </div>`;
         }
     } catch (error) {
-        container.innerHTML = `
-            <div class="p-8 text-center text-red-500">
-                <p>加载失败: ${error.message}</p>
-                <button onclick="loadKnowledgeList()" class="btn btn-outline btn-sm mt-4">重试</button>
-            </div>
-        `;
+        container.innerHTML = `<div class="p-8 text-center text-red-500">
+            <p>加载失败: ${escapeHtml(error.message)}</p>
+            <button onclick="loadKnowledgeList()" class="btn btn-outline btn-sm mt-4">重试</button>
+        </div>`;
     }
 }
 
-// Modal functions
-function initDescriptionEditor() {
-    if (descriptionEditor) return;
-    const container = document.getElementById('knowledge-description-editor');
-    if (!container) return;
-    descriptionEditor = new JSONEditor(container, {
-        mode: 'code',
-        modes: ['code'],
-        search: false,
-        mainMenuBar: false,
-        statusBar: false
-    });
-    descriptionEditor.set({});
+function editKnowledgePoint(id) {
+    if (!id) return;
+    window.location.href = '/console/know/points/' + id + '/edit/';
 }
 
-function openCreateModal() {
-    document.getElementById('modal-title').textContent = '新增知识';
-    document.getElementById('knowledge-form').reset();
-    document.getElementById('knowledge-id').value = '';
-    initDescriptionEditor();
-    descriptionEditor.setText('{}');
-    var modal = document.getElementById('knowledge-modal');
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-    if (descriptionEditor && typeof descriptionEditor.resize === 'function') {
-        setTimeout(function() { descriptionEditor.resize(); }, 50);
-    }
-}
-
-function closeModal() {
-    var modal = document.getElementById('knowledge-modal');
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-}
-
-// View knowledge
-function viewKnowledge(id) {
-    window.location.href = `/console/know/${id}/`;
-}
-
-// Edit knowledge
-async function editKnowledge(id) {
+async function deleteKnowledgePoint(id) {
+    if (!id) return;
+    if (!confirm('确认删除该条知识？此操作不可恢复。')) return;
     try {
-        const response = await fetch(`${API_BASE}/${id}`);
-        const data = await response.json();
-        
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '获取数据失败');
-        }
-        
-        if (data.data) {
-            document.getElementById('modal-title').textContent = '编辑知识';
-            document.getElementById('knowledge-id').value = data.data.id;
-            document.getElementById('knowledge-title').value = data.data.title || '';
-            document.getElementById('knowledge-source-type').value = data.data.source_type || '';
-            initDescriptionEditor();
-            descriptionEditor.setText(formatJsonForDisplay(data.data.description || ''));
-            document.getElementById('knowledge-content').value = data.data.content || '';
-            var modal = document.getElementById('knowledge-modal');
-            modal.classList.remove('hidden');
-            modal.style.display = 'flex';
-            if (descriptionEditor && typeof descriptionEditor.resize === 'function') {
-                setTimeout(function() { descriptionEditor.resize(); }, 50);
-            }
-        }
-    } catch (error) {
-        showToast('获取数据失败: ' + error.message, 'error');
-    }
-}
-
-// Delete knowledge
-async function deleteKnowledge(id) {
-    if (!confirm('确认删除该知识条目？此操作不可恢复。')) return;
-    
-    try {
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const response = await fetch(`${API_BASE}/${id}`, {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        const response = await fetch('/api/know/knowledge/points/' + id, {
             method: 'DELETE',
-            headers: {
-                'X-CSRFToken': csrfToken
-            }
+            headers: { 'X-CSRFToken': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
         });
-        
-        const data = await response.json();
-        
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '删除失败');
+        const result = await response.json();
+        if (result.errorCode === 0) {
+            if (typeof showToast === 'function') showToast('已删除', 'success');
+            else alert('已删除');
+            loadKnowledgeList();
+        } else {
+            const msg = result.message || '删除失败';
+            if (typeof showToast === 'function') showToast(msg, 'error');
+            else alert(msg);
         }
-        
-        showToast('删除成功', 'success');
-        loadKnowledgeList(currentPage);
-    } catch (error) {
-        showToast(error.message, 'error');
-    }
-}
-
-// Form submit
-document.getElementById('knowledge-form').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    let descriptionValue;
-    try {
-        descriptionValue = compactJsonForSave(descriptionEditor ? descriptionEditor.getText() : '');
     } catch (err) {
-        showToast(err.message, 'error');
-        return;
+        const msg = '删除失败: ' + (err.message || '网络错误');
+        if (typeof showToast === 'function') showToast(msg, 'error');
+        else alert(msg);
     }
-    
-    const id = document.getElementById('knowledge-id').value;
-    const formData = {
-        title: document.getElementById('knowledge-title').value,
-        source_type: document.getElementById('knowledge-source-type').value,
-        description: descriptionValue,
-        content: document.getElementById('knowledge-content').value
-    };
-    
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    
-    try {
-        const url = id ? `${API_BASE}/${id}` : API_BASE;
-        const method = id ? 'PUT' : 'POST';
-        
-        const response = await fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(formData)
-        });
-        
-        const data = await response.json();
-        
-        if (data.errorCode !== 0) {
-            throw new Error(data.message || '操作失败');
-        }
-        
-        showToast(id ? '更新成功' : '创建成功', 'success');
-        closeModal();
-        loadKnowledgeList(currentPage);
-    } catch (error) {
-        showToast(error.message, 'error');
-    }
-});
-
-// Close modal on backdrop click
-document.getElementById('knowledge-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
-
-// Filters
-function applyFilters() {
-    const titleInput = document.getElementById('filter-title');
-    const summaryInput = document.getElementById('filter-summary');
-    currentTitleFilter = titleInput ? (titleInput.value || '').trim() : '';
-    currentSummaryFilter = summaryInput ? (summaryInput.value || '').trim() : '';
-    loadKnowledgeList(1);
 }
+window.editKnowledgePoint = editKnowledgePoint;
+window.deleteKnowledgePoint = deleteKnowledgePoint;
 
-function clearFilters() {
-    currentTitleFilter = '';
-    currentSummaryFilter = '';
-    const titleInput = document.getElementById('filter-title');
-    const summaryInput = document.getElementById('filter-summary');
-    if (titleInput) titleInput.value = '';
-    if (summaryInput) summaryInput.value = '';
-    document.getElementById('clear-filters-btn')?.classList.add('hidden');
-    loadKnowledgeList(1);
-}
-
-// Initial load
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('knowledge-modal').style.display = 'none';
+    applyBatchIdToInput();
     loadKnowledgeList();
-    // 延迟初始化 JSON 编辑器，确保 DOM 已准备好（首次打开弹窗时再创建）
+});
+
+document.getElementById('knowledge-list-filter').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const input = document.getElementById('filter-batch-id');
+    const val = input ? input.value.trim() : '';
+    const url = new URL(window.location.href);
+    url.searchParams.delete('batch_id');
+    if (val) {
+        const n = parseInt(val, 10);
+        if (!Number.isNaN(n) && n >= 1) url.searchParams.set('batch_id', String(n));
+    }
+    window.history.replaceState({}, '', url.pathname + url.search);
+    loadKnowledgeList();
+});
+
+document.getElementById('clear-filter').addEventListener('click', function() {
+    const input = document.getElementById('filter-batch-id');
+    if (input) input.value = '';
+    const url = new URL(window.location.href);
+    url.searchParams.delete('batch_id');
+    window.history.replaceState({}, '', url.pathname + (url.search || ''));
+    loadKnowledgeList();
 });
 </script>
 {% endblock %}

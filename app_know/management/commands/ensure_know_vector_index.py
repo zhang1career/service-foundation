@@ -5,28 +5,28 @@ Usage:
     python manage.py ensure_know_vector_index
 
 Creates:
-- knowledge_components.name_vec (with app_id filter) for relation extraction
-- knowledge_summaries.summary_vec (with app_id filter) for summary semantic search
+- sentence_raw.content_vec for sentence semantic search
 
-Note: If indexes already exist without the app_id filter, drop them in Atlas UI
-first, then run this command again.
+Note: knowledge_summaries and knowledge_components are disabled (Atlas account limits).
 """
 from django.core.management.base import BaseCommand
 
-from app_know.repos import component_repo, summary_repo
+from app_know.repos.sentence_raw_repo import ensure_sentence_raw_vector_index
+from app_know.repos.deco_repo import ensure_deco_vector_index
 
 
 class Command(BaseCommand):
-    help = "Create vector search indexes for knowledge_components and knowledge_summaries"
+    help = "Create vector search indexes for sentence_raw and deco (sub_deco, obj_deco)"
 
     def handle(self, *args, **options):
-        ok_component = component_repo.ensure_vector_index()
-        ok_summary = summary_repo.ensure_summary_vector_index()
-        if ok_component:
-            self.stdout.write(self.style.SUCCESS("Component vector index: ok (may already exist)"))
+        ok_sentence_raw = ensure_sentence_raw_vector_index()
+        if ok_sentence_raw:
+            self.stdout.write(self.style.SUCCESS("Sentence_raw vector index: ok (may already exist)"))
         else:
-            self.stdout.write(self.style.WARNING("Component vector index: failed, check logs"))
-        if ok_summary:
-            self.stdout.write(self.style.SUCCESS("Summary vector index: ok (may already exist)"))
+            self.stdout.write(self.style.WARNING("Sentence_raw vector index: failed, check logs"))
+        ok_deco = ensure_deco_vector_index()
+        if ok_deco:
+            self.stdout.write(self.style.SUCCESS("Deco (sub_deco, obj_deco) vector index: ok (may already exist)"))
         else:
-            self.stdout.write(self.style.WARNING("Summary vector index: failed, check logs"))
+            self.stdout.write(self.style.WARNING("Deco vector index: failed, check logs"))
+        self.stdout.write("knowledge_summaries, knowledge_components: skipped (disabled due to Atlas limits)")

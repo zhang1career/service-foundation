@@ -1,0 +1,149 @@
+{% extends 'console/base.html' %}
+
+{% block title %}编辑知识{% endblock %}
+{% block page_title %}编辑知识{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+{% include 'console/includes/detail_back_link.html' with back_url=edit_cancel_url back_label=edit_back_label %}
+
+{% include 'console/includes/know_subnav.html' with active='know-list' size='small' mb='mb-4' %}
+
+{% if point_data %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-xl font-semibold">编辑知识点 {{ point_data.id }}</h2>
+    </div>
+    <div class="card-body">
+        <form id="point-edit-form">
+            <div class="form-group">
+                <label class="form-label" for="point-content">内容 *</label>
+                <textarea id="point-content" name="content" class="form-input font-mono text-sm min-h-[120px]" rows="6" required placeholder="内容">{{ point_data.content|default:"" }}</textarea>
+            </div>
+            <div class="form-group mt-4">
+                <label class="form-label" for="point-classification">分类</label>
+                <select id="point-classification" name="classification" class="form-input w-48">
+                    <option value="">请选择</option>
+                </select>
+            </div>
+            <div class="form-group mt-4">
+                <label class="form-label" for="point-stage">阶段</label>
+                <select id="point-stage" name="stage" class="form-input w-48">
+                    <option value="">请选择</option>
+                </select>
+            </div>
+            <div class="form-group mt-4">
+                <label class="form-label">序号</label>
+                <p class="text-gray-700 py-1">{{ point_data.seq|default:0 }}</p>
+            </div>
+            <div class="flex gap-2 mt-6">
+                <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
+                <a href="{{ edit_cancel_url }}" class="btn btn-outline">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% else %}
+<div class="p-8 text-center text-gray-500">加载中...</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+const pointId = {{ point_id|default:0 }};
+const detailUrl = "{% url 'console:know-point-detail' point_id=point_id %}";
+const API_POINT = '/api/know/knowledge/points/' + pointId;
+const API_DICT = '/api/know/dict';
+const initialClassification = "{{ initial_classification|escapejs }}";
+const initialStage = "{{ initial_stage|escapejs }}";
+
+async function loadDictOptions() {
+    try {
+        const res = await fetch(API_DICT + '?codes=classification,stage');
+        const result = await res.json();
+        if (result.errorCode !== 0 || !result.data) return;
+        var data = result.data;
+
+        var selClass = document.getElementById('point-classification');
+        if (selClass && data.classification) {
+            selClass.innerHTML = '<option value="">请选择</option>';
+            data.classification.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.v;
+                opt.textContent = item.k;
+                selClass.appendChild(opt);
+            });
+            if (initialClassification !== '' && initialClassification != null) selClass.value = initialClassification;
+        }
+
+        var selStage = document.getElementById('point-stage');
+        if (selStage && data.stage) {
+            selStage.innerHTML = '<option value="">请选择</option>';
+            data.stage.forEach(function(item) {
+                var opt = document.createElement('option');
+                opt.value = item.v;
+                opt.textContent = item.k;
+                selStage.appendChild(opt);
+            });
+            if (initialStage !== '' && initialStage != null) selStage.value = initialStage;
+        }
+    } catch (e) {
+        var selClass = document.getElementById('point-classification');
+        if (selClass) selClass.innerHTML = '<option value="">加载失败</option>';
+        var selStage = document.getElementById('point-stage');
+        if (selStage) selStage.innerHTML = '<option value="">加载失败</option>';
+    }
+}
+loadDictOptions();
+
+document.getElementById('point-edit-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const content = (document.getElementById('point-content') || {}).value || '';
+    const classificationEl = document.getElementById('point-classification');
+    const classificationVal = classificationEl && classificationEl.value !== '' ? classificationEl.value : null;
+    const stageEl = document.getElementById('point-stage');
+    const stageVal = stageEl && stageEl.value !== '' ? stageEl.value : null;
+    const btn = document.getElementById('save-btn');
+    if (btn) btn.disabled = true;
+    var body = { content: content };
+    if (classificationVal !== null) {
+        var clsNum = parseInt(classificationVal, 10);
+        if (!isNaN(clsNum)) body.classification = clsNum;
+    }
+    if (stageVal !== null) {
+        var stageNum = parseInt(stageVal, 10);
+        if (!isNaN(stageNum)) body.stage = stageNum;
+    }
+    try {
+        const response = await fetch(API_POINT, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(body)
+        });
+        const result = await response.json();
+        if (result.errorCode === 0) {
+            if (typeof showToast === 'function') showToast('已保存', 'success');
+            else alert('已保存');
+            window.location.href = detailUrl;
+        } else {
+            const msg = result.message || '保存失败';
+            if (typeof showToast === 'function') showToast(msg, 'error');
+            else alert(msg);
+        }
+    } catch (err) {
+        const msg = '保存失败: ' + (err.message || '网络错误');
+        if (typeof showToast === 'function') showToast(msg, 'error');
+        else alert(msg);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+});
+})();
+</script>
+{% endblock %}

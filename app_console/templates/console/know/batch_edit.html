@@ -1,0 +1,100 @@
+{% extends 'console/base.html' %}
+
+{% block title %}编辑批次{% endblock %}
+{% block page_title %}编辑批次{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+{% include 'console/includes/detail_back_link.html' with back_url=edit_cancel_url back_label=edit_back_label %}
+
+{% include 'console/includes/know_subnav.html' with active='batch-list' size='small' mb='mb-4' %}
+
+{% if batch_data %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-xl font-semibold">批次 {{ batch_data.id }} — 编辑</h2>
+    </div>
+    <div class="card-body">
+        <form id="batch-edit-form">
+            <div class="form-group">
+                <label class="form-label" for="batch-content">内容 *</label>
+                <textarea id="batch-content" name="content" class="form-input font-mono text-sm min-h-[200px]" rows="12" required placeholder="输入文字内容"></textarea>
+                <p id="batch-content-loading" class="text-sm text-gray-500 mt-1">加载内容中…</p>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary" id="save-btn" disabled>保存</button>
+                <a href="{{ edit_cancel_url }}" class="btn btn-outline">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% else %}
+<div class="p-8 text-center text-gray-500">加载中...</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+const entityId = {{ entity_id|default:0 }};
+const detailUrl = "{% url 'console:know-batch-detail' entity_id=entity_id %}";
+const listUrl = "{% url 'console:know-batch-list' %}";
+const API_BASE = '/api/know/batches';
+
+// 从详情接口拉取完整 content，避免服务端/模板环节任何截断
+async function loadBatchContent() {
+    const ta = document.getElementById('batch-content');
+    const loading = document.getElementById('batch-content-loading');
+    const saveBtn = document.getElementById('save-btn');
+    if (!ta) return;
+    try {
+        const res = await fetch(API_BASE + '/' + entityId);
+        const data = await res.json();
+        if (data.errorCode === 0 && data.data) {
+            ta.value = data.data.content != null ? String(data.data.content) : '';
+            if (loading) loading.textContent = '';
+            if (saveBtn) saveBtn.disabled = false;
+        } else {
+            if (loading) loading.textContent = '加载失败，请刷新重试';
+        }
+    } catch (e) {
+        if (loading) loading.textContent = '加载失败: ' + (e.message || '请刷新重试');
+    }
+}
+loadBatchContent();
+
+document.getElementById('batch-edit-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const content = (document.getElementById('batch-content') || {}).value || '';
+    const btn = document.getElementById('save-btn');
+    var succeeded = false;
+    if (btn) btn.disabled = true;
+    try {
+        const response = await fetch(API_BASE + '/' + entityId, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ content: content })
+        });
+        var data = await response.json();
+        var ok = data && (data.errorCode === 0 || data.errorCode === '0');
+        if (ok) {
+            succeeded = true;
+            var id = parseInt(entityId, 10) || 0;
+            window.location.replace(window.location.origin + '/console/know/batches/' + id + '/?saved=1');
+        } else {
+            showToast(data && data.message ? data.message : '保存失败', 'error');
+        }
+    } catch (err) {
+        showToast('保存失败: ' + (err.message || ''), 'error');
+    } finally {
+        if (!succeeded && btn) btn.disabled = false;
+    }
+});
+})();
+</script>
+{% endblock %}

@@ -3,9 +3,12 @@ from django.urls import path
 from app_console.views import (
     DashboardView,
     KnowListView,
-    KnowDetailView,
-    KnowRelationshipView,
-    KnowSummaryView,
+    KnowPointDetailView,
+    KnowPointEditView,
+    KnowInsightView,
+    KnowBatchListView,
+    KnowBatchDetailView,
+    KnowBatchEditView,
     MailAccountListView,
     MailboxListView,
     OssBrowserView,
@@ -20,9 +23,12 @@ urlpatterns = [
 
     # Knowledge management
     path('know/', KnowListView.as_view(), name='know-list'),
-    path('know/<int:entity_id>/', KnowDetailView.as_view(), name='know-detail'),
-    path('know/relationships/', KnowRelationshipView.as_view(), name='know-relationships'),
-    path('know/summaries/', KnowSummaryView.as_view(), name='know-summaries'),
+    path('know/batches/', KnowBatchListView.as_view(), name='know-batch-list'),
+    path('know/batches/<int:entity_id>/', KnowBatchDetailView.as_view(), name='know-batch-detail'),
+    path('know/batches/<int:entity_id>/edit/', KnowBatchEditView.as_view(), name='know-batch-edit'),
+    path('know/points/<int:point_id>/', KnowPointDetailView.as_view(), name='know-point-detail'),
+    path('know/points/<int:point_id>/edit/', KnowPointEditView.as_view(), name='know-point-edit'),
+    path('know/insights/', KnowInsightView.as_view(), name='know-insights'),
 
     # Mail management
     path('mail/', MailAccountListView.as_view(), name='mail-accounts'),

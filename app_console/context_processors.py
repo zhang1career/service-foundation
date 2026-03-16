@@ -1,9 +1,22 @@
+import time
+
 from django.conf import settings
+
+# 进程内唯一静态版本号（首次请求时确定，用于缓存破坏）
+_static_version = None
+
+
+def _get_static_version():
+    global _static_version
+    if _static_version is None:
+        _static_version = int(time.time())
+    return _static_version
 
 
 def console_context(request):
-    """Provide app status to all console templates."""
+    """Provide app status and static cache-bust version to all console templates."""
     return {
+        'static_version': _get_static_version(),
         'apps': {
             'know': {
                 'name': '知识管理',

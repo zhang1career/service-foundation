@@ -9,17 +9,14 @@ from rest_framework import status as http_status
 from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
 
-from app_know.services.knowledge_service import KnowledgeService
-from app_know.repos import component_repo
 from app_know.services.relation_extractor import (
     ExtractedRelation,
-    extract_relations_from_content,
-    get_relation_graph_by_knowledge_id,
     store_relation_in_graph,
+    get_relation_graph_by_knowledge_id,
     update_graph_node_name,
     update_graph_relationship_type,
 )
-from app_know.services.summary_service import SummaryService, _validate_app_id
+from app_know.consts import validate_app_id as _validate_app_id
 from common.consts.response_const import (
     RET_RESOURCE_NOT_FOUND,
     RET_MISSING_PARAM,
@@ -59,112 +56,14 @@ def _error_code_for_validation(msg: str) -> int:
 
 
 class RelationExtractView(APIView):
-    """POST: extract relations from knowledge content and store in graph databases."""
+    """POST: extract relations - DISABLED (schema refactor removed summary/component_mapping)."""
 
     def post(self, request, entity_id, *args, **kwargs):
-        """
-        Extract relations from knowledge content.
-        
-        Body:
-            app_id: Application ID (required)
-        
-        Returns:
-            List of extracted relations with:
-            - subject: Subject text
-            - predicate: Predicate text
-            - object: Object text
-            - subject_node_id: Atlas _id of subject node
-            - object_node_id: Atlas _id of object node
-            - neo4j_relationship_id: Neo4j relationship ID
-        """
-        try:
-            entity_id = _parse_entity_id(entity_id)
-            
-            data = getattr(request, "data", None) or request.POST or {}
-            if isinstance(data, str):
-                try:
-                    data = json.loads(data) if data.strip() else {}
-                except json.JSONDecodeError:
-                    data = {}
-            
-            raw_app_id = data.get("app_id")
-            app_id = _validate_app_id(raw_app_id)  # default 0
-            
-            service = KnowledgeService()
-            knowledge = service.get_knowledge(entity_id)
-
-            summary_service = SummaryService()
-            summary_result = summary_service.get_summary(
-                knowledge_id=entity_id,
-                app_id=app_id,
-            )
-            if not summary_result or not summary_result.get("summary", "").strip():
-                return resp_err(
-                    "Knowledge summary is empty, please generate summary first",
-                    code=RET_INVALID_PARAM,
-                    status=http_status.HTTP_200_OK,
-                )
-            content = summary_result["summary"].strip()
-
-            relations = extract_relations_from_content(
-                content=content,
-                app_id=app_id,
-                knowledge_id=entity_id,
-            )
-
-            results = []
-            for r in relations:
-                subject_candidates = component_repo.find_similar_nodes(
-                    r.subject, app_id, limit=5
-                )
-                object_candidates = component_repo.find_similar_nodes(
-                    r.obj, app_id, limit=5
-                )
-                subject_names = {c["name"] for c in subject_candidates}
-                object_names = {c["name"] for c in object_candidates}
-                if r.subject and r.subject not in subject_names:
-                    subject_candidates = [{"id": "", "name": r.subject, "score": 0.0}] + subject_candidates
-                if r.obj and r.obj not in object_names:
-                    object_candidates = [{"id": "", "name": r.obj, "score": 0.0}] + object_candidates
-                results.append({
-                    "subject": r.subject,
-                    "predicate": r.predicate,
-                    "object": r.obj,
-                    "subject_candidates": [
-                        {"id": c.get("id", ""), "name": c.get("name", ""), "score": float(c.get("score", 0.0))}
-                        for c in subject_candidates
-                    ],
-                    "object_candidates": [
-                        {"id": c.get("id", ""), "name": c.get("name", ""), "score": float(c.get("score", 0.0))}
-                        for c in object_candidates
-                    ],
-                })
-
-            return resp_ok({
-                "knowledge_id": entity_id,
-                "relations": results,
-                "count": len(results),
-            })
-        except ValueError as e:
-            logger.warning("[RelationExtractView.post] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=_error_code_for_validation(str(e)),
-                status=http_status.HTTP_200_OK,
-            )
-        except RuntimeError as e:
-            logger.warning("[RelationExtractView.post] Runtime error: %s", e)
-            return resp_err(
-                str(e),
-                code=RET_AI_ERROR,
-                status=http_status.HTTP_200_OK,
-            )
-        except ParseError as e:
-            logger.warning("[RelationExtractView.post] Parse error: %s", e)
-            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
-        except Exception as e:
-            logger.exception("[RelationExtractView.post] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+        return resp_err(
+            "提取关系功能暂不可用（依赖已删除的 summary/x、component_mapping/y 表）",
+            code=RET_INVALID_PARAM,
+            status=http_status.HTTP_200_OK,
+        )
 
 
 class RelationSaveView(APIView):
