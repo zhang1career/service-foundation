@@ -11,11 +11,11 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, APIClient
 
-from common.consts.query_const import LIMIT_LIST
-from common.consts.response_const import RET_OK, RET_MISSING_PARAM, RET_INVALID_PARAM, RET_DB_ERROR, RET_JSON_PARSE_ERROR
-
 from app_know.repos.summary_repo import QUERY_SEARCH_MAX_LEN
 from app_know.views.query_view import LogicalQueryView
+from common.consts.query_const import LIMIT_LIST
+from common.consts.response_const import RET_OK, RET_MISSING_PARAM, RET_INVALID_PARAM, RET_DB_ERROR, \
+    RET_JSON_PARSE_ERROR
 
 
 class LogicalQueryViewTest(TestCase):

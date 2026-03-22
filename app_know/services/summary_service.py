@@ -6,16 +6,21 @@ from typing import Any, Dict, Optional
 
 from app_know.repos.knowledge_point_repo import get_batch_as_entity
 
+
 def _get_knowledge_as_entity(entity_id):
     d = get_batch_as_entity(entity_id)
     if d is None:
         return None
+
     class _Entity:
         pass
+
     e = _Entity()
     for k, v in d.items():
         setattr(e, k, v)
     return e
+
+
 from app_know.repos.summary_mapping_repo import (
     create_or_update_mapping,
     delete_mapping_by_knowledge_id,
@@ -81,10 +86,10 @@ class SummaryService(Singleton):
     """Service for generating and persisting knowledge summaries (MongoDB)."""
 
     def generate_and_save(
-        self,
-        knowledge_id: int,
-        app_id,
-        use_ai: bool = False,
+            self,
+            knowledge_id: int,
+            app_id,
+            use_ai: bool = False,
     ) -> Dict[str, Any]:
         """
         Load knowledge by id, generate summary from title/description, upsert to MongoDB.
@@ -147,20 +152,20 @@ class SummaryService(Singleton):
         return result
 
     def get_summary(
-        self,
-        knowledge_id: int,
-        app_id: Optional[int] = None,
+            self,
+            knowledge_id: int,
+            app_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Get one summary by knowledge_id, optionally filtered by app_id."""
         _validate_knowledge_id(knowledge_id)
         return repo_get_summary(knowledge_id=knowledge_id, app_id=app_id)
 
     def list_summaries(
-        self,
-        app_id: Optional[int] = None,
-        knowledge_id: Optional[int] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+            self,
+            app_id: Optional[int] = None,
+            knowledge_id: Optional[int] = None,
+            offset: Optional[int] = None,
+            limit: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         List summaries with optional filters. Returns dict with data, total_num, next_offset.
@@ -192,10 +197,10 @@ class SummaryService(Singleton):
         }
 
     def update_summary(
-        self,
-        knowledge_id: int,
-        app_id,
-        summary: Optional[str] = None,
+            self,
+            knowledge_id: int,
+            app_id,
+            summary: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Update an existing summary. summary must be provided.
@@ -215,9 +220,9 @@ class SummaryService(Singleton):
         return result
 
     def delete_summary(
-        self,
-        knowledge_id: int,
-        app_id,
+            self,
+            knowledge_id: int,
+            app_id,
     ) -> bool:
         """
         Delete a summary by (knowledge_id, app_id).

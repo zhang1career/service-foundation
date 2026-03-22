@@ -64,13 +64,13 @@ class LogicalQueryService(Singleton):
     """
 
     def query(
-        self,
-        query: str,
-        app_id: Optional[int] = None,
-        limit: Optional[int] = None,
-        max_hops: Optional[int] = None,
-        predicate_filter: Optional[str] = None,
-        output_format: str = "list",
+            self,
+            query: str,
+            app_id: Optional[int] = None,
+            limit: Optional[int] = None,
+            max_hops: Optional[int] = None,
+            predicate_filter: Optional[str] = None,
+            output_format: str = "list",
     ) -> Dict[str, Any]:
         """
         Run logical query: search Atlas by summary relevance, expand via Neo4j,
@@ -189,11 +189,11 @@ class LogicalQueryService(Singleton):
             return self._build_list_response(candidate_map, candidate_ids, related, limit)
 
     def _build_list_response(
-        self,
-        candidate_map: Dict[int, Dict],
-        candidate_ids: List[int],
-        related: List[Dict[str, Any]],
-        limit: int,
+            self,
+            candidate_map: Dict[int, Dict],
+            candidate_ids: List[int],
+            related: List[Dict[str, Any]],
+            limit: int,
     ) -> Dict[str, Any]:
         """Build flat list response format."""
         results: List[Dict[str, Any]] = []
@@ -248,11 +248,11 @@ class LogicalQueryService(Singleton):
         return {"data": results, "total_num": len(results)}
 
     def _build_triple_response(
-        self,
-        candidate_map: Dict[int, Dict],
-        candidate_ids: List[int],
-        triples,
-        limit: int,
+            self,
+            candidate_map: Dict[int, Dict],
+            candidate_ids: List[int],
+            triples,
+            limit: int,
     ) -> Dict[str, Any]:
         """Build predicate logic triple response format."""
         candidates = []

@@ -4,9 +4,13 @@ set -e
 # Create log directory
 mkdir -p ${LOG_DIR}
 
-# Collect static files
+# Collect static files (required for WhiteNoise when DEBUG=False)
 echo "Collecting static files..."
-python manage.py collectstatic --noinput || echo "Warning: collectstatic failed or no static files to collect"
+if python manage.py collectstatic --noinput; then
+    echo "Static files collected successfully."
+else
+    echo "Warning: collectstatic failed - check that app static dirs exist (e.g. app_console/static/)"
+fi
 
 # Run database migrations
 echo "Running database migrations..."

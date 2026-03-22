@@ -5,8 +5,6 @@ from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
 
-from common.consts.query_const import LIMIT_LIST
-
 from app_know.repos.summary_mapping_repo import (
     get_mapping_by_knowledge_id,
     get_mapping_by_summary_id,
@@ -15,6 +13,7 @@ from app_know.repos.summary_mapping_repo import (
     delete_mapping_by_knowledge_id,
     get_knowledge_ids_by_summary_ids,
 )
+from common.consts.query_const import LIMIT_LIST
 
 
 class GetMappingByKnowledgeIdTest(TestCase):

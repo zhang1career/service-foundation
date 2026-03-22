@@ -8,8 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from py2neo import Node, Relationship
 
-from common.drivers.neo4j_driver import Neo4jDriver
-from service_foundation import settings
 from app_know.models.relationships import (
     APP_ID_PROP,
     ENTITY_ID_PROP,
@@ -26,6 +24,8 @@ from app_know.models.relationships import (
     RelationshipQueryResult,
     SubjectObject,
 )
+from common.drivers.neo4j_driver import Neo4jDriver
+from service_foundation import settings
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +86,9 @@ def _rel_type_from_input(relationship_type: str) -> str:
 
 
 def _rel_props(
-    app_id: int,
-    predicate: Optional[str] = None,
-    extra: Optional[Dict[str, Any]] = None,
+        app_id: int,
+        predicate: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     out = {APP_ID_PROP: app_id}
     if predicate:
@@ -142,7 +142,7 @@ def create_relationship(inp: RelationshipCreateInput) -> Tuple[Relationship, Nod
 
 
 def update_relationship_by_id(
-    app_id: int, relationship_id: int, properties: Dict[str, Any]
+        app_id: int, relationship_id: int, properties: Dict[str, Any]
 ) -> Optional[Relationship]:
     """
     Update relationship by Neo4j internal id. Verifies app_id on relationship.
@@ -310,7 +310,7 @@ def query_relationships(inp: RelationshipQueryInput) -> Tuple[List[RelationshipQ
 
 
 def query_relationships_as_triples(
-    inp: RelationshipQueryInput,
+        inp: RelationshipQueryInput,
 ) -> Tuple[List[PredicateTriple], int]:
     """
     Query relationships and return as predicate logic triples.
@@ -346,11 +346,11 @@ def query_relationships_as_triples(
 
 
 def get_related_by_knowledge_ids(
-    knowledge_ids: List[int],
-    app_id: int,
-    limit: int = 200,
-    max_hops: int = 1,
-    predicate_filter: Optional[str] = None,
+        knowledge_ids: List[int],
+        app_id: int,
+        limit: int = 200,
+        max_hops: int = 1,
+        predicate_filter: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Neo4j graph reasoning: given candidate knowledge IDs, return related knowledge and entities
@@ -461,11 +461,11 @@ def get_related_by_knowledge_ids(
 
 
 def get_related_as_triples(
-    knowledge_ids: List[int],
-    app_id: int,
-    limit: int = 200,
-    max_hops: int = 1,
-    predicate_filter: Optional[str] = None,
+        knowledge_ids: List[int],
+        app_id: int,
+        limit: int = 200,
+        max_hops: int = 1,
+        predicate_filter: Optional[str] = None,
 ) -> List[PredicateTriple]:
     """
     Get related items as predicate logic triples.

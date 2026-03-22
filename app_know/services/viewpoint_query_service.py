@@ -29,7 +29,8 @@ def _integrate_sentences_with_ai(ordered_items: List[Dict[str, Any]]) -> str:
     lines = []
     for item in ordered_items:
         cls_id = item.get("classification")
-        code = id_to_code.get(cls_id, "fact") if isinstance(cls_id, int) else (cls_id if isinstance(cls_id, str) else "fact")
+        code = id_to_code.get(cls_id, "fact") if isinstance(cls_id, int) else (
+            cls_id if isinstance(cls_id, str) else "fact")
         content = (item.get("content") or "").strip()
         if content:
             lines.append("【{}】 {}".format(code, content))
@@ -62,9 +63,9 @@ def _split_lines_by_prefix(lines: List[str]) -> Tuple[List[str], List[str]]:
         if not s:
             continue
         if s.startswith(PREFIX_ATTR):
-            attr_exprs.append(s[len(PREFIX_ATTR) :].strip())
+            attr_exprs.append(s[len(PREFIX_ATTR):].strip())
         elif s.startswith(PREFIX_PRED):
-            pred_exprs.append(s[len(PREFIX_PRED) :].strip())
+            pred_exprs.append(s[len(PREFIX_PRED):].strip())
         else:
             pred_exprs.append(s)
     return attr_exprs, pred_exprs
@@ -77,7 +78,7 @@ def _classification_to_label(cls_id: Any) -> str:
 
 
 def query_knowledge_by_path_expressions(
-    lines: List[str], integrate_ai: bool = True
+        lines: List[str], integrate_ai: bool = True
 ) -> Dict[str, Any]:
     """
     根据路径表达式行（每行可为 ATTR:... 或 PRED:...）查询 knowledge，去重后按 classification 排序.
@@ -140,7 +141,8 @@ def query_knowledge_by_path_expressions(
                 })
 
     order_by_cls = [id_ for id_, _ in ClassificationEnum.ITEMS]
-    all_rows.sort(key=lambda r: (order_by_cls.index(r["classification"]) if r["classification"] in order_by_cls else 999, r["id"]))
+    all_rows.sort(key=lambda r: (
+    order_by_cls.index(r["classification"]) if r["classification"] in order_by_cls else 999, r["id"]))
 
     viewpoint_text = _integrate_sentences_with_ai(all_rows) if integrate_ai else ""
     return {"rows": all_rows, "viewpoint_text": viewpoint_text}

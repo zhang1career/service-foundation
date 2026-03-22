@@ -6,6 +6,7 @@ import logging
 from rest_framework import status as http_status
 from rest_framework.views import APIView
 
+from app_know.repos.batch_repo import delete_batch
 from app_know.repos.knowledge_point_repo import (
     list_by_batch,
     list_distinct_batch_ids,
@@ -15,7 +16,6 @@ from app_know.repos.knowledge_point_repo import (
     delete_by_batch,
     delete_by_id as delete_knowledge_point_by_id,
 )
-from app_know.repos.batch_repo import delete_batch
 from app_know.repos.sentence_raw_repo import delete_by_sentence_ids
 from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception, with_type
@@ -36,7 +36,8 @@ def _parse_entity_id(entity_id) -> int:
 def _batch_to_dict(batch_id: int, first_content: str = "") -> dict:
     return {
         "id": batch_id,
-        "title": (first_content[:80] + "..." if len(first_content or "") > 80 else first_content) or f"Batch {batch_id}",
+        "title": (first_content[:80] + "..." if len(
+            first_content or "") > 80 else first_content) or f"Batch {batch_id}",
     }
 
 
@@ -85,7 +86,8 @@ class KnowledgeListView(APIView):
 
     def post(self, request, *args, **kwargs):
         """Create batch: POST to upload endpoint instead. Stub returns error."""
-        return resp_err("Use POST /api/know/knowledge/upload to create", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+        return resp_err("Use POST /api/know/knowledge/upload to create", code=RET_INVALID_PARAM,
+                        status=http_status.HTTP_200_OK)
 
 
 def _stage_label(stage_val) -> str:
@@ -322,7 +324,8 @@ class KnowledgeDetailView(APIView):
 
     def put(self, request, entity_id, *args, **kwargs):
         """Batch update: use parse with content to replace."""
-        return resp_err("Use POST .../parse with content to update batch", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+        return resp_err("Use POST .../parse with content to update batch", code=RET_INVALID_PARAM,
+                        status=http_status.HTTP_200_OK)
 
     def delete(self, request, entity_id, *args, **kwargs):
         """Delete batch (all knowledge points + batch record)."""

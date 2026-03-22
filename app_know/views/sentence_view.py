@@ -7,7 +7,7 @@ from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.repos import knowledge_point_repo
-from common.consts.response_const import RET_INVALID_PARAM, RET_RESOURCE_NOT_FOUND
+from common.consts.response_const import RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,8 @@ class SentenceListView(APIView):
         """List sentences. Query: offset, limit, stage, status."""
         try:
             if entity_id is None or not isinstance(entity_id, int) or entity_id <= 0:
-                return resp_err("entity_id must be a positive integer", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("entity_id must be a positive integer", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
 
             offset = int(request.GET.get("offset") or 0)
             limit = int(request.GET.get("limit") or 100)

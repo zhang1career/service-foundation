@@ -16,10 +16,10 @@ def get_mapping_by_summary_id(summary_id: str, app_id: Optional[int] = None):
 
 
 def list_mappings(
-    app_id: Optional[int] = None,
-    knowledge_ids: Optional[List[int]] = None,
-    offset: int = 0,
-    limit: int = 100,
+        app_id: Optional[int] = None,
+        knowledge_ids: Optional[List[int]] = None,
+        offset: int = 0,
+        limit: int = 100,
 ) -> Tuple[List, int]:
     raise RuntimeError(_NOT_AVAILABLE)
 

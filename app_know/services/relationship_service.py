@@ -3,11 +3,10 @@ Service layer for knowledge relationship create/update/query with validation.
 Generated.
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from app_know.models.relationships import (
     PREDICATE_PROP,
-    PredicateTriple,
     RelationshipCreateInput,
     RelationshipQueryInput,
     RelationshipQueryResult,
@@ -90,15 +89,15 @@ class RelationshipService(Singleton):
     """Service for knowledge relationship create/update/query with validation."""
 
     def create_relationship(
-        self,
-        app_id,
-        relationship_type: str,
-        source_knowledge_id: Any,
-        target_knowledge_id: Optional[Any] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None,
-        predicate: Optional[str] = None,
-        properties: Optional[Dict[str, Any]] = None,
+            self,
+            app_id,
+            relationship_type: str,
+            source_knowledge_id: Any,
+            target_knowledge_id: Optional[Any] = None,
+            entity_type: Optional[str] = None,
+            entity_id: Optional[str] = None,
+            predicate: Optional[str] = None,
+            properties: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Create or upsert a knowledge–entity or knowledge–knowledge relationship.
@@ -165,10 +164,10 @@ class RelationshipService(Singleton):
         return _relationship_result_to_dict(result)
 
     def update_relationship(
-        self,
-        app_id: str,
-        relationship_id: Any,
-        properties: Dict[str, Any],
+            self,
+            app_id: str,
+            relationship_id: Any,
+            properties: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Update relationship properties by Neo4j relationship id. Returns updated relationship."""
         app_id = _validate_app_id(app_id)
@@ -191,7 +190,7 @@ class RelationshipService(Singleton):
         }
 
     def get_relationship(
-        self, app_id: str, relationship_id: Any
+            self, app_id: str, relationship_id: Any
     ) -> Optional[Dict[str, Any]]:
         """Get one relationship by id. Returns None if not found or app_id mismatch."""
         app_id = _validate_app_id(app_id)
@@ -209,9 +208,9 @@ class RelationshipService(Singleton):
         }
 
     def delete_relationship(
-        self,
-        app_id: str,
-        relationship_id: Any,
+            self,
+            app_id: str,
+            relationship_id: Any,
     ) -> bool:
         """
         Delete relationship by Neo4j relationship id.
@@ -227,15 +226,15 @@ class RelationshipService(Singleton):
         return True
 
     def query_relationships(
-        self,
-        app_id: str,
-        knowledge_id: Optional[Any] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None,
-        relationship_type: Optional[str] = None,
-        predicate: Optional[str] = None,
-        limit: int = 100,
-        offset: int = 0,
+            self,
+            app_id: str,
+            knowledge_id: Optional[Any] = None,
+            entity_type: Optional[str] = None,
+            entity_id: Optional[str] = None,
+            relationship_type: Optional[str] = None,
+            predicate: Optional[str] = None,
+            limit: int = 100,
+            offset: int = 0,
     ) -> Dict[str, Any]:
         """
         Query relationships with optional filters.
@@ -281,15 +280,15 @@ class RelationshipService(Singleton):
         }
 
     def query_relationships_as_triples(
-        self,
-        app_id: str,
-        knowledge_id: Optional[Any] = None,
-        entity_type: Optional[str] = None,
-        entity_id: Optional[str] = None,
-        relationship_type: Optional[str] = None,
-        predicate: Optional[str] = None,
-        limit: int = 100,
-        offset: int = 0,
+            self,
+            app_id: str,
+            knowledge_id: Optional[Any] = None,
+            entity_type: Optional[str] = None,
+            entity_id: Optional[str] = None,
+            relationship_type: Optional[str] = None,
+            predicate: Optional[str] = None,
+            limit: int = 100,
+            offset: int = 0,
     ) -> Dict[str, Any]:
         """
         Query relationships and return as predicate logic triples.

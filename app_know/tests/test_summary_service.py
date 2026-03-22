@@ -5,10 +5,9 @@ from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
 
-from common.consts.query_const import LIMIT_LIST
-
-from app_know.services.summary_service import SummaryService
 from app_know.services.summary_generator import generate_summary
+from app_know.services.summary_service import SummaryService
+from common.consts.query_const import LIMIT_LIST
 
 
 class SummaryGeneratorTest(TestCase):

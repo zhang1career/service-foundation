@@ -4,9 +4,9 @@ Renamed from Sentence. Table: knowledge. Uses batch_id to group points from same
 """
 from django.db import models
 
-from app_know.enums.stage_enum import StageEnum
 from app_know.enums.classification_enum import ClassificationEnum
 from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
+from app_know.enums.stage_enum import StageEnum
 
 
 class KnowledgePoint(models.Model):
@@ -21,8 +21,12 @@ class KnowledgePoint(models.Model):
     graph_brief = models.TextField(blank=True, null=True, db_column="g_brief")
     graph_subject = models.TextField(blank=True, null=True, db_column="g_sub")
     graph_object = models.TextField(blank=True, null=True, db_column="g_obj")
-    vec_sub_deco_id = models.CharField(max_length=32, blank=True, null=True, help_text="Mongo Atlas sub_deco collection document _id for vector update", db_column="v_sub_deco_id")
-    vec_obj_deco_id = models.CharField(max_length=32, blank=True, null=True, help_text="Mongo Atlas obj_deco collection document _id for vector update", db_column="v_obj_deco_id")
+    vec_sub_deco_id = models.CharField(max_length=32, blank=True, null=True,
+                                       help_text="Mongo Atlas sub_deco collection document _id for vector update",
+                                       db_column="v_sub_deco_id")
+    vec_obj_deco_id = models.CharField(max_length=32, blank=True, null=True,
+                                       help_text="Mongo Atlas obj_deco collection document _id for vector update",
+                                       db_column="v_obj_deco_id")
     graph_brief_hash = models.IntegerField(null=True, blank=True, db_index=True, db_column="g_brief_hash")
     graph_subject_hash = models.IntegerField(null=True, blank=True, db_index=True, db_column="g_sub_hash")
     graph_object_hash = models.IntegerField(null=True, blank=True, db_index=True, db_column="g_obj_hash")

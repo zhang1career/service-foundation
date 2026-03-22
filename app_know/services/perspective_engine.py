@@ -3,7 +3,7 @@ Perspective Engine: project knowledge graph from a given perspective (focal enti
 Returns subgraph filtered by perspective focal node.
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from app_know.services.graph_builder_agent import get_sentence_graph
 
@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_graph_by_perspective(
-    kid: int,
-    focal_name: str,
+        kid: int,
+        focal_name: str,
 ) -> Dict[str, Any]:
     """
     Get subgraph for a knowledge document filtered by perspective focal entity.

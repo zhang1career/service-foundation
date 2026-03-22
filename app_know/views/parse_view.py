@@ -21,9 +21,11 @@ class KnowledgeParseView(APIView):
         try:
             batch_id = entity_id
             if batch_id is None or not isinstance(batch_id, int) or batch_id <= 0:
-                return resp_err("entity_id (batch_id) must be a positive integer", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("entity_id (batch_id) must be a positive integer", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
             if not get_by_id(batch_id):
-                return resp_err(f"Batch {batch_id} not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err(f"Batch {batch_id} not found", code=RET_RESOURCE_NOT_FOUND,
+                                status=http_status.HTTP_200_OK)
 
             data = getattr(request, "data", None) or {}
             content = (data.get("content") or "").strip()

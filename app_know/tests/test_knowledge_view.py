@@ -9,6 +9,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
 
+from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
 from common.consts.query_const import LIMIT_LIST
 from common.consts.response_const import (
     RET_OK,
@@ -16,8 +17,6 @@ from common.consts.response_const import (
     RET_MISSING_PARAM,
     RET_INVALID_PARAM,
 )
-
-from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
 
 
 class KnowledgeListViewTest(TestCase):

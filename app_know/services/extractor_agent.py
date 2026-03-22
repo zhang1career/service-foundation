@@ -8,11 +8,10 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 
-from common.consts.string_const import EMPTY_STRING
-
-from app_know.enums.stage_enum import StageEnum
 from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
+from app_know.enums.stage_enum import StageEnum
 from app_know.repos import knowledge_point_repo
+from common.consts.string_const import EMPTY_STRING
 
 logger = logging.getLogger(__name__)
 
@@ -176,9 +175,9 @@ def _parse_brief_single_choice_response(response: str) -> Optional[Dict[str, Any
 
 
 def extract_brief_with_options(
-    sentence_content: str,
-    subject_options: List[str],
-    predicate_options: List[str],
+        sentence_content: str,
+        subject_options: List[str],
+        predicate_options: List[str],
 ) -> Optional[Dict[str, Any]]:
     """
     Extract brief using 题目限定: single-choice over subject and predicate option lists.
@@ -266,8 +265,8 @@ def extract_sentence(sentence_content: str) -> Optional[Dict[str, Any]]:
 
 
 def extract_and_store_for_batch(
-    batch_id: int,
-    use_ai: bool = True,
+        batch_id: int,
+        use_ai: bool = True,
 ) -> List[Dict[str, Any]]:
     """
     Extract for all sentences of a knowledge document.

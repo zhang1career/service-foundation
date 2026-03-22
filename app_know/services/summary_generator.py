@@ -47,12 +47,12 @@ def _get_text_ai():
 
 
 def generate_summary(
-    title: str,
-    description: Optional[str] = None,
-    content: Optional[str] = None,
-    source_type: Optional[str] = None,
-    max_length: int = SUMMARY_MAX_LEN,
-    use_ai: bool = False,
+        title: str,
+        description: Optional[str] = None,
+        content: Optional[str] = None,
+        source_type: Optional[str] = None,
+        max_length: int = SUMMARY_MAX_LEN,
+        use_ai: bool = False,
 ) -> str:
     """
     Generate a short summary from title, description, and optional content.
@@ -93,11 +93,11 @@ def generate_summary(
 
 
 def _generate_summary_with_ai(
-    title: str,
-    description: str,
-    content: str,
-    source_type: str,
-    max_length: int,
+        title: str,
+        description: str,
+        content: str,
+        source_type: str,
+        max_length: int,
 ) -> Optional[str]:
     """Generate summary using TextAI.ask_and_answer. Returns None on failure."""
     client = _get_text_ai()
@@ -133,11 +133,11 @@ def _generate_summary_with_ai(
 
 
 def _generate_summary_rule_based(
-    title: str,
-    description: str,
-    content: str,
-    source_type: str,
-    max_length: int,
+        title: str,
+        description: str,
+        content: str,
+        source_type: str,
+        max_length: int,
 ) -> str:
     """Generate summary using rule-based concatenation."""
     parts = [f"Title: {title}"]

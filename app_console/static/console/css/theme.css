@@ -1,0 +1,76 @@
+/**
+ * 控制台主题：暗色下的样式覆盖（公用）
+ * 触发条件：html.theme-dark（由 base.html 中主题切换设置）
+ * 新增/修改与主题相关的样式时，请只改本文件，保持集中管理。
+ */
+html.theme-dark body { background-color: #111827; }
+html.theme-dark .theme-header { background: #1f2937; border-bottom: 1px solid #374151; }
+html.theme-dark .theme-title { color: #f3f4f6; }
+html.theme-dark .theme-toggle-icon { color: #9ca3af; }
+html.theme-dark main { background: #111827; }
+html.theme-dark #console-sidebar { background: #0f172a; }
+html.theme-dark #console-sidebar .border-gray-700 { border-color: #334155; }
+html.theme-dark #console-sidebar a:hover { background: #1e293b; }
+html.theme-dark #console-sidebar a.bg-gray-700,
+html.theme-dark #console-sidebar .sidebar-link.bg-gray-700 { background: #334155; }
+
+/* 卡片：暗色下背景与边框 */
+html.theme-dark .card { background: #1f2937; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+html.theme-dark .card-header { border-bottom-color: #374151; color: #f3f4f6; }
+html.theme-dark .card-header h3 { color: #f3f4f6; }
+html.theme-dark .card-body { color: #e5e7eb; }
+
+/* 表格 */
+html.theme-dark .data-table th,
+html.theme-dark .data-table td { border-bottom-color: #374151; color: #e5e7eb; }
+html.theme-dark .data-table th { background: #374151; color: #f3f4f6; }
+html.theme-dark .data-table tr:hover { background: #374151; }
+
+/* 按钮、表单 */
+html.theme-dark .empty-state { color: #9ca3af; }
+html.theme-dark .btn-outline { background: #374151; border-color: #4b5563; color: #e5e7eb; }
+html.theme-dark .btn-outline:hover { background: #4b5563; }
+html.theme-dark .form-input,
+html.theme-dark .form-textarea,
+html.theme-dark input[type="text"],
+html.theme-dark input[type="number"],
+html.theme-dark textarea,
+html.theme-dark select { background: #374151; border-color: #4b5563; color: #f3f4f6; }
+html.theme-dark .form-label,
+html.theme-dark label { color: #d1d5db; }
+
+/* Badge */
+html.theme-dark .badge-success { background: #065f46; color: #a7f3d0; }
+html.theme-dark .badge-warning { background: #92400e; color: #fef3c7; }
+html.theme-dark .badge-error { background: #7f1d1d; color: #fecaca; }
+html.theme-dark .badge-info { background: #1e40af; color: #bfdbfe; }
+
+/* Toast */
+html.theme-dark .toast-success { background: #065f46; color: #a7f3d0; }
+html.theme-dark .toast-error { background: #7f1d1d; color: #fecaca; }
+html.theme-dark .toast-info { background: #1e40af; color: #bfdbfe; }
+html.theme-dark .toast-warning { background: #92400e; color: #fef3c7; }
+
+/* Modal */
+html.theme-dark .console-modal-backdrop { background-color: rgba(0, 0, 0, 0.6); }
+html.theme-dark .console-modal-error { background: #1f2937; color: #fecaca; }
+html.theme-dark .modal-backdrop { background-color: rgba(0, 0, 0, 0.6); }
+html.theme-dark .modal-content,
+html.theme-dark .console-modal-content { background: #1f2937; border: 1px solid #374151; }
+html.theme-dark .modal-header,
+html.theme-dark .modal-footer { border-color: #374151; color: #e5e7eb; }
+
+/* 文本颜色 */
+html.theme-dark .text-gray-500 { color: #9ca3af; }
+html.theme-dark .text-gray-600 { color: #d1d5db; }
+html.theme-dark .text-gray-800 { color: #f3f4f6; }
+html.theme-dark .text-blue-600 { color: #93c5fd; }
+html.theme-dark .text-red-500 { color: #fca5a5; }
+
+/* Spinner */
+html.theme-dark .spinner { border-color: #374151; border-top-color: #60a5fa; }
+
+/* 分页 */
+html.theme-dark .pagination-btn { background: #374151; border-color: #4b5563; color: #e5e7eb; }
+html.theme-dark .pagination-btn:hover { background: #4b5563; }
+html.theme-dark .pagination-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }

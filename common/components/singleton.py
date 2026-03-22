@@ -7,13 +7,13 @@ class _Singleton(type):
 
     _instances = {}
 
-    def __call__(clazz, *args, **kwargs):
+    def __call__(cls, *args, **kwargs):
         args_hash = hash(args + tuple(sorted(kwargs.items())))
-        if clazz not in clazz._instances:
-            clazz._instances[clazz] = {}
-        if args_hash not in clazz._instances[clazz]:
-            clazz._instances[clazz][args_hash] = super(_Singleton, clazz).__call__(*args, **kwargs)
-        return clazz._instances[clazz][args_hash]
+        if cls not in cls._instances:
+            cls._instances[cls] = {}
+        if args_hash not in cls._instances[cls]:
+            cls._instances[cls][args_hash] = super(_Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls][args_hash]
 
 
 class Singleton(_Singleton('SingletonMeta', (object,), {})):

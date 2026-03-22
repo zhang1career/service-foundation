@@ -24,6 +24,7 @@ def _sanitize_rel_type(predicate: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9_]", "_", (predicate or "").strip())
     return s or "related_to"
 
+
 _text_ai_client = None
 _neo4j_driver: Optional[Neo4jDriver] = None
 
@@ -96,10 +97,10 @@ def _parse_json_from_response(response: str) -> Optional[Dict[str, str]]:
     """
     if not response:
         return None
-    
+
     json_pattern = r'\{[^{}]*"sub"[^{}]*"prd"[^{}]*"obj"[^{}]*\}'
     matches = re.findall(json_pattern, response, re.DOTALL)
-    
+
     if matches:
         for match in matches:
             try:
@@ -108,14 +109,14 @@ def _parse_json_from_response(response: str) -> Optional[Dict[str, str]]:
                     return parsed
             except json.JSONDecodeError:
                 continue
-    
+
     try:
         parsed = json.loads(response.strip())
         if "sub" in parsed and "prd" in parsed and "obj" in parsed:
             return parsed
     except json.JSONDecodeError:
         pass
-    
+
     code_block_pattern = r'```(?:json)?\s*(\{[^`]*\})\s*```'
     code_matches = re.findall(code_block_pattern, response, re.DOTALL)
     for match in code_matches:
@@ -125,7 +126,7 @@ def _parse_json_from_response(response: str) -> Optional[Dict[str, str]]:
                 return parsed
         except json.JSONDecodeError:
             continue
-    
+
     return None
 
 
@@ -136,12 +137,12 @@ def _parse_multiple_json_from_response(response: str) -> List[Dict[str, str]]:
     """
     if not response:
         return []
-    
+
     results = []
-    
+
     json_pattern = r'\{[^{}]*"sub"[^{}]*\}'
     matches = re.findall(json_pattern, response, re.DOTALL)
-    
+
     for match in matches:
         try:
             parsed = json.loads(match)
@@ -149,19 +150,19 @@ def _parse_multiple_json_from_response(response: str) -> List[Dict[str, str]]:
                 results.append(parsed)
         except json.JSONDecodeError:
             continue
-    
+
     if not results:
         single = _parse_json_from_response(response)
         if single:
             results.append(single)
-    
+
     return results
 
 
 def extract_relations_from_content(
-    content: str,
-    app_id: int,
-    knowledge_id: int,
+        content: str,
+        app_id: int,
+        knowledge_id: int,
 ) -> List[ExtractedRelation]:
     """
     Extract predicate logic relations from content using TextAI.
@@ -189,9 +190,9 @@ def extract_relations_from_content(
     client = _get_text_ai()
     if client is None:
         raise RuntimeError("TextAI client not available")
-    
+
     text = content[:2000] if len(content) > 2000 else content
-    
+
     try:
         logger.info("[relation_extractor] Calling TextAI for knowledge_id: %d", knowledge_id)
         prompt, result = client.ask_and_answer(
@@ -201,33 +202,33 @@ def extract_relations_from_content(
             temperature=0.3,
         )
         logger.info("[relation_extractor] TextAI response: %s", result[:500] if result else "None")
-        
+
         if not result or result == "no":
             logger.warning("[relation_extractor] TextAI returned empty or 'no' result")
             return []
-        
+
         parsed_list = _parse_multiple_json_from_response(result)
         if not parsed_list:
             logger.warning("[relation_extractor] Failed to parse JSON from response: %s", result[:200])
             return []
-        
+
         relations = []
         for parsed in parsed_list:
             subject = str(parsed.get("sub", "")).strip()
             predicate = str(parsed.get("prd", "")).strip()
             obj = str(parsed.get("obj", "")).strip()
-            
+
             if not subject or not predicate or not obj:
-                logger.warning("[relation_extractor] Incomplete relation: sub=%s, prd=%s, obj=%s", 
-                             subject, predicate, obj)
+                logger.warning("[relation_extractor] Incomplete relation: sub=%s, prd=%s, obj=%s",
+                               subject, predicate, obj)
                 continue
-            
+
             relations.append(ExtractedRelation(
                 subject=subject,
                 predicate=predicate,
                 obj=obj,
             ))
-        
+
         return relations
     except Exception as e:
         logger.exception("[relation_extractor] Error extracting relations: %s", e)
@@ -235,8 +236,8 @@ def extract_relations_from_content(
 
 
 def resolve_relations_via_atlas(
-    relations: List[ExtractedRelation],
-    app_id: int,
+        relations: List[ExtractedRelation],
+        app_id: int,
 ) -> List[ExtractedRelation]:
     """
     Resolve subject and object via Atlas vector similarity search.
@@ -268,9 +269,9 @@ def resolve_relations_via_atlas(
 
 
 def store_relation_in_graph(
-    relation: ExtractedRelation,
-    app_id: int,
-    knowledge_id: int,
+        relation: ExtractedRelation,
+        app_id: int,
+        knowledge_id: int,
 ) -> ExtractedRelation:
     """
     Store extracted relation in MongoDB Atlas, MySQL component mapping, and Neo4j.
@@ -344,7 +345,7 @@ def store_relation_in_graph(
         name=relation.obj,
         app_id=app_id,
     )
-    
+
     predicate_val = (relation.predicate or "").strip() or ""
     if not predicate_val:
         predicate_val = "related_to"
@@ -364,7 +365,7 @@ def store_relation_in_graph(
         relation.neo4j_relationship_id = new_rel.identity if hasattr(new_rel, "identity") else None
         logger.info("[relation_extractor] Created new relationship id=%s type=%s",
                     relation.neo4j_relationship_id, rel_type)
-    
+
     return relation
 
 
@@ -386,9 +387,9 @@ def _get_or_create_neo4j_node(driver: Neo4jDriver, cid: str, name: str, app_id: 
 
 
 def extract_and_store_relations(
-    content: str,
-    app_id: int,
-    knowledge_id: int,
+        content: str,
+        app_id: int,
+        knowledge_id: int,
 ) -> List[Dict[str, Any]]:
     """
     Main entry point: extract relations from content and store in graph databases.
@@ -402,7 +403,7 @@ def extract_and_store_relations(
         List of dicts with relation details
     """
     relations = extract_relations_from_content(content, app_id, knowledge_id)
-    
+
     results = []
     for relation in relations:
         try:
@@ -423,13 +424,13 @@ def extract_and_store_relations(
                 "object": relation.obj,
                 "error": str(e),
             })
-    
+
     return results
 
 
 def get_relation_graph_by_knowledge_id(
-    knowledge_id: int,
-    app_id: Optional[int] = 0,
+        knowledge_id: int,
+        app_id: Optional[int] = 0,
 ) -> Dict[str, Any]:
     """
     Fetch Neo4j subgraph for a knowledge entity.
@@ -502,11 +503,11 @@ def update_graph_node_name(cid: str, name: str, app_id: int = 0) -> bool:
 
 
 def update_graph_relationship_type(
-    from_cid: str,
-    to_cid: str,
-    old_type: str,
-    new_type: str,
-    app_id: int = 0,
+        from_cid: str,
+        to_cid: str,
+        old_type: str,
+        new_type: str,
+        app_id: int = 0,
 ) -> bool:
     """Update relationship type by deleting old and creating new. Returns True if updated."""
     new_type = _sanitize_rel_type(new_type)

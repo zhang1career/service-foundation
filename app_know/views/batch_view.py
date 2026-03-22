@@ -10,13 +10,13 @@ from rest_framework.views import APIView
 
 from app_know.consts import SOURCE_TYPE_INSTANT
 from app_know.repos.batch_repo import get_batch_detail, get_by_id, list_batches, count_batches, update_content
-from app_know.utils.text_util import normalize_single_paragraph
 from app_know.services.batch_service import (
     create_from_text,
     create_from_upload,
     delete_batch_and_knowledge,
     analyze_batch,
 )
+from app_know.utils.text_util import normalize_single_paragraph
 from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM, RET_MISSING_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception, with_type
 
@@ -247,7 +247,8 @@ class BatchAnalyzeView(APIView):
                 if detail:
                     content = (detail.get("aggregated_content") or detail.get("content") or "").strip()
                 if not content:
-                    return resp_err("content is required in body", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                    return resp_err("content is required in body", code=RET_MISSING_PARAM,
+                                    status=http_status.HTTP_200_OK)
 
             use_ai_classify = data.get("use_ai_classify", True)
             write_sentence_raw = data.get("write_sentence_raw", True)

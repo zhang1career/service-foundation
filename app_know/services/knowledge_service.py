@@ -56,12 +56,12 @@ class KnowledgeService(Singleton):
     """Service for knowledge CRUD with validation."""
 
     def list_knowledge(
-        self,
-        offset: int = 0,
-        limit: int = 100,
-        source_type: Optional[str] = None,
-        summary: Optional[str] = None,
-        title: Optional[str] = None,
+            self,
+            offset: int = 0,
+            limit: int = 100,
+            source_type: Optional[str] = None,
+            summary: Optional[str] = None,
+            title: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         List knowledge entities with pagination.
@@ -91,7 +91,8 @@ class KnowledgeService(Singleton):
             logger.debug("[list_knowledge] summary filter path: query=%r", q[:80])
             try:
                 vector_results = search_summaries_by_vector_filtered(query=q, app_id=0, top_k=5)
-                logger.debug("[list_knowledge] vector_results count=%s, kids=%s", len(vector_results), [r.get("kid") for r in vector_results[:5]])
+                logger.debug("[list_knowledge] vector_results count=%s, kids=%s", len(vector_results),
+                             [r.get("kid") for r in vector_results[:5]])
             except Exception as e:
                 logger.warning("[list_knowledge] summary vector search failed: %s", e)
                 return {
@@ -169,11 +170,11 @@ class KnowledgeService(Singleton):
         return _entity_to_dict(entity)
 
     def create_knowledge(
-        self,
-        title: str,
-        description: Optional[str] = None,
-        content: Optional[str] = None,
-        source_type: Optional[str] = None,
+            self,
+            title: str,
+            description: Optional[str] = None,
+            content: Optional[str] = None,
+            source_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create entity. Validates title (required). Raises ValueError on validation error."""
         t = (str(title).strip() if title is not None else "")
@@ -199,12 +200,12 @@ class KnowledgeService(Singleton):
         return _entity_to_dict(entity)
 
     def update_knowledge(
-        self,
-        entity_id: int,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        content: Optional[str] = None,
-        source_type: Optional[str] = None,
+            self,
+            entity_id: int,
+            title: Optional[str] = None,
+            description: Optional[str] = None,
+            content: Optional[str] = None,
+            source_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Update entity. Raises ValueError if invalid id, not found, or validation fails."""
         _validate_entity_id(entity_id)

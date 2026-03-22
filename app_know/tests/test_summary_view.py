@@ -8,17 +8,16 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
 
+from app_know.views.summary_view import (
+    KnowledgeSummaryView,
+    KnowledgeSummaryListView,
+)
 from common.consts.query_const import LIMIT_LIST
 from common.consts.response_const import (
     RET_OK,
     RET_RESOURCE_NOT_FOUND,
     RET_MISSING_PARAM,
     RET_INVALID_PARAM,
-)
-
-from app_know.views.summary_view import (
-    KnowledgeSummaryView,
-    KnowledgeSummaryListView,
 )
 
 

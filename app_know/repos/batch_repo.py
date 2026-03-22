@@ -18,8 +18,8 @@ _DB = "know_rw"
 
 
 def create_batch(
-    content: str = "",
-    source_type: int = SOURCE_TYPE_INSTANT,
+        content: str = "",
+        source_type: int = SOURCE_TYPE_INSTANT,
 ) -> Batch:
     """Create a batch record. Returns the created Batch (id = batch_id for knowledge)."""
     now_ms = int(time.time() * 1000)
@@ -74,7 +74,7 @@ def list_batches(limit: int = 100, offset: int = 0) -> List[Batch]:
     """List batches ordered by ct desc."""
     if limit <= 0 or limit > 500:
         limit = 100
-    return list(Batch.objects.using(_DB).order_by("-ct")[offset : offset + limit])
+    return list(Batch.objects.using(_DB).order_by("-ct")[offset: offset + limit])
 
 
 def count_batches() -> int:

@@ -177,8 +177,137 @@ document.addEventListener('keydown', function(e) {
     });
 }, true);  // capture phase: run before event reaches focused input/textarea
 
+/**
+ * 主题切换：light=护眼绿 / dark=深灰，状态持久化到 localStorage
+ * 可在非 base 页面单独调用 ConsoleApp.initTheme() 复用
+ */
+function initTheme() {
+    var KEY = 'console-theme';
+    var DARK = 'dark', LIGHT = 'light';
+
+    function getStored() {
+        try {
+            return localStorage.getItem(KEY) || LIGHT;
+        } catch (e) {
+            return LIGHT;
+        }
+    }
+    function setStored(v) {
+        try { localStorage.setItem(KEY, v); } catch (e) {}
+    }
+    function apply(theme) {
+        var isDark = theme === DARK;
+        document.documentElement.classList.toggle('theme-dark', isDark);
+        var cb = document.getElementById('theme-toggle');
+        if (cb) cb.checked = !isDark;
+    }
+
+    var initial = getStored();
+    apply(initial);
+
+    var cb = document.getElementById('theme-toggle');
+    if (cb) {
+        cb.addEventListener('change', function() {
+            var theme = this.checked ? LIGHT : DARK;
+            setStored(theme);
+            apply(theme);
+        });
+    }
+}
+
+/**
+ * 侧边栏折叠/拖拽：状态持久化到 localStorage
+ * 可在非 base 页面单独调用 ConsoleApp.initSidebar() 复用
+ */
+function initSidebar() {
+    var SIDEBAR_KEY = 'console_sidebar_collapsed';
+    var SIDEBAR_EXPANDED = 256;
+    var SIDEBAR_COLLAPSED = 64;
+    var sidebar = document.getElementById('console-sidebar');
+    var handle = document.getElementById('sidebar-handle');
+    var toggleBtn = document.getElementById('sidebar-toggle');
+    var iconExpand = document.getElementById('sidebar-toggle-icon-expand');
+    var iconCollapse = document.getElementById('sidebar-toggle-icon-collapse');
+
+    if (!sidebar) return;
+
+    function isCollapsed() {
+        return localStorage.getItem(SIDEBAR_KEY) === '1';
+    }
+    function setCollapsed(collapsed) {
+        localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+    }
+    function applyState() {
+        var collapsed = isCollapsed();
+        var footerShort = document.getElementById('sidebar-footer-short');
+        if (collapsed) {
+            sidebar.classList.add('sidebar-collapsed');
+            sidebar.style.setProperty('--sidebar-width', SIDEBAR_COLLAPSED + 'px');
+            document.querySelectorAll('.sidebar-text').forEach(function(el) { el.classList.add('hidden'); });
+            var logoText = document.getElementById('sidebar-logo-text');
+            var logoIcon = document.getElementById('sidebar-logo-icon');
+            if (logoText) logoText.classList.add('hidden');
+            if (logoIcon) logoIcon.classList.remove('hidden');
+            if (footerShort) footerShort.classList.remove('hidden');
+            if (iconExpand) iconExpand.classList.remove('hidden');
+            if (iconCollapse) iconCollapse.classList.add('hidden');
+            if (toggleBtn) toggleBtn.title = '展开';
+        } else {
+            sidebar.classList.remove('sidebar-collapsed');
+            sidebar.style.setProperty('--sidebar-width', SIDEBAR_EXPANDED + 'px');
+            document.querySelectorAll('.sidebar-text').forEach(function(el) { el.classList.remove('hidden'); });
+            var logoText = document.getElementById('sidebar-logo-text');
+            var logoIcon = document.getElementById('sidebar-logo-icon');
+            if (logoText) logoText.classList.remove('hidden');
+            if (logoIcon) logoIcon.classList.add('hidden');
+            if (footerShort) footerShort.classList.add('hidden');
+            if (iconExpand) iconExpand.classList.add('hidden');
+            if (iconCollapse) iconCollapse.classList.remove('hidden');
+            if (toggleBtn) toggleBtn.title = '折叠';
+        }
+    }
+    function toggle() {
+        setCollapsed(!isCollapsed());
+        applyState();
+    }
+
+    if (toggleBtn) toggleBtn.addEventListener('click', toggle);
+
+    var dragStartX = 0, dragStartW = 0;
+    if (handle) {
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            dragStartX = e.clientX;
+            dragStartW = isCollapsed() ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', onDragEnd);
+        });
+    }
+    function onDrag(e) {
+        var delta = e.clientX - dragStartX;
+        var newW = Math.max(SIDEBAR_COLLAPSED, Math.min(SIDEBAR_EXPANDED, dragStartW + delta));
+        if (newW <= SIDEBAR_COLLAPSED + 20) {
+            setCollapsed(true);
+            applyState();
+        } else if (newW >= SIDEBAR_EXPANDED - 20) {
+            setCollapsed(false);
+            applyState();
+        }
+    }
+    function onDragEnd() {
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('mouseup', onDragEnd);
+    }
+
+    applyState();
+}
+
+// 命名空间，便于其他页面按需调用
+var ConsoleApp = { initTheme: initTheme, initSidebar: initSidebar };
+
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Add any initialization code here
+    initTheme();
+    initSidebar();
     console.log('Console app initialized');
 });

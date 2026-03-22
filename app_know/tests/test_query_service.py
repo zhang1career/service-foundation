@@ -3,9 +3,7 @@ Tests for logical query service (Atlas + Neo4j combined ranking). Generated.
 Round 2: skills-scoped query test (app_id=skills uses Neo4j pipeline).
 """
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
-
-from common.consts.query_const import LIMIT_LIST
+from unittest.mock import patch
 
 from app_know.repos.summary_repo import QUERY_SEARCH_MAX_LEN
 from app_know.services.query_service import (
@@ -14,6 +12,7 @@ from app_know.services.query_service import (
     _validate_query,
     _validate_limit,
 )
+from common.consts.query_const import LIMIT_LIST
 
 
 class ValidateQueryTest(TestCase):

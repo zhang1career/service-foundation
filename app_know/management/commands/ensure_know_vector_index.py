@@ -11,8 +11,8 @@ Note: knowledge_summaries and knowledge_components are disabled (Atlas account l
 """
 from django.core.management.base import BaseCommand
 
-from app_know.repos.sentence_raw_repo import ensure_sentence_raw_vector_index
 from app_know.repos.deco_repo import ensure_deco_vector_index
+from app_know.repos.sentence_raw_repo import ensure_sentence_raw_vector_index
 
 
 class Command(BaseCommand):

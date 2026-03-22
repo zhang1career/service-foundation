@@ -1,9 +1,11 @@
 # Stage 1: Build Neo4j NVL bundle (same-origin for Web Worker support)
-FROM node:20-alpine AS nvl-builder
+FROM node:20.20-alpine AS nvl-builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 COPY app_console/frontend/ app_console/frontend/
+COPY app_console/templates/ app_console/templates/
+COPY app_console/static/ app_console/static/
 COPY tailwind.config.js ./
 COPY build-nvl.js ./
 RUN npm run build

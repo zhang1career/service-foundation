@@ -4,8 +4,6 @@ Stubbed behavior: no Mongo, validation only.
 """
 from unittest import TestCase
 
-from common.consts.query_const import LIMIT_LIST
-
 from app_know.repos.summary_repo import (
     save_summary,
     get_summary,
@@ -15,6 +13,7 @@ from app_know.repos.summary_repo import (
     SUMMARY_STORAGE_MAX_LEN,
     QUERY_SEARCH_MAX_LEN,
 )
+from common.consts.query_const import LIMIT_LIST
 
 
 class SummaryRepoTest(TestCase):

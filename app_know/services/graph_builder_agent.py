@@ -9,10 +9,9 @@ import time
 import zlib
 from typing import Any, Dict, List, Optional
 
+from app_know.repos import knowledge_point_repo
 from common.drivers.neo4j_driver import Neo4jDriver
 from service_foundation import settings
-
-from app_know.repos import knowledge_point_repo
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +19,8 @@ logger = logging.getLogger(__name__)
 LABEL_SVO_NODE = "svo_entity"
 # 成分分析保存时按成分使用的节点 label（表达式与 Neo4j 统一：主/宾用 svo_core）
 LABEL_SVO_CORE = "svo_core"  # 主语、宾语（核心节点）
-LABEL_SVO_SUB = "svo_sub"    # 兼容旧数据
-LABEL_SVO_OBJ = "svo_obj"    # 兼容旧数据
+LABEL_SVO_SUB = "svo_sub"  # 兼容旧数据
+LABEL_SVO_OBJ = "svo_obj"  # 兼容旧数据
 LABEL_SVO_ATTR = "svo_attr"  # 定语
 LABEL_SVO_COMP = "svo_comp"  # 补语
 # Default app_id for sentence graph (no multi-tenant)
@@ -345,13 +344,13 @@ def _cypher_rel_type(rel_name: str) -> str:
 
 
 def build_graph_expressions(
-    attributive_subject: str = "",
-    subject: str = "",
-    adverbial: str = "",
-    predicate: str = "",
-    attributive_object: str = "",
-    object_name: str = "",
-    complement: str = "",
+        attributive_subject: str = "",
+        subject: str = "",
+        adverbial: str = "",
+        predicate: str = "",
+        attributive_object: str = "",
+        object_name: str = "",
+        complement: str = "",
 ) -> Dict[str, str]:
     """
     Build 图表达式（固定样式）from 成分分析，存入 knowledge 表 g_brief / g_sub / g_obj.
@@ -407,13 +406,13 @@ def build_graph_expressions(
 
 
 def build_components_query_cypher(
-    attributive_subject: str = "",
-    subject: str = "",
-    adverbial: str = "",
-    predicate: str = "",
-    attributive_object: str = "",
-    object_name: str = "",
-    complement: str = "",
+        attributive_subject: str = "",
+        subject: str = "",
+        adverbial: str = "",
+        predicate: str = "",
+        attributive_object: str = "",
+        object_name: str = "",
+        complement: str = "",
 ) -> str:
     """
     生成「成分关系」的完整查询 Cypher：定语(主)-主语-谓语{状语}-定语(宾)-宾语-补语。
@@ -469,15 +468,15 @@ def build_components_query_cypher(
 
 
 def save_components(
-    point_id: int,
-    batch_id: int,
-    attributive_subject: str = "",
-    subject: str = "",
-    adverbial: str = "",
-    predicate: str = "",
-    attributive_object: str = "",
-    object_name: str = "",
-    complement: str = "",
+        point_id: int,
+        batch_id: int,
+        attributive_subject: str = "",
+        subject: str = "",
+        adverbial: str = "",
+        predicate: str = "",
+        attributive_object: str = "",
+        object_name: str = "",
+        complement: str = "",
 ) -> Dict[str, Any]:
     """
     Save 成分分析 to Neo4j. 节点 label：主语 svo_sub、宾语 svo_obj、定语 svo_attr、补语 svo_comp。
@@ -534,7 +533,8 @@ def save_components(
             created_nodes += 1
         if sub_node and obj_node:
             existing_edge = driver.find_an_edge(sub_node, obj_node, predicate_raw)
-            edge_props = {"kid": kid, "bid": bid, "app_id": APP_ID_COMPONENTS, "sp_type": SP_TYPE_PREDICATE, "ut": ut_ms}
+            edge_props = {"kid": kid, "bid": bid, "app_id": APP_ID_COMPONENTS, "sp_type": SP_TYPE_PREDICATE,
+                          "ut": ut_ms}
             if adverbial:
                 edge_props["deco"] = adverbial
             if existing_edge is None:
@@ -555,11 +555,13 @@ def save_components(
         attrib_sub_name = (attributive_subject or "").strip()
         if attrib_sub_name and sub_node:
             attr_sub_node, _ = ensure_node(attrib_sub_name, LABEL_SVO_ATTR, SP_TYPE_ATTRIBUTIVE)
-            created_edges += ensure_edge(attr_sub_node, sub_node, REL_TYPE_ATTRIBUTIVE_TO, SP_TYPE_ATTRIB_TO_SUBJECT_OR_OBJECT)
+            created_edges += ensure_edge(attr_sub_node, sub_node, REL_TYPE_ATTRIBUTIVE_TO,
+                                         SP_TYPE_ATTRIB_TO_SUBJECT_OR_OBJECT)
         attrib_obj_name = (attributive_object or "").strip()
         if attrib_obj_name and obj_node:
             attr_obj_node, _ = ensure_node(attrib_obj_name, LABEL_SVO_ATTR, SP_TYPE_ATTRIBUTIVE)
-            created_edges += ensure_edge(attr_obj_node, obj_node, REL_TYPE_ATTRIBUTIVE_TO, SP_TYPE_ATTRIB_TO_SUBJECT_OR_OBJECT)
+            created_edges += ensure_edge(attr_obj_node, obj_node, REL_TYPE_ATTRIBUTIVE_TO,
+                                         SP_TYPE_ATTRIB_TO_SUBJECT_OR_OBJECT)
         comp_name = (complement or "").strip()
         if comp_name and obj_node:
             comp_node, _ = ensure_node(comp_name, LABEL_SVO_COMP, SP_TYPE_COMPLEMENT)

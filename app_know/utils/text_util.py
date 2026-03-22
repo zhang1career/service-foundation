@@ -32,7 +32,7 @@ def _is_basic_latin_letter(c: str) -> bool:
 
 
 def _decide_join(
-    last_before: Optional[str], first_after: Optional[str], line_before_rstrip: str
+        last_before: Optional[str], first_after: Optional[str], line_before_rstrip: str
 ) -> tuple[str, bool]:
     """
     Returns (separator, remove_trailing_hyphen).

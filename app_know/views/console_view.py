@@ -3,7 +3,6 @@ Console-level APIs for the 观点 (insights) page: approximate query, g_brief to
 """
 import json
 import logging
-from typing import Any, Dict, List
 
 from rest_framework import status as http_status
 from rest_framework.views import APIView
@@ -30,6 +29,7 @@ def _get_request_data(request) -> dict:
                 pass
     return {}
 
+
 from app_know.repos.deco_repo import (
     COLLECTION_SUB_DECO,
     COLLECTION_OBJ_DECO,
@@ -50,7 +50,8 @@ class ApproximateQueryView(APIView):
             if not text:
                 return resp_err("text 必填", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
             if relation_type not in ("active", "passive"):
-                return resp_err("relation_type 须为 active 或 passive", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("relation_type 须为 active 或 passive", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
 
             coll_name = COLLECTION_SUB_DECO if relation_type == "active" else COLLECTION_OBJ_DECO
             field_name = "vec_sub_deco_id" if relation_type == "active" else "vec_obj_deco_id"
@@ -87,7 +88,8 @@ class GBriefToCypherView(APIView):
                 g_brief_list = [g_brief_list] if g_brief_list else []
             cypher = build_cypher_union_from_g_brief_list(g_brief_list)
             if not cypher:
-                return resp_err("无法从 g_brief 解析出有效三元组", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("无法从 g_brief 解析出有效三元组", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
             return resp_ok({"cypher": cypher})
         except Exception as e:
             logger.exception("[GBriefToCypherView] %s", e)

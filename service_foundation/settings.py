@@ -32,7 +32,7 @@ env = load_env(BASE_DIR)
 SECRET_KEY = "django-insecure-l7qc5yniq$_0fe*%e_6zzxw=4k@1q=))v25=q%4w7rj@0-vv5("
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool("DEBUG", default=True)
 
 # Handle ALLOWED_HOSTS configuration
 # Support '*' to allow all hosts (useful for Docker containers)
@@ -95,6 +95,7 @@ MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
     "common.middleware.host_validation_middleware.HostValidationMiddleware",  # Must be before SecurityMiddleware
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -246,8 +247,8 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
-
-STATIC_URL = "static/"
+# Note: STATIC_URL and STATIC_ROOT are set at top of file. Do not override here.
+# STATIC_URL must be '/static/' (absolute) so styles work correctly when page is at /console/ etc.
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

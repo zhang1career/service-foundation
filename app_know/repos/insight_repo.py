@@ -14,11 +14,11 @@ _DB = "know_rw"
 
 
 def create_insight(
-    content: str,
-    type: int = 1,  # INSIGHT_PATH_REASONING
-    status: int = 0,
-    perspective: Optional[int] = None,
-    kid: Optional[int] = None,
+        content: str,
+        type: int = 1,  # INSIGHT_PATH_REASONING
+        status: int = 0,
+        perspective: Optional[int] = None,
+        kid: Optional[int] = None,
 ) -> Insight:
     """Create an insight. kid = knowledge.id (知识点). Returns the created Insight."""
     content = (content or "").strip()
@@ -50,12 +50,12 @@ def get_insight_by_id(iid: int) -> Optional[Insight]:
 
 
 def list_insights(
-    kid: Optional[int] = None,
-    perspective: Optional[int] = None,
-    type: Optional[int] = None,
-    status: Optional[int] = None,
-    offset: int = 0,
-    limit: int = 100,
+        kid: Optional[int] = None,
+        perspective: Optional[int] = None,
+        type: Optional[int] = None,
+        status: Optional[int] = None,
+        offset: int = 0,
+        limit: int = 100,
 ) -> Tuple[List[Insight], int]:
     """List insights with optional filters. Returns (list, total)."""
     if limit <= 0 or limit > LIMIT_LIST:
@@ -70,7 +70,7 @@ def list_insights(
     if status is not None:
         qs = qs.filter(status=status)
     total = qs.count()
-    items = list(qs[offset : offset + limit])
+    items = list(qs[offset: offset + limit])
     return items, total
 
 

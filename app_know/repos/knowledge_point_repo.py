@@ -7,9 +7,9 @@ from typing import List, Optional, Tuple
 
 from django.db.models import Q
 
-from app_know.models import KnowledgePoint
 from app_know.enums.classification_enum import ClassificationEnum
 from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
+from app_know.models import KnowledgePoint
 from common.consts.query_const import LIMIT_LIST
 
 logger = logging.getLogger(__name__)
@@ -18,12 +18,12 @@ _DB = "know_rw"
 
 
 def create_knowledge_point(
-    content: str,
-    batch_id: Optional[int] = None,
-    seq: int = 0,
-    classification: int = 0,
-    stage: int = 0,
-    status: int = 0,
+        content: str,
+        batch_id: Optional[int] = None,
+        seq: int = 0,
+        classification: int = 0,
+        stage: int = 0,
+        status: int = 0,
 ) -> KnowledgePoint:
     """Create a knowledge point. Returns the created KnowledgePoint."""
     if not content or not isinstance(content, str):
@@ -49,9 +49,9 @@ def create_knowledge_point(
 
 
 def batch_create(
-    batch_id: Optional[int],
-    contents: List[str],
-    classifications: Optional[List[int]] = None,
+        batch_id: Optional[int],
+        contents: List[str],
+        classifications: Optional[List[int]] = None,
 ) -> List[KnowledgePoint]:
     """Create knowledge points for a batch. classifications: list of classification ids (int)."""
     if not contents:
@@ -105,11 +105,11 @@ def get_by_id(kid: int) -> Optional[KnowledgePoint]:
 
 
 def list_by_batch(
-    batch_id: int,
-    stage: Optional[int] = None,
-    status: Optional[int] = None,
-    offset: int = 0,
-    limit: int = 100,
+        batch_id: int,
+        stage: Optional[int] = None,
+        status: Optional[int] = None,
+        offset: int = 0,
+        limit: int = 100,
 ) -> Tuple[List[KnowledgePoint], int]:
     """List knowledge points by batch_id."""
     if batch_id is None or not isinstance(batch_id, int) or batch_id <= 0:
@@ -122,7 +122,7 @@ def list_by_batch(
     if status is not None:
         qs = qs.filter(status=status)
     total = qs.count()
-    items = list(qs[offset : offset + limit])
+    items = list(qs[offset: offset + limit])
     return items, total
 
 
@@ -172,9 +172,9 @@ def get_ids_by_batch(batch_id: int) -> List[int]:
 
 
 def list_knowledge_points(
-    batch_id: Optional[int] = None,
-    offset: int = 0,
-    limit: int = 100,
+        batch_id: Optional[int] = None,
+        offset: int = 0,
+        limit: int = 100,
 ) -> Tuple[List[KnowledgePoint], int]:
     """List knowledge points (rows from knowledge table). Optional batch_id filter."""
     if offset < 0:
@@ -187,7 +187,7 @@ def list_knowledge_points(
     else:
         qs = qs.order_by("-ct")
     total = qs.count()
-    items = list(qs[offset : offset + limit])
+    items = list(qs[offset: offset + limit])
     return items, total
 
 
@@ -213,8 +213,8 @@ def delete_by_batch(batch_id: int) -> int:
 
 
 def list_by_vec_deco_ids(
-    field_name: str,
-    mongo_ids: List[str],
+        field_name: str,
+        mongo_ids: List[str],
 ) -> List[KnowledgePoint]:
     """
     List knowledge points by vec_sub_deco_id or vec_obj_deco_id in the given list.

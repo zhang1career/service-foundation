@@ -7,8 +7,6 @@ from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
 
-from common.consts.query_const import LIMIT_LIST
-
 from app_know.repos import (
     get_knowledge_by_id,
     list_knowledge,
@@ -16,6 +14,7 @@ from app_know.repos import (
     update_knowledge,
     delete_knowledge,
 )
+from common.consts.query_const import LIMIT_LIST
 
 
 class KnowledgeRepoTest(TestCase):

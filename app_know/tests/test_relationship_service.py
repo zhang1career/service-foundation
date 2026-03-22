@@ -6,8 +6,6 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from common.consts.query_const import LIMIT_LIST
-
 from app_know.models.relationships import RelationshipQueryResult
 from app_know.services.relationship_service import (
     RelationshipService,
@@ -15,6 +13,7 @@ from app_know.services.relationship_service import (
     ENTITY_TYPE_MAX_LEN,
     ENTITY_ID_MAX_LEN,
 )
+from common.consts.query_const import LIMIT_LIST
 
 
 class RelationshipServiceTest(TestCase):

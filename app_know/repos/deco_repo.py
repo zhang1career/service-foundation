@@ -4,9 +4,8 @@ Used for vector index: build short sentence from graph_subject/graph_object, emb
 """
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from pymongo.errors import ConnectionFailure, PyMongoError
 from bson import ObjectId
 
 from common.drivers.mongo_driver import MongoDriver
@@ -52,10 +51,10 @@ def _get_text_helper() -> TextHelper:
 
 
 def _upsert_deco(
-    coll_name: str,
-    content: str,
-    existing_id: Optional[str],
-    knowledge_id: int,
+        coll_name: str,
+        content: str,
+        existing_id: Optional[str],
+        knowledge_id: int,
 ) -> str:
     """
     Create or update a deco document. If existing_id is set, update that document;
@@ -75,7 +74,8 @@ def _upsert_deco(
         if vec and len(vec) == VEC_DIM:
             doc[KEY_CONTENT_VEC] = vec
         else:
-            logger.warning("[deco_repo] Failed to generate embedding for knowledge_id=%s coll=%s", knowledge_id, coll_name)
+            logger.warning("[deco_repo] Failed to generate embedding for knowledge_id=%s coll=%s", knowledge_id,
+                           coll_name)
     except Exception as e:
         logger.warning("[deco_repo] Embedding error knowledge_id=%s coll=%s: %s", knowledge_id, coll_name, e)
 

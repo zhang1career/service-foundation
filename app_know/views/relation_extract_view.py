@@ -6,9 +6,9 @@ import json
 import logging
 
 from rest_framework import status as http_status
-from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
 
+from app_know.consts import validate_app_id as _validate_app_id
 from app_know.services.relation_extractor import (
     ExtractedRelation,
     store_relation_in_graph,
@@ -16,14 +16,11 @@ from app_know.services.relation_extractor import (
     update_graph_node_name,
     update_graph_relationship_type,
 )
-from app_know.consts import validate_app_id as _validate_app_id
 from common.consts.response_const import (
     RET_RESOURCE_NOT_FOUND,
     RET_MISSING_PARAM,
     RET_INVALID_PARAM,
     RET_DB_ERROR,
-    RET_JSON_PARSE_ERROR,
-    RET_AI_ERROR,
 )
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
@@ -183,7 +180,8 @@ class RelationGraphNodeUpdateView(APIView):
                 return resp_err("cid is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
             ok = update_graph_node_name(cid=cid, name=name or cid, app_id=app_id)
             if not ok:
-                return resp_err("Node not found or update failed", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err("Node not found or update failed", code=RET_RESOURCE_NOT_FOUND,
+                                status=http_status.HTTP_200_OK)
             return resp_ok({"cid": cid, "name": name or cid})
         except ValueError as e:
             return resp_err(str(e), code=_error_code_for_validation(str(e)), status=http_status.HTTP_200_OK)
@@ -217,14 +215,17 @@ class RelationGraphEdgeUpdateView(APIView):
             new_type = (data.get("new_type") or "").strip()
             app_id = _validate_app_id(data.get("app_id", 0))
             if not from_cid or not to_cid:
-                return resp_err("from_cid and to_cid are required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("from_cid and to_cid are required", code=RET_MISSING_PARAM,
+                                status=http_status.HTTP_200_OK)
             if not old_type or not new_type:
-                return resp_err("old_type and new_type are required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("old_type and new_type are required", code=RET_MISSING_PARAM,
+                                status=http_status.HTTP_200_OK)
             ok = update_graph_relationship_type(
                 from_cid=from_cid, to_cid=to_cid, old_type=old_type, new_type=new_type, app_id=app_id
             )
             if not ok:
-                return resp_err("Relationship not found or update failed", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err("Relationship not found or update failed", code=RET_RESOURCE_NOT_FOUND,
+                                status=http_status.HTTP_200_OK)
             return resp_ok({"from": from_cid, "to": to_cid, "type": new_type})
         except ValueError as e:
             return resp_err(str(e), code=_error_code_for_validation(str(e)), status=http_status.HTTP_200_OK)

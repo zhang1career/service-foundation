@@ -1,28 +1,20 @@
 # app_know URL configuration. Generated.
 from django.urls import path
 
-from common.views.atlas_repl_view import AtlasReplView
-from app_know.views.knowledge_view import (
-    KnowledgeListView,
-    KnowledgeListItemsView,
-    KnowledgePointDetailView,
-    KnowledgeDetailView,
-    KnowledgeSomeLikeView,
+from app_know.views.batch_view import (
+    BatchListView,
+    BatchDetailView,
+    BatchCreateTextView,
+    BatchCreateUploadView,
+    BatchAnalyzeView,
 )
-from app_know.views.query_view import LogicalQueryView
-from app_know.views.relation_extract_view import (
-    RelationExtractView,
-    RelationGraphEdgeUpdateView,
-    RelationGraphNodeUpdateView,
-    RelationGraphView,
-    RelationSaveView,
+from app_know.views.console_view import (
+    ApproximateQueryView,
+    GBriefToCypherView,
+    KnowledgeByBriefView,
+    IntegrateViewpointView,
 )
-from app_know.views.relationship_view import RelationshipListView, RelationshipDetailView
-from app_know.views.summary_view import (
-    KnowledgeSummaryView,
-    KnowledgeSummaryListView,
-)
-from app_know.views.sentence_view import SentenceListView
+from app_know.views.dict_view import DictView
 from app_know.views.extract_view import (
     KnowledgeExtractView,
     SentenceGraphView,
@@ -33,27 +25,35 @@ from app_know.views.extract_view import (
     Neo4jCypherView,
     IndexVectorView,
 )
-from app_know.views.perspective_view import PerspectiveListView
-from app_know.views.parse_view import KnowledgeParseView
 from app_know.views.insight_view import (
     InsightListView,
     InsightDetailView,
     InsightGenerateView,
 )
-from app_know.views.batch_view import (
-    BatchListView,
-    BatchDetailView,
-    BatchCreateTextView,
-    BatchCreateUploadView,
-    BatchAnalyzeView,
+from app_know.views.knowledge_view import (
+    KnowledgeListView,
+    KnowledgeListItemsView,
+    KnowledgePointDetailView,
+    KnowledgeDetailView,
+    KnowledgeSomeLikeView,
 )
-from app_know.views.dict_view import DictView
-from app_know.views.console_view import (
-    ApproximateQueryView,
-    GBriefToCypherView,
-    KnowledgeByBriefView,
-    IntegrateViewpointView,
+from app_know.views.parse_view import KnowledgeParseView
+from app_know.views.perspective_view import PerspectiveListView
+from app_know.views.query_view import LogicalQueryView
+from app_know.views.relation_extract_view import (
+    RelationExtractView,
+    RelationGraphEdgeUpdateView,
+    RelationGraphNodeUpdateView,
+    RelationGraphView,
+    RelationSaveView,
 )
+from app_know.views.relationship_view import RelationshipListView, RelationshipDetailView
+from app_know.views.sentence_view import SentenceListView
+from app_know.views.summary_view import (
+    KnowledgeSummaryView,
+    KnowledgeSummaryListView,
+)
+from common.views.atlas_repl_view import AtlasReplView
 
 urlpatterns = [
     path("atlas_repl", AtlasReplView.as_view(), name="atlas-repl"),
@@ -61,11 +61,16 @@ urlpatterns = [
     path("knowledge", KnowledgeListView.as_view(), name="knowledge-list"),
     path("knowledge/items", KnowledgeListItemsView.as_view(), name="knowledge-list-items"),
     path("knowledge/points/<int:point_id>", KnowledgePointDetailView.as_view(), name="knowledge-point-detail"),
-    path("knowledge/points/<int:point_id>/extract_brief", ExtractBriefView.as_view(), name="knowledge-point-extract-brief"),
-    path("knowledge/points/<int:point_id>/analyze_components", AnalyzeComponentsView.as_view(), name="knowledge-point-analyze-components"),
-    path("knowledge/points/<int:point_id>/save_components", SaveComponentsView.as_view(), name="knowledge-point-save-components"),
-    path("knowledge/points/<int:point_id>/build_components_cypher", BuildComponentsCypherView.as_view(), name="knowledge-point-build-components-cypher"),
-    path("knowledge/points/<int:point_id>/index_vector", IndexVectorView.as_view(), name="knowledge-point-index-vector"),
+    path("knowledge/points/<int:point_id>/extract_brief", ExtractBriefView.as_view(),
+         name="knowledge-point-extract-brief"),
+    path("knowledge/points/<int:point_id>/analyze_components", AnalyzeComponentsView.as_view(),
+         name="knowledge-point-analyze-components"),
+    path("knowledge/points/<int:point_id>/save_components", SaveComponentsView.as_view(),
+         name="knowledge-point-save-components"),
+    path("knowledge/points/<int:point_id>/build_components_cypher", BuildComponentsCypherView.as_view(),
+         name="knowledge-point-build-components-cypher"),
+    path("knowledge/points/<int:point_id>/index_vector", IndexVectorView.as_view(),
+         name="knowledge-point-index-vector"),
     path("neo4j_cypher", Neo4jCypherView.as_view(), name="neo4j-cypher"),
     path("console/approximate_query", ApproximateQueryView.as_view(), name="console-approximate-query"),
     path("console/g_brief_to_cypher", GBriefToCypherView.as_view(), name="console-g-brief-to-cypher"),

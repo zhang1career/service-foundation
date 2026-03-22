@@ -7,12 +7,12 @@ import logging
 from rest_framework import status as http_status
 from rest_framework.views import APIView
 
-from app_know.repos.knowledge_point_repo import list_by_batch, get_by_id, update as update_knowledge_point
+from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
+from app_know.enums.stage_enum import StageEnum
 from app_know.repos.deco_repo import upsert_sub_deco, upsert_obj_deco
-from app_know.services.graph_expr_parser import graph_expr_to_sentence
+from app_know.repos.knowledge_point_repo import list_by_batch, get_by_id, update as update_knowledge_point
 from app_know.services.extractor_agent import (
     extract_and_store_for_batch,
-    extract_sentence,
     extract_brief_with_options,
     analyze_components as do_analyze_components,
 )
@@ -26,8 +26,7 @@ from app_know.services.graph_builder_agent import (
     save_components as do_save_components,
     run_cypher_to_graph,
 )
-from app_know.enums.stage_enum import StageEnum
-from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
+from app_know.services.graph_expr_parser import graph_expr_to_sentence
 from common.consts.response_const import RET_INVALID_PARAM, RET_RESOURCE_NOT_FOUND
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
@@ -44,7 +43,8 @@ class KnowledgeExtractView(APIView):
         """
         try:
             if entity_id is None or not isinstance(entity_id, int) or entity_id <= 0:
-                return resp_err("entity_id must be a positive integer", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("entity_id must be a positive integer", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
 
             # entity_id = batch_id
             items, _ = list_by_batch(entity_id, limit=1)
@@ -98,7 +98,8 @@ class ExtractBriefView(APIView):
     def post(self, request, point_id, *args, **kwargs):
         try:
             if point_id is None or not isinstance(point_id, int) or point_id <= 0:
-                return resp_err("point_id must be a positive integer", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("point_id must be a positive integer", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
             point = get_by_id(point_id)
             if not point:
                 return resp_err(
@@ -151,13 +152,15 @@ class AnalyzeComponentsView(APIView):
                 return resp_err("point_id required", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
             point = get_by_id(point_id)
             if not point:
-                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND,
+                                status=http_status.HTTP_200_OK)
             content = (point.content or "").strip()
             if not content:
                 return resp_err("Point content is empty", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
             result = do_analyze_components(content)
             if not result:
-                return resp_err("Analyze failed or AI unavailable", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("Analyze failed or AI unavailable", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
             return resp_ok(result)
         except Exception as e:
             logger.exception("[AnalyzeComponentsView] Error: %s", e)
@@ -173,7 +176,8 @@ class SaveComponentsView(APIView):
                 return resp_err("point_id required", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
             point = get_by_id(point_id)
             if not point:
-                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND,
+                                status=http_status.HTTP_200_OK)
             data = getattr(request, "data", None) or {}
             batch_id = point.batch_id if point.batch_id is not None else 0
             result = do_save_components(
@@ -249,7 +253,8 @@ class SentenceGraphView(APIView):
         """Return Neo4j sentence graph (nodes, edges) for vis-network."""
         try:
             if entity_id is None or not isinstance(entity_id, int) or entity_id <= 0:
-                return resp_err("entity_id must be a positive integer", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("entity_id must be a positive integer", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
 
             items, _ = list_by_batch(entity_id, limit=1)
             if not items:
@@ -297,12 +302,14 @@ class IndexVectorView(APIView):
                 return resp_err("point_id required", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
             point = get_by_id(point_id)
             if not point:
-                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err("Knowledge point not found", code=RET_RESOURCE_NOT_FOUND,
+                                status=http_status.HTTP_200_OK)
 
             gs = (point.graph_subject or "").strip()
             go = (point.graph_object or "").strip()
             if not gs and not go:
-                return resp_err("成分关系为空，请先保存成分关系（graph_subject/graph_object）", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err("成分关系为空，请先保存成分关系（graph_subject/graph_object）", code=RET_INVALID_PARAM,
+                                status=http_status.HTTP_200_OK)
 
             vec_sub_id = getattr(point, "vec_sub_deco_id", None) or ""
             vec_obj_id = getattr(point, "vec_obj_deco_id", None) or ""

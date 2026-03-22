@@ -6,13 +6,12 @@ from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
 
-from common.consts.query_const import LIMIT_LIST
-
 from app_know.services.knowledge_service import (
     KnowledgeService,
     TITLE_MAX_LEN,
     SOURCE_TYPE_MAX_LEN,
 )
+from common.consts.query_const import LIMIT_LIST
 
 
 class KnowledgeServiceTest(TestCase):

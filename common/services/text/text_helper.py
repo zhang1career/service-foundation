@@ -1,9 +1,8 @@
 import os
 from typing import Any
 
-from openai import OpenAI
-
 from common.components.singleton import Singleton
+from common.drivers.openai_driver import OpenAIDriver
 
 # Vector dimension for compatibility with MongoDB index and component_repo.NAME_VEC_DIM
 VEC_DIM = 384
@@ -11,10 +10,8 @@ VEC_DIM = 384
 
 class TextHelper(Singleton):
     def __init__(self):
-        base_url = os.environ.get("AIGC_API_URL", "")
-        api_key = os.environ.get("AIGC_API_KEY", "")
         embedding_model = os.environ.get("AIGC_EMBEDDING_MODEL", "text-embedding-3-small")
-        self._client = OpenAI(base_url=base_url, api_key=api_key)
+        self._client = OpenAIDriver().client
         self._model = embedding_model
 
     def generate_vector(self, text: str) -> list[float]:

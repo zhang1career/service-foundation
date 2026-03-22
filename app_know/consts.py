@@ -32,6 +32,7 @@ def validate_app_id(app_id, default=None) -> int:
     except (TypeError, ValueError):
         raise ValueError("app_id must be an integer")
 
+
 # Sentence classification (Claim / Fact / Event / Concept / Definition / Argument)
 CLASS_CLAIM = "claim"
 CLASS_FACT = "fact"

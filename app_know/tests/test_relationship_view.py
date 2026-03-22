@@ -10,6 +10,10 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, APIClient
 
+from app_know.views.relationship_view import (
+    RelationshipListView,
+    RelationshipDetailView,
+)
 from common.consts.query_const import LIMIT_LIST
 from common.consts.response_const import (
     RET_OK,
@@ -18,11 +22,6 @@ from common.consts.response_const import (
     RET_RESOURCE_NOT_FOUND,
     RET_DB_ERROR,
     RET_JSON_PARSE_ERROR,
-)
-
-from app_know.views.relationship_view import (
-    RelationshipListView,
-    RelationshipDetailView,
 )
 
 
@@ -595,7 +594,8 @@ class RelationshipEndpointIntegrationTest(TestCase):
         client = APIClient()
         response = client.post(
             reverse("relationship-list"),
-            {"app_id": "testapp", "relationship_type": "knowledge_knowledge", "source_knowledge_id": 1, "target_knowledge_id": 2},
+            {"app_id": "testapp", "relationship_type": "knowledge_knowledge", "source_knowledge_id": 1,
+             "target_knowledge_id": 2},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)

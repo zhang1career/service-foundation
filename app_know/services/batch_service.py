@@ -2,10 +2,10 @@
 Batch service: create, delete, analyze operations for batch table.
 """
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
 from app_know.consts import SOURCE_TYPE_FILE, SOURCE_TYPE_INSTANT
-from app_know.repos.batch_repo import create_batch, get_by_id, delete_batch
+from app_know.repos.batch_repo import create_batch, delete_batch
 from app_know.repos.knowledge_point_repo import delete_by_batch
 from app_know.services.parser_agent import parse_and_store
 
@@ -35,8 +35,8 @@ def create_from_text(content: str) -> Dict[str, Any]:
 
 
 def create_from_upload(
-    file_content: str,
-    file_path: Optional[str] = None,
+        file_content: str,
+        file_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create batch from uploaded file. file_path stored in batch.content (for OSS). No sentence split; use 分析 in batch detail."""
     if not file_content:
@@ -62,10 +62,10 @@ def delete_batch_and_knowledge(batch_id: int) -> int:
 
 
 def analyze_batch(
-    batch_id: int,
-    content: str,
-    use_ai_classify: bool = True,
-    write_sentence_raw: bool = True,
+        batch_id: int,
+        content: str,
+        use_ai_classify: bool = True,
+        write_sentence_raw: bool = True,
 ) -> Dict[str, Any]:
     """Split content into sentences, save to knowledge table. Returns sentence count and list."""
     content = (content or "").strip()

@@ -4,8 +4,8 @@ Perspective: code-only constants (no DB). Returns PERSPECTIVE_TYPES for UI.
 from rest_framework.views import APIView
 
 from app_know.consts import PERSPECTIVE_TYPES
-from common.utils.http_util import resp_ok, resp_err
 from common.consts.response_const import RET_INVALID_PARAM
+from common.utils.http_util import resp_ok, resp_err
 
 
 class PerspectiveListView(APIView):

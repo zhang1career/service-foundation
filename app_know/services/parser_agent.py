@@ -2,19 +2,16 @@
 Parser Agent: split text into sentences, classify, write MySQL + sentence_raw.
 Stage 0 (创建): sentence creation with optional classification.
 """
-import json
 import logging
 import os
 import re
-from typing import List, Optional
-
-from common.consts.string_const import EMPTY_STRING
+from typing import List
 
 from app_know.consts import CLASS_CHOICES, CLASS_FACT
-from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
 from app_know.enums.classification_enum import ClassificationEnum
 from app_know.repos import knowledge_point_repo
 from app_know.repos.sentence_raw_repo import delete_by_sentence_ids, save_sentence_raw
+from common.consts.string_const import EMPTY_STRING
 
 logger = logging.getLogger(__name__)
 
@@ -94,10 +91,10 @@ def classify_sentence(sentence: str) -> str:
 
 
 def parse_and_store(
-    batch_id: int,
-    content: str,
-    use_ai_classify: bool = True,
-    write_sentence_raw: bool = True,
+        batch_id: int,
+        content: str,
+        use_ai_classify: bool = True,
+        write_sentence_raw: bool = True,
 ) -> List[dict]:
     """
     Parse content into sentences, optionally classify, store in MySQL + sentence_raw.

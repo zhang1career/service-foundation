@@ -1,0 +1,365 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "对象存储服务 API (app_oss)",
+    "description": "对象存储服务的 S3 兼容 REST API 接口文档。提供本地文件系统存储，接口格式与 AWS S3 兼容。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/oss",
+      "description": "API base path"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "列举存储桶",
+        "description": "ListBuckets 接口，返回所有存储桶列表，响应为 XML 格式。",
+        "operationId": "listBuckets",
+        "responses": {
+          "200": {
+            "description": "成功。返回 ListAllMyBucketsResult XML，包含 Buckets 下的 Bucket 列表（Name、CreationDate）。",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "ListAllMyBucketsResult XML"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/xml": {
+                "schema": { "$ref": "#/components/schemas/S3Error" }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "健康检查",
+        "description": "返回 200 表示服务可用。",
+        "operationId": "headBuckets",
+        "responses": {
+          "200": { "description": "服务正常" }
+        }
+      }
+    },
+    "/{bucket}": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string" },
+          "description": "存储桶名称"
+        }
+      ],
+      "get": {
+        "summary": "列举对象",
+        "description": "ListObjects 接口，支持 ListObjectsV1 (list-type=1) 和 ListObjectsV2 (list-type=2)。响应为 XML 格式，包含 Contents（对象列表）和 CommonPrefixes（目录前缀）。",
+        "operationId": "listObjects",
+        "parameters": [
+          {
+            "name": "list-type",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["1", "2"], "default": "2" },
+            "description": "列举类型：1=ListObjectsV1，2=ListObjectsV2"
+          },
+          {
+            "name": "prefix",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "对象键前缀过滤"
+          },
+          {
+            "name": "delimiter",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "目录分隔符，常用 '/' 实现目录层级"
+          },
+          {
+            "name": "max-keys",
+            "in": "query",
+            "schema": { "type": "integer", "default": 1000, "maximum": 1000 },
+            "description": "单次返回最大对象数"
+          },
+          {
+            "name": "marker",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "ListObjectsV1 分页标记"
+          },
+          {
+            "name": "continuation-token",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "ListObjectsV2 分页延续令牌"
+          },
+          {
+            "name": "start-after",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "ListObjectsV2 起始键，用于分页"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功。返回 ListBucketResult XML，含 Contents（Key、LastModified、ETag、Size、StorageClass）和 CommonPrefixes。",
+            "content": {
+              "application/xml": {
+                "schema": { "type": "string", "description": "ListBucketResult XML" }
+              }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "批量删除对象",
+        "description": "DeleteMultipleObjects 接口。需在查询参数中加 delete=1，请求体为 S3 格式 XML，指定要删除的对象键列表。",
+        "operationId": "deleteMultipleObjects",
+        "parameters": [
+          {
+            "name": "delete",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "必须包含此参数以触发批量删除"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/xml": {
+              "schema": {
+                "type": "string",
+                "description": "Delete 请求 XML，格式示例：<Delete><Object><Key>key1</Key></Object><Object><Key>key2</Key></Object></Delete>"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功。返回 DeleteResult XML，含 Deleted 和 Errors 列表。",
+            "content": {
+              "application/xml": { "schema": { "type": "string", "description": "DeleteResult XML" } }
+            }
+          },
+          "400": {
+            "description": "无效请求（如 XML 格式错误、未指定对象）",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/{bucket}/{key}": {
+      "parameters": [
+        {
+          "name": "bucket",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string" },
+          "description": "存储桶名称"
+        },
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string" },
+          "description": "对象键（路径），可包含 '/' 表示层级"
+        }
+      ],
+      "put": {
+        "summary": "上传或复制对象",
+        "description": "PUT 操作支持两种模式：1) 普通上传：请求体为对象数据；2) 复制对象：带 x-amz-copy-source 头，请求体为空。",
+        "operationId": "putObject",
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "schema": { "type": "string", "default": "application/octet-stream" },
+            "description": "对象内容类型"
+          },
+          {
+            "name": "x-amz-copy-source",
+            "in": "header",
+            "schema": { "type": "string" },
+            "description": "复制源路径，格式：/{source-bucket}/{source-key}，URL 需编码"
+          },
+          {
+            "name": "x-amz-metadata-directive",
+            "in": "header",
+            "schema": { "type": "string", "enum": ["COPY", "REPLACE"], "default": "COPY" },
+            "description": "复制时元数据处理：COPY=沿用源，REPLACE=使用新元数据"
+          },
+          {
+            "name": "x-amz-meta-{key}",
+            "in": "header",
+            "schema": { "type": "string" },
+            "description": "自定义元数据，支持多个 x-amz-meta-* 头"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": { "type": "string", "format": "binary" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功。普通上传返回 ETag 头；复制返回 CopyObjectResult XML（ETag、LastModified）。",
+            "headers": {
+              "ETag": {
+                "schema": { "type": "string" },
+                "description": "对象 ETag（MD5 哈希，带引号）"
+              }
+            },
+            "content": {
+              "application/xml": {
+                "schema": { "type": "string", "description": "复制操作返回 CopyObjectResult XML" }
+              }
+            }
+          },
+          "404": {
+            "description": "复制时源对象不存在",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "下载对象",
+        "description": "GET 操作，返回对象内容。支持 Range 头进行分段下载（206 Partial Content）。",
+        "operationId": "getObject",
+        "parameters": [
+          {
+            "name": "Range",
+            "in": "header",
+            "schema": { "type": "string", "example": "bytes=0-1023" },
+            "description": "Range 请求头，格式：bytes=start-end，用于分段下载"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功，返回对象二进制内容。",
+            "headers": {
+              "Content-Type": { "schema": { "type": "string" }, "description": "对象内容类型" },
+              "Content-Length": { "schema": { "type": "integer" }, "description": "对象大小" },
+              "Last-Modified": { "schema": { "type": "string" }, "description": "最后修改时间（RFC 2822）" },
+              "ETag": { "schema": { "type": "string" }, "description": "对象 ETag" },
+              "x-amz-meta-{key}": { "schema": { "type": "string" }, "description": "自定义元数据" }
+            },
+            "content": {
+              "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "206": {
+            "description": "分段内容（Range 请求）",
+            "headers": {
+              "Content-Range": { "schema": { "type": "string" } }
+            }
+          },
+          "404": {
+            "description": "对象不存在 (NoSuchKey)",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          },
+          "416": {
+            "description": "Range 无效 (InvalidRange)",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "获取对象元数据",
+        "description": "HEAD 操作，返回对象元数据，不返回内容体。",
+        "operationId": "headObject",
+        "responses": {
+          "200": {
+            "description": "成功，响应头含 Content-Type、Content-Length、Last-Modified、ETag、x-amz-meta-*",
+            "headers": {
+              "Content-Type": { "schema": { "type": "string" } },
+              "Content-Length": { "schema": { "type": "integer" } },
+              "Last-Modified": { "schema": { "type": "string" } },
+              "ETag": { "schema": { "type": "string" } }
+            }
+          },
+          "404": {
+            "description": "对象不存在",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除对象",
+        "description": "DELETE 操作，删除指定对象。",
+        "operationId": "deleteObject",
+        "responses": {
+          "204": {
+            "description": "成功，无响应体"
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/xml": { "schema": { "$ref": "#/components/schemas/S3Error" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "S3Error": {
+        "type": "object",
+        "description": "S3 标准错误响应 XML，包含 Code、Message、Resource、RequestId",
+        "properties": {
+          "Code": { "type": "string", "description": "错误码：NoSuchKey、NoSuchBucket、InvalidRequest、InvalidRange、MethodNotAllowed、MalformedXML、InternalError 等" },
+          "Message": { "type": "string", "description": "错误描述" }
+        }
+      }
+    }
+  }
+}

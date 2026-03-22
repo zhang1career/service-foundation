@@ -68,9 +68,9 @@ def generate_path_insights(batch_id: int) -> List[Dict[str, Any]]:
 
 
 def generate_insights_and_store(
-    batch_id: int,
-    perspective: Optional[int] = None,
-    types: Optional[List[int]] = None,
+        batch_id: int,
+        perspective: Optional[int] = None,
+        types: Optional[List[int]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Generate insights for a batch and store in DB. batch_id groups knowledge points.

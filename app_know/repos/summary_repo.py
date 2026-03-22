@@ -20,9 +20,9 @@ SUMMARY_STORAGE_MAX_LEN = 50_000
 
 
 def save_summary(
-    knowledge_id: int,
-    summary: str,
-    app_id: int,
+        knowledge_id: int,
+        summary: str,
+        app_id: int,
 ) -> Dict[str, Any]:
     """
     No-op: knowledge_summaries disabled. Validates inputs, returns stub.
@@ -43,8 +43,8 @@ def save_summary(
 
 
 def get_summary(
-    knowledge_id: int,
-    app_id: Optional[int] = None,
+        knowledge_id: int,
+        app_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     No-op: knowledge_summaries disabled. Always returns None.
@@ -55,10 +55,10 @@ def get_summary(
 
 
 def list_summaries(
-    app_id: Optional[str] = None,
-    knowledge_id: Optional[int] = None,
-    offset: int = 0,
-    limit: int = 100,
+        app_id: Optional[str] = None,
+        knowledge_id: Optional[int] = None,
+        offset: int = 0,
+        limit: int = 100,
 ) -> Tuple[List[Dict[str, Any]], int]:
     """
     No-op: knowledge_summaries disabled. Returns empty list.
@@ -84,9 +84,9 @@ def delete_by_knowledge_id(knowledge_id: int) -> int:
 
 
 def update_summary(
-    knowledge_id: int,
-    app_id: int,
-    summary: Optional[str] = None,
+        knowledge_id: int,
+        app_id: int,
+        summary: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     No-op: knowledge_summaries disabled. Returns None (not found).
@@ -115,9 +115,9 @@ def delete_summary(knowledge_id: int, app_id: int) -> bool:
 
 
 def search_summaries_by_text(
-    query: str,
-    app_id: Optional[int] = None,
-    limit: int = 100,
+        query: str,
+        app_id: Optional[int] = None,
+        limit: int = 100,
 ) -> List[Dict[str, Any]]:
     """
     No-op: knowledge_summaries disabled. Returns empty list.
@@ -145,9 +145,9 @@ def ensure_summary_vector_index() -> bool:
 
 
 def search_summaries_by_vector_filtered(
-    query: str,
-    app_id: Optional[int] = None,
-    top_k: int = 5,
+        query: str,
+        app_id: Optional[int] = None,
+        top_k: int = 5,
 ) -> List[Dict[str, Any]]:
     """
     No-op: knowledge_summaries disabled. Returns empty list.
@@ -156,9 +156,9 @@ def search_summaries_by_vector_filtered(
 
 
 def search_summaries_by_vector(
-    query: str,
-    app_id: Optional[int] = None,
-    limit: int = 10,
+        query: str,
+        app_id: Optional[int] = None,
+        limit: int = 10,
 ) -> List[Dict[str, Any]]:
     """
     No-op: knowledge_summaries disabled. Returns empty list.
