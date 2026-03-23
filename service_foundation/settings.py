@@ -65,6 +65,7 @@ APP_KNOW_ENABLED = env.bool("APP_KNOW_ENABLED", default=True)
 APP_MAILSERVER_ENABLED = env.bool("APP_MAILSERVER_ENABLED", default=True)
 APP_OSS_ENABLED = env.bool("APP_OSS_ENABLED", default=True)
 APP_SNOWFLAKE_ENABLED = env.bool("APP_SNOWFLAKE_ENABLED", default=True)
+APP_CDN_ENABLED = env.bool("APP_CDN_ENABLED", default=True)
 
 # Application definition
 INSTALLED_APPS = [
@@ -90,6 +91,8 @@ if APP_OSS_ENABLED:
     INSTALLED_APPS.append("app_oss")
 if APP_SNOWFLAKE_ENABLED:
     INSTALLED_APPS.append("app_snowflake")
+if APP_CDN_ENABLED:
+    INSTALLED_APPS.append("app_cdn")
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
@@ -204,7 +207,21 @@ DATABASES = {
         "TEST": {
             "NAME": env("DB_SNOWFLAKE_TEST_NAME", default="sf_snowflake_test"),
         },
-    }
+    },
+    "cdn_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_CDN_NAME", default="sf_cdn"),
+        "USER": env("DB_CDN_USER", default="zhang"),
+        "PASSWORD": env("DB_CDN_PASS", default=""),
+        "HOST": env("DB_CDN_HOST", default="127.0.0.1"),
+        "PORT": env("DB_CDN_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_CDN_TEST_NAME", default="sf_cdn_test"),
+        },
+    },
 }
 
 # Dynamically configure database routers based on enabled apps
@@ -213,6 +230,8 @@ if APP_SNOWFLAKE_ENABLED:
     DATABASE_ROUTERS.append("app_snowflake.db_routers.ReadWriteRouter")
 if APP_OSS_ENABLED:
     DATABASE_ROUTERS.append("app_oss.db_routers.ReadWriteRouter")
+if APP_CDN_ENABLED:
+    DATABASE_ROUTERS.append("app_cdn.db_routers.ReadWriteRouter")
 if APP_KNOW_ENABLED:
     DATABASE_ROUTERS.append("app_know.db_routers.ReadWriteRouter")
 
@@ -254,6 +273,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Request body size limit (bytes). Default 100MB for OSS uploads.
+# Required for file-io and other services uploading to /api/oss
+DATA_UPLOAD_MAX_MEMORY_SIZE = env.int("DATA_UPLOAD_MAX_MEMORY_SIZE", default=104857600)
 
 # Build logging config with resilient logfile handler
 _log_handler = env("LOG_HANDLER", default="console")
@@ -347,6 +370,10 @@ LOGGING = {
         },
         "app_know": {
             "level": env("LOG_LEVEL_APP_KNOW", default="INFO"),
+            "handlers": [_log_handler],
+        },
+        "app_cdn": {
+            "level": env("LOG_LEVEL_APP_CDN", default="INFO"),
             "handlers": [_log_handler],
         },
         "common": {

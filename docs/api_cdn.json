@@ -1,0 +1,594 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "CDN 服务 API (app_cdn)",
+    "description": "CDN 服务的 CloudFront 兼容 REST API 接口文档。提供分发（Distribution）管理与缓存失效（Invalidation）功能，接口格式与 AWS CloudFront API 兼容。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/cdn/2020-05-31",
+      "description": "API base path (CloudFront API 版本前缀)"
+    }
+  ],
+  "paths": {
+    "/distribution": {
+      "get": {
+        "summary": "列举分发",
+        "description": "ListDistributions - 返回所有 CDN 分发列表，支持分页。",
+        "operationId": "listDistributions",
+        "parameters": [
+          {
+            "name": "Marker",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "分页标记，从上一页的 NextMarker 获取"
+          },
+          {
+            "name": "MaxItems",
+            "in": "query",
+            "schema": { "type": "integer", "default": 100 },
+            "description": "单次返回最大数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功。返回 DistributionList，包含 Items（分发摘要列表）、IsTruncated、NextMarker、Quantity 等。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DistributionListResponse" }
+              }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建分发",
+        "description": "CreateDistribution - 创建新的 CDN 分发。需提供 CallerReference（唯一标识）及 Origins 等配置。",
+        "operationId": "createDistribution",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDistributionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功。返回 Distribution 对象。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DistributionResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "请求无效（如缺少 CallerReference、请求体为空）",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/distribution/{distribution_id}": {
+      "parameters": [
+        {
+          "name": "distribution_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "example": "E1234ABCD" },
+          "description": "分发 ID（CloudFront 格式，如 E1234ABCD）"
+        }
+      ],
+      "get": {
+        "summary": "获取分发详情",
+        "description": "GetDistribution - 根据 ID 获取单个分发的完整信息。",
+        "operationId": "getDistribution",
+        "responses": {
+          "200": {
+            "description": "成功。返回 Distribution 对象（含 Id、Status、DomainName、Origins、ETag、LastModified 等）。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DistributionResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "分发不存在 (NoSuchDistribution)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除分发",
+        "description": "DeleteDistribution - 删除指定分发。可选 If-Match 头用于乐观锁（ETag 校验）。",
+        "operationId": "deleteDistribution",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": { "type": "string" },
+            "description": "ETag，用于条件删除，不匹配则返回 412"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功。返回 { message: \"Distribution deleted\" }。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "message": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "分发不存在 (NoSuchDistribution)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "412": {
+            "description": "ETag 不匹配 (PreconditionFailed)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/distribution/{distribution_id}/config": {
+      "parameters": [
+        {
+          "name": "distribution_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "example": "E1234ABCD" },
+          "description": "分发 ID"
+        }
+      ],
+      "get": {
+        "summary": "获取分发配置",
+        "description": "GetDistributionConfig - 获取分发的配置（用于更新前的查看）。",
+        "operationId": "getDistributionConfig",
+        "responses": {
+          "200": {
+            "description": "成功。返回 { DistributionConfig: {...} }，包含 Origins、DefaultCacheBehavior、Aliases、Comment、Enabled 等。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "DistributionConfig": { "$ref": "#/components/schemas/DistributionConfig" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "分发不存在 (NoSuchDistribution)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "更新分发配置",
+        "description": "UpdateDistribution - 更新分发配置。可选 If-Match 头用于 ETag 乐观锁。",
+        "operationId": "updateDistribution",
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": { "type": "string" },
+            "description": "ETag，用于条件更新，不匹配则返回 412"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DistributionConfig" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功。返回完整 Distribution 对象。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DistributionResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "请求无效（如请求体为空）",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "分发不存在 (NoSuchDistribution)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "412": {
+            "description": "ETag 不匹配 (PreconditionFailed)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/distribution/{distribution_id}/invalidation": {
+      "parameters": [
+        {
+          "name": "distribution_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "example": "E1234ABCD" },
+          "description": "分发 ID"
+        }
+      ],
+      "get": {
+        "summary": "列举失效请求",
+        "description": "ListInvalidations - 列举指定分发的缓存失效请求列表，支持分页。",
+        "operationId": "listInvalidations",
+        "parameters": [
+          {
+            "name": "Marker",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "分页标记"
+          },
+          {
+            "name": "MaxItems",
+            "in": "query",
+            "schema": { "type": "integer", "default": 100 },
+            "description": "单次返回最大数量"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功。返回 InvalidationList，包含 Items（失效摘要列表）、IsTruncated、NextMarker、Quantity 等。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InvalidationListResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "分发不存在 (NoSuchDistribution)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建失效请求",
+        "description": "CreateInvalidation - 为指定路径创建缓存失效请求。CallerReference 必填且需唯一。Paths.Items 默认 [\"/*\"] 表示全部失效。",
+        "operationId": "createInvalidation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateInvalidationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功。返回 Invalidation 对象（含 Id、Status、CreateTime、InvalidationBatch）。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InvalidationResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "请求无效（如缺少 CallerReference、请求体为空）",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "分发不存在 (NoSuchDistribution)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/distribution/{distribution_id}/invalidation/{invalidation_id}": {
+      "parameters": [
+        {
+          "name": "distribution_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "example": "E1234ABCD" },
+          "description": "分发 ID"
+        },
+        {
+          "name": "invalidation_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "example": "I1234ABCD" },
+          "description": "失效请求 ID（CloudFront 格式，如 I1234ABCD）"
+        }
+      ],
+      "get": {
+        "summary": "获取失效请求详情",
+        "description": "GetInvalidation - 根据 ID 获取单个缓存失效请求的详情。",
+        "operationId": "getInvalidation",
+        "responses": {
+          "200": {
+            "description": "成功。返回 Invalidation 对象（含 Id、Status、CreateTime、InvalidationBatch 的 Paths 和 CallerReference）。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InvalidationResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "失效请求不存在 (NoSuchInvalidation)",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "内部错误",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "description": "统一错误响应（与 common.pojo.Response 对应）",
+        "properties": {
+          "errorCode": { "type": "integer", "description": "错误码，0 表示成功" },
+          "data": { "type": "object", "nullable": true },
+          "message": { "type": "string", "description": "错误信息（如 NoSuchDistribution、PreconditionFailed 等）" }
+        }
+      },
+      "DistributionSummary": {
+        "type": "object",
+        "properties": {
+          "Id": { "type": "string" },
+          "ARN": { "type": "string" },
+          "Status": { "type": "string", "enum": ["Deployed", "InProgress"] },
+          "DomainName": { "type": "string" },
+          "Aliases": { "type": "object", "properties": { "Quantity": { "type": "integer" }, "Items": { "type": "array", "items": { "type": "string" } } } },
+          "Origins": { "type": "object" },
+          "DefaultCacheBehavior": { "type": "object" },
+          "Comment": { "type": "string" },
+          "Enabled": { "type": "boolean" }
+        }
+      },
+      "Distribution": {
+        "allOf": [
+          { "$ref": "#/components/schemas/DistributionSummary" },
+          {
+            "type": "object",
+            "properties": {
+              "ETag": { "type": "string" },
+              "LastModified": { "type": "string", "format": "date-time", "description": "ISO 8601 格式" }
+            }
+          }
+        ]
+      },
+      "DistributionListResponse": {
+        "type": "object",
+        "description": "listDistributions 成功时的 data 字段",
+        "properties": {
+          "DistributionList": {
+            "type": "object",
+            "properties": {
+              "IsTruncated": { "type": "boolean" },
+              "Marker": { "type": "string" },
+              "NextMarker": { "type": "string" },
+              "MaxItems": { "type": "integer" },
+              "Quantity": { "type": "integer" },
+              "Items": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/DistributionSummary" }
+              }
+            }
+          }
+        }
+      },
+      "DistributionResponse": {
+        "type": "object",
+        "properties": {
+          "Distribution": { "$ref": "#/components/schemas/Distribution" }
+        }
+      },
+      "DistributionConfig": {
+        "type": "object",
+        "properties": {
+          "CallerReference": { "type": "string" },
+          "Origins": {
+            "type": "object",
+            "properties": {
+              "Quantity": { "type": "integer" },
+              "Items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "Id": { "type": "string" },
+                    "DomainName": { "type": "string" },
+                    "CustomOriginConfig": {
+                      "type": "object",
+                      "properties": {
+                        "HTTPPort": { "type": "integer" },
+                        "HTTPSPort": { "type": "integer" },
+                        "OriginProtocolPolicy": { "type": "string", "enum": ["http-only", "https-only", "match-viewer"] }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "DefaultCacheBehavior": { "type": "object", "properties": { "TargetOriginId": { "type": "string" } } },
+          "Comment": { "type": "string" },
+          "Enabled": { "type": "boolean" },
+          "Aliases": {
+            "type": "object",
+            "properties": {
+              "Quantity": { "type": "integer" },
+              "Items": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "CreateDistributionRequest": {
+        "allOf": [{ "$ref": "#/components/schemas/DistributionConfig" }],
+        "description": "创建分发请求体，CallerReference 必填"
+      },
+      "InvalidationSummary": {
+        "type": "object",
+        "properties": {
+          "Id": { "type": "string" },
+          "Status": { "type": "string", "enum": ["InProgress", "Completed"] },
+          "CreateTime": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Invalidation": {
+        "type": "object",
+        "properties": {
+          "Id": { "type": "string" },
+          "Status": { "type": "string" },
+          "CreateTime": { "type": "string" },
+          "InvalidationBatch": {
+            "type": "object",
+            "properties": {
+              "CallerReference": { "type": "string" },
+              "Paths": {
+                "type": "object",
+                "properties": {
+                  "Quantity": { "type": "integer" },
+                  "Items": { "type": "array", "items": { "type": "string" }, "description": "如 [\"/*\"] 表示全部失效" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "InvalidationListResponse": {
+        "type": "object",
+        "properties": {
+          "InvalidationList": {
+            "type": "object",
+            "properties": {
+              "IsTruncated": { "type": "boolean" },
+              "Marker": { "type": "string" },
+              "NextMarker": { "type": "string" },
+              "MaxItems": { "type": "integer" },
+              "Quantity": { "type": "integer" },
+              "Items": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/InvalidationSummary" }
+              }
+            }
+          }
+        }
+      },
+      "InvalidationResponse": {
+        "type": "object",
+        "properties": {
+          "Invalidation": { "$ref": "#/components/schemas/Invalidation" }
+        }
+      },
+      "CreateInvalidationRequest": {
+        "type": "object",
+        "required": ["InvalidationBatch"],
+        "properties": {
+          "InvalidationBatch": {
+            "type": "object",
+            "required": ["CallerReference"],
+            "properties": {
+              "CallerReference": { "type": "string", "description": "必填，唯一标识本次失效请求" },
+              "Paths": {
+                "type": "object",
+                "properties": {
+                  "Quantity": { "type": "integer" },
+                  "Items": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": ["/*"],
+                    "description": "要失效的路径列表，[\"/*\"] 表示全部"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

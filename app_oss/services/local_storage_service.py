@@ -57,11 +57,15 @@ class LocalStorageService:
         return hash_md5.hexdigest()
 
     def _save_metadata(self, bucket_name: str, object_key: str, metadata: Dict[str, Any]):
-        """Save object metadata to MySQL database"""
+        """Save object metadata to MySQL database (sf_oss.m table)"""
         try:
             Metadata.save_metadata_dict(bucket_name, object_key, metadata)
+            logger.debug(f"[_save_metadata] Saved to sf_oss.m: {bucket_name}/{object_key}")
         except Exception as e:
-            logger.error(f"Failed to save metadata for {bucket_name}/{object_key}: {e}")
+            logger.error(
+                f"[_save_metadata] Failed to save metadata for {bucket_name}/{object_key} to sf_oss.m: {e}",
+                exc_info=True,
+            )
             raise
 
     def _load_metadata(self, bucket_name: str, object_key: str) -> Optional[Dict[str, Any]]:
@@ -161,6 +165,8 @@ class LocalStorageService:
         stat = object_path.stat()
         last_modified = datetime.fromtimestamp(stat.st_mtime)
 
+        logger.info(f"[get_object] Retrieved {bucket_name}/{object_key}, size={len(data)}")
+
         return {
             'Body': data,
             'ContentType': metadata.get('ContentType', 'application/octet-stream'),
@@ -230,6 +236,8 @@ class LocalStorageService:
         # Load metadata
         metadata = self._load_metadata(bucket_name, object_key) or {}
         stat = object_path.stat()
+
+        logger.debug(f"[head_object] Metadata for {bucket_name}/{object_key}, size={stat.st_size}")
 
         return {
             'ContentType': metadata.get('ContentType', 'application/octet-stream'),

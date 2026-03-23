@@ -13,6 +13,8 @@ from app_console.views import (
     MailboxListView,
     OssBrowserView,
     SnowflakeView,
+    CdnDistributionListView,
+    CdnDistributionDetailView,
 )
 
 app_name = 'console'
@@ -39,4 +41,8 @@ urlpatterns = [
 
     # Snowflake ID generator
     path('snowflake/', SnowflakeView.as_view(), name='snowflake'),
+
+    # CDN management
+    path('cdn/', CdnDistributionListView.as_view(), name='cdn-distributions'),
+    path('cdn/distributions/<str:distribution_id>/', CdnDistributionDetailView.as_view(), name='cdn-distribution-detail'),
 ]

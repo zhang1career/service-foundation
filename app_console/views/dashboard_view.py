@@ -8,6 +8,12 @@ class DashboardView(TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['apps'] = {
+            'cdn': {
+                'name': 'CDN 分发',
+                'enabled': getattr(settings, 'APP_CDN_ENABLED', False),
+                'description': 'CloudFront 兼容的 CDN 分发与缓存失效管理',
+                'icon': 'globe',
+            },
             'know': {
                 'name': '知识管理',
                 'enabled': getattr(settings, 'APP_KNOW_ENABLED', False),

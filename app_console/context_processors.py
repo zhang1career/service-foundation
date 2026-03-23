@@ -42,5 +42,11 @@ def console_context(request):
                 'description': '分布式 ID 生成服务',
                 'icon': 'hash',
             },
+            'cdn': {
+                'name': 'CDN 分发',
+                'enabled': getattr(settings, 'APP_CDN_ENABLED', False),
+                'description': 'CloudFront 兼容的 CDN 分发与缓存失效管理',
+                'icon': 'globe',
+            },
         }
     }

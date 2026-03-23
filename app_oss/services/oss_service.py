@@ -34,6 +34,8 @@ def handle_copy(request, bucket: str, key: str, copy_source: str):
         if not source_key:
             return s3_error_response('InvalidRequest', 'Invalid x-amz-copy-source: missing key', resource=f'/{bucket}/{key}')
 
+        logger.info("[handle_copy] CopyObject request source=%s dest=%s/%s", copy_source, bucket, key)
+
         # Get metadata directive (COPY or REPLACE)
         metadata_directive = request.META.get('HTTP_X_AMZ_METADATA_DIRECTIVE', 'COPY').upper()
         if metadata_directive not in ['COPY', 'REPLACE']:
@@ -106,6 +108,7 @@ def handle_copy(request, bucket: str, key: str, copy_source: str):
 </CopyObjectResult>'''
 
         response = HttpResponse(xml_response, content_type='application/xml', status=200)
+        logger.info("[handle_copy] Copy completed source=%s dest=%s/%s", copy_source, bucket, key)
         return response
 
     except ObjectNotFoundException as e:
@@ -129,7 +132,13 @@ def handle_upload(request, bucket: str, key: str):
         # URL decode bucket and key in case they're encoded
         bucket = unquote(bucket) if bucket else bucket
         key = unquote(key) if key else key
-        
+
+        data = request.body
+        logger.info(
+            "[handle_upload] PUT request received bucket=%s key=%s size=%d",
+            bucket, key, len(data),
+        )
+
         # Validate parameters
         if not bucket:
             return s3_error_response('InvalidRequest', 'Bucket name is required', resource=f'/{bucket or ""}/{key or ""}')
@@ -137,9 +146,6 @@ def handle_upload(request, bucket: str, key: str):
             return s3_error_response('InvalidRequest', 'Object key is required', resource=f'/{bucket}/{key or ""}')
         
         client = OSSClient()
-
-        # Read request body
-        data = request.body
 
         # Get content type from headers
         content_type = request.META.get('CONTENT_TYPE', 'application/octet-stream')
@@ -167,8 +173,9 @@ def handle_upload(request, bucket: str, key: str):
         response = HttpResponse(status=200)
         if 'ETag' in result:
             response['ETag'] = f'"{result["ETag"]}"'
+        logger.info("[handle_upload] Upload completed bucket=%s key=%s etag=%s", bucket, key, result.get('ETag', ''))
         return response
-    
+
     except Exception as e:
         logger.exception(f"[handle_upload] Error uploading {bucket}/{key}: {e}")
         return s3_error_response('InternalError', str(e), resource=f'/{bucket}/{key}')

@@ -44,3 +44,7 @@ if settings.APP_SNOWFLAKE_ENABLED:
 if settings.APP_KNOW_ENABLED:
     from app_know import urls as app_know_urls
     urlpatterns.append(path('api/know/', include(app_know_urls)))
+
+if settings.APP_CDN_ENABLED:
+    from app_cdn import urls as app_cdn_urls
+    urlpatterns.append(path('api/cdn/2020-05-31/', include(app_cdn_urls)))

@@ -1,0 +1,257 @@
+{% extends 'console/base.html' %}
+
+{% block title %}CDN 分发详情{% endblock %}
+{% block page_title %}CDN 分发详情{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'console:cdn-distributions' %}" class="text-blue-600 hover:underline flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+        返回分发列表
+    </a>
+</div>
+
+<div id="detail-loading" class="card">
+    <div class="card-body p-8 text-center text-gray-500">
+        <div class="spinner"></div>
+        <p class="mt-2">加载中...</p>
+    </div>
+</div>
+
+<div id="detail-content" class="hidden">
+    <!-- Distribution Info -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold">分发信息</h2>
+        </div>
+        <div class="card-body" id="distribution-info"></div>
+    </div>
+
+    <!-- Content Delivery URL -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold">内容访问地址</h2>
+        </div>
+        <div class="card-body">
+            <p class="text-sm text-gray-500 mb-2">通过 CDN 访问内容（缓存 + 流量转发），请求路径格式：</p>
+            <div class="bg-gray-50 rounded p-3 font-mono text-sm break-all mb-2">
+                <span class="text-gray-500">GET</span> <code id="content-url-pattern"></code>
+            </div>
+            <p class="text-sm text-gray-500">示例：<code id="content-url-example" class="text-xs"></code></p>
+        </div>
+    </div>
+
+    <!-- Create Invalidation -->
+    <div class="card mb-6">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold">创建缓存失效</h2>
+            <button onclick="openInvalidationModal()" class="btn btn-primary btn-sm">新建失效</button>
+        </div>
+        <div class="card-body">
+            <p class="text-sm text-gray-500 mb-4">使指定路径的缓存失效，常用 <code>/*</code> 表示全部失效</p>
+        </div>
+    </div>
+
+    <!-- Invalidation List -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold">失效记录</h2>
+        </div>
+        <div class="card-body p-0">
+            <div id="invalidation-list"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Invalidation Modal -->
+<div id="invalidation-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold">创建缓存失效</h3>
+        </div>
+        <form id="invalidation-form">
+            {% csrf_token %}
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="invalidation-paths">路径列表 *（每行一个）</label>
+                    <textarea id="invalidation-paths" name="paths" class="form-input" rows="4" required placeholder="/&#42;&#10;/images/&#42;&#10;/static/&#42;">/*</textarea>
+                    <p class="text-sm text-gray-500 mt-1">常用 /* 表示所有路径，或指定如 /images/*、/static/*</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeInvalidationModal()" class="btn btn-outline">取消</button>
+                <button type="submit" class="btn btn-primary" id="invalidation-submit-btn">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_BASE = '{{ cdn_api_base }}';
+const DISTRIBUTION_ID = '{{ distribution_id }}';
+const DIST_API = API_BASE + '/distribution/' + encodeURIComponent(DISTRIBUTION_ID);
+const INVALIDATION_API = DIST_API + '/invalidation';
+
+function escapeHtml(s) {
+    if (!s) return '';
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+}
+
+async function loadDetail() {
+    try {
+        const response = await fetch(DIST_API);
+        const json = await response.json();
+        if (json.errorCode !== 0 || !json.data || !json.data.Distribution) {
+            throw new Error(json.message || '加载失败');
+        }
+        const dist = json.data.Distribution;
+        document.getElementById('detail-loading').classList.add('hidden');
+        document.getElementById('detail-content').classList.remove('hidden');
+
+        const info = document.getElementById('distribution-info');
+        const aliases = (dist.Aliases && dist.Aliases.Items) ? dist.Aliases.Items : [];
+        const origins = (dist.Origins && dist.Origins.Items) ? dist.Origins.Items : [];
+        info.innerHTML = `
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><dt class="text-sm text-gray-500">ID</dt><dd><code>${escapeHtml(dist.Id || '-')}</code></dd></div>
+                <div><dt class="text-sm text-gray-500">域名</dt><dd>${escapeHtml(dist.DomainName || '-')}</dd></div>
+                <div><dt class="text-sm text-gray-500">状态</dt><dd><span class="badge ${dist.Status === 'Deployed' ? 'badge-success' : 'badge-warning'}">${escapeHtml(dist.Status || '-')}</span></dd></div>
+                <div><dt class="text-sm text-gray-500">已启用</dt><dd>${dist.Enabled ? '是' : '否'}</dd></div>
+                <div class="md:col-span-2"><dt class="text-sm text-gray-500">别名 (CNAME)</dt><dd>${aliases.length ? aliases.join(', ') : '-'}</dd></div>
+                <div class="md:col-span-2"><dt class="text-sm text-gray-500">源站</dt><dd>${origins.map(o => o.DomainName).join(', ') || '-'}</dd></div>
+                <div class="md:col-span-2"><dt class="text-sm text-gray-500">备注</dt><dd>${escapeHtml(dist.Comment || '-')}</dd></div>
+            </dl>
+        `;
+
+        const base = window.location.origin + API_BASE;
+        const distId = dist.Id || DISTRIBUTION_ID;
+        document.getElementById('content-url-pattern').textContent = base + '/d/' + distId + '/{path}';
+        document.getElementById('content-url-example').textContent = base + '/d/' + distId + '/images/photo.jpg';
+
+        loadInvalidations();
+    } catch (error) {
+        document.getElementById('detail-loading').innerHTML = `
+            <div class="card-body p-8 text-center text-red-500">
+                <p>加载失败: ${escapeHtml(error.message)}</p>
+                <a href="/console/cdn/" class="btn btn-outline btn-sm mt-4">返回列表</a>
+            </div>
+        `;
+    }
+}
+
+async function loadInvalidations() {
+    const container = document.getElementById('invalidation-list');
+    try {
+        const response = await fetch(INVALIDATION_API);
+        const json = await response.json();
+        if (json.errorCode !== 0) {
+            throw new Error(json.message || '加载失败');
+        }
+        const list = (json.data && json.data.InvalidationList) || {};
+        const items = list.Items || [];
+
+        if (items.length > 0) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>失效 ID</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            items.forEach(item => {
+                const statusCls = item.Status === 'Completed' ? 'badge-success' : (item.Status === 'InProgress' ? 'badge-info' : 'badge-secondary');
+                html += `<tr>
+                    <td><code class="text-xs">${escapeHtml(item.Id || '-')}</code></td>
+                    <td><span class="badge ${statusCls}">${escapeHtml(item.Status || '-')}</span></td>
+                    <td>${escapeHtml(item.CreateTime || '-')}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div class="p-8 text-center text-gray-500">
+                    <p>暂无失效记录</p>
+                    <p class="text-sm mt-1">点击「新建失效」创建缓存失效</p>
+                </div>`;
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="p-8 text-center text-red-500">
+            <p>加载失效记录失败: ${escapeHtml(error.message)}</p>
+            <button onclick="loadInvalidations()" class="btn btn-outline btn-sm mt-2">重试</button>
+        </div>`;
+    }
+}
+
+function openInvalidationModal() {
+    document.getElementById('invalidation-form').reset();
+    document.getElementById('invalidation-paths').value = '/*';
+    document.getElementById('invalidation-modal').classList.remove('hidden');
+}
+
+function closeInvalidationModal() {
+    document.getElementById('invalidation-modal').classList.add('hidden');
+}
+
+document.getElementById('invalidation-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const pathsText = document.getElementById('invalidation-paths').value.trim();
+    const paths = pathsText.split(/\n/).map(s => s.trim()).filter(Boolean);
+    if (paths.length === 0) {
+        showToast('请输入至少一个路径', 'error');
+        return;
+    }
+
+    const callerRef = 'console-inv-' + Date.now();
+    const body = {
+        InvalidationBatch: {
+            CallerReference: callerRef,
+            Paths: { Items: paths, Quantity: paths.length }
+        }
+    };
+
+    const btn = document.getElementById('invalidation-submit-btn');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '创建中...';
+    try {
+        const response = await fetch(INVALIDATION_API, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(body)
+        });
+        const json = await response.json();
+        if (json.errorCode === 0 && json.data && json.data.Invalidation) {
+            closeInvalidationModal();
+            showToast('创建成功', 'success');
+            loadInvalidations();
+        } else {
+            throw new Error(json.message || '创建失败');
+        }
+    } catch (err) {
+        showToast(err.message || '创建失败', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
+    }
+});
+
+document.getElementById('invalidation-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeInvalidationModal();
+});
+
+document.addEventListener('DOMContentLoaded', loadDetail);
+</script>
+{% endblock %}

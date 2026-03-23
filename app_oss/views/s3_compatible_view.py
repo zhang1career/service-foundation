@@ -42,8 +42,10 @@ class S3PutObjectView(APIView):
             # Check if this is a copy operation
             copy_source = request.META.get('HTTP_X_AMZ_COPY_SOURCE')
             if copy_source:
+                logger.info("[S3PutObject] Copy operation bucket=%s key=%s copy_source=%s", bucket, key, copy_source)
                 return handle_copy(request, bucket, key, copy_source)
             else:
+                logger.info("[S3PutObject] Upload operation bucket=%s key=%s", bucket, key)
                 return handle_upload(request, bucket, key)
 
         except Exception as e:
@@ -67,9 +69,12 @@ class S3GetObjectView(APIView):
             # Handle Range request
             range_header = request.META.get('HTTP_RANGE')
             if range_header:
+                logger.info("[S3GetObject] Range request bucket=%s key=%s range=%s", bucket, key, range_header)
                 return _build_range_response(result, range_header, resource)
+            logger.info("[S3GetObject] GET success bucket=%s key=%s size=%d", bucket, key, result.get('ContentLength', 0))
             return _build_response(result)
         except (FileNotFoundError, ObjectNotFoundException):
+            logger.warning("[S3GetObject] NoSuchKey bucket=%s key=%s", bucket, key)
             return s3_error_response('NoSuchKey', resource=resource)
         except Exception as e:
             logger.exception(f"[S3GetObjectView] Error downloading {bucket}/{key}: {e}")
@@ -98,6 +103,7 @@ class S3DeleteObjectView(APIView):
             )
 
             # Return S3-compatible response (204 No Content)
+            logger.info("[S3DeleteObject] DELETE success bucket=%s key=%s", bucket, key)
             return HttpResponse(status=204)
 
         except Exception as e:
@@ -126,8 +132,10 @@ class S3HeadObjectView(APIView):
                 object_key=key
             )
             # Return S3-compatible response
+            logger.debug("[S3HeadObject] HEAD success bucket=%s key=%s", bucket, key)
             return _build_response(result)
         except (FileNotFoundError, ObjectNotFoundException):
+            logger.warning("[S3HeadObject] NoSuchKey bucket=%s key=%s", bucket, key)
             return s3_error_response('NoSuchKey', resource=f'/{bucket}/{key}')
         except Exception as e:
             logger.exception(f"[S3HeadObjectView] Error getting metadata for {bucket}/{key}: {e}")

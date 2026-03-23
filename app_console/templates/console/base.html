@@ -33,7 +33,19 @@
                             <span class="sidebar-text ml-3 whitespace-nowrap">仪表盘</span>
                         </a>
                     </li>
-                    
+
+                    {% if apps.cdn.enabled %}
+                    <li>
+                        <a href="{% url 'console:cdn-distributions' %}"
+                           class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if 'cdn' in request.path %}bg-gray-700{% endif %}" title="CDN 分发">
+                            <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0h.5a2.5 2.5 0 002.5-2.5V8m-6.5 12.06V16.5a2.5 2.5 0 002.5-2.5V12M20.945 13H19a2 2 0 00-2 2v1a2 2 0 01-2 2 2 2 0 01-2-2v-2.945M16 20.065V19a2 2 0 012-2h2a2 2 0 012 2v1.065"></path>
+                            </svg>
+                            <span class="sidebar-text ml-3 whitespace-nowrap">CDN 分发</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
                     {% if apps.know.enabled %}
                     <li>
                         <a href="{% url 'console:know-batch-list' %}" 
