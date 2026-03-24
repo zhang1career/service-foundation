@@ -70,7 +70,7 @@ class DistributionDetailView(APIView):
                     "NoSuchDistribution",
                     status=http_status.HTTP_404_NOT_FOUND,
                 )
-            return resp_ok(result)
+            return resp_ok({"Distribution": result})
         except Exception as e:
             logger.exception("[DistributionDetailView.get] %s", e)
             return resp_exception(e)

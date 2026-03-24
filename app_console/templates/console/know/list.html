@@ -91,15 +91,16 @@ async function loadKnowledgeList() {
             items.forEach(item => {
                 const pointDetailUrl = '/console/know/points/' + item.id + '/';
                 const contentPreview = item.content_preview || item.content || '-';
+                const contentTitle = item.content != null && item.content !== '' ? String(item.content) : String(contentPreview);
                 const batchId = item.batch_id != null && item.batch_id !== '' ? item.batch_id : null;
                 const batchDetailUrl = batchId !== null ? '/console/know/batches/' + batchId + '/' : '';
                 const batchIdCell = batchId !== null
                     ? listTitleCell(String(batchId), batchDetailUrl, '')
                     : '<td>-</td>';
                 html += `<tr>
-                    <td>${escapeHtml(String(item.id))}</td>
+                    ${listIdCell(item.id, pointDetailUrl)}
                     ${batchIdCell}
-                    ${listTitleCell(contentPreview, pointDetailUrl, 'font-medium max-w-md')}
+                    ${listPlainCell(contentPreview, 'font-medium max-w-md', contentTitle)}
                     <td>${escapeHtml(item.classification_label != null ? item.classification_label : (item.classification != null ? String(item.classification) : '-'))}</td>
                     <td>${escapeHtml(String(item.seq != null ? item.seq : '-'))}</td>
                     ${listActions({ id: item.id, onEdit: 'editKnowledgePoint', onDelete: 'deleteKnowledgePoint' })}

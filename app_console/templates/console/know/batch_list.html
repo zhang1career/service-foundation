@@ -138,9 +138,9 @@ async function loadBatchList() {
                 const actionOpts = { id: item.id, onDelete: 'deleteBatch' };
                 if (item.source_type === 0) actionOpts.onEdit = 'editBatch';
                 html += `<tr>
-                    <td>${item.id}</td>
+                    ${listIdCell(item.id, batchDetailUrl)}
                     <td><span class="badge ${item.source_type === 1 ? 'badge-info' : 'badge-secondary'}">${escapeHtml(sourceType)}</span></td>
-                    ${listTitleCell(contentPreview || '-', batchDetailUrl, 'font-medium max-w-md')}
+                    ${listPlainCell(contentPreview || '-', 'font-medium max-w-md', item.content || '')}
                     <td>${ct}</td>
                     ${listActions(actionOpts)}
                 </tr>`;

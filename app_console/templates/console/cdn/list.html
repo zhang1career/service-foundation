@@ -42,15 +42,27 @@
                     <input type="text" id="create-comment" name="comment" class="form-input" placeholder="例如：主站 CDN">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="create-origin-domain">源站域名 *</label>
-                    <input type="text" id="create-origin-domain" name="origin_domain" class="form-input" required
-                           placeholder="例如：localhost:8000 或 example.com">
+                    <label class="form-label" for="create-domain-name">分发域名 (DomainName) *</label>
+                    <input type="text" id="create-domain-name" name="domain_name" class="form-input" required
+                           placeholder="例如：localhost:8000">
+                    <p class="text-sm text-gray-500 mt-1">CloudFront 分发域名（边缘标识），与源站可以相同（本机）或不同；创建后写入 d.domain_name。</p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="create-origin-path">源站路径（可选）</label>
+                    <label class="form-label" for="create-origin-domain">源站主机 (Origins.DomainName) *</label>
+                    <input type="text" id="create-origin-domain" name="origin_domain" class="form-input" required
+                           placeholder="例如：localhost:8000">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="create-origin-path">源站路径 (OriginPath)</label>
                     <input type="text" id="create-origin-path" name="origin_path" class="form-input"
-                           placeholder="例如：/api/oss 或 /api/oss/my-bucket">
-                    <p class="text-sm text-gray-500 mt-1">源站为 OSS 时填写，如 /api/oss 或 /api/oss/bucket-name</p>
+                           placeholder="/api/oss">
+                    <p class="text-sm text-gray-500 mt-1">OSS 接口前缀，一般为 <code>/api/oss</code>；bucket 名填下一项，不要写在路径里。</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="create-origin-bucket">OSS 存储桶 (OriginBucket) *</label>
+                    <input type="text" id="create-origin-bucket" name="origin_bucket" class="form-input" required
+                           placeholder="与 file-io AWS_BUCKET 一致，如 default">
+                    <p class="text-sm text-gray-500 mt-1">回源时路径前缀，须与实际上传桶名一致，否则 404。</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="create-aliases">自定义域名（可选，逗号分隔）</label>
@@ -92,9 +104,8 @@ async function loadDistributions() {
         if (json.errorCode !== 0) {
             throw new Error(json.message || '加载失败');
         }
-        const list = (json.data && json.data.DistributionList) || {};
-        const items = list.Items || [];
-        const quantity = list.Quantity || 0;
+        const list = json.data.DistributionList;
+        const items = list.Items ?? [];
 
         if (items.length > 0) {
             let html = `
@@ -102,7 +113,7 @@ async function loadDistributions() {
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>域名</th>
+                            <th>分发域名</th>
                             <th>别名</th>
                             <th>状态</th>
                             <th>备注</th>
@@ -119,15 +130,21 @@ async function loadDistributions() {
                 const comment = item.Comment || '-';
                 const detailUrl = '/console/cdn/distributions/' + encodeURIComponent(id) + '/';
                 html += `<tr>
-                    <td><code class="text-xs">${escapeHtml(id)}</code></td>
+                    ${listIdCell(id, detailUrl)}
                     <td>${escapeHtml(domain)}</td>
                     <td class="max-w-xs truncate" title="${escapeHtml(aliases)}">${escapeHtml(aliases)}</td>
                     <td><span class="badge ${statusCls}">${escapeHtml(status)}</span></td>
                     <td class="max-w-xs truncate">${escapeHtml(comment)}</td>
-                    <td>
-                        <a href="${detailUrl}" class="btn btn-outline btn-sm">详情</a>
-                        <button type="button" data-dist-id="${escapeHtml(id)}" onclick="deleteDistribution(this.dataset.distId)" class="btn btn-danger btn-sm ml-1">删除</button>
-                    </td>
+                    ${listActions({
+                        id: id,
+                        enabledToggle: {
+                            label: '启用分发',
+                            checked: !!item.Enabled,
+                            handler: 'toggleCdnDistributionEnabled',
+                        },
+                        onEdit: 'editCdnDistribution',
+                        onDelete: 'deleteDistribution'
+                    })}
                 </tr>`;
             });
             html += '</tbody></table>';
@@ -162,9 +179,19 @@ function closeCreateModal() {
 document.getElementById('create-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const comment = document.getElementById('create-comment').value.trim();
+    const domainName = document.getElementById('create-domain-name').value.trim();
     const originDomain = document.getElementById('create-origin-domain').value.trim();
+    const originBucket = document.getElementById('create-origin-bucket').value.trim();
+    if (!domainName) {
+        showToast('请输入分发域名 (DomainName)', 'error');
+        return;
+    }
     if (!originDomain) {
-        showToast('请输入源站域名', 'error');
+        showToast('请输入源站主机', 'error');
+        return;
+    }
+    if (!originBucket) {
+        showToast('请输入 OSS 存储桶 (OriginBucket)', 'error');
         return;
     }
     const originPath = document.getElementById('create-origin-path').value.trim();
@@ -181,20 +208,23 @@ document.getElementById('create-form').addEventListener('submit', async function
             OriginProtocolPolicy: 'http-only'
         }
     };
-    if (originPath) {
-        originItem.OriginPath = originPath.startsWith('/') ? originPath : '/' + originPath;
-    }
+    const pathNorm = originPath
+        ? (originPath.startsWith('/') ? originPath : '/' + originPath)
+        : '/api/oss';
+    originItem.OriginPath = pathNorm;
 
     const callerRef = 'console-' + Date.now();
     const config = {
         CallerReference: callerRef,
+        DomainName: domainName,
+        OriginBucket: originBucket,
         Comment: comment,
         Enabled: enabled,
         Origins: {
             Items: [originItem],
             Quantity: 1
         },
-        DefaultCacheBehavior: { TargetOriginId: 'default' },
+        DefaultCacheBehavior: { TargetOriginId: 'default', ViewerProtocolPolicy: 'allow-all' },
         Aliases: { Items: aliases, Quantity: aliases.length }
     };
 
@@ -230,6 +260,30 @@ document.getElementById('create-form').addEventListener('submit', async function
 document.getElementById('create-modal').addEventListener('click', function(e) {
     if (e.target === this) closeCreateModal();
 });
+
+function editCdnDistribution(id) {
+    window.location.href = '/console/cdn/distributions/' + encodeURIComponent(id) + '/edit/';
+}
+
+async function toggleCdnDistributionEnabled(id, enabled) {
+    try {
+        const response = await fetch(API_BASE + '/' + encodeURIComponent(id) + '/config', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ Enabled: enabled })
+        });
+        const json = await response.json();
+        if (json.errorCode !== 0) {
+            throw new Error(json.message || '更新失败');
+        }
+        showToast(enabled ? '已启用分发' : '已停用分发', 'success');
+    } catch (err) {
+        showToast(err.message || '更新失败', 'error');
+    }
+}
 
 async function deleteDistribution(id) {
     if (!confirm('确认删除分发 "' + id + '"？此操作不可恢复。')) return;

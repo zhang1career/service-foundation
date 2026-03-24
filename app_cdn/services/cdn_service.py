@@ -6,7 +6,6 @@ Implements CdnProviderProtocol. Handles model-to-CloudFront DTO conversion.
 import logging
 from typing import Any, Dict, List, Optional
 
-from app_cdn.config import get_app_config
 from app_cdn.enums.distribution_status_enum import DistributionStatusEnum
 from app_cdn.enums.invalidation_status_enum import InvalidationStatusEnum
 from app_cdn.exceptions.not_found_exception import (
@@ -27,8 +26,33 @@ from common.components.singleton import Singleton
 logger = logging.getLogger(__name__)
 
 
+def _origins_for_summary(dist) -> Dict[str, Any]:
+    """Origins block from origin_config (source of truth). Not duplicated from domain_name."""
+    oc = dist.get_origin_config()
+    origins = oc.get("Origins") or {}
+    items = origins.get("Items") or []
+    if not items:
+        return {"Quantity": 0, "Items": None}
+    return {
+        "Quantity": origins.get("Quantity", len(items)),
+        "Items": items,
+    }
+
+
+def _default_cache_behavior_for_summary(dist) -> Dict[str, Any]:
+    oc = dist.get_origin_config()
+    dcb = oc.get("DefaultCacheBehavior")
+    if isinstance(dcb, dict) and dcb:
+        return dcb
+    return {"TargetOriginId": "default"}
+
+
 def _distribution_to_summary(dist) -> Dict[str, Any]:
-    """Convert Distribution model to CloudFront DistributionSummary."""
+    """Convert Distribution model to CloudFront DistributionSummary.
+
+    DomainName = distribution edge hostname (column domain_name).
+    Origins = from origin_config only (backend hosts differ from edge DomainName).
+    """
     id_str = str(dist.id)
     return {
         "Id": id_str,
@@ -39,17 +63,8 @@ def _distribution_to_summary(dist) -> Dict[str, Any]:
             "Quantity": len(dist.get_aliases_list()),
             "Items": dist.get_aliases_list() or None,
         },
-        "Origins": {
-            "Quantity": 1,
-            "Items": [
-                {
-                    "Id": "default",
-                    "DomainName": dist.domain_name,
-                    "OriginPath": "",
-                }
-            ],
-        },
-        "DefaultCacheBehavior": {"TargetOriginId": "default"},
+        "Origins": _origins_for_summary(dist),
+        "DefaultCacheBehavior": _default_cache_behavior_for_summary(dist),
         "Comment": dist.comment,
         "Enabled": dist.enabled,
     }
@@ -58,7 +73,7 @@ def _distribution_to_summary(dist) -> Dict[str, Any]:
 def _distribution_to_config(dist) -> Dict[str, Any]:
     """Convert Distribution model to DistributionConfig (for update)."""
     origin_config = dist.get_origin_config()
-    return {
+    out: Dict[str, Any] = {
         "CallerReference": str(dist.id),
         "Origins": origin_config.get("Origins", {"Items": [], "Quantity": 0}),
         "DefaultCacheBehavior": origin_config.get(
@@ -70,7 +85,9 @@ def _distribution_to_config(dist) -> Dict[str, Any]:
             "Quantity": len(dist.get_aliases_list()),
             "Items": dist.get_aliases_list() or None,
         },
+        "OriginBucket": origin_config.get("OriginBucket") or "",
     }
+    return out
 
 
 class CdnService(Singleton):
@@ -116,8 +133,7 @@ class CdnService(Singleton):
         return _distribution_to_config(dist)
 
     def create_distribution(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new distribution."""
-        app_config = get_app_config()
+        """Create a new distribution. Origins must be provided in config."""
         caller_ref = config.get("CallerReference") or ""
         if not caller_ref:
             raise ValueError("CallerReference is required")
@@ -125,28 +141,10 @@ class CdnService(Singleton):
         origins = config.get("Origins", {})
         origin_items = origins.get("Items", []) or []
         if not origin_items:
-            default_origin = app_config.get("default_origin_url", "")
-            default_id = app_config.get("default_origin_id", "default")
-            domain = "localhost"
-            origin_path = ""
-            if default_origin:
-                # Parse http://localhost:8000/api/oss -> domain=localhost:8000, path=/api/oss
-                after_scheme = default_origin.split("//", 1)[-1]
-                parts = after_scheme.split("/", 1)
-                domain = parts[0] if parts[0] else "localhost"
-                origin_path = "/" + parts[1] if len(parts) > 1 and parts[1] else ""
-            origin_items = [
-                {
-                    "Id": default_id,
-                    "DomainName": domain,
-                    "OriginPath": origin_path,
-                    "CustomOriginConfig": {
-                        "HTTPPort": 80,
-                        "HTTPSPort": 443,
-                        "OriginProtocolPolicy": "http-only",
-                    },
-                }
-            ]
+            raise ValueError(
+                "Origins.Items is required; origin URL is stored in origin_config, "
+                "no longer from CDN_DEFAULT_ORIGIN_URL"
+            )
 
         default_origin_id = origin_items[0].get("Id", "default")
         default_cache = config.get("DefaultCacheBehavior", {})
@@ -155,21 +153,30 @@ class CdnService(Singleton):
         default_cache = dict(default_cache)
         default_cache["TargetOriginId"] = default_origin_id
 
+        # OriginPath 应为 OSS 路径 /api/oss，去掉错误的多余 /cdn 后缀
+        normalized_items = []
+        for o in origin_items:
+            o = dict(o)
+            path = (o.get("OriginPath") or "").strip()
+            if path.endswith("/cdn"):
+                o["OriginPath"] = path[:-4] or "/"
+            normalized_items.append(o)
+
         origin_config = {
-            "Origins": {"Items": origin_items, "Quantity": len(origin_items)},
+            "Origins": {"Items": normalized_items, "Quantity": len(normalized_items)},
             "DefaultCacheBehavior": default_cache,
             "Comment": config.get("Comment", ""),
             "Enabled": config.get("Enabled", True),
         }
+        if "OriginBucket" in config:
+            origin_config["OriginBucket"] = (config.get("OriginBucket") or "").strip()
 
         aliases = config.get("Aliases", {})
         alias_list = aliases.get("Items", []) if isinstance(aliases, dict) else []
-        domain_name = config.get("DomainName") or app_config.get("cdn_base_url", "").split("//")[-1].split("/")[
-            0] or "cdn.local"
 
-        # Domain name: from config or generate CloudFront-style (d1234xxx.cloudfront.net -> d1234xxx.cdn.local)
+        domain_name = (config.get("DomainName") or "").strip()
         if not domain_name:
-            domain_name = "cdn.local"
+            raise ValueError("DomainName is required (distribution edge hostname, e.g. localhost:8000)")
 
         dist = create_distribution(
             domain_name=domain_name,
@@ -200,11 +207,25 @@ class CdnService(Singleton):
 
         origin_config = dist.get_origin_config()
         if "Origins" in config:
-            origin_config["Origins"] = config["Origins"]
+            origins = config["Origins"]
+            items = (origins.get("Items") or []) if isinstance(origins, dict) else []
+            normalized = []
+            for o in items:
+                o = dict(o)
+                path = (o.get("OriginPath") or "").strip()
+                if path.endswith("/cdn"):
+                    o["OriginPath"] = path[:-4] or "/"
+                normalized.append(o)
+            origin_config["Origins"] = {
+                "Items": normalized,
+                "Quantity": len(normalized),
+            }
         if "DefaultCacheBehavior" in config:
             origin_config["DefaultCacheBehavior"] = config["DefaultCacheBehavior"]
         if "Comment" in config:
             origin_config["Comment"] = config["Comment"]
+        if "OriginBucket" in config:
+            origin_config["OriginBucket"] = (config.get("OriginBucket") or "").strip()
 
         aliases = config.get("Aliases", {})
         alias_list = aliases.get("Items", []) if isinstance(aliases, dict) else []

@@ -25,3 +25,14 @@ class CdnDistributionDetailView(TemplateView):
         context["distribution_id"] = kwargs.get("distribution_id", "")
         context["cdn_api_base"] = CDN_API_BASE
         return context
+
+
+class CdnDistributionEditView(TemplateView):
+    """Edit CDN distribution config (origins, aliases, comment, enabled)."""
+    template_name = "console/cdn/edit.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["distribution_id"] = kwargs.get("distribution_id", "")
+        context["cdn_api_base"] = CDN_API_BASE
+        return context

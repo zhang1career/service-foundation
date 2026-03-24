@@ -62,12 +62,16 @@ CDN 提供边缘缓存与流量转发：
 环境变量（参见 `.env.example`）：
 
 - `APP_CDN_ENABLED`：是否启用 app_cdn
-- `CDN_BASE_URL`：CDN 基础 URL
-- `CDN_DEFAULT_ORIGIN_URL`：默认源站（如 http://localhost:8000/api/oss 或含 bucket 的 http://localhost:8000/api/oss/mybucket）
-- `CDN_DEFAULT_ORIGIN_ID`：默认 Origin ID
 - `CDN_CACHE_BUCKET`：CDN 缓存桶（存于 app_oss）
-- `CDN_ORIGIN_DEFAULT_BUCKET`：源站为 OSS 时的默认 bucket（若 CDN_DEFAULT_ORIGIN_URL 不含 bucket 则必填）
 - `DB_CDN_*`：CDN 数据库配置
+
+源站 OSS 的 **bucket 名（路径前缀）** 按分发配置：在 `origin_config` 中设置扩展字段 **`OriginBucket`**（与 file-io 的 `AWS_BUCKET` 等对齐），CreateDistribution / UpdateDistribution 可读写。
+
+### URL 结构说明
+
+- **管理 API**（CloudFront 兼容）：`/api/cdn/2020-05-31/` + `distribution` 等（`app_cdn/urls.py` 挂载在 `service_foundation/urls.py` 的 `path('api/cdn/2020-05-31/', ...)`）。
+- **内容分发**：`/api/cdn/2020-05-31/d/{distribution_id}/{path}`。
+- **CreateDistribution** 须在请求体中传 **`DomainName`**（分发域名，如 `localhost:8000`），不再从环境变量推导。
 
 ## 创建 Distribution 示例
 
@@ -76,10 +80,13 @@ curl -X POST http://localhost:8000/api/cdn/2020-05-31/distribution \
   -H "Content-Type: application/json" \
   -d '{
     "CallerReference": "my-ref-001",
+    "DomainName": "localhost:8000",
+    "OriginBucket": "default",
     "Origins": {
       "Items": [{
         "Id": "default",
         "DomainName": "localhost:8000",
+        "OriginPath": "/api/oss",
         "CustomOriginConfig": {
           "HTTPPort": 80,
           "HTTPSPort": 443,

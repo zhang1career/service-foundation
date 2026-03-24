@@ -100,15 +100,51 @@ def put_to_cache(
         return False
 
 
-def build_origin_base_url(_origin_config: dict, app_config: dict) -> str:
+def build_origin_base_url(origin_config: dict) -> str:
     """
-    Build origin base URL from application config only.
+    Build origin base URL from distribution origin_config.
 
-    No backward compatibility logic:
-    - Ignore distribution OriginPath / DomainName
-    - Use CDN_DEFAULT_ORIGIN_URL as the single source of truth
+    Reads Origins.Items and DefaultCacheBehavior.TargetOriginId.
+    OriginPath: strips erroneous trailing /cdn suffix (OSS path should be /api/oss, not /api/oss/cdn).
     """
-    return (app_config.get("default_origin_url") or "").rstrip("/")
+    origins = origin_config.get("Origins", {}) or {}
+    items = origins.get("Items", []) or []
+    if not items:
+        return ""
+
+    target_id = (
+        origin_config.get("DefaultCacheBehavior", {}) or {}
+    ).get("TargetOriginId", "default")
+    origin = next((o for o in items if o.get("Id") == target_id), items[0])
+
+    domain = (origin.get("DomainName") or "").strip()
+    if not domain:
+        return ""
+
+    custom = origin.get("CustomOriginConfig", {}) or {}
+    policy = (custom.get("OriginProtocolPolicy") or "http-only").lower()
+    scheme = "https" if "https" in policy else "http"
+
+    origin_path = (origin.get("OriginPath") or "").strip()
+    # OriginPath 应为 OSS 路径如 /api/oss，错误的多余 /cdn 后缀需去掉
+    if origin_path.endswith("/cdn"):
+        origin_path = origin_path[:-4] or "/"
+    if origin_path and not origin_path.startswith("/"):
+        origin_path = "/" + origin_path
+
+    return f"{scheme}://{domain}{origin_path}".rstrip("/")
+
+
+def get_origin_bucket(origin_config: dict) -> str:
+    """
+    OSS path prefix (bucket name) for this distribution, from origin_config.
+
+    Extension field (not AWS CloudFront): OriginBucket.
+    """
+    v = origin_config.get("OriginBucket")
+    if v is None:
+        return ""
+    return str(v).strip()
 
 
 def fetch_from_origin(

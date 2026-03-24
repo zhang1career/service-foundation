@@ -2,11 +2,11 @@
  * app_console 列表操作风格：统一复用组件
  *
  * 设计约定（列表页）：
- * - 无「查看」按钮：点击列表项（主列链接）进入详情页。
+ * - 无「详情」文字按钮：点击 ID 列进入详情页（listIdCell）。
  * - 「删除」：仅用图标（垃圾桶），title="删除"。
  * - 「编辑」：仅用图标（铅笔），title="编辑"。
- * - 主列（标题/名称/内容预览）：使用 listTitleCell(text, detailUrl) 可点击进入详情。
- * - 操作列：使用 listActions({ id, onEdit?, onDelete?, extra? }) 输出图标按钮。
+ * - 名称/内容预览等仅展示：listPlainCell；需可点进详情时用 listTitleCell(text, detailUrl)。
+ * - 操作列：listActions({ id, onEdit?, onDelete?, extra?, enabledToggle? })；拨动开关见 listToggleSwitchHtml。
  */
 
 /**
@@ -42,6 +42,14 @@ function listTitleCell(text, url, cssClass = 'font-medium') {
     return `<td class="${cssClass}"><a href="${escapedUrl}" class="text-blue-600 hover:underline cursor-pointer">${escaped}</a></td>`;
 }
 
+/** ID 列：点击进入详情页 */
+function listIdCell(id, detailUrl) {
+    const display = id != null && id !== '' ? String(id) : '-';
+    const escaped = String(display).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const escapedUrl = String(detailUrl || '').replace(/"/g, '&quot;');
+    return `<td class="font-mono text-sm"><a href="${escapedUrl}" class="text-blue-600 hover:underline cursor-pointer">${escaped}</a></td>`;
+}
+
 /**
  * 渲染可点击的标题单元格，当有 similarity 时显示相似度进度条背景
  * @param {string} text - 显示文本
@@ -70,10 +78,12 @@ function listTitleCellWithSimilarity(text, url, similarity, cssClass = 'font-med
  * @param {string} [cssClass='font-medium'] - 额外 CSS 类
  * @returns {string} HTML 字符串
  */
-function listPlainCell(text, cssClass = 'font-medium') {
-    const display = text || '-';
+function listPlainCell(text, cssClass = 'font-medium', title) {
+    const display = text != null && String(text).trim() !== '' ? String(text).trim() : '-';
     const escaped = String(display).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    return `<td class="${cssClass}">${escaped}</td>`;
+    const t = title != null && String(title).trim() !== '' ? String(title).trim() : '';
+    const titleAttr = t ? ` title="${t.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"` : '';
+    return `<td class="${cssClass}"${titleAttr}>${escaped}</td>`;
 }
 
 /**
@@ -83,14 +93,39 @@ function listPlainCell(text, cssClass = 'font-medium') {
  * @param {string} opts.onEdit - 编辑函数名（全局调用，如 'editKnowledge'）
  * @param {string} opts.onDelete - 删除函数名（全局调用，如 'deleteKnowledge'）
  * @param {Array<{label: string, onclick: string}|{label: string, href: string}>} [opts.extra] - 额外按钮
+ * @param {{ checked: boolean, handler: string, label: string }} [opts.enabledToggle] - 拨动开关（onchange 调用 handler(id, checked)）
  * @returns {string} HTML 字符串
  */
-function listActions(opts) {
-    const { id, onEdit, onDelete, extra = [] } = opts;
-    const idStr = String(id);
-    let html = '<td><div class="flex space-x-2">';
+function listToggleSwitchHtml(opts) {
+    const { label, checked, onchange } = opts;
+    const labelEsc = escapeHtml(label);
+    const chk = checked ? ' checked' : '';
+    return `<label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
+    <span class="text-xs text-gray-600 whitespace-nowrap">${labelEsc}</span>
+    <span class="console-toggle-wrap">
+      <input type="checkbox" class="console-toggle-input"${chk} onchange="${onchange}">
+      <span class="console-toggle-track" aria-hidden="true"></span>
+    </span>
+  </label>`;
+}
 
-    (extra || []).forEach((btn) => {
+function listActions(opts) {
+    const { id, onEdit, onDelete, extra = [], enabledToggle } = opts;
+    const idStr =
+        typeof id === 'string'
+            ? `'${String(id).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+            : String(id);
+    let html = '<td><div class="flex gap-1 items-center flex-wrap">';
+
+    if (enabledToggle) {
+        html += listToggleSwitchHtml({
+            label: enabledToggle.label,
+            checked: enabledToggle.checked,
+            onchange: `${String(enabledToggle.handler)}(${idStr}, this.checked)`,
+        });
+    }
+
+    extra.forEach((btn) => {
         if (btn.href) {
             html += `<a href="${String(btn.href).replace(/"/g, '&quot;')}" class="btn btn-outline btn-sm">${escapeHtml(btn.label)}</a>`;
         } else {
@@ -129,4 +164,13 @@ function renderPagination(opts) {
     html += `<button class="pagination-btn" ${current_page >= total_pages ? 'disabled' : ''} onclick="${loadFn}(${current_page + 1})">下一页</button>`;
     html += '</div>';
     return html;
+}
+
+if (typeof window !== 'undefined') {
+    window.listIdCell = listIdCell;
+    window.listTitleCell = listTitleCell;
+    window.listTitleCellWithSimilarity = listTitleCellWithSimilarity;
+    window.listPlainCell = listPlainCell;
+    window.listToggleSwitchHtml = listToggleSwitchHtml;
+    window.listActions = listActions;
 }

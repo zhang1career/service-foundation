@@ -50,7 +50,7 @@
       },
       "post": {
         "summary": "创建分发",
-        "description": "CreateDistribution - 创建新的 CDN 分发。需提供 CallerReference（唯一标识）及 Origins 等配置。",
+        "description": "CreateDistribution - 创建新的 CDN 分发。需提供 CallerReference、DomainName（分发域名）、Origins 等配置。",
         "operationId": "createDistribution",
         "requestBody": {
           "required": true,
@@ -469,6 +469,10 @@
       "DistributionConfig": {
         "type": "object",
         "properties": {
+          "DomainName": {
+            "type": "string",
+            "description": "分发域名（CloudFront Distribution DomainName），创建分发时必填，如 localhost:8000"
+          },
           "CallerReference": { "type": "string" },
           "Origins": {
             "type": "object",
@@ -503,12 +507,22 @@
               "Quantity": { "type": "integer" },
               "Items": { "type": "array", "items": { "type": "string" } }
             }
+          },
+          "OriginBucket": {
+            "type": "string",
+            "description": "扩展字段（非 AWS）：源站为 app_oss 时，请求路径前缀 bucket 名；与 file-io AWS_BUCKET 对齐"
           }
         }
       },
       "CreateDistributionRequest": {
-        "allOf": [{ "$ref": "#/components/schemas/DistributionConfig" }],
-        "description": "创建分发请求体，CallerReference 必填"
+        "allOf": [
+          { "$ref": "#/components/schemas/DistributionConfig" },
+          {
+            "type": "object",
+            "required": ["CallerReference", "DomainName", "Origins"],
+            "description": "创建分发：CallerReference、DomainName、Origins 必填"
+          }
+        ]
       },
       "InvalidationSummary": {
         "type": "object",

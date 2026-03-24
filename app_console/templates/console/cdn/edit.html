@@ -1,0 +1,309 @@
+{% extends 'console/base.html' %}
+
+{% block title %}编辑 CDN 分发{% endblock %}
+{% block page_title %}编辑 CDN 分发{% endblock %}
+
+{% block content %}
+<div class="mb-4 text-sm">
+    <a href="{% url 'console:cdn-distributions' %}" class="text-blue-600 hover:underline">返回分发列表</a>
+</div>
+
+<div id="edit-loading" class="card">
+    <div class="card-body p-8 text-center text-gray-500">
+        <div class="spinner"></div>
+        <p class="mt-2">加载中...</p>
+    </div>
+</div>
+
+<div id="edit-form-wrap" class="card hidden">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">编辑分发 <code class="text-sm font-mono text-gray-600">{{ distribution_id }}</code></h2>
+    </div>
+    <div class="card-body max-w-4xl">
+        <form id="cdn-edit-form">
+            {% csrf_token %}
+            <p class="text-sm text-gray-500 mb-4">分发域名创建后不可在此修改；启用/停用请在<strong>分发列表</strong>操作列中切换。其余项通过 <code class="text-xs">PUT …/config</code> 保存。</p>
+            <div class="form-group">
+                <label class="form-label">分发域名 (DomainName)</label>
+                <input type="text" id="field-domain" class="form-input bg-gray-100" readonly autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="field-comment">备注</label>
+                <input type="text" id="field-comment" name="comment" class="form-input" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <label class="form-label mb-0">源站列表 (Origins.Items)</label>
+                    <button type="button" id="origin-add" class="btn btn-outline btn-sm">添加源站</button>
+                </div>
+                <p class="text-sm text-gray-500 mb-3">与 <code class="text-xs">origin_config.Origins</code> 一致，可多源；每项对应 CloudFront 的一个 Origin。</p>
+                <div id="origins-editor" class="space-y-3"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="field-target-origin">默认缓存行为 · 回源目标 (TargetOriginId)</label>
+                <select id="field-target-origin" class="form-input" required></select>
+                <p class="text-sm text-gray-500 mt-1">须为上方某一源站的 Id。</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="field-origin-bucket">OSS 存储桶 (OriginBucket) *</label>
+                <input type="text" id="field-origin-bucket" name="origin_bucket" class="form-input" required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="field-aliases">自定义域名（逗号分隔）</label>
+                <input type="text" id="field-aliases" name="aliases" class="form-input" autocomplete="off">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button type="submit" class="btn btn-primary" id="edit-submit-btn">保存</button>
+                <a href="{% url 'console:cdn-distribution-detail' distribution_id=distribution_id %}" class="btn btn-outline">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const API_BASE = '{{ cdn_api_base|escapejs }}';
+    const DIST_ID = '{{ distribution_id|escapejs }}';
+    const DIST_API = API_BASE + '/distribution/' + encodeURIComponent(DIST_ID);
+    let lastEtag = '';
+
+    function escAttr(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;');
+    }
+
+    function showForm() {
+        document.getElementById('edit-loading').classList.add('hidden');
+        document.getElementById('edit-form-wrap').classList.remove('hidden');
+    }
+
+    function normPath(p) {
+        const t = (p || '').trim();
+        if (!t) return '/api/oss';
+        return t.startsWith('/') ? t : '/' + t;
+    }
+
+    function defaultCustomOriginConfig() {
+        return { HTTPPort: 80, HTTPSPort: 443, OriginProtocolPolicy: 'http-only' };
+    }
+
+    function originRowTemplate(idx, o) {
+        const coc = Object.assign({}, defaultCustomOriginConfig(), o.CustomOriginConfig || {});
+        const cocJson = escAttr(JSON.stringify(coc));
+        const idVal = escAttr(o.Id != null && o.Id !== '' ? String(o.Id) : 'default');
+        const domVal = escAttr(o.DomainName || '');
+        const pathRaw = (o.OriginPath && String(o.OriginPath).trim()) || '/api/oss';
+        const pathVal = escAttr(pathRaw);
+        return (
+            '<div class="origin-row border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50/50" data-custom-origin="' + cocJson + '">' +
+            '<div class="flex justify-between items-center gap-2">' +
+            '<span class="text-sm font-medium text-gray-700">源站 #' + (idx + 1) + '</span>' +
+            '<button type="button" class="btn btn-outline btn-sm text-red-600 border-red-200 origin-remove">移除</button>' +
+            '</div>' +
+            '<div class="grid grid-cols-1 md:grid-cols-3 gap-3">' +
+            '<div class="form-group mb-0">' +
+            '<label class="form-label text-xs">源 Id *</label>' +
+            '<input type="text" class="form-input font-mono text-sm origin-id" required value="' + idVal + '" autocomplete="off">' +
+            '</div>' +
+            '<div class="form-group mb-0 md:col-span-2">' +
+            '<label class="form-label text-xs">源站主机 (DomainName) *</label>' +
+            '<input type="text" class="form-input text-sm origin-domain" required value="' + domVal + '" placeholder="例如 localhost:8000" autocomplete="off">' +
+            '</div>' +
+            '</div>' +
+            '<div class="form-group mb-0">' +
+            '<label class="form-label text-xs">源站路径 (OriginPath)</label>' +
+            '<input type="text" class="form-input text-sm origin-path" value="' + pathVal + '" placeholder="/api/oss" autocomplete="off">' +
+            '</div>' +
+            '</div>'
+        );
+    }
+
+    function getOriginRows() {
+        return Array.prototype.slice.call(document.querySelectorAll('#origins-editor .origin-row'));
+    }
+
+    function refreshOriginRemoveButtons() {
+        const rows = getOriginRows();
+        rows.forEach(function (row) {
+            row.querySelector('.origin-remove').disabled = rows.length <= 1;
+        });
+    }
+
+    function refreshTargetOriginOptions() {
+        const sel = document.getElementById('field-target-origin');
+        const prev = sel.value;
+        const ids = getOriginRows().map(function (row) {
+            return row.querySelector('.origin-id').value.trim();
+        }).filter(Boolean);
+        sel.innerHTML = ids.map(function (oid) {
+            return '<option value="' + escAttr(oid) + '">' + escAttr(oid) + '</option>';
+        }).join('');
+        if (ids.indexOf(prev) >= 0) sel.value = prev;
+        else if (ids.length) sel.value = ids[0];
+    }
+
+    function wireOriginRow(row) {
+        row.querySelector('.origin-remove').addEventListener('click', function () {
+            if (getOriginRows().length <= 1) return;
+            row.remove();
+            refreshOriginRemoveButtons();
+            refreshTargetOriginOptions();
+        });
+        ['origin-id', 'origin-domain'].forEach(function (cls) {
+            const el = row.querySelector('.' + cls);
+            el.addEventListener('change', refreshTargetOriginOptions);
+            el.addEventListener('blur', refreshTargetOriginOptions);
+        });
+    }
+
+    function renderOrigins(items) {
+        if (!items.length) {
+            throw new Error('Origins.Items 不能为空');
+        }
+        const host = document.getElementById('origins-editor');
+        host.innerHTML = '';
+        items.forEach(function (o, i) {
+            host.insertAdjacentHTML('beforeend', originRowTemplate(i, o));
+            wireOriginRow(host.lastElementChild);
+        });
+        refreshOriginRemoveButtons();
+        refreshTargetOriginOptions();
+    }
+
+    document.getElementById('origin-add').addEventListener('click', function () {
+        const host = document.getElementById('origins-editor');
+        const n = getOriginRows().length + 1;
+        const newId = 'origin-' + n;
+        host.insertAdjacentHTML('beforeend', originRowTemplate(n - 1, { Id: newId, DomainName: '', OriginPath: '/api/oss', CustomOriginConfig: defaultCustomOriginConfig() }));
+        wireOriginRow(host.lastElementChild);
+        refreshOriginRemoveButtons();
+        refreshTargetOriginOptions();
+        document.getElementById('field-target-origin').value = newId;
+    });
+
+    async function load() {
+        try {
+            const [dRes, cRes] = await Promise.all([fetch(DIST_API), fetch(DIST_API + '/config')]);
+            const dj = await dRes.json();
+            const cj = await cRes.json();
+            if (dj.errorCode !== 0 || !dj.data || !dj.data.Distribution) {
+                throw new Error(dj.message || '加载分发失败');
+            }
+            if (cj.errorCode !== 0 || !cj.data || !cj.data.DistributionConfig) {
+                throw new Error(cj.message || '加载配置失败');
+            }
+            const dist = dj.data.Distribution;
+            const cfg = cj.data.DistributionConfig;
+            lastEtag = dist.ETag;
+            if (!cfg.Origins || !Array.isArray(cfg.Origins.Items) || !cfg.Origins.Items.length) {
+                throw new Error('配置缺少或非空的 Origins.Items');
+            }
+            if (!cfg.DefaultCacheBehavior || cfg.DefaultCacheBehavior.TargetOriginId == null) {
+                throw new Error('配置缺少 DefaultCacheBehavior.TargetOriginId');
+            }
+            if (!cfg.Aliases) {
+                throw new Error('配置缺少 Aliases');
+            }
+            document.getElementById('field-domain').value = dist.DomainName;
+            document.getElementById('field-comment').value = cfg.Comment ?? '';
+            document.getElementById('field-origin-bucket').value = cfg.OriginBucket ?? '';
+            document.getElementById('field-aliases').value = (cfg.Aliases.Items ?? []).join(', ');
+            renderOrigins(cfg.Origins.Items);
+            const sel = document.getElementById('field-target-origin');
+            sel.value = cfg.DefaultCacheBehavior.TargetOriginId;
+            showForm();
+        } catch (e) {
+            document.getElementById('edit-loading').innerHTML =
+                '<div class="card-body p-8 text-center text-red-500"><p>' + escapeHtml(e.message || '加载失败') + '</p>' +
+                '<a href="/console/cdn/" class="btn btn-outline btn-sm mt-4">返回列表</a></div>';
+        }
+    }
+
+    function collectOriginsFromDom() {
+        const rows = getOriginRows();
+        const out = [];
+        rows.forEach(function (row) {
+            const id = row.querySelector('.origin-id').value.trim();
+            const domain = row.querySelector('.origin-domain').value.trim();
+            const path = normPath(row.querySelector('.origin-path').value);
+            if (!id || !domain) return;
+            const coc = Object.assign({}, defaultCustomOriginConfig(), JSON.parse(row.getAttribute('data-custom-origin')));
+            out.push({
+                Id: id,
+                DomainName: domain,
+                OriginPath: path,
+                CustomOriginConfig: coc
+            });
+        });
+        return out;
+    }
+
+    document.getElementById('cdn-edit-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const cRes = await fetch(DIST_API + '/config');
+        const cj = await cRes.json();
+        if (cj.errorCode !== 0 || !cj.data || !cj.data.DistributionConfig) {
+            showToast(cj.message || '无法读取当前配置', 'error');
+            return;
+        }
+        const cfg = cj.data.DistributionConfig;
+        const originItems = collectOriginsFromDom();
+        if (!originItems.length) {
+            showToast('请至少填写一个有效源站（Id 与 DomainName）', 'error');
+            return;
+        }
+        const targetId = document.getElementById('field-target-origin').value.trim();
+        if (!targetId || originItems.every(function (o) { return o.Id !== targetId; })) {
+            showToast('请选择一个有效的 TargetOriginId', 'error');
+            return;
+        }
+        const aliasesStr = document.getElementById('field-aliases').value.trim();
+        const aliasItems = aliasesStr ? aliasesStr.split(/[,\s]+/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
+        const dcb = Object.assign({}, cfg.DefaultCacheBehavior, { TargetOriginId: targetId });
+        const body = {
+            CallerReference: cfg.CallerReference,
+            Comment: document.getElementById('field-comment').value.trim(),
+            OriginBucket: document.getElementById('field-origin-bucket').value.trim(),
+            Origins: { Items: originItems, Quantity: originItems.length },
+            DefaultCacheBehavior: dcb,
+            Aliases: { Items: aliasItems, Quantity: aliasItems.length }
+        };
+        const btn = document.getElementById('edit-submit-btn');
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '保存中…';
+        try {
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            };
+            if (lastEtag) headers['If-Match'] = lastEtag;
+            const putRes = await fetch(DIST_API + '/config', {
+                method: 'PUT',
+                headers: headers,
+                body: JSON.stringify(body)
+            });
+            const pj = await putRes.json();
+            if (pj.errorCode === 0 && pj.data && pj.data.Distribution) {
+                lastEtag = pj.data.Distribution.ETag;
+                showToast('已保存', 'success');
+                window.location.href = '/console/cdn/distributions/' + encodeURIComponent(DIST_ID) + '/';
+            } else {
+                throw new Error(pj.message || '保存失败');
+            }
+        } catch (err) {
+            showToast(err.message || '保存失败', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = orig;
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', load);
+})();
+</script>
+{% endblock %}

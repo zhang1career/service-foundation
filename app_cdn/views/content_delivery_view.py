@@ -13,11 +13,11 @@ from urllib.parse import unquote
 from django.http import HttpResponse
 from rest_framework.views import APIView
 
-from app_cdn.config import get_app_config
 from app_cdn.repos import get_distribution_by_id
 from app_cdn.services.cdn_cache_service import (
     build_origin_base_url,
     fetch_from_origin,
+    get_origin_bucket,
     get_from_cache,
     put_to_cache,
 )
@@ -43,11 +43,13 @@ class ContentDeliveryView(APIView):
         if not dist.enabled:
             return HttpResponse("Distribution disabled", status=403)
 
-        app_config = get_app_config()
         origin_config = dist.get_origin_config()
-        origin_base = build_origin_base_url(origin_config, app_config)
+        origin_base = build_origin_base_url(origin_config)
         if not origin_base:
-            return HttpResponse("Origin error: CDN_DEFAULT_ORIGIN_URL is empty", status=500)
+            return HttpResponse(
+                "Origin error: origin_config.Origins is empty or invalid",
+                status=500,
+            )
 
         # 1. Try cache first
         cached = get_from_cache(str(dist.id), path)
@@ -68,7 +70,7 @@ class ContentDeliveryView(APIView):
 
         # 2. Fetch from origin
         path_for_origin = path if path.startswith("/") else "/" + path
-        origin_bucket = app_config.get("origin_default_bucket", "")
+        origin_bucket = get_origin_bucket(origin_config)
         body, content_type, status, origin_url = fetch_from_origin(
             origin_base, path_for_origin, origin_path_prefix=origin_bucket
         )

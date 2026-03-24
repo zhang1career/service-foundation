@@ -15,6 +15,7 @@ from app_console.views import (
     SnowflakeView,
     CdnDistributionListView,
     CdnDistributionDetailView,
+    CdnDistributionEditView,
 )
 
 app_name = 'console'
@@ -44,5 +45,10 @@ urlpatterns = [
 
     # CDN management
     path('cdn/', CdnDistributionListView.as_view(), name='cdn-distributions'),
+    path(
+        'cdn/distributions/<str:distribution_id>/edit/',
+        CdnDistributionEditView.as_view(),
+        name='cdn-distribution-edit',
+    ),
     path('cdn/distributions/<str:distribution_id>/', CdnDistributionDetailView.as_view(), name='cdn-distribution-detail'),
 ]
