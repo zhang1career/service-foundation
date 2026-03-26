@@ -16,6 +16,9 @@ from .cdn_view import (
     CdnDistributionDetailView,
     CdnDistributionEditView,
 )
+from .user_view import UserListConsoleView, UserDetailConsoleView, UserEditConsoleView
+from .event_view import UserEventListConsoleView, UserEventDetailConsoleView, UserEventEditConsoleView
+from .reg_console_view import NoticeRegConsoleView, VerifyRegConsoleView
 
 __all__ = [
     'DashboardView',
@@ -33,4 +36,12 @@ __all__ = [
     'CdnDistributionListView',
     'CdnDistributionDetailView',
     'CdnDistributionEditView',
+    'UserListConsoleView',
+    'UserDetailConsoleView',
+    'UserEditConsoleView',
+    'UserEventListConsoleView',
+    'UserEventDetailConsoleView',
+    'UserEventEditConsoleView',
+    'NoticeRegConsoleView',
+    'VerifyRegConsoleView',
 ]

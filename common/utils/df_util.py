@@ -1,6 +1,6 @@
 from pandas import DataFrame
 
-from common.exceptions.argument_exception import IllegalArgumentException
+from common.exceptions import InvalidArgumentError
 
 
 def extract_column_and_combine(df_list: list[DataFrame], head: str, index: str, extract: str):
@@ -64,7 +64,7 @@ def check_empty(df: DataFrame) -> bool:
     if df is None:
         return True
     if not isinstance(df, DataFrame):
-        raise IllegalArgumentException("argument {arg} should be a DataFrame".format(arg="df"))
+        raise InvalidArgumentError("argument {arg} should be a DataFrame".format(arg="df"))
 
     return df.empty
 

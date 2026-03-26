@@ -1,0 +1,223 @@
+{% extends 'console/base.html' %}
+
+{% block title %}用户中心{% endblock %}
+{% block page_title %}用户中心{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/user_subnav.html' with active='user-list' %}
+    <p class="text-gray-600 mt-3">统一用户注册、登录、资料与状态查看。</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">用户列表</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openUserCreateModal()">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            新建
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>邮箱</th>
+                        <th>手机号</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td class="font-mono text-sm">
+                            <a class="text-blue-600 hover:underline" href="{% url 'console:user-detail' user.id %}">{{ user.id }}</a>
+                        </td>
+                        <td class="font-medium">{{ user.username }}</td>
+                        <td class="max-w-xs truncate" title="{{ user.email|default:'' }}">{{ user.email|default:"-" }}</td>
+                        <td class="max-w-xs">{{ user.phone|default:"-" }}</td>
+                        <td>
+                            <div class="flex items-center justify-center">
+                                <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none" title="启用/禁用">
+                                    <span class="console-toggle-wrap">
+                                        <input type="checkbox" class="console-toggle-input"{% if user.status == 1 %} checked{% endif %}
+                                               onchange="toggleUserStatus({{ user.id }}, this.checked)">
+                                        <span class="console-toggle-track" aria-hidden="true"></span>
+                                    </span>
+                                </label>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="flex gap-1 items-center flex-wrap">
+                                {% url 'console:user-edit' user.id as user_edit_url %}
+                                {% include 'console/includes/list_edit_icon.html' with edit_url=user_edit_url %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-state py-8 text-center text-gray-500">暂无数据</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create User Modal -->
+<div id="user-create-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="user-create-title">
+        <div class="modal-header">
+            <h3 id="user-create-title" class="text-lg font-semibold">新建用户</h3>
+        </div>
+        <form id="user-create-form">
+            {% csrf_token %}
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="create-username">用户名 *</label>
+                    <input type="text" id="create-username" name="username" class="form-input" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="create-password">密码 *</label>
+                    <input type="password" id="create-password" name="password" class="form-input" required autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="create-email">邮箱</label>
+                    <input type="email" id="create-email" name="email" class="form-input" placeholder="可选">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="create-phone">手机号</label>
+                    <input type="text" id="create-phone" name="phone" class="form-input" placeholder="可选">
+                    <p class="text-sm text-gray-500 mt-1">会自动向邮箱或手机号发送验证码（优先邮箱）。</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="create-avatar">头像</label>
+                    <input type="file" id="create-avatar" name="avatar" class="form-input" accept="image/jpeg,image/png,image/gif,image/webp">
+                    <p class="text-sm text-gray-500 mt-1">可选，将上传到对象存储（S3 兼容接口）。</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeUserCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary" id="user-create-submit">创建并发送验证码</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_CONSOLE_USER_CREATE = '/api/user/console/users';
+const API_CONSOLE_USER_UPDATE_BASE = '/api/user/console/users/';
+
+function openUserCreateModal() {
+  const f = document.getElementById('user-create-form');
+  if (f) f.reset();
+  const m = document.getElementById('user-create-modal');
+  m.classList.remove('hidden');
+  m.setAttribute('aria-hidden', 'false');
+}
+function closeUserCreateModal() {
+  const m = document.getElementById('user-create-modal');
+  m.classList.add('hidden');
+  m.setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('user-create-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeUserCreateModal();
+});
+
+document.getElementById('user-create-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const username = (document.getElementById('create-username').value || '').trim();
+  const password = document.getElementById('create-password').value || '';
+  const email = (document.getElementById('create-email').value || '').trim();
+  const phone = (document.getElementById('create-phone').value || '').trim();
+  if (!username || !password) {
+    showToast('请输入用户名与密码', 'error');
+    return;
+  }
+  if (!email && !phone) {
+    showToast('请至少填写邮箱或手机号，用于发送验证码', 'error');
+    return;
+  }
+
+  const avatarFile = document.getElementById('create-avatar').files[0];
+  const btn = document.getElementById('user-create-submit');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '创建中...';
+  try {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    let resp;
+    if (avatarFile) {
+      const fd = new FormData();
+      fd.append('username', username);
+      fd.append('password', password);
+      fd.append('email', email);
+      fd.append('phone', phone);
+      fd.append('avatar', avatarFile);
+      resp = await fetch(API_CONSOLE_USER_CREATE, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: fd,
+      });
+    } else {
+      resp = await fetch(API_CONSOLE_USER_CREATE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ username, password, email, phone }),
+      });
+    }
+    const json = await resp.json();
+    if (json.errorCode !== 0) throw new Error(json.message || '创建失败');
+    const user = json.data && json.data.user;
+    if (!user || !user.id) throw new Error('创建成功但返回数据异常');
+    showToast('已创建用户，并已发送验证码', 'success');
+    closeUserCreateModal();
+    returnToList('/console/user/');
+  } catch (err) {
+    showToast(err.message || '创建失败', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+async function toggleUserStatus(userId, enabled) {
+  try {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    const resp = await fetch(API_CONSOLE_USER_UPDATE_BASE + encodeURIComponent(userId), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({ status: enabled ? 1 : 0 }),
+    });
+    const json = await resp.json();
+    if (json.errorCode !== 0) throw new Error(json.message || '更新失败');
+    showToast(enabled ? '已启用用户' : '已禁用用户', 'success');
+  } catch (err) {
+    showToast(err.message || '更新失败', 'error');
+  }
+}
+</script>
+{% endblock %}

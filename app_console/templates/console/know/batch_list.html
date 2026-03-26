@@ -131,7 +131,7 @@ async function loadBatchList() {
                     <tbody>`;
             items.forEach(item => {
                 const sourceType = item.source_type === 1 ? '上传' : '文字';
-                // 仅列表表格展示用前 80 字+省略号，不用于编辑；编辑页从详情接口获取完整 content
+                // 仅列表表格展示用前 80 字+省略号；完整编辑内容在编辑页从「批次详情 API」拉取（编辑入口仅列表操作列）
                 const contentPreview = (item.content || '').substring(0, 80) + ((item.content || '').length > 80 ? '...' : '');
                 const ct = formatTimestamp(item.ct);
                 const batchDetailUrl = '/console/know/batches/' + item.id + '/';
@@ -273,14 +273,11 @@ document.getElementById('upload-form').addEventListener('submit', async function
         });
         const data = await response.json();
         if (data.errorCode === 0 && data.data) {
-            const d = data.data;
-            if (typeof showToast === 'function') showToast('已创建批次，可在详情页点击「分析」进行拆句', 'success');
+            if (typeof showToast === 'function') showToast('已创建批次，请在列表中打开详情后点击「分析」', 'success');
             else alert('已创建批次');
             closeUploadModal();
-            loadBatchList();
-            if (d.id) {
-                setTimeout(function() { window.location.href = '/console/know/batches/' + d.id + '/'; }, 500);
-            }
+            await loadBatchList();
+            returnToList('/console/know/batches/');
         } else {
             if (typeof showToast === 'function') showToast(data.message || '上传失败', 'error');
             else alert(data.message || '上传失败');

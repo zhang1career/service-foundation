@@ -1,0 +1,15 @@
+{% comment %}
+列表页操作列「编辑」图标链接（复用组件）
+
+约定（与 DESIGN_SPECIFICATIONS 一致）：
+- 仅允许在列表页使用；禁止在详情页、弹层说明中链向「从详情进编辑」。
+- 编辑页只能从列表进入；详情页不得提供任何进入编辑页的入口。
+
+用法:
+  {% url 'console:xxx-edit' id as edit_url %}
+  {% include 'console/includes/list_edit_icon.html' with edit_url=edit_url %}
+可选: edit_title（默认「编辑」）
+{% endcomment %}
+<a href="{{ edit_url }}" class="btn btn-outline btn-icon" title="{{ edit_title|default:'编辑' }}">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+</a>

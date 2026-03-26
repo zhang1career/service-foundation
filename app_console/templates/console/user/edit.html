@@ -1,0 +1,140 @@
+{% extends 'console/base.html' %}
+
+{% block title %}编辑用户{% endblock %}
+{% block page_title %}用户中心{% endblock %}
+
+{% block content %}
+{% url 'console:user-list' as user_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=user_list_url back_label="返回用户列表" %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">编辑用户</h2>
+    </div>
+    <div class="card-body">
+        <form id="edit-form" class="max-w-xl">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label">用户 ID</label>
+                <input type="text" class="form-input" value="{{ user_id }}" disabled>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-email">邮箱</label>
+                <input type="email" id="edit-email" class="form-input" placeholder="可选">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-phone">手机号</label>
+                <input type="text" id="edit-phone" class="form-input" placeholder="可选">
+            </div>
+            <div class="form-group">
+                <label class="form-label">头像</label>
+                <div class="flex items-start gap-4 flex-wrap">
+                    <div id="edit-avatar-preview-wrap" class="hidden">
+                        <img id="edit-avatar-preview" src="" alt="" class="w-20 h-20 rounded-full object-cover border border-gray-200 bg-gray-50">
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <input type="file" id="edit-avatar" class="form-input" accept="image/jpeg,image/png,image/gif,image/webp">
+                        <p class="text-sm text-gray-500 mt-1">选择新图片将上传至对象存储；不选文件则保留原头像。</p>
+                    </div>
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">此页面仅编辑资料字段，不支持状态切换与认证操作。</p>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
+                <a href="{{ user_list_url }}" onclick="return returnToList('{{ user_list_url|escapejs }}')" class="btn btn-outline">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const USER_ID = {{ user_id }};
+const API_USER_DETAIL = '/api/user/users/' + USER_ID;
+const API_USER_UPDATE = '/api/user/console/users/' + USER_ID;
+
+async function loadUserForEdit() {
+  try {
+    const resp = await fetch(API_USER_DETAIL, { credentials: 'same-origin' });
+    const json = await resp.json();
+    if (json.errorCode !== 0) {
+      const msg = [json.message, json.detail].filter(Boolean).join('：');
+      throw new Error(msg || '加载失败');
+    }
+    const u = json.data || {};
+    document.getElementById('edit-email').value = u.email || '';
+    document.getElementById('edit-phone').value = u.phone || '';
+    document.getElementById('edit-avatar').value = '';
+    const prevWrap = document.getElementById('edit-avatar-preview-wrap');
+    const prevImg = document.getElementById('edit-avatar-preview');
+    if (u.avatar) {
+      prevImg.src = u.avatar;
+      prevImg.alt = '头像';
+      prevWrap.classList.remove('hidden');
+    } else {
+      prevWrap.classList.add('hidden');
+      prevImg.removeAttribute('src');
+    }
+  } catch (err) {
+    showToast(err.message || '加载失败', 'error');
+  }
+}
+
+document.getElementById('edit-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const email = (document.getElementById('edit-email').value || '').trim();
+  const phone = (document.getElementById('edit-phone').value || '').trim();
+  const avatarFile = document.getElementById('edit-avatar').files[0];
+  const btn = document.getElementById('save-btn');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    let resp;
+    if (avatarFile) {
+      const fd = new FormData();
+      fd.append('email', email);
+      fd.append('phone', phone);
+      fd.append('avatar', avatarFile);
+      resp = await fetch(API_USER_UPDATE, {
+        method: 'PATCH',
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: fd,
+      });
+    } else {
+      resp = await fetch(API_USER_UPDATE, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ email, phone }),
+      });
+    }
+    const json = await resp.json();
+    if (json.errorCode !== 0) {
+      const msg = [json.message, json.detail].filter(Boolean).join('：');
+      throw new Error(msg || '保存失败');
+    }
+    showToast('保存成功', 'success');
+    returnToList('{{ user_list_url|escapejs }}');
+  } catch (err) {
+    showToast(err.message || '保存失败', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+document.addEventListener('DOMContentLoaded', loadUserForEdit);
+</script>
+{% endblock %}
+

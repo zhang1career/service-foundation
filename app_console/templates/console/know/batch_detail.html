@@ -15,12 +15,6 @@
     <div class="card-header">
         <h2 class="text-xl font-semibold">批次 {{ batch_data.id }}</h2>
         <div class="flex gap-2">
-            {% if batch_data.source_type == 0 %}
-            {% url 'console:know-batch-edit' entity_id=entity_id as batch_edit_base %}
-            {% with detail_edit_url=batch_edit_base|add:"?from=detail" %}
-            {% include 'console/includes/detail_edit_icon.html' with detail_edit_url=detail_edit_url %}
-            {% endwith %}
-            {% endif %}
             <button type="button" onclick="runAnalyze()" class="btn btn-primary btn-sm" id="analyze-btn">分析</button>
             {% if show_know_list_btn %}
             <a href="/console/know/?batch_id={{ entity_id }}" class="btn btn-outline btn-sm">知识列表</a>
@@ -67,25 +61,6 @@
 const entityId = {{ entity_id|default:0 }};
 const API_BASE = '/api/know/batches';
 
-// 编辑页保存成功后带 ?saved=1 跳转过来，用 showToast 显示「已保存」
-(function() {
-    var params = new URLSearchParams(window.location.search);
-    if (params.get('saved') !== '1') return;
-    function cleanUrl() {
-        if (window.history.replaceState) {
-            var u = new URL(window.location.href);
-            u.searchParams.delete('saved');
-            window.history.replaceState({}, '', u.pathname + (u.search || '') + u.hash);
-        }
-    }
-    function run() {
-        if (typeof showToast === 'function') showToast('已保存', 'success');
-        setTimeout(cleanUrl, 500);
-    }
-    if (document.readyState === 'complete') setTimeout(run, 50);
-    else window.addEventListener('load', function() { setTimeout(run, 50); });
-})();
-
 function getCookie(name) {
     let v = null;
     if (document.cookie && document.cookie !== '') {
@@ -107,8 +82,11 @@ async function runAnalyze() {
         const detailData = await detailRes.json();
         var content = (detailData.data && (detailData.data.aggregated_content || detailData.data.content)) || '';
         if (!content.trim()) {
-            if (typeof showToast === 'function') showToast('请先在批次编辑页填写内容后再分析', 'error');
-            else alert('请先在批次编辑页填写内容后再分析');
+            var hint = (typeof ConsoleNavStrings !== 'undefined' && ConsoleNavStrings.hintBatchEditFromListFirst)
+                ? ConsoleNavStrings.hintBatchEditFromListFirst
+                : '请先在「批次列表」中通过编辑入口填写内容后再分析';
+            if (typeof showToast === 'function') showToast(hint, 'error');
+            else alert(hint);
             if (btn) { btn.disabled = false; btn.textContent = '分析'; }
             return;
         }

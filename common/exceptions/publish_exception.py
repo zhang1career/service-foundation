@@ -1,2 +1,0 @@
-class TweetException(Exception):
-    pass

@@ -1,0 +1,192 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 模型{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{% include 'console/includes/aibroker_subnav.html' %}
+
+{% url 'console:aibroker-providers' as ab_providers_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=ab_providers_url back_label='返回提供商列表' %}
+
+{% if not provider %}
+<div class="card"><div class="card-body text-gray-500">未找到该提供商。</div></div>
+{% else %}
+
+<div class="mb-6">
+    <p class="text-gray-600">提供商 <span class="font-semibold">{{ provider.name }}</span>（ID {{ provider.id }}）下的模型。能力：0 对话 · 1 图像 · 2 视频 · 3 向量</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">模型列表</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openMdlCreateModal()">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            新增
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>模型名</th>
+                        <th>能力</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in models %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ m.id }}</td>
+                        <td class="font-medium">{{ m.model_name }}</td>
+                        <td>{{ m.capability }}</td>
+                        <td class="align-middle">
+                            <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
+                                <span class="console-toggle-wrap">
+                                    <input type="checkbox" class="console-toggle-input"{% if m.status == 1 %} checked{% endif %}
+                                           onchange="submitMdlStatus({{ m.id }}, this.checked)">
+                                    <span class="console-toggle-track" aria-hidden="true"></span>
+                                </span>
+                            </label>
+                        </td>
+                        <td>
+                            <div class="flex gap-1 items-center flex-wrap">
+                                <button type="button" class="btn btn-outline btn-icon" title="编辑"
+                                        data-id="{{ m.id }}"
+                                        data-model-name="{{ m.model_name|escape }}"
+                                        data-capability="{{ m.capability }}"
+                                        data-status="{{ m.status }}"
+                                        onclick="openMdlEditModal(this)">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <button type="button" class="btn btn-danger btn-icon" title="删除" onclick="submitMdlDelete({{ m.id }})">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无模型</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for m in models %}
+<form id="mdl-st-{{ m.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="set_status">
+    <input type="hidden" name="model_id" value="{{ m.id }}">
+    <input type="hidden" name="status" id="mdl-st-val-{{ m.id }}" value="{{ m.status }}">
+</form>
+<form id="mdl-del-{{ m.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="model_id" value="{{ m.id }}">
+</form>
+{% endfor %}
+
+<div id="mdl-create-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3 class="text-lg font-semibold">新增模型</h3></div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="mdl-c-name">模型名 *</label>
+                    <input type="text" id="mdl-c-name" name="model_name" class="form-input" required placeholder="gpt-4o-mini">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="mdl-c-cap">能力 *</label>
+                    <select id="mdl-c-cap" name="capability" class="form-input">
+                        <option value="0">0 — 对话</option>
+                        <option value="1">1 — 图像</option>
+                        <option value="2">2 — 视频</option>
+                        <option value="3">3 — 向量</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeMdlCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="mdl-edit-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3 class="text-lg font-semibold">编辑模型</h3></div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="model_id" id="mdl-e-id" value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="mdl-e-name">模型名 *</label>
+                    <input type="text" id="mdl-e-name" name="model_name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="mdl-e-cap">能力 *</label>
+                    <select id="mdl-e-cap" name="capability" class="form-input">
+                        <option value="0">0 — 对话</option>
+                        <option value="1">1 — 图像</option>
+                        <option value="2">2 — 视频</option>
+                        <option value="3">3 — 向量</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="mdl-e-status">状态</label>
+                    <select id="mdl-e-status" name="status" class="form-input">
+                        <option value="0">停用</option>
+                        <option value="1">启用</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeMdlEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    window.openMdlCreateModal = function () {
+        document.getElementById('mdl-create-modal').classList.remove('hidden');
+    };
+    window.closeMdlCreateModal = function () {
+        document.getElementById('mdl-create-modal').classList.add('hidden');
+    };
+    window.openMdlEditModal = function (btn) {
+        var d = btn.dataset;
+        document.getElementById('mdl-e-id').value = d.id;
+        document.getElementById('mdl-e-name').value = d.modelName || '';
+        document.getElementById('mdl-e-cap').value = String(d.capability != null ? d.capability : '0');
+        document.getElementById('mdl-e-status').value = String(d.status != null ? d.status : '1');
+        document.getElementById('mdl-edit-modal').classList.remove('hidden');
+    };
+    window.closeMdlEditModal = function () {
+        document.getElementById('mdl-edit-modal').classList.add('hidden');
+    };
+    window.submitMdlStatus = function (id, on) {
+        document.getElementById('mdl-st-val-' + id).value = on ? '1' : '0';
+        document.getElementById('mdl-st-' + id).submit();
+    };
+    window.submitMdlDelete = function (id) {
+        if (!confirm('确认删除该模型？')) return;
+        document.getElementById('mdl-del-' + id).submit();
+    };
+    document.getElementById('mdl-create-modal').addEventListener('click', function (e) { if (e.target === this) closeMdlCreateModal(); });
+    document.getElementById('mdl-edit-modal').addEventListener('click', function (e) { if (e.target === this) closeMdlEditModal(); });
+})();
+</script>
+{% endif %}
+{% endblock %}

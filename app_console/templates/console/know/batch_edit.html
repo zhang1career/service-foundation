@@ -23,7 +23,7 @@
             </div>
             <div class="flex gap-2 mt-4">
                 <button type="submit" class="btn btn-primary" id="save-btn" disabled>保存</button>
-                <a href="{{ edit_cancel_url }}" class="btn btn-outline">取消</a>
+                <a href="{{ edit_cancel_url }}" onclick="return returnToList('{{ edit_cancel_url|escapejs }}')" class="btn btn-outline">取消</a>
             </div>
         </form>
     </div>
@@ -37,7 +37,6 @@
 <script>
 (function() {
 const entityId = {{ entity_id|default:0 }};
-const detailUrl = "{% url 'console:know-batch-detail' entity_id=entity_id %}";
 const listUrl = "{% url 'console:know-batch-list' %}";
 const API_BASE = '/api/know/batches';
 
@@ -84,8 +83,7 @@ document.getElementById('batch-edit-form').addEventListener('submit', async func
         var ok = data && (data.errorCode === 0 || data.errorCode === '0');
         if (ok) {
             succeeded = true;
-            var id = parseInt(entityId, 10) || 0;
-            window.location.replace(window.location.origin + '/console/know/batches/' + id + '/?saved=1');
+            returnToList(listUrl);
         } else {
             showToast(data && data.message ? data.message : '保存失败', 'error');
         }

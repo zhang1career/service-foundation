@@ -66,6 +66,10 @@ APP_MAILSERVER_ENABLED = env.bool("APP_MAILSERVER_ENABLED", default=True)
 APP_OSS_ENABLED = env.bool("APP_OSS_ENABLED", default=True)
 APP_SNOWFLAKE_ENABLED = env.bool("APP_SNOWFLAKE_ENABLED", default=True)
 APP_CDN_ENABLED = env.bool("APP_CDN_ENABLED", default=True)
+APP_NOTICE_ENABLED = env.bool("APP_NOTICE_ENABLED", default=True)
+APP_USER_ENABLED = env.bool("APP_USER_ENABLED", default=True)
+APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=True)
+APP_AIBROKER_ENABLED = env.bool("APP_AIBROKER_ENABLED", default=False)
 
 # Application definition
 INSTALLED_APPS = [
@@ -93,6 +97,14 @@ if APP_SNOWFLAKE_ENABLED:
     INSTALLED_APPS.append("app_snowflake")
 if APP_CDN_ENABLED:
     INSTALLED_APPS.append("app_cdn")
+if APP_NOTICE_ENABLED:
+    INSTALLED_APPS.append("app_notice")
+if APP_USER_ENABLED:
+    INSTALLED_APPS.append("app_user")
+if APP_VERIFY_ENABLED:
+    INSTALLED_APPS.append("app_verify")
+if APP_AIBROKER_ENABLED:
+    INSTALLED_APPS.append("app_aibroker")
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
@@ -107,7 +119,12 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "common.utils.http_util.UnifiedExceptionMiddleware",
 ]
+
+REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "common.utils.http_util.drf_unified_exception_handler",
+}
 
 # CORS
 CORS_ORIGIN_ALLOW_ALL = True
@@ -222,6 +239,62 @@ DATABASES = {
             "NAME": env("DB_CDN_TEST_NAME", default="sf_cdn_test"),
         },
     },
+    "notice_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_NOTICE_NAME", default="sf_notice"),
+        "USER": env("DB_NOTICE_USER", default="zhang"),
+        "PASSWORD": env("DB_NOTICE_PASS", default=""),
+        "HOST": env("DB_NOTICE_HOST", default="127.0.0.1"),
+        "PORT": env("DB_NOTICE_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_NOTICE_TEST_NAME", default="sf_notice_test"),
+        },
+    },
+    "user_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_USER_NAME", default="sf_user"),
+        "USER": env("DB_USER_USER", default="zhang"),
+        "PASSWORD": env("DB_USER_PASS", default=""),
+        "HOST": env("DB_USER_HOST", default="127.0.0.1"),
+        "PORT": env("DB_USER_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_USER_TEST_NAME", default="sf_user_test"),
+        },
+    },
+    "verify_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_VERIFY_NAME", default="sf_verify"),
+        "USER": env("DB_VERIFY_USER", default="zhang"),
+        "PASSWORD": env("DB_VERIFY_PASS", default=""),
+        "HOST": env("DB_VERIFY_HOST", default="127.0.0.1"),
+        "PORT": env("DB_VERIFY_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_VERIFY_TEST_NAME", default="sf_verify_test"),
+        },
+    },
+    "aibroker_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_AIBROKER_NAME", default="sf_aibroker"),
+        "USER": env("DB_AIBROKER_USER", default="zhang"),
+        "PASSWORD": env("DB_AIBROKER_PASS", default=""),
+        "HOST": env("DB_AIBROKER_HOST", default="127.0.0.1"),
+        "PORT": env("DB_AIBROKER_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_AIBROKER_TEST_NAME", default="sf_aibroker_test"),
+        },
+    },
 }
 
 # Dynamically configure database routers based on enabled apps
@@ -234,6 +307,14 @@ if APP_CDN_ENABLED:
     DATABASE_ROUTERS.append("app_cdn.db_routers.ReadWriteRouter")
 if APP_KNOW_ENABLED:
     DATABASE_ROUTERS.append("app_know.db_routers.ReadWriteRouter")
+if APP_NOTICE_ENABLED:
+    DATABASE_ROUTERS.append("app_notice.db_routers.ReadWriteRouter")
+if APP_USER_ENABLED:
+    DATABASE_ROUTERS.append("app_user.db_routers.ReadWriteRouter")
+if APP_VERIFY_ENABLED:
+    DATABASE_ROUTERS.append("app_verify.db_routers.ReadWriteRouter")
+if APP_AIBROKER_ENABLED:
+    DATABASE_ROUTERS.append("app_aibroker.db_routers.ReadWriteRouter")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -285,9 +366,9 @@ _log_path = Path(_log_file_path)
 if not _log_path.is_absolute():
     _log_path = BASE_DIR / _log_path
 # 日志路径（当 LOG_HANDLER=logfile 时写入该文件）：
-# 默认 = <项目根目录>/log/service-foundation/app.log
-# 可通过环境变量 LOG_FILE_PATH、APP_NAME、LOG_FILE 覆盖
-_log_path = _log_path / env("APP_NAME", default="service-foundation") / env("LOG_FILE", default="app.log")
+# 默认 = <项目根目录>/log/app.log
+# 可通过环境变量 LOG_FILE_PATH、LOG_FILE 覆盖
+_log_path = _log_path / env("LOG_FILE", default="app.log")
 _logfile_ok = False
 if _log_handler == "logfile":
     try:
@@ -356,8 +437,20 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_SERV_FD", default="INFO"),
             "handlers": [_log_handler],
         },
+        "app_cdn": {
+            "level": env("LOG_LEVEL_APP_CDN", default="INFO"),
+            "handlers": [_log_handler],
+        },
+        "app_know": {
+            "level": env("LOG_LEVEL_APP_KNOW", default="INFO"),
+            "handlers": [_log_handler],
+        },
         "app_mailserver": {
             "level": env("LOG_LEVEL_APP_MAILSERVER", default="INFO"),
+            "handlers": [_log_handler],
+        },
+        "app_notice": {
+            "level": env("LOG_LEVEL_APP_NOTICE", default="INFO"),
             "handlers": [_log_handler],
         },
         "app_oss": {
@@ -368,12 +461,16 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_SNOWFLAKE", default="INFO"),
             "handlers": [_log_handler],
         },
-        "app_know": {
-            "level": env("LOG_LEVEL_APP_KNOW", default="INFO"),
+        "app_user": {
+            "level": env("LOG_LEVEL_APP_USER", default="INFO"),
             "handlers": [_log_handler],
         },
-        "app_cdn": {
-            "level": env("LOG_LEVEL_APP_CDN", default="INFO"),
+        "app_verify": {
+            "level": env("LOG_LEVEL_APP_VERIFY", default="INFO"),
+            "handlers": [_log_handler],
+        },
+        "app_aibroker": {
+            "level": env("LOG_LEVEL_APP_AIBROKER", default="INFO"),
             "handlers": [_log_handler],
         },
         "common": {
@@ -386,6 +483,17 @@ LOGGING = {
 # traceid
 LOG_REQUEST_ID_HEADER = "X_Request_Id"
 REQUEST_ID_RESPONSE_HEADER = "X_Request_Id"
+
+# Internal HTTP integration
+NOTICE_SERVICE_URL = env("NOTICE_SERVICE_URL", default="http://127.0.0.1:8000/api/notice/send")
+VERIFY_REQUEST_URL = env("VERIFY_REQUEST_URL", default="http://127.0.0.1:8000/api/verify/request")
+VERIFY_CHECK_URL = env("VERIFY_CHECK_URL", default="http://127.0.0.1:8000/api/verify/check")
+AIBROKER_SERVICE_URL = env("AIBROKER_SERVICE_URL", default="http://127.0.0.1:8000/api/aibroker")
+KNOW_AIBROKER_ACCESS_KEY = env("KNOW_AIBROKER_ACCESS_KEY", default="")
+USER_VERIFY_ACCESS_KEY = env("USER_VERIFY_ACCESS_KEY", default="")
+USER_NOTICE_ACCESS_KEY = env("USER_NOTICE_ACCESS_KEY", default="")
+USER_AVATAR_OSS_ENDPOINT = env("USER_AVATAR_OSS_ENDPOINT", default="http://127.0.0.1:8000/api/oss")
+USER_AVATAR_OSS_BUCKET = env("USER_AVATAR_OSS_BUCKET", default="user-avatar")
 
 # MongoDB Atlas configuration (for app_know)
 MONGO_ATLAS_USER = env("MONGO_ATLAS_USER", default="")

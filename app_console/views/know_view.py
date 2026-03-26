@@ -1,7 +1,8 @@
-from django.views.generic import TemplateView
 from django.http import Http404
-from django.test import Client
-import json
+from django.views.generic import TemplateView
+
+from app_know.repos.batch_repo import get_batch_detail
+from app_know.utils.knowledge_point_dict import get_knowledge_point_detail_dict
 
 
 def _format_ts(ts):
@@ -29,17 +30,10 @@ class KnowPointDetailView(TemplateView):
         if not point_id or point_id <= 0:
             raise Http404('无效的知识 ID')
         point_id = int(point_id)
-        client = Client()
-        resp = client.get(f'/api/know/knowledge/points/{point_id}')
-        if resp.status_code != 200:
+        data = get_knowledge_point_detail_dict(point_id)
+        if not data:
             raise Http404(f'知识 {point_id} 不存在')
-        try:
-            result = json.loads(resp.content.decode('utf-8'))
-        except json.JSONDecodeError:
-            raise Http404(f'知识 {point_id} 不存在')
-        if result.get('errorCode') != 0 or not result.get('data'):
-            raise Http404(f'知识 {point_id} 不存在')
-        self.point_data = result['data']
+        self.point_data = data
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -62,17 +56,10 @@ class KnowPointEditView(TemplateView):
         if not point_id or point_id <= 0:
             raise Http404('无效的知识 ID')
         point_id = int(point_id)
-        client = Client()
-        resp = client.get(f'/api/know/knowledge/points/{point_id}')
-        if resp.status_code != 200:
+        data = get_knowledge_point_detail_dict(point_id)
+        if not data:
             raise Http404(f'知识 {point_id} 不存在')
-        try:
-            result = json.loads(resp.content.decode('utf-8'))
-        except json.JSONDecodeError:
-            raise Http404(f'知识 {point_id} 不存在')
-        if result.get('errorCode') != 0 or not result.get('data'):
-            raise Http404(f'知识 {point_id} 不存在')
-        self.point_data = result['data']
+        self.point_data = data
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -92,12 +79,8 @@ class KnowPointEditView(TemplateView):
         else:
             context['initial_classification'] = ''
         context.update(get_edit_return_context(
-            self.request,
             list_url_name='console:know-list',
             list_label='返回知识列表',
-            detail_url_name='console:know-point-detail',
-            detail_url_kwargs={'point_id': point_id},
-            detail_label='返回知识详情',
         ))
         return context
 
@@ -120,17 +103,10 @@ class KnowBatchDetailView(TemplateView):
         if not entity_id or entity_id <= 0:
             raise Http404('无效的批次 ID')
         entity_id = int(entity_id)
-        client = Client()
-        resp = client.get(f'/api/know/batches/{entity_id}')
-        if resp.status_code != 200:
+        batch_data = get_batch_detail(entity_id)
+        if not batch_data:
             raise Http404(f'批次 {entity_id} 不存在')
-        try:
-            result = json.loads(resp.content.decode('utf-8'))
-        except json.JSONDecodeError:
-            raise Http404(f'批次 {entity_id} 不存在')
-        if result.get('errorCode') != 0 or not result.get('data'):
-            raise Http404(f'批次 {entity_id} 不存在')
-        self.batch_data = result['data']
+        self.batch_data = batch_data
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -160,17 +136,9 @@ class KnowBatchEditView(TemplateView):
         if not entity_id or entity_id <= 0:
             raise Http404('无效的批次 ID')
         entity_id = int(entity_id)
-        client = Client()
-        resp = client.get(f'/api/know/batches/{entity_id}')
-        if resp.status_code != 200:
+        batch_data = get_batch_detail(entity_id)
+        if not batch_data:
             raise Http404(f'批次 {entity_id} 不存在')
-        try:
-            result = json.loads(resp.content.decode('utf-8'))
-        except json.JSONDecodeError:
-            raise Http404(f'批次 {entity_id} 不存在')
-        if result.get('errorCode') != 0 or not result.get('data'):
-            raise Http404(f'批次 {entity_id} 不存在')
-        batch_data = result['data']
         if batch_data.get('source_type') != 0:
             from django.shortcuts import redirect
             return redirect('console:know-batch-detail', entity_id=entity_id)
@@ -187,11 +155,7 @@ class KnowBatchEditView(TemplateView):
             context['batch_data']['ct_fmt'] = _format_ts(context['batch_data'].get('ct'))
             context['batch_data']['ut_fmt'] = _format_ts(context['batch_data'].get('ut'))
         context.update(get_edit_return_context(
-            self.request,
             list_url_name='console:know-batch-list',
             list_label='返回批次列表',
-            detail_url_name='console:know-batch-detail',
-            detail_url_kwargs={'entity_id': entity_id},
-            detail_label='返回批次详情',
         ))
         return context

@@ -3,7 +3,6 @@ Parser Agent: split text into sentences, classify, write MySQL + sentence_raw.
 Stage 0 (创建): sentence creation with optional classification.
 """
 import logging
-import os
 import re
 from typing import List
 
@@ -25,29 +24,6 @@ CLASS_QUESTION = (
     "Reply with one word only, lowercase."
 )
 
-_text_ai_client = None
-
-
-def _get_text_ai():
-    global _text_ai_client
-    if _text_ai_client is not None:
-        return _text_ai_client
-    try:
-        from common.services.ai.text_ai import TextAI
-    except ImportError:
-        return None
-    base_url = os.environ.get("AIGC_API_URL", EMPTY_STRING)
-    api_key = os.environ.get("AIGC_API_KEY", EMPTY_STRING)
-    model = os.environ.get("AIGC_GPT_MODEL", "gpt-4o-mini")
-    if not api_key:
-        return None
-    try:
-        _text_ai_client = TextAI(base_url, api_key, model)
-        return _text_ai_client
-    except Exception as e:
-        logger.warning("[parser_agent] TextAI init failed: %s", e)
-        return None
-
 
 def split_sentences(text: str) -> List[str]:
     """
@@ -66,18 +42,18 @@ def split_sentences(text: str) -> List[str]:
 def classify_sentence(sentence: str) -> str:
     """
     Classify sentence into claim/fact/event/concept/definition/argument.
-    Uses AI if available; otherwise returns CLASS_FACT.
+    Uses app_aibroker (HTTP) only; on failure returns CLASS_FACT.
     """
     if not sentence or not sentence.strip():
         return CLASS_FACT
-    client = _get_text_ai()
-    if client is None:
-        return CLASS_FACT
     try:
-        _, result = client.ask_and_answer(
+        from common.services.aibroker_client import aibroker_ask_and_answer
+
+        result = aibroker_ask_and_answer(
             text=sentence[:500],
             role="sentence classifier",
             question=CLASS_QUESTION,
+            additional_question=EMPTY_STRING,
             temperature=0,
         )
         if result and isinstance(result, str):
@@ -86,7 +62,7 @@ def classify_sentence(sentence: str) -> str:
             if c in valid:
                 return c
     except Exception as e:
-        logger.debug("[parser_agent] classify_sentence AI error: %s", e)
+        logger.debug("[parser_agent] classify_sentence aibroker error: %s", e)
     return CLASS_FACT
 
 

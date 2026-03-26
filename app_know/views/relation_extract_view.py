@@ -1,6 +1,6 @@
 """
 REST API view for extracting relations from knowledge content.
-Uses TextAI to extract predicate logic and stores in Atlas + Neo4j.
+Uses app_aibroker (HTTP) to extract predicate logic and stores in Atlas + Neo4j.
 """
 import json
 import logging

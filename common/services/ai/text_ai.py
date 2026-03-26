@@ -3,7 +3,7 @@ import logging
 from common.apis.aigcbest_api import AigcBestAPI
 from common.components.singleton import Singleton
 from common.consts.string_const import EMPTY_STRING
-from common.exceptions.ai_exception import UnexpectedAnswerException
+from common.exceptions import InvalidModelResponseError
 from common.utils.string_util import explode, check_blank
 
 logger = logging.getLogger(__name__)
@@ -118,6 +118,25 @@ Or, if you do not know how to answer, try to explain the reason.
 """
 
 
+def build_ask_and_answer_prompt(
+    text: str,
+    role: str,
+    question: str,
+    additional_question: str = EMPTY_STRING,
+    is_debug: bool = False,
+) -> str:
+    """Build the same user message as :meth:`TextAI.ask_and_answer` (for HTTP broker calls)."""
+    _additional_question = (additional_question or "").strip()
+    if check_blank(_additional_question):
+        _additional_question = PROMPT_ASK_AND_ANSWER_DEBUG if is_debug else PROMPT_ASK_AND_ANSWER_EXTEND
+    return PROMPT_ASK_AND_ANSWER.format(
+        role=role,
+        text=text,
+        question=question,
+        additional_question=_additional_question,
+    )
+
+
 class TextAI(Singleton):
     def __init__(self, url: str, token: str, model: str, is_debug: bool = False):
         self._llm = AigcBestAPI(url, token, model)
@@ -147,7 +166,7 @@ class TextAI(Singleton):
         logger.debug("[ai][text][single_choice] prompt=%s", prompt)
         result = self._llm.chat(prompt, temperature)
         if result == "no":
-            raise UnexpectedAnswerException(prompt)
+            raise InvalidModelResponseError(prompt)
         logger.debug("[ai][text][single_choice] result=%s", result)
         return prompt, result.strip()
 
@@ -190,7 +209,7 @@ class TextAI(Singleton):
         logger.debug("[ai][text][multiple_choice] prompt=%s", prompt)
         result = self._llm.chat(prompt, temperature)
         if result == "no":
-            raise UnexpectedAnswerException(prompt)
+            raise InvalidModelResponseError(prompt)
         logger.debug("[ai][text][multiple_choice] result=%s", result)
         return prompt, result
 
@@ -214,7 +233,7 @@ class TextAI(Singleton):
         logger.debug("[ai][text][true_or_false] prompt=%s", prompt)
         result = self._llm.chat(prompt, temperature)
         if result == "no":
-            raise UnexpectedAnswerException(prompt)
+            raise InvalidModelResponseError(prompt)
         logger.debug("[ai][text][true_or_false] result=%s", result)
         return prompt, result.lower() == "true"
 
@@ -232,21 +251,17 @@ class TextAI(Singleton):
         @param additional_question:
         @param temperature:
         """
-        # prepare data
-        _additional_question = additional_question.strip()
-        if check_blank(_additional_question):
-            _additional_question = PROMPT_ASK_AND_ANSWER_DEBUG if self._is_debug else PROMPT_ASK_AND_ANSWER_EXTEND
-        # build prompt
-        prompt = PROMPT_ASK_AND_ANSWER.format(
-            role=role,
+        prompt = build_ask_and_answer_prompt(
             text=text,
+            role=role,
             question=question,
-            additional_question=_additional_question
+            additional_question=additional_question,
+            is_debug=self._is_debug,
         )
         logger.debug("[ai][text][ask_and_answer] prompt=%s", prompt)
         result = self._llm.chat(prompt, temperature)
         if result == "no":
-            raise UnexpectedAnswerException(prompt)
+            raise InvalidModelResponseError(prompt)
         logger.debug("[ai][text][ask_and_answer] result=%s", result)
         return prompt, result
 
@@ -270,7 +285,7 @@ class TextAI(Singleton):
         logger.debug("[ai][text][ask_and_answer_keyword] prompt=%s", prompt)
         result = self._llm.chat(prompt, temperature)
         if result == "no":
-            raise UnexpectedAnswerException(prompt)
+            raise InvalidModelResponseError(prompt)
         logger.debug("[ai][text][ask_and_answer_keyword] result=%s", result)
         return prompt, result
 

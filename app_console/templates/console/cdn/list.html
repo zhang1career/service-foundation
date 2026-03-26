@@ -117,6 +117,7 @@ async function loadDistributions() {
                             <th>别名</th>
                             <th>状态</th>
                             <th>备注</th>
+                            <th>分发</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -135,13 +136,9 @@ async function loadDistributions() {
                     <td class="max-w-xs truncate" title="${escapeHtml(aliases)}">${escapeHtml(aliases)}</td>
                     <td><span class="badge ${statusCls}">${escapeHtml(status)}</span></td>
                     <td class="max-w-xs truncate">${escapeHtml(comment)}</td>
+                    ${listToggleColumnCell(id, !!item.Enabled, 'toggleCdnDistributionEnabled')}
                     ${listActions({
                         id: id,
-                        enabledToggle: {
-                            label: '启用分发',
-                            checked: !!item.Enabled,
-                            handler: 'toggleCdnDistributionEnabled',
-                        },
                         onEdit: 'editCdnDistribution',
                         onDelete: 'deleteDistribution'
                     })}

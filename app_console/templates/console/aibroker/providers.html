@@ -1,0 +1,175 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 提供商{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<div class="mb-6">
+    <p class="text-gray-600">配置 LLM 上游：名称、Base URL、API Key。停用后不再用于路由。</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">提供商列表</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openProvCreateModal()">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            新增
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>名称</th>
+                        <th>Base URL</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in providers %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ p.id }}</td>
+                        <td class="font-medium">{{ p.name }}</td>
+                        <td class="break-all text-sm max-w-md"><a href="{{ p.base_url }}" class="text-blue-600 hover:underline" target="_blank" rel="noopener">{{ p.base_url }}</a></td>
+                        <td class="align-middle">
+                            <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
+                                <span class="console-toggle-wrap">
+                                    <input type="checkbox" class="console-toggle-input"{% if p.status == 1 %} checked{% endif %}
+                                           onchange="submitProvStatus({{ p.id }}, this.checked)">
+                                    <span class="console-toggle-track" aria-hidden="true"></span>
+                                </span>
+                            </label>
+                        </td>
+                        <td>
+                            <div class="flex gap-1 items-center flex-wrap">
+                                <a href="{% url 'console:aibroker-models' p.id %}" class="btn btn-outline btn-sm" title="模型">模型</a>
+                                <button type="button" class="btn btn-outline btn-icon" title="编辑"
+                                        data-id="{{ p.id }}"
+                                        data-name="{{ p.name|escape }}"
+                                        data-base-url="{{ p.base_url|escape }}"
+                                        onclick="openProvEditModal(this)">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <button type="button" class="btn btn-danger btn-icon" title="删除" onclick="submitProvDelete({{ p.id }})">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for p in providers %}
+<form id="prov-st-{{ p.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="set_status">
+    <input type="hidden" name="provider_id" value="{{ p.id }}">
+    <input type="hidden" name="status" id="prov-st-val-{{ p.id }}" value="{{ p.status }}">
+</form>
+<form id="prov-del-{{ p.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="provider_id" value="{{ p.id }}">
+</form>
+{% endfor %}
+
+<div id="prov-create-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3 class="text-lg font-semibold">新增提供商</h3></div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="prov-c-name">名称 *</label>
+                    <input type="text" id="prov-c-name" name="name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="prov-c-url">Base URL *</label>
+                    <input type="text" id="prov-c-url" name="base_url" class="form-input" placeholder="https://api.openai.com/v1" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="prov-c-key">API Key *</label>
+                    <input type="password" id="prov-c-key" name="api_key" class="form-input" required autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeProvCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="prov-edit-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header"><h3 class="text-lg font-semibold">编辑提供商</h3></div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="provider_id" id="prov-e-id" value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="prov-e-name">名称 *</label>
+                    <input type="text" id="prov-e-name" name="name" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="prov-e-url">Base URL *</label>
+                    <input type="text" id="prov-e-url" name="base_url" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="prov-e-key">API Key（留空则不修改）</label>
+                    <input type="password" id="prov-e-key" name="api_key" class="form-input" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeProvEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    window.openProvCreateModal = function () {
+        document.getElementById('prov-create-modal').classList.remove('hidden');
+    };
+    window.closeProvCreateModal = function () {
+        document.getElementById('prov-create-modal').classList.add('hidden');
+    };
+    window.openProvEditModal = function (btn) {
+        var d = btn.dataset;
+        document.getElementById('prov-e-id').value = d.id;
+        document.getElementById('prov-e-name').value = d.name || '';
+        document.getElementById('prov-e-url').value = d.baseUrl || '';
+        document.getElementById('prov-e-key').value = '';
+        document.getElementById('prov-edit-modal').classList.remove('hidden');
+    };
+    window.closeProvEditModal = function () {
+        document.getElementById('prov-edit-modal').classList.add('hidden');
+    };
+    window.submitProvStatus = function (id, on) {
+        document.getElementById('prov-st-val-' + id).value = on ? '1' : '0';
+        document.getElementById('prov-st-' + id).submit();
+    };
+    window.submitProvDelete = function (id) {
+        if (!confirm('确认删除？关联模型将一并删除。')) return;
+        document.getElementById('prov-del-' + id).submit();
+    };
+    document.getElementById('prov-create-modal').addEventListener('click', function (e) { if (e.target === this) closeProvCreateModal(); });
+    document.getElementById('prov-edit-modal').addEventListener('click', function (e) { if (e.target === this) closeProvEditModal(); });
+})();
+</script>
+{% endblock %}

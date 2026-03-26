@@ -4,8 +4,9 @@
 {% block page_title %}编辑 CDN 分发{% endblock %}
 
 {% block content %}
+{% url 'console:cdn-distributions' as cdn_list_url %}
 <div class="mb-4 text-sm">
-    <a href="{% url 'console:cdn-distributions' %}" class="text-blue-600 hover:underline">返回分发列表</a>
+    <a href="{{ cdn_list_url }}" onclick="return returnToList('{{ cdn_list_url|escapejs }}')" class="text-blue-600 hover:underline">返回分发列表</a>
 </div>
 
 <div id="edit-loading" class="card">
@@ -54,7 +55,7 @@
             </div>
             <div class="flex gap-2 pt-2">
                 <button type="submit" class="btn btn-primary" id="edit-submit-btn">保存</button>
-                <a href="{% url 'console:cdn-distribution-detail' distribution_id=distribution_id %}" class="btn btn-outline">取消</a>
+                <a href="{{ cdn_list_url }}" onclick="return returnToList('{{ cdn_list_url|escapejs }}')" class="btn btn-outline">取消</a>
             </div>
         </form>
     </div>
@@ -291,7 +292,7 @@
             if (pj.errorCode === 0 && pj.data && pj.data.Distribution) {
                 lastEtag = pj.data.Distribution.ETag;
                 showToast('已保存', 'success');
-                window.location.href = '/console/cdn/distributions/' + encodeURIComponent(DIST_ID) + '/';
+                returnToList('{{ cdn_list_url|escapejs }}');
             } else {
                 throw new Error(pj.message || '保存失败');
             }

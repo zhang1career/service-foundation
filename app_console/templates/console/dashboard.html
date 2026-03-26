@@ -36,6 +36,22 @@
                     <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0h.5a2.5 2.5 0 002.5-2.5V8m-6.5 12.06V16.5a2.5 2.5 0 002.5-2.5V12M20.945 13H19a2 2 0 00-2 2v1a2 2 0 01-2 2 2 2 0 01-2-2v-2.945M16 20.065V19a2 2 0 012-2h2a2 2 0 012 2v1.065"></path>
                     </svg>
+                    {% elif app.icon == 'user' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A9.953 9.953 0 0112 15c2.154 0 4.149.68 5.879 1.835M15 8a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    {% elif app.icon == 'bell' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                    </svg>
+                    {% elif app.icon == 'shield' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l7 4v5c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V7l7-4z"></path>
+                    </svg>
+                    {% elif app.icon == 'sparkles' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+                    </svg>
                     {% endif %}
                 </div>
                 <div>
@@ -59,6 +75,14 @@
                 <a href="{% url 'console:oss-browser' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
                 {% elif key == 'snowflake' %}
                 <a href="{% url 'console:snowflake' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'user' %}
+                <a href="{% url 'console:user-list' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'notice' %}
+                <a href="{% url 'console:notice-reg-list' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'verify' %}
+                <a href="{% url 'console:verify-reg-list' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'aibroker' %}
+                <a href="{% url 'console:aibroker-regs' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
                 {% endif %}
             {% else %}
             <button class="btn btn-outline btn-sm w-full" disabled>未启用</button>
@@ -76,7 +100,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                     <p class="text-sm text-gray-500 mb-1">API 端点</p>
-                    <p class="font-mono text-sm">/api/cdn/, /api/know/, /api/mail/, /api/oss/, /api/snowflake/</p>
+                    <p class="font-mono text-sm">/api/cdn/, /api/know/, /api/mail/, /api/oss/, /api/snowflake/, /api/user/, /api/notice/, /api/verify/, /api/aibroker/</p>
                 </div>
                 <div>
                     <p class="text-sm text-gray-500 mb-1">控制台版本</p>

@@ -38,5 +38,29 @@ class DashboardView(TemplateView):
                 'description': '分布式 ID 生成服务',
                 'icon': 'hash',
             },
+            'user': {
+                'name': '用户中心',
+                'enabled': getattr(settings, 'APP_USER_ENABLED', False),
+                'description': '统一用户注册、登录、资料和凭证管理',
+                'icon': 'user',
+            },
+            'notice': {
+                'name': '通知中心',
+                'enabled': getattr(settings, 'APP_NOTICE_ENABLED', False),
+                'description': '邮件/短信等通知发送与调用方管理',
+                'icon': 'bell',
+            },
+            'verify': {
+                'name': '校验工具',
+                'enabled': getattr(settings, 'APP_VERIFY_ENABLED', False),
+                'description': '验证码生成、校验与调用方注册管理',
+                'icon': 'shield',
+            },
+            'aibroker': {
+                'name': 'AI Broker',
+                'enabled': getattr(settings, 'APP_AIBROKER_ENABLED', False),
+                'description': '统一 LLM 调用、提示模板与调用方凭证',
+                'icon': 'sparkles',
+            },
         }
         return context

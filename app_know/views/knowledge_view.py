@@ -17,6 +17,7 @@ from app_know.repos.knowledge_point_repo import (
     delete_by_id as delete_knowledge_point_by_id,
 )
 from app_know.repos.sentence_raw_repo import delete_by_sentence_ids
+from app_know.utils.knowledge_point_dict import knowledge_point_to_dict
 from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception, with_type
 
@@ -90,76 +91,6 @@ class KnowledgeListView(APIView):
                         status=http_status.HTTP_200_OK)
 
 
-def _stage_label(stage_val) -> str:
-    """Resolve stage number to display label (k) from StageEnum."""
-    try:
-        from app_know.enums.stage_enum import StageEnum
-        for id_, label in StageEnum.ITEMS:
-            if id_ == stage_val:
-                return label
-    except Exception:
-        pass
-    return str(stage_val) if stage_val is not None else ""
-
-
-def _classification_label(classification_val) -> str:
-    """Resolve classification id to code (k) from ClassificationEnum."""
-    try:
-        from app_know.enums.classification_enum import ClassificationEnum
-        for id_, code in ClassificationEnum.ITEMS:
-            if id_ == classification_val:
-                return code
-    except Exception:
-        pass
-    return str(classification_val) if classification_val is not None else ""
-
-
-def _status_label(status_val) -> str:
-    """Resolve status number to display label from KnowledgeStatusEnum."""
-    try:
-        from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
-        for id_, label in KnowledgeStatusEnum.ITEMS:
-            if id_ == status_val:
-                return label
-    except Exception:
-        pass
-    return str(status_val) if status_val is not None else ""
-
-
-def _knowledge_point_to_dict(k) -> dict:
-    """Convert KnowledgePoint to API dict."""
-    content = (k.content or "").strip()
-    stage_val = getattr(k, "stage", 0)
-    cls_val = getattr(k, "classification", 0)
-    if cls_val is None:
-        cls_val = 0
-    try:
-        cls_val = int(cls_val)
-    except (TypeError, ValueError):
-        cls_val = 0
-    status_val = getattr(k, "status", 0)
-    return {
-        "id": k.id,
-        "batch_id": k.batch_id,
-        "content": content,
-        "content_preview": (content[:100] + "..." if len(content) > 100 else content) or "",
-        "brief": (getattr(k, "brief", None) or "").strip() or "",
-        "graph_subject": (getattr(k, "graph_subject", None) or "").strip() or "",
-        "graph_object": (getattr(k, "graph_object", None) or "").strip() or "",
-        "vec_sub_deco_id": (getattr(k, "vec_sub_deco_id", None) or "").strip() or None,
-        "vec_obj_deco_id": (getattr(k, "vec_obj_deco_id", None) or "").strip() or None,
-        "seq": getattr(k, "seq", 0),
-        "classification": cls_val,
-        "classification_label": _classification_label(cls_val),
-        "stage": stage_val,
-        "stage_label": _stage_label(stage_val),
-        "status": status_val,
-        "status_label": _status_label(status_val),
-        "ct": getattr(k, "ct", 0),
-        "ut": getattr(k, "ut", 0),
-    }
-
-
 class KnowledgeListItemsView(APIView):
     """List knowledge points (rows from knowledge table). Query params: batch_id, offset, limit."""
 
@@ -181,7 +112,7 @@ class KnowledgeListItemsView(APIView):
                 except (TypeError, ValueError):
                     pass
             items, total = list_knowledge_points(batch_id=batch_id, offset=offset, limit=limit)
-            data = [_knowledge_point_to_dict(k) for k in items]
+            data = [knowledge_point_to_dict(k) for k in items]
             next_offset = offset + len(data) if len(data) == limit and offset + len(data) < total else None
             return resp_ok({
                 "data": data,
@@ -202,7 +133,7 @@ class KnowledgePointDetailView(APIView):
             k = get_by_id(kid)
             if not k:
                 raise ValueError(f"Knowledge point {kid} not found")
-            return resp_ok(_knowledge_point_to_dict(k))
+            return resp_ok(knowledge_point_to_dict(k))
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
@@ -246,12 +177,12 @@ class KnowledgePointDetailView(APIView):
                 except (TypeError, ValueError):
                     pass
             if not updates:
-                return resp_ok(_knowledge_point_to_dict(k))
+                return resp_ok(knowledge_point_to_dict(k))
             ok = update_knowledge_point(kid, **updates)
             if not ok:
                 return resp_err("Update failed", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
             k = get_by_id(kid)
-            return resp_ok(_knowledge_point_to_dict(k))
+            return resp_ok(knowledge_point_to_dict(k))
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():

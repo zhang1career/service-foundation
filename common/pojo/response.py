@@ -15,6 +15,8 @@ class Response:
     errorCode: int = 0
     data: any = None
     message: str = EMPTY_STRING
+    detail: str = EMPTY_STRING
+    _req_id: str = EMPTY_STRING
     _embedded: list[ResponseEmbeddedError] = field(default_factory=list)
 
     # getters

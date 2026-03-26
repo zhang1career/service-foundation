@@ -1,9 +1,8 @@
 """
 Python-based knowledge summary generation from title/description/content.
-Supports rule-based generation and AI-powered generation via TextAI.
+AI path uses app_aibroker over HTTP only (no in-process OpenAI client).
 """
 import logging
-import os
 from typing import Optional
 
 from common.consts.string_const import EMPTY_STRING
@@ -13,37 +12,7 @@ logger = logging.getLogger(__name__)
 # Max length for generated summary (chars)
 SUMMARY_MAX_LEN = 2000
 
-# Singleton TextAI instance (lazy initialization)
-_text_ai_client = None
-
 SUMMARY_QUESTION = "generate a concise summary capturing the key points and main ideas in 1 sentence, written in English."
-
-
-def _get_text_ai():
-    """Get TextAI client lazily, only when needed."""
-    global _text_ai_client
-    if _text_ai_client is not None:
-        return _text_ai_client
-
-    try:
-        from common.services.ai.text_ai import TextAI
-    except ImportError:
-        logger.warning("[summary_generator] TextAI not available")
-        return None
-
-    base_url = os.environ.get("AIGC_API_URL", EMPTY_STRING)
-    api_key = os.environ.get("AIGC_API_KEY", EMPTY_STRING)
-    model = os.environ.get("AIGC_GPT_MODEL", "gpt-4o-mini")
-    if not api_key:
-        logger.warning("[summary_generator] AIGC_API_KEY not configured")
-        return None
-
-    try:
-        _text_ai_client = TextAI(base_url, api_key, model)
-        return _text_ai_client
-    except Exception as e:
-        logger.exception("[summary_generator] Failed to create TextAI client: %s", e)
-        return None
 
 
 def generate_summary(
@@ -63,7 +32,7 @@ def generate_summary(
         content: Optional content
         source_type: Optional source type
         max_length: Maximum length of generated summary
-        use_ai: If True, use TextAI for AI-powered generation; falls back to rule-based if AI fails
+        use_ai: If True, use app_aibroker for generation; falls back to rule-based if broker fails
 
     Returns:
         Generated summary string
@@ -99,35 +68,31 @@ def _generate_summary_with_ai(
         source_type: str,
         max_length: int,
 ) -> Optional[str]:
-    """Generate summary using TextAI.ask_and_answer. Returns None on failure."""
-    client = _get_text_ai()
-    if client is None:
-        return None
-
+    """Generate summary via app_aibroker only. Returns None on failure."""
     if not content:
         raise Exception("content is empty")
     text = content[:1000] + "..." if len(content) > 1000 else content
 
     try:
-        logger.info("[summary_generator] Calling TextAI for title: %s", title[:50])
-        prompt, result = client.ask_and_answer(
+        from common.services.aibroker_client import aibroker_ask_and_answer
+
+        logger.info("[summary_generator] Calling AIBroker for title: %s", title[:50])
+        result = aibroker_ask_and_answer(
             text=text,
             role="knowledge summarization",
             question=SUMMARY_QUESTION,
-            temperature=0.3
+            additional_question=EMPTY_STRING,
+            temperature=0.3,
         )
-        logger.info("[summary_generator] TextAI prompt: %s", prompt[:200])
+        logger.info("[summary_generator] AIBroker response received")
         if result and result != "no":
             summary = result.strip()
-            logger.info("[summary_generator] TextAI response received, summary length: %d", len(summary))
-            logger.info("[summary_generator] Summary: %s", summary[:500])
             if len(summary) > max_length:
                 summary = summary[: max_length - 3].rstrip() + "..."
             return summary
-        else:
-            logger.warning("[summary_generator] TextAI returned empty or 'no' result")
+        logger.warning("[summary_generator] AIBroker returned empty or 'no' result")
     except Exception as e:
-        logger.exception("[summary_generator] AI generation error: %s", e)
+        logger.exception("[summary_generator] AIBroker generation error: %s", e)
 
     return None
 

@@ -1,5 +1,6 @@
 {% comment %}
-通用编辑弹窗。用法：{% include 'console/includes/modal_edit.html' with modal_id='my-modal' modal_title='标题' %}
+通用编辑弹窗（页内浮层，非 /console/.../edit/ 路由意义上的「编辑页」）。
+用法：{% include 'console/includes/modal_edit.html' with modal_id='my-modal' modal_title='标题' %}
 在 block modal_body 中放入表单项（如 textarea）。
 通过 JS ConsoleModal.open() 打开，并传入 onSave、onCancel、getValue、anchorEl 等回调。
 {% endcomment %}

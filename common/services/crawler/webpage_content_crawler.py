@@ -1,6 +1,6 @@
 import logging
 
-from common.exceptions.argument_exception import IllegalArgumentException
+from common.exceptions import InvalidArgumentError
 from common.utils.url_util import extract_domain
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class WebPageContentCrawler:
     def dispatch(self, url: str):
         domain = extract_domain(url)
         if not domain or domain not in self._domain_map:
-            raise IllegalArgumentException("domain not supported. domain={domain}".format(domain=domain))
+            raise InvalidArgumentError("domain not supported. domain={domain}".format(domain=domain))
         func_name = self._domain_map[domain]
         return getattr(self, func_name)(url)
 

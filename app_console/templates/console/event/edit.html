@@ -1,0 +1,141 @@
+{% extends 'console/base.html' %}
+
+{% block title %}编辑事件{% endblock %}
+{% block page_title %}用户中心{% endblock %}
+
+{% block content %}
+{% url 'console:user-event-list' as event_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=event_list_url back_label="返回事件列表" %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">编辑事件</h2>
+    </div>
+    <div class="card-body">
+        <form id="edit-form" class="max-w-2xl">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label">事件 ID</label>
+                <input type="text" class="form-input" value="{{ event_id }}" disabled>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="form-group">
+                    <label class="form-label" for="edit-biz-type">biz_type</label>
+                    <input type="number" id="edit-biz-type" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-status">status</label>
+                    <input type="number" id="edit-status" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-level">level</label>
+                    <input type="number" id="edit-level" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-notice-channel">notice_channel</label>
+                    <input type="number" id="edit-notice-channel" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-verify-code-id">verify_code_id</label>
+                    <input type="number" id="edit-verify-code-id" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-verify-ref-id">verify_ref_id</label>
+                    <input type="number" id="edit-verify-ref-id" class="form-input">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-notice-target">notice_target</label>
+                <input type="text" id="edit-notice-target" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-payload-json">payload_json</label>
+                <textarea id="edit-payload-json" class="form-input" rows="6"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-message">message</label>
+                <input type="text" id="edit-message" class="form-input">
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
+                <a href="{{ event_list_url }}" onclick="return returnToList('{{ event_list_url|escapejs }}')" class="btn btn-outline">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const EVENT_ID = {{ event_id }};
+const API_EVENT_DETAIL = '/api/user/console/events/' + EVENT_ID;
+
+function toInt(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+}
+
+async function loadEventForEdit() {
+  try {
+    const resp = await fetch(API_EVENT_DETAIL, { credentials: 'same-origin' });
+    const json = await resp.json();
+    if (json.errorCode !== 0) throw new Error(json.message || '加载失败');
+    const e = json.data || {};
+    document.getElementById('edit-biz-type').value = e.biz_type ?? 0;
+    document.getElementById('edit-status').value = e.status ?? 0;
+    document.getElementById('edit-level').value = e.level ?? 0;
+    document.getElementById('edit-notice-channel').value = e.notice_channel ?? 0;
+    document.getElementById('edit-verify-code-id').value = e.verify_code_id ?? 0;
+    document.getElementById('edit-verify-ref-id').value = e.verify_ref_id ?? 0;
+    document.getElementById('edit-notice-target').value = e.notice_target || '';
+    document.getElementById('edit-payload-json').value = e.payload_json || '{}';
+    document.getElementById('edit-message').value = e.message || '';
+  } catch (err) {
+    showToast(err.message || '加载失败', 'error');
+  }
+}
+
+document.getElementById('edit-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('save-btn');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    const payload = {
+      biz_type: toInt(document.getElementById('edit-biz-type').value),
+      status: toInt(document.getElementById('edit-status').value),
+      level: toInt(document.getElementById('edit-level').value),
+      notice_channel: toInt(document.getElementById('edit-notice-channel').value),
+      verify_code_id: toInt(document.getElementById('edit-verify-code-id').value),
+      verify_ref_id: toInt(document.getElementById('edit-verify-ref-id').value),
+      notice_target: (document.getElementById('edit-notice-target').value || '').trim(),
+      payload_json: (document.getElementById('edit-payload-json').value || '').trim() || '{}',
+      message: (document.getElementById('edit-message').value || '').trim(),
+    };
+    const resp = await fetch(API_EVENT_DETAIL, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload),
+    });
+    const json = await resp.json();
+    if (json.errorCode !== 0) throw new Error(json.message || '保存失败');
+    showToast('保存成功', 'success');
+    returnToList('{{ event_list_url|escapejs }}');
+  } catch (err) {
+    showToast(err.message || '保存失败', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+});
+
+document.addEventListener('DOMContentLoaded', loadEventForEdit);
+</script>
+{% endblock %}

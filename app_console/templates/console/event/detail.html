@@ -1,0 +1,64 @@
+{% extends 'console/base.html' %}
+
+{% block title %}事件详情{% endblock %}
+{% block page_title %}用户中心{% endblock %}
+
+{% block content %}
+{% url 'console:user-event-list' as event_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=event_list_url back_label="返回事件列表" %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">事件详情</h2>
+    </div>
+    <div class="card-body">
+        <div id="event-detail" class="text-gray-600">
+            <div class="spinner"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const EVENT_ID = {{ event_id }};
+const API_EVENT_DETAIL = '/api/user/console/events/' + EVENT_ID;
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+async function loadEventDetail() {
+  const container = document.getElementById('event-detail');
+  try {
+    const resp = await fetch(API_EVENT_DETAIL, { credentials: 'same-origin' });
+    const json = await resp.json();
+    if (json.errorCode !== 0) throw new Error(json.message || '加载失败');
+    const e = json.data || {};
+    container.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><p class="text-sm text-gray-500">ID</p><p class="font-mono">${escapeHtml(e.id)}</p></div>
+        <div><p class="text-sm text-gray-500">业务类型</p><p>${escapeHtml(e.biz_type)}</p></div>
+        <div><p class="text-sm text-gray-500">状态</p><p>${escapeHtml(e.status)}</p></div>
+        <div><p class="text-sm text-gray-500">等级</p><p>${escapeHtml(e.level)}</p></div>
+        <div><p class="text-sm text-gray-500">verify_code_id</p><p class="font-mono">${escapeHtml(e.verify_code_id)}</p></div>
+        <div><p class="text-sm text-gray-500">verify_ref_id</p><p class="font-mono">${escapeHtml(e.verify_ref_id)}</p></div>
+        <div><p class="text-sm text-gray-500">通知渠道</p><p>${escapeHtml(e.notice_channel)}</p></div>
+        <div><p class="text-sm text-gray-500">通知目标</p><p>${escapeHtml(e.notice_target || '-')}</p></div>
+        <div class="md:col-span-2"><p class="text-sm text-gray-500">payload_json</p><pre class="bg-gray-50 p-3 rounded text-xs overflow-auto">${escapeHtml(e.payload_json || '{}')}</pre></div>
+        <div class="md:col-span-2"><p class="text-sm text-gray-500">message</p><p>${escapeHtml(e.message || '-')}</p></div>
+        <div><p class="text-sm text-gray-500">创建时间</p><p>${escapeHtml(e.ct)}</p></div>
+        <div><p class="text-sm text-gray-500">更新时间</p><p>${escapeHtml(e.ut)}</p></div>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<p class="text-red-500">加载失败：${escapeHtml(err.message || '')}</p>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadEventDetail);
+</script>
+{% endblock %}

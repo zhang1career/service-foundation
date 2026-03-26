@@ -19,12 +19,7 @@ PREFIX_PRED = "PRED:"
 
 
 def _integrate_sentences_with_ai(ordered_items: List[Dict[str, Any]]) -> str:
-    """将 content + classification（替换为枚举名）发送给 AI 整合成一段连贯观点文本."""
-    try:
-        from app_know.services.extractor_agent import _get_text_ai
-    except ImportError:
-        return "\n".join((item.get("content") or "").strip() for item in ordered_items)
-
+    """将 content + classification（替换为枚举名）经 app_aibroker 整合成一段连贯观点文本."""
     id_to_code = {id_: code for id_, code in ClassificationEnum.ITEMS}
     lines = []
     for item in ordered_items:
@@ -37,11 +32,10 @@ def _integrate_sentences_with_ai(ordered_items: List[Dict[str, Any]]) -> str:
     if not lines:
         return ""
     text_block = "\n".join(lines)
-    client = _get_text_ai()
-    if not client:
-        return "\n".join((item.get("content") or "").strip() for item in ordered_items)
     try:
-        _, answer = client.ask_and_answer(
+        from common.services.aibroker_client import aibroker_ask_and_answer
+
+        answer = aibroker_ask_and_answer(
             text=text_block,
             role="assistant",
             question="请将以上按类型标注的句子整合成一段连贯的观点，注意句子间的衔接与过渡。只输出整合后的观点文本，不要其他说明或编号。",

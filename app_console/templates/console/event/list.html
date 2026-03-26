@@ -1,0 +1,99 @@
+{% extends 'console/base.html' %}
+
+{% block title %}事件管理{% endblock %}
+{% block page_title %}用户中心{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/user_subnav.html' with active='event-list' %}
+    <p class="text-gray-600 mt-3">管理 sf_user.event：仅支持查看列表与详情。</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">事件列表</h2>
+    </div>
+    <div class="card-body p-0">
+        <div id="event-list">
+            <div class="p-8 text-center text-gray-500">
+                <div class="spinner"></div>
+                <p class="mt-2">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API_EVENT_LIST = '/api/user/console/events';
+const LIMIT_PAGE = {{ limit_page|default:20 }};
+let currentPage = 1;
+let totalPages = 1;
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+function toStatusBadge(status) {
+  const st = Number(status || 0);
+  if (st === 3) return '<span class="badge badge-success">已完成</span>';
+  if (st === 9) return '<span class="badge badge-danger">失败</span>';
+  if (st === 1 || st === 2) return '<span class="badge badge-info">处理中</span>';
+  return '<span class="badge badge-warning">初始化</span>';
+}
+
+function toTime(ms) {
+  const n = Number(ms || 0);
+  if (!n) return '-';
+  return new Date(n).toLocaleString();
+}
+
+async function loadEvents(page) {
+  currentPage = Number(page || 1);
+  const offset = (currentPage - 1) * LIMIT_PAGE;
+  const container = document.getElementById('event-list');
+  try {
+    const resp = await fetch(API_EVENT_LIST + '?offset=' + offset + '&limit=' + LIMIT_PAGE, { credentials: 'same-origin' });
+    const json = await resp.json();
+    if (json.errorCode !== 0) throw new Error(json.message || '加载失败');
+    const pageData = json.data || {};
+    const rows = pageData.data || [];
+    const total = Number(pageData.total_num || 0);
+    totalPages = Math.max(1, Math.ceil(total / LIMIT_PAGE));
+
+    if (!rows.length) {
+      container.innerHTML = '<div class="empty-state py-8 text-center text-gray-500">暂无数据</div>';
+      return;
+    }
+
+    let html = '<table class="data-table"><thead><tr>'
+      + '<th>ID</th><th>业务类型</th><th>状态</th><th>通知目标</th><th>创建时间</th>'
+      + '</tr></thead><tbody>';
+    rows.forEach((row) => {
+      const detailUrl = '/console/user/events/' + encodeURIComponent(row.id) + '/';
+      html += '<tr>'
+        + listIdCell(row.id, detailUrl)
+        + '<td>' + escapeHtml(row.biz_type) + '</td>'
+        + '<td>' + toStatusBadge(row.status) + '</td>'
+        + '<td class="max-w-xs truncate" title="' + escapeHtml(row.notice_target || '-') + '">' + escapeHtml(row.notice_target || '-') + '</td>'
+        + '<td>' + escapeHtml(toTime(row.ct)) + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div class="p-3 border-t border-gray-100">' + renderPagination({ current_page: currentPage, total_pages: totalPages, loadFn: 'loadEvents' }) + '</div>';
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = '<div class="p-8 text-center text-red-500">加载失败：' + escapeHtml(err.message || '') + '</div>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadEvents(1);
+});
+</script>
+{% csrf_token %}
+{% endblock %}

@@ -38,7 +38,7 @@
             </div>
             <div class="flex gap-2 mt-6">
                 <button type="submit" class="btn btn-primary" id="save-btn">保存</button>
-                <a href="{{ edit_cancel_url }}" class="btn btn-outline">取消</a>
+                <a href="{{ edit_cancel_url }}" onclick="return returnToList('{{ edit_cancel_url|escapejs }}')" class="btn btn-outline">取消</a>
             </div>
         </form>
     </div>
@@ -52,7 +52,7 @@
 <script>
 (function() {
 const pointId = {{ point_id|default:0 }};
-const detailUrl = "{% url 'console:know-point-detail' point_id=point_id %}";
+const listUrl = "{% url 'console:know-list' %}";
 const API_POINT = '/api/know/knowledge/points/' + pointId;
 const API_DICT = '/api/know/dict';
 const initialClassification = "{{ initial_classification|escapejs }}";
@@ -130,7 +130,7 @@ document.getElementById('point-edit-form').addEventListener('submit', async func
         if (result.errorCode === 0) {
             if (typeof showToast === 'function') showToast('已保存', 'success');
             else alert('已保存');
-            window.location.href = detailUrl;
+            returnToList(listUrl);
         } else {
             const msg = result.message || '保存失败';
             if (typeof showToast === 'function') showToast(msg, 'error');

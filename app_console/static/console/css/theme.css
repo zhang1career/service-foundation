@@ -17,6 +17,7 @@ html.theme-dark #console-sidebar .sidebar-link.bg-gray-700 { background: #334155
 /* 卡片：暗色下背景与边框 */
 html.theme-dark .card { background: #1f2937; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 html.theme-dark .card-header { border-bottom-color: #374151; color: #f3f4f6; }
+html.theme-dark .card-header h2,
 html.theme-dark .card-header h3 { color: #f3f4f6; }
 html.theme-dark .card-body { color: #e5e7eb; }
 
@@ -30,6 +31,8 @@ html.theme-dark .data-table tr:hover { background: #374151; }
 html.theme-dark .empty-state { color: #9ca3af; }
 html.theme-dark .btn-outline { background: #374151; border-color: #4b5563; color: #e5e7eb; }
 html.theme-dark .btn-outline:hover { background: #4b5563; }
+html.theme-dark .btn-danger { background: #b91c1c; color: #fef2f2; }
+html.theme-dark .btn-danger:hover { background: #991b1b; }
 html.theme-dark .form-input,
 html.theme-dark .form-textarea,
 html.theme-dark input[type="text"],

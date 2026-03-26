@@ -32,8 +32,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Create non-root user
 RUN groupadd -r service_foundation && useradd -r -g service_foundation service_foundation \
-    && mkdir -p /var/log/service_foundation \
-    && chown -R service_foundation:service_foundation /var/log/service_foundation \
+    && mkdir -p /var/log/serv-fd \
+    && chown -R service_foundation:service_foundation /var/log/serv-fd \
     && chown -R service_foundation:service_foundation /app
 
 # Copy requirements first to leverage Docker layer caching
@@ -66,7 +66,7 @@ EXPOSE 8000 25 143
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8000/ || exit 1
 
-ENV LOG_DIR="/var/log/service_foundation"
+ENV LOG_DIR="/var/log/serv-fd"
 ENV DJANGO_SETTINGS_MODULE="service_foundation.settings"
 
 # Use entrypoint script

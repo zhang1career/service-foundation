@@ -1,0 +1,180 @@
+from rest_framework.views import APIView
+
+from app_user.enums import UserStatusEnum
+from app_user.services import UserService, EventService
+from app_user.services.jwt_util import parse_bearer_token, decode_token
+from common.consts.query_const import LIMIT_PAGE
+from common.consts.response_const import RET_LOGIN_REQUIRED, RET_TOKEN_INVALID, RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
+from common.utils.http_util import resp_ok, resp_err, with_type
+
+
+def _extract_console_payload(data) -> dict:
+    payload = {}
+    for key in ("username", "password", "email", "phone", "status", "notice_channel", "notice_target"):
+        if key in data:
+            payload[key] = data.get(key)
+    if "ext" in data:
+        payload["ext"] = data.get("ext")
+    if "avatar" in data:
+        payload["avatar"] = data.get("avatar")
+    return payload
+
+
+def _current_user_id(request):
+    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+    token = parse_bearer_token(auth_header)
+    if not token:
+        return None, RET_LOGIN_REQUIRED, "login required"
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        return None, RET_TOKEN_INVALID, "invalid token"
+    return payload.get("user_id"), 0, ""
+
+
+class UserMeView(APIView):
+    def get(self, request, *args, **kwargs):
+        user_id, code, message = _current_user_id(request)
+        if not user_id:
+            return resp_err(message, code=code)
+        user = UserService.get_me(user_id=user_id)
+        if not user:
+            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(user)
+
+    def patch(self, request, *args, **kwargs):
+        user_id, code, message = _current_user_id(request)
+        if not user_id:
+            return resp_err(message, code=code)
+        data = request.data if hasattr(request, "data") else request.POST
+        avatar = data.get("avatar") if "avatar" in data else None
+        if hasattr(request, "FILES") and request.FILES.get("avatar"):
+            avatar = request.FILES.get("avatar")
+        user = UserService.update_me(
+            user_id=user_id,
+            email=data.get("email") if "email" in data else None,
+            phone=data.get("phone") if "phone" in data else None,
+            avatar=avatar,
+            ext=data.get("ext") if "ext" in data else None,
+        )
+        if not user:
+            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(user)
+
+
+class UserMeUpdateRequestView(APIView):
+    def post(self, request, *args, **kwargs):
+        user_id, code, message = _current_user_id(request)
+        if not user_id:
+            return resp_err(message, code=code)
+        data = request.data if hasattr(request, "data") else request.POST
+        return resp_ok(UserService.update_me_request_by_payload(user_id=user_id, payload=data))
+
+
+class UserMeUpdateVerifyView(APIView):
+    def post(self, request, *args, **kwargs):
+        user_id, code, message = _current_user_id(request)
+        if not user_id:
+            return resp_err(message, code=code)
+        data = request.data if hasattr(request, "data") else request.POST
+        user = UserService.update_me_verify_by_payload(user_id=user_id, payload=data)
+        if not user:
+            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(user)
+
+
+class UserListView(APIView):
+    def get(self, request, *args, **kwargs):
+        offset = with_type(request.GET.get("offset", 0))
+        limit = with_type(request.GET.get("limit", LIMIT_PAGE))
+        page = UserService.list_users(offset=offset, limit=limit)
+        return resp_ok(page)
+
+
+class UserDetailView(APIView):
+    def get(self, request, user_id, *args, **kwargs):
+        user = UserService.get_me(user_id=with_type(user_id))
+        if not user:
+            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(user)
+
+    def patch(self, request, user_id, *args, **kwargs):
+        data = request.data if hasattr(request, "data") else request.POST
+        if "status" not in data:
+            return resp_err("status is required", code=RET_INVALID_PARAM)
+        status = with_type(data.get("status"))
+        if status not in UserStatusEnum.values():
+            return resp_err(
+                f"status must be one of {UserStatusEnum.values()}",
+                code=RET_INVALID_PARAM,
+            )
+        user = UserService.set_status(user_id=with_type(user_id), status=status)
+        if not user:
+            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(user)
+
+
+class UserConsoleCreateView(APIView):
+    """
+    控制台新建用户：
+    - 直接插入 user 记录（auth_status=0）
+    - 触发验证码下发（verify + notice）
+    """
+
+    def post(self, request, *args, **kwargs):
+        data = request.data if hasattr(request, "data") else request.POST
+        payload = _extract_console_payload(data)
+        if hasattr(request, "FILES") and request.FILES.get("avatar"):
+            payload["avatar"] = request.FILES.get("avatar")
+        return resp_ok(UserService.console_create_user_by_payload(payload=payload))
+
+
+class UserConsoleVerifyView(APIView):
+    """控制台用户认证：仅提交验证码 code（后端自动寻找最新待认证事件）。"""
+
+    def post(self, request, user_id, *args, **kwargs):
+        data = request.data if hasattr(request, "data") else request.POST
+        return resp_ok(
+            UserService.console_verify_user_by_code(user_id=with_type(user_id), code=data.get("code"))
+        )
+
+
+class UserConsoleUpdateView(APIView):
+    """控制台用户编辑：不支持认证状态修改。"""
+
+    def patch(self, request, user_id, *args, **kwargs):
+        data = request.data if hasattr(request, "data") else request.POST
+        payload = _extract_console_payload(data)
+        if hasattr(request, "FILES") and request.FILES.get("avatar"):
+            payload["avatar"] = request.FILES.get("avatar")
+        user = UserService.console_update_user_by_payload(user_id=with_type(user_id), payload=payload)
+        if not user:
+            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(user)
+
+
+class EventConsoleListView(APIView):
+    def get(self, request, *args, **kwargs):
+        offset = with_type(request.GET.get("offset", 0))
+        limit = with_type(request.GET.get("limit", LIMIT_PAGE))
+        return resp_ok(EventService.list_events(offset=offset, limit=limit))
+
+
+class EventConsoleDetailView(APIView):
+    def get(self, request, event_id, *args, **kwargs):
+        event = EventService.get_event(event_id=with_type(event_id))
+        if not event:
+            return resp_err("event not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(event)
+
+    def patch(self, request, event_id, *args, **kwargs):
+        data = request.data if hasattr(request, "data") else request.POST
+        event = EventService.update_event_by_payload(event_id=with_type(event_id), payload=dict(data))
+        if not event:
+            return resp_err("event not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok(event)
+
+    def delete(self, request, event_id, *args, **kwargs):
+        ok = EventService.delete_event(event_id=with_type(event_id))
+        if not ok:
+            return resp_err("event not found", code=RET_RESOURCE_NOT_FOUND)
+        return resp_ok({"deleted": True, "id": with_type(event_id)})

@@ -91,7 +91,6 @@
 
 {% block extra_js %}
 <script>
-const CDN_EDIT_URL = "{% url 'console:cdn-distribution-edit' distribution_id=distribution_id %}";
 const API_BASE = '{{ cdn_api_base }}';
 const DISTRIBUTION_ID = '{{ distribution_id }}';
 const DIST_API = API_BASE + '/distribution/' + encodeURIComponent(DISTRIBUTION_ID);
@@ -154,7 +153,6 @@ async function loadDetail() {
                 <div class="md:col-span-2"><dt class="text-sm text-gray-500">源站 (Origins)</dt><dd class="font-mono text-sm break-all">${escapeHtml(formatOriginsLines(originItems))}</dd></div>
                 <div class="md:col-span-2"><dt class="text-sm text-gray-500">备注</dt><dd>${escapeHtml(cfg.Comment)}</dd></div>
             </dl>
-            <p class="text-sm text-gray-500 mt-4">修改配置请 <a href="${escapeHtml(CDN_EDIT_URL)}" class="text-blue-600 hover:underline">打开编辑页</a>。</p>
         `;
 
         const base = window.location.origin + API_BASE;

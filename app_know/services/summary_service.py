@@ -98,7 +98,7 @@ class SummaryService(Singleton):
         Args:
             knowledge_id: Knowledge entity ID
             app_id: Application ID (int, 0 for default)
-            use_ai: If True, use AigcBestAPI for AI-powered generation
+            use_ai: If True, use app_aibroker (HTTP) for AI-powered generation
 
         Raises:
             ValueError: If knowledge_id or app_id invalid, or knowledge not found

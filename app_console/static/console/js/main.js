@@ -126,6 +126,30 @@ function copyToClipboard(text) {
     });
 }
 
+/**
+ * 与「仅列表→编辑」相关的固定文案（详情页勿引导去编辑；提示用户回列表时用）。
+ * 新模块如需同类提示，在此追加键值，避免模板/脚本各处硬编码不一致。
+ */
+var ConsoleNavStrings = {
+    hintBatchEditFromListFirst: '请先在「批次列表」中通过编辑入口填写内容后再分析'
+};
+
+/**
+ * 返回列表：优先使用浏览器历史（保留筛选/滚动等记忆），不可用时回退到列表 URL。
+ */
+function returnToList(fallbackUrl) {
+    var fallback = String(fallbackUrl || '').trim() || '/console/';
+    try {
+        var ref = document.referrer ? new URL(document.referrer) : null;
+        if (ref && ref.origin === window.location.origin && window.history.length > 1) {
+            window.history.back();
+            return false;
+        }
+    } catch (e) {}
+    window.location.href = fallback;
+    return false;
+}
+
 // API helper for fetch requests
 async function apiRequest(url, method = 'GET', data = null) {
     const options = {
@@ -169,11 +193,9 @@ document.addEventListener('keydown', function(e) {
         if (btn) btn.click();
         return;
     }
-    // .modal-backdrop (form modals): close by adding hidden + display:none
-    var modals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
-    modals.forEach(function (m) {
+    // .modal-backdrop：仅用 .hidden（style.css 中已有 display:none !important），勿写行内 display，否则再次打开弹层无法显示
+    document.querySelectorAll('.modal-backdrop:not(.hidden)').forEach(function (m) {
         m.classList.add('hidden');
-        m.style.display = 'none';
     });
 }, true);  // capture phase: run before event reaches focused input/textarea
 
@@ -303,7 +325,7 @@ function initSidebar() {
 }
 
 // 命名空间，便于其他页面按需调用
-var ConsoleApp = { initTheme: initTheme, initSidebar: initSidebar };
+var ConsoleApp = { initTheme: initTheme, initSidebar: initSidebar, returnToList: returnToList, strings: ConsoleNavStrings };
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {

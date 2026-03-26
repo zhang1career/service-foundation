@@ -1,0 +1,26 @@
+{% comment %}
+用户中心模块子导航（复用组件）
+菜单项顺序：用户列表、事件管理
+
+参数:
+  active - 当前激活项: user-list | event-list
+  size   - large(默认): 大按钮 px-4 py-2; small: 小链接 px-3 py-1.5 text-sm
+  mb     - 外边距: mb-6(默认) | mb-4
+{% endcomment %}
+{% with size=size|default:'large' mb=mb|default:'mb-6' %}
+{% if size == 'small' %}
+{% with active_cls='bg-blue-100 text-blue-700 rounded' inactive_cls='bg-gray-100 text-gray-700 rounded hover:bg-gray-200' base_cls='px-3 py-1.5 text-sm' %}
+<nav class="flex space-x-4 {{ mb }}">
+    <a href="{% url 'console:user-list' %}" class="{{ base_cls }} {% if active == 'user-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">用户列表</a>
+    <a href="{% url 'console:user-event-list' %}" class="{{ base_cls }} {% if active == 'event-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">事件管理</a>
+</nav>
+{% endwith %}
+{% else %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex space-x-4 {{ mb }}">
+    <a href="{% url 'console:user-list' %}" class="{{ base_cls }} {% if active == 'user-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">用户列表</a>
+    <a href="{% url 'console:user-event-list' %}" class="{{ base_cls }} {% if active == 'event-list' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">事件管理</a>
+</nav>
+{% endwith %}
+{% endif %}
+{% endwith %}

@@ -50,4 +50,3 @@ def load_env(base_dir: Path) -> environ.Env:
     # Create and return env instance after loading all files
     env = environ.Env()
     return env
-

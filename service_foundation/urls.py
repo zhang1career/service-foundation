@@ -48,3 +48,19 @@ if settings.APP_KNOW_ENABLED:
 if settings.APP_CDN_ENABLED:
     from app_cdn import urls as app_cdn_urls
     urlpatterns.append(path('api/cdn/2020-05-31/', include(app_cdn_urls)))
+
+if settings.APP_USER_ENABLED:
+    from app_user import urls as app_user_urls
+    urlpatterns.append(path('api/user/', include(app_user_urls)))
+
+if settings.APP_NOTICE_ENABLED:
+    from app_notice import urls as app_notice_urls
+    urlpatterns.append(path('api/notice/', include(app_notice_urls)))
+
+if settings.APP_VERIFY_ENABLED:
+    from app_verify import urls as app_verify_urls
+    urlpatterns.append(path('api/verify/', include(app_verify_urls)))
+
+if settings.APP_AIBROKER_ENABLED:
+    from app_aibroker import urls as app_aibroker_urls
+    urlpatterns.append(path('api/aibroker/', include(app_aibroker_urls)))

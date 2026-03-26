@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any
 
 from app_mailserver.config import get_app_config
 from common.components.singleton import Singleton
-from common.exceptions.configuration_error_exception import ConfigurationErrorException
+from common.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class OSSIntegrationService(Singleton):
 
         except Exception as e:
             logger.exception(f"[OSSIntegrationService] Failed to initialize: {e}")
-            raise ConfigurationErrorException(f"Failed to initialize OSS integration: {str(e)}") from e
+            raise ConfigurationError(f"Failed to initialize OSS integration: {str(e)}") from e
 
     def upload_attachment(
             self,

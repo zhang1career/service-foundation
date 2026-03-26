@@ -48,5 +48,29 @@ def console_context(request):
                 'description': 'CloudFront 兼容的 CDN 分发与缓存失效管理',
                 'icon': 'globe',
             },
+            'user': {
+                'name': '用户中心',
+                'enabled': getattr(settings, 'APP_USER_ENABLED', False),
+                'description': '统一用户注册、登录、资料和凭证管理',
+                'icon': 'user',
+            },
+            'verify': {
+                'name': '校验工具',
+                'enabled': getattr(settings, 'APP_VERIFY_ENABLED', False),
+                'description': '验证码生成、校验与调用方注册管理',
+                'icon': 'shield',
+            },
+            'notice': {
+                'name': '通知中心',
+                'enabled': getattr(settings, 'APP_NOTICE_ENABLED', False),
+                'description': '邮件/短信等通知发送与调用方管理',
+                'icon': 'bell',
+            },
+            'aibroker': {
+                'name': 'AI Broker',
+                'enabled': getattr(settings, 'APP_AIBROKER_ENABLED', False),
+                'description': '统一 LLM 调用、提示模板与调用方凭证',
+                'icon': 'sparkles',
+            },
         }
     }

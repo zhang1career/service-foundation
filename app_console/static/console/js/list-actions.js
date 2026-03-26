@@ -4,9 +4,10 @@
  * 设计约定（列表页）：
  * - 无「详情」文字按钮：点击 ID 列进入详情页（listIdCell）。
  * - 「删除」：仅用图标（垃圾桶），title="删除"。
- * - 「编辑」：仅用图标（铅笔），title="编辑"。
+ * - 「编辑」：仅用图标（铅笔），title="编辑"；编辑页只能从列表进入，详情页不得放编辑入口（见 list_edit_icon.html / DESIGN_SPECIFICATIONS）。
  * - 名称/内容预览等仅展示：listPlainCell；需可点进详情时用 listTitleCell(text, detailUrl)。
- * - 操作列：listActions({ id, onEdit?, onDelete?, extra?, enabledToggle? })；拨动开关见 listToggleSwitchHtml。
+ * - 独立「开关」列：listToggleColumnCell(id, checked, handlerName)（与 CDN「分发」列同款）。
+ * - 操作列：listActions({ id, onEdit?, onDelete?, extra? })，仅编辑/删除图标等。
  */
 
 /**
@@ -87,21 +88,17 @@ function listPlainCell(text, cssClass = 'font-medium', title) {
 }
 
 /**
- * 渲染操作列：编辑 + 删除（无「查看」按钮）
- * @param {Object} opts
- * @param {number|string} opts.id - 记录 ID
- * @param {string} opts.onEdit - 编辑函数名（全局调用，如 'editKnowledge'）
- * @param {string} opts.onDelete - 删除函数名（全局调用，如 'deleteKnowledge'）
- * @param {Array<{label: string, onclick: string}|{label: string, href: string}>} [opts.extra] - 额外按钮
- * @param {{ checked: boolean, handler: string, label: string }} [opts.enabledToggle] - 拨动开关（onchange 调用 handler(id, checked)）
- * @returns {string} HTML 字符串
+ * 拨动开关 HTML（可选文字标签；无标签时仅轨道，用于独立列表列）
  */
 function listToggleSwitchHtml(opts) {
     const { label, checked, onchange } = opts;
-    const labelEsc = escapeHtml(label);
     const chk = checked ? ' checked' : '';
+    const labelPart =
+        label != null && String(label).trim() !== ''
+            ? `<span class="text-xs text-gray-600 whitespace-nowrap">${escapeHtml(String(label))}</span>`
+            : '';
     return `<label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
-    <span class="text-xs text-gray-600 whitespace-nowrap">${labelEsc}</span>
+    ${labelPart}
     <span class="console-toggle-wrap">
       <input type="checkbox" class="console-toggle-input"${chk} onchange="${onchange}">
       <span class="console-toggle-track" aria-hidden="true"></span>
@@ -109,21 +106,36 @@ function listToggleSwitchHtml(opts) {
   </label>`;
 }
 
+/**
+ * 表格独立一列：仅拨动开关（列标题由表头定义，如「分发」「状态」）
+ */
+function listToggleColumnCell(id, checked, handlerName) {
+    const idStr =
+        typeof id === 'string'
+            ? `'${String(id).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
+            : String(id);
+    return `<td class="align-middle"><div class="flex items-center justify-center">${listToggleSwitchHtml({
+        label: '',
+        checked,
+        onchange: `${String(handlerName)}(${idStr}, this.checked)`,
+    })}</div></td>`;
+}
+
+/**
+ * 操作列：编辑 / 删除图标及可选 extra 按钮（不含拨动开关，开关请用 listToggleColumnCell）
+ * @param {Object} opts
+ * @param {number|string} opts.id
+ * @param {string} [opts.onEdit]
+ * @param {string} [opts.onDelete]
+ * @param {Array} [opts.extra]
+ */
 function listActions(opts) {
-    const { id, onEdit, onDelete, extra = [], enabledToggle } = opts;
+    const { id, onEdit, onDelete, extra = [] } = opts;
     const idStr =
         typeof id === 'string'
             ? `'${String(id).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
             : String(id);
     let html = '<td><div class="flex gap-1 items-center flex-wrap">';
-
-    if (enabledToggle) {
-        html += listToggleSwitchHtml({
-            label: enabledToggle.label,
-            checked: enabledToggle.checked,
-            onchange: `${String(enabledToggle.handler)}(${idStr}, this.checked)`,
-        });
-    }
 
     extra.forEach((btn) => {
         if (btn.href) {
@@ -134,10 +146,10 @@ function listActions(opts) {
     });
 
     if (onEdit) {
-        html += `<button type="button" onclick="${String(onEdit)}(${idStr})" class="btn btn-outline btn-sm p-1.5" title="编辑"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>`;
+        html += `<button type="button" onclick="${String(onEdit)}(${idStr})" class="btn btn-outline btn-icon" title="编辑"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>`;
     }
     if (onDelete) {
-        html += `<button type="button" onclick="${String(onDelete)}(${idStr})" class="btn btn-danger btn-sm p-1.5" title="删除"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>`;
+        html += `<button type="button" onclick="${String(onDelete)}(${idStr})" class="btn btn-danger btn-icon" title="删除"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>`;
     }
 
     html += '</div></td>';
@@ -172,5 +184,6 @@ if (typeof window !== 'undefined') {
     window.listTitleCellWithSimilarity = listTitleCellWithSimilarity;
     window.listPlainCell = listPlainCell;
     window.listToggleSwitchHtml = listToggleSwitchHtml;
+    window.listToggleColumnCell = listToggleColumnCell;
     window.listActions = listActions;
 }

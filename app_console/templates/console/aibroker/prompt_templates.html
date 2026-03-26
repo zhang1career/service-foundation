@@ -1,0 +1,213 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 提示模板{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{{ templates_by_id|json_script:"aibroker-tpl-by-id" }}
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<div class="mb-6">
+    <p class="text-gray-600">按 template_key + version 唯一。约束类型：0 弱 · 1 强。</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">模板列表</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openTplCreateModal()">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            新增
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Key</th>
+                        <th>版本</th>
+                        <th>约束</th>
+                        <th>正文预览</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in templates %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ t.id }}</td>
+                        <td class="font-medium">{{ t.template_key }}</td>
+                        <td>{{ t.version }}</td>
+                        <td>{{ t.constraint_type }}</td>
+                        <td class="max-w-xs truncate text-gray-600" title="{{ t.body|escape }}">{{ t.body|truncatechars:80 }}</td>
+                        <td class="align-middle">
+                            <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
+                                <span class="console-toggle-wrap">
+                                    <input type="checkbox" class="console-toggle-input"{% if t.status == 1 %} checked{% endif %}
+                                           onchange="submitTplStatus({{ t.id }}, this.checked)">
+                                    <span class="console-toggle-track" aria-hidden="true"></span>
+                                </span>
+                            </label>
+                        </td>
+                        <td>
+                            <div class="flex gap-1 items-center flex-wrap">
+                                <button type="button" class="btn btn-outline btn-icon" title="编辑"
+                                        data-id="{{ t.id }}"
+                                        onclick="openTplEditModal(this)">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <button type="button" class="btn btn-danger btn-icon" title="删除" onclick="submitTplDelete({{ t.id }})">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="empty-state py-8 text-center text-gray-500">暂无模板</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for t in templates %}
+<form id="tpl-st-{{ t.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="set_status">
+    <input type="hidden" name="template_id" value="{{ t.id }}">
+    <input type="hidden" name="status" id="tpl-st-val-{{ t.id }}" value="{{ t.status }}">
+</form>
+<form id="tpl-del-{{ t.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="template_id" value="{{ t.id }}">
+</form>
+{% endfor %}
+
+<div id="tpl-create-modal" class="modal-backdrop hidden">
+    <div class="modal-content max-w-2xl">
+        <div class="modal-header"><h3 class="text-lg font-semibold">新增模板</h3></div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="modal-body space-y-3 max-h-[70vh] overflow-y-auto">
+                <div class="form-group">
+                    <label class="form-label" for="tpl-c-key">template_key *</label>
+                    <input type="text" id="tpl-c-key" name="template_key" class="form-input" required>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="form-group">
+                        <label class="form-label" for="tpl-c-ver">版本</label>
+                        <input type="number" id="tpl-c-ver" name="version" class="form-input" value="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="tpl-c-con">约束类型</label>
+                        <select id="tpl-c-con" name="constraint_type" class="form-input">
+                            <option value="0">0 — 弱</option>
+                            <option value="1">1 — 强</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-c-body">正文 *</label>
+                    <textarea id="tpl-c-body" name="body" class="form-input font-mono text-xs" rows="8" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-c-vars">variables_schema_json</label>
+                    <textarea id="tpl-c-vars" name="variables_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-c-out">output_schema_json</label>
+                    <textarea id="tpl-c-out" name="output_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeTplCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="tpl-edit-modal" class="modal-backdrop hidden">
+    <div class="modal-content max-w-2xl">
+        <div class="modal-header"><h3 class="text-lg font-semibold">编辑模板</h3></div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="template_id" id="tpl-e-id" value="">
+            <div class="modal-body space-y-3 max-h-[70vh] overflow-y-auto">
+                <div class="form-group">
+                    <label class="form-label" for="tpl-e-body">正文 *</label>
+                    <textarea id="tpl-e-body" name="body" class="form-input font-mono text-xs" rows="10" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-e-con">约束类型</label>
+                    <select id="tpl-e-con" name="constraint_type" class="form-input">
+                        <option value="0">0 — 弱</option>
+                        <option value="1">1 — 强</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-e-vars">variables_schema_json</label>
+                    <textarea id="tpl-e-vars" name="variables_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-e-out">output_schema_json</label>
+                    <textarea id="tpl-e-out" name="output_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-e-status">状态</label>
+                    <select id="tpl-e-status" name="status" class="form-input">
+                        <option value="0">停用</option>
+                        <option value="1">启用</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeTplEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    window.openTplCreateModal = function () {
+        document.getElementById('tpl-create-modal').classList.remove('hidden');
+    };
+    window.closeTplCreateModal = function () {
+        document.getElementById('tpl-create-modal').classList.add('hidden');
+    };
+    window.openTplEditModal = function (btn) {
+        var id = String(btn.dataset.id);
+        var el = document.getElementById('aibroker-tpl-by-id');
+        var map = el ? JSON.parse(el.textContent) : {};
+        var row = map[id] || {};
+        document.getElementById('tpl-e-id').value = id;
+        document.getElementById('tpl-e-body').value = row.body || '';
+        document.getElementById('tpl-e-con').value = String(row.constraint_type != null ? row.constraint_type : 0);
+        document.getElementById('tpl-e-vars').value = row.variables_schema_json || '';
+        document.getElementById('tpl-e-out').value = row.output_schema_json || '';
+        document.getElementById('tpl-e-status').value = String(row.status != null ? row.status : 1);
+        document.getElementById('tpl-edit-modal').classList.remove('hidden');
+    };
+    window.closeTplEditModal = function () {
+        document.getElementById('tpl-edit-modal').classList.add('hidden');
+    };
+    window.submitTplStatus = function (id, on) {
+        document.getElementById('tpl-st-val-' + id).value = on ? '1' : '0';
+        document.getElementById('tpl-st-' + id).submit();
+    };
+    window.submitTplDelete = function (id) {
+        if (!confirm('确认删除该模板？')) return;
+        document.getElementById('tpl-del-' + id).submit();
+    };
+    document.getElementById('tpl-create-modal').addEventListener('click', function (e) { if (e.target === this) closeTplCreateModal(); });
+    document.getElementById('tpl-edit-modal').addEventListener('click', function (e) { if (e.target === this) closeTplEditModal(); });
+})();
+</script>
+{% endblock %}

@@ -47,12 +47,12 @@ def get_app_config() -> Dict:
         Dictionary containing mail server configuration values
         
     Raises:
-        ConfigurationErrorException: If configuration values are invalid
+        ConfigurationError: If configuration values are invalid
     """
-    from common.exceptions.configuration_error_exception import ConfigurationErrorException
-    
+    from common.exceptions import ConfigurationError
+
     env = get_env()
-    
+
     try:
         # SMTP server configuration
         smtp_port = env.int("MAIL_SMTP_PORT", default=25)
@@ -75,7 +75,7 @@ def get_app_config() -> Dict:
             "server_host": server_host,
         }
     except Exception as e:
-        raise ConfigurationErrorException(
+        raise ConfigurationError(
             f"Failed to load mail server configuration: {str(e)}"
         ) from e
 

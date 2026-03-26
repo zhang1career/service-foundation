@@ -115,7 +115,7 @@ ports:
 **邮件服务器日志**：
 - 邮件服务器的日志会输出到 `${LOG_DIR}/mail_server.log`
 - 可以通过 `docker-compose logs -f service_foundation` 查看所有服务日志
-- 单独查看邮件服务器日志：`docker-compose exec service_foundation tail -f /var/log/service_foundation/mail_server.log`
+- 单独查看邮件服务器日志：`docker-compose exec service_foundation tail -f /var/log/serv-fd/mail_server.log`
 
 ### 5. 访问应用
 
@@ -162,7 +162,7 @@ docker-compose exec service_foundation python manage.py start_mail_server --smtp
 docker-compose exec service_foundation python manage.py start_mail_server --imap-only  # 仅启动 IMAP
 
 # 查看邮件服务器日志
-docker-compose exec service_foundation tail -f /var/log/service_foundation/mail_server.log
+docker-compose exec service_foundation tail -f /var/log/serv-fd/mail_server.log
 
 # 重启服务
 docker-compose restart service_foundation

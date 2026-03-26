@@ -4,14 +4,12 @@ Stage 1: fills brief, graph_brief, graph_subject, graph_object.
 """
 import json
 import logging
-import os
 import re
 from typing import Any, Dict, List, Optional
 
 from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
 from app_know.enums.stage_enum import StageEnum
 from app_know.repos import knowledge_point_repo
-from common.consts.string_const import EMPTY_STRING
 
 logger = logging.getLogger(__name__)
 
@@ -56,30 +54,6 @@ PROMPT_BRIEF_SINGLE_CHOICE = """把以下的句子，按照（定语-主语）-�
 {predicate_options}
 
 请只输出一个 JSON 对象，不要其他文字。"""
-
-_text_ai_client = None
-
-
-def _get_text_ai():
-    global _text_ai_client
-    if _text_ai_client is not None:
-        return _text_ai_client
-    try:
-        from common.services.ai.text_ai import TextAI
-    except ImportError:
-        return None
-    base_url = os.environ.get("AIGC_API_URL", EMPTY_STRING)
-    api_key = os.environ.get("AIGC_API_KEY", EMPTY_STRING)
-    model = os.environ.get("AIGC_GPT_MODEL", "gpt-4o-mini")
-    if not api_key:
-        return None
-    try:
-        _text_ai_client = TextAI(base_url, api_key, model)
-        return _text_ai_client
-    except Exception as e:
-        logger.warning("[extractor_agent] TextAI init failed: %s", e)
-        return None
-
 
 def _parse_extract_response(response: str) -> Optional[Dict[str, Any]]:
     """Parse JSON from AI response."""
@@ -192,15 +166,14 @@ def extract_brief_with_options(
     predicate_list = list(predicate_options) if predicate_options else []
     subject_options_str = "\n".join(f"{i}. {s}" for i, s in enumerate(subject_list))
     predicate_options_str = "\n".join(f"{i}. {p}" for i, p in enumerate(predicate_list))
-    client = _get_text_ai()
-    if client is None:
-        return None
     try:
+        from common.services.aibroker_client import aibroker_ask_and_answer
+
         question_part = PROMPT_BRIEF_SINGLE_CHOICE.format(
             subject_options=subject_options_str or "（无）",
             predicate_options=predicate_options_str or "（无）",
         )
-        _, result = client.ask_and_answer(
+        result = aibroker_ask_and_answer(
             text=content[:1500],
             role="摘要提取助手",
             question=question_part,
@@ -231,11 +204,10 @@ def extract_sentence(sentence_content: str) -> Optional[Dict[str, Any]]:
     content = sentence_content.strip()
     if not content:
         return None
-    client = _get_text_ai()
-    if client is None:
-        return None
     try:
-        _, result = client.ask_and_answer(
+        from common.services.aibroker_client import aibroker_ask_and_answer
+
+        result = aibroker_ask_and_answer(
             text=content[:1500],
             role="成分分析助手",
             question=EXTRACT_PROMPT,
@@ -328,11 +300,10 @@ def analyze_components(sentence_content: str) -> Optional[Dict[str, Any]]:
     content = sentence_content.strip()
     if not content:
         return None
-    client = _get_text_ai()
-    if client is None:
-        return None
     try:
-        _, result = client.ask_and_answer(
+        from common.services.aibroker_client import aibroker_ask_and_answer
+
+        result = aibroker_ask_and_answer(
             text=content[:1500],
             role="成分分析助手",
             question=COMPONENTS_PROMPT,

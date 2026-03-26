@@ -1,6 +1,6 @@
 from pandas import DataFrame
 
-from common.exceptions.argument_exception import IllegalArgumentException
+from common.exceptions import InvalidArgumentError
 from common.utils.list_util import check_empty
 from common.utils.number_util import float_digit4_without_tailing_zeros, float_digit1, float_digit4
 
@@ -22,11 +22,11 @@ def format_for_input(df: DataFrame,
     @return:
     """
     if columns_about_price is not None and not isinstance(columns_about_price, list):
-        raise IllegalArgumentException("argument {arg} should be a list".format(arg="columns_about_price"))
+        raise InvalidArgumentError("argument {arg} should be a list".format(arg="columns_about_price"))
     if columns_about_profit is not None and not isinstance(columns_about_profit, list):
-        raise IllegalArgumentException("argument {arg} should be a list".format(arg="columns_about_profit"))
+        raise InvalidArgumentError("argument {arg} should be a list".format(arg="columns_about_profit"))
     if columns_about_coef is not None and not isinstance(columns_about_coef, list):
-        raise IllegalArgumentException("argument {arg} should be a list".format(arg="columns_about_coef"))
+        raise InvalidArgumentError("argument {arg} should be a list".format(arg="columns_about_coef"))
 
     if not check_empty(columns_about_price):
         for _column in columns_about_price:
@@ -63,11 +63,11 @@ def format_for_output(df: DataFrame,
     @return:
     """
     if columns_about_price is not None and not isinstance(columns_about_price, list):
-        raise IllegalArgumentException("argument {arg} should be a list".format(arg="columns_about_price"))
+        raise InvalidArgumentError("argument {arg} should be a list".format(arg="columns_about_price"))
     if columns_about_profit is not None and not isinstance(columns_about_profit, list):
-        raise IllegalArgumentException("argument {arg} should be a list".format(arg="columns_about_profit"))
+        raise InvalidArgumentError("argument {arg} should be a list".format(arg="columns_about_profit"))
     if columns_about_coef is not None and not isinstance(columns_about_coef, list):
-        raise IllegalArgumentException("argument {arg} should be a list".format(arg="columns_about_coef"))
+        raise InvalidArgumentError("argument {arg} should be a list".format(arg="columns_about_coef"))
 
     if not check_empty(columns_about_price):
         for _column in columns_about_price:

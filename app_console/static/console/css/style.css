@@ -248,7 +248,8 @@ body {
 /* 小按钮：固定宽高，全应用复用。primary 与 outline 统一 1px border 保证盒模型一致、“分析”“保存关系”等宽 */
 .btn.btn-sm,
 .btn.btn-primary.btn-sm,
-.btn.btn-outline.btn-sm {
+.btn.btn-outline.btn-sm,
+.btn.btn-danger.btn-sm {
     box-sizing: border-box !important;
     width: 88px !important;
     min-width: 88px !important;
@@ -263,6 +264,22 @@ body {
     flex: 0 0 88px !important;
 }
 .btn.btn-outline.btn-sm {
+    border-color: #d1d5db !important;
+}
+
+/* 图标按钮：用于列表「操作」列（编辑/删除等），避免套用 btn-sm 的固定宽按钮样式 */
+.btn.btn-icon {
+    box-sizing: border-box !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    max-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    flex: 0 0 28px !important;
+    border: 1px solid transparent !important;
+}
+.btn.btn-icon.btn-outline {
     border-color: #d1d5db !important;
 }
 

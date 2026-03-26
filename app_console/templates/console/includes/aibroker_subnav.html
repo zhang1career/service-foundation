@@ -1,0 +1,9 @@
+{# AI Broker 子导航 #}
+<nav class="flex flex-wrap gap-2 mb-6 border-b border-gray-200 pb-3">
+    <a href="{% url 'console:aibroker-regs' %}"
+       class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if aibroker_nav == 'regs' %}bg-blue-100 text-blue-800{% else %}text-gray-600 hover:bg-gray-100{% endif %}">调用方</a>
+    <a href="{% url 'console:aibroker-providers' %}"
+       class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if aibroker_nav == 'providers' or aibroker_nav == 'models' %}bg-blue-100 text-blue-800{% else %}text-gray-600 hover:bg-gray-100{% endif %}">提供商与模型</a>
+    <a href="{% url 'console:aibroker-prompt-templates' %}"
+       class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if aibroker_nav == 'templates' %}bg-blue-100 text-blue-800{% else %}text-gray-600 hover:bg-gray-100{% endif %}">提示模板</a>
+</nav>

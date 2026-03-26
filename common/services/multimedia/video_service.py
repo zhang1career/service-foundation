@@ -3,7 +3,7 @@ import subprocess
 
 from moviepy import editor
 
-from common.exceptions.shell_exception import ShellException
+from common.exceptions import ShellCommandError
 from common.utils.string_util import implode
 from data_analyzer import settings
 
@@ -67,7 +67,7 @@ def _run_command(cmd_list: list):
         try:
             subprocess.check_call(cmd_list, stderr=f)
         except subprocess.CalledProcessError as e:
-            raise ShellException("ffmpeg runs failed, msg={msg}".format(msg=e.args[0]))
+            raise ShellCommandError("ffmpeg runs failed, msg={msg}".format(msg=e.args[0]))
 
 
 def audio_gif_to_video(audio_path, gif_path, flame_number=1, output_file="output.mp4"):

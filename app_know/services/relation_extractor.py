@@ -1,16 +1,14 @@
 """
-Relation extraction service using TextAI.
+Relation extraction via app_aibroker (HTTP).
 Extracts predicate logic triples (subject, predicate, object) from knowledge content.
 Stores nodes in MongoDB Atlas and creates relationships in Neo4j.
 """
 import json
 import logging
-import os
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from common.consts.string_const import EMPTY_STRING
 from common.drivers.neo4j_driver import Neo4jDriver
 from service_foundation import settings
 
@@ -25,7 +23,6 @@ def _sanitize_rel_type(predicate: str) -> str:
     return s or "related_to"
 
 
-_text_ai_client = None
 _neo4j_driver: Optional[Neo4jDriver] = None
 
 EXTRACT_QUESTION = (
@@ -37,33 +34,6 @@ EXTRACT_QUESTION = (
     "(3) Object: extract the core concept without determiners or modifiers (e.g., 'the champions' -> 'champion'). "
     "Output JSON only, no other content: {\"sub\": \"...\", \"prd\": \"...\", \"obj\": \"...\"}"
 )
-
-
-def _get_text_ai():
-    """Get TextAI client lazily."""
-    global _text_ai_client
-    if _text_ai_client is not None:
-        return _text_ai_client
-
-    try:
-        from common.services.ai.text_ai import TextAI
-    except ImportError:
-        logger.warning("[relation_extractor] TextAI not available")
-        return None
-
-    base_url = os.environ.get("AIGC_API_URL", EMPTY_STRING)
-    api_key = os.environ.get("AIGC_API_KEY", EMPTY_STRING)
-    model = os.environ.get("AIGC_GPT_MODEL", "gpt-4o-mini")
-    if not api_key:
-        logger.warning("[relation_extractor] AIGC_API_KEY not configured")
-        return None
-
-    try:
-        _text_ai_client = TextAI(base_url, api_key, model)
-        return _text_ai_client
-    except Exception as e:
-        logger.exception("[relation_extractor] Failed to create TextAI client: %s", e)
-        return None
 
 
 def _get_neo4j_driver() -> Neo4jDriver:
@@ -165,7 +135,7 @@ def extract_relations_from_content(
         knowledge_id: int,
 ) -> List[ExtractedRelation]:
     """
-    Extract predicate logic relations from content using TextAI.
+    Extract predicate logic relations from content via app_aibroker.
 
     Args:
         content: The text content to extract relations from
@@ -187,24 +157,22 @@ def extract_relations_from_content(
     logger.info("[relation_extractor] extract_relations_from_content input content (knowledge_id=%d, len=%d): %s",
                 knowledge_id, len(content), content)
 
-    client = _get_text_ai()
-    if client is None:
-        raise RuntimeError("TextAI client not available")
-
     text = content[:2000] if len(content) > 2000 else content
 
     try:
-        logger.info("[relation_extractor] Calling TextAI for knowledge_id: %d", knowledge_id)
-        prompt, result = client.ask_and_answer(
+        from common.services.aibroker_client import aibroker_ask_and_answer
+
+        logger.info("[relation_extractor] Calling AIBroker for knowledge_id: %d", knowledge_id)
+        result = aibroker_ask_and_answer(
             text=text,
             role="knowledge extraction",
             question=EXTRACT_QUESTION,
             temperature=0.3,
         )
-        logger.info("[relation_extractor] TextAI response: %s", result[:500] if result else "None")
+        logger.info("[relation_extractor] AIBroker response: %s", result[:500] if result else "None")
 
         if not result or result == "no":
-            logger.warning("[relation_extractor] TextAI returned empty or 'no' result")
+            logger.warning("[relation_extractor] AIBroker returned empty or 'no' result")
             return []
 
         parsed_list = _parse_multiple_json_from_response(result)

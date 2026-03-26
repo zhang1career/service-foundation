@@ -26,6 +26,50 @@ Configuration Notes:
 - `OSS_STORAGE_PATH`: Base path for local storage. The directory will be created automatically if it doesn't exist.
 - `OSS_BUCKET_NAME`: Optional default bucket name, used when bucket is not specified in certain operations.
 
+### Create OSS Storage Path (Docker Deployment)
+
+When running in Docker, `OSS_STORAGE_PATH` must point to a path inside the container (for example `/storage/oss`), and that path should be bind-mounted to a host directory.
+
+Example (`docker-compose.yml`):
+
+```yaml
+services:
+  serv-fd:
+    volumes:
+      - ./data/serv-fd/storage:/storage:RW
+```
+
+Example (`data/serv-fd/.env`):
+
+```env
+OSS_STORAGE_PATH=/storage/oss
+```
+
+Initialize the host directory:
+
+```bash
+mkdir -p ./data/serv-fd/storage/oss
+chmod 755 ./data/serv-fd/storage ./data/serv-fd/storage/oss
+docker compose restart serv-fd
+```
+
+Verify from container:
+
+```bash
+docker exec serv-fd sh -lc 'ls -ld /storage/oss && touch /storage/oss/.probe && ls -la /storage/oss'
+```
+
+If uploads fail with errors similar to `Operation not permitted` or `FileExistsError: [Errno 17] File exists: '/storage/oss'`, recreate the host path and clear metadata/ACL:
+
+```bash
+rm -rf ./data/serv-fd/storage/oss
+mkdir -p ./data/serv-fd/storage/oss
+xattr -rc ./data/serv-fd/storage/oss
+chmod -RN ./data/serv-fd/storage/oss
+chmod 755 ./data/serv-fd/storage ./data/serv-fd/storage/oss
+docker compose restart serv-fd
+```
+
 ## API Endpoints
 
 ### S3-Compatible REST API

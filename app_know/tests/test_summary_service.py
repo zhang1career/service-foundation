@@ -45,44 +45,42 @@ class SummaryGeneratorTest(TestCase):
         self.assertLessEqual(len(out), 103)
         self.assertTrue(out.endswith("...") or len(out) <= 100)
 
-    @patch("app_know.services.summary_generator._get_text_ai")
-    def test_generate_with_ai_success(self, mock_get_client):
-        """generate_summary with use_ai=True uses TextAI client when available."""
-        mock_client = MagicMock()
-        mock_client.ask_and_answer.return_value = ("prompt", "AI generated summary for the knowledge.")
-        mock_get_client.return_value = mock_client
+    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    def test_generate_with_ai_success(self, mock_ai):
+        """generate_summary with use_ai=True uses app_aibroker when available."""
+        mock_ai.return_value = "AI generated summary for the knowledge."
 
-        out = generate_summary(title="Test Title", description="Test Desc", use_ai=True)
+        out = generate_summary(
+            title="Test Title", description="Test Desc", content="Body for AI.", use_ai=True
+        )
         self.assertEqual(out, "AI generated summary for the knowledge.")
-        mock_client.ask_and_answer.assert_called_once()
+        mock_ai.assert_called_once()
 
-    @patch("app_know.services.summary_generator._get_text_ai")
-    def test_generate_with_ai_fallback_on_failure(self, mock_get_client):
-        """generate_summary falls back to rule-based when AI fails."""
-        mock_client = MagicMock()
-        mock_client.ask_and_answer.side_effect = RuntimeError("API error")
-        mock_get_client.return_value = mock_client
+    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    def test_generate_with_ai_fallback_on_failure(self, mock_ai):
+        """generate_summary falls back to rule-based when broker fails."""
+        mock_ai.side_effect = RuntimeError("API error")
 
-        out = generate_summary(title="Test Title", description="Test Desc", use_ai=True)
+        out = generate_summary(
+            title="Test Title", description="Test Desc", content="Body for AI.", use_ai=True
+        )
         self.assertIn("Test Title", out)
         self.assertIn("Test Desc", out)
 
-    @patch("app_know.services.summary_generator._get_text_ai")
-    def test_generate_with_ai_fallback_when_client_none(self, mock_get_client):
-        """generate_summary falls back to rule-based when TextAI client unavailable."""
-        mock_get_client.return_value = None
+    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    def test_generate_with_ai_fallback_when_broker_unavailable(self, mock_ai):
+        """generate_summary falls back to rule-based when broker raises."""
+        mock_ai.side_effect = RuntimeError("AIBROKER_SERVICE_URL not set")
 
-        out = generate_summary(title="Test Title", use_ai=True)
+        out = generate_summary(title="Test Title", content="x", use_ai=True)
         self.assertIn("Test Title", out)
 
-    @patch("app_know.services.summary_generator._get_text_ai")
-    def test_generate_with_ai_truncates_long_response(self, mock_get_client):
+    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    def test_generate_with_ai_truncates_long_response(self, mock_ai):
         """AI-generated summary is truncated if too long."""
-        mock_client = MagicMock()
-        mock_client.ask_and_answer.return_value = ("prompt", "x" * 3000)
-        mock_get_client.return_value = mock_client
+        mock_ai.return_value = "x" * 3000
 
-        out = generate_summary(title="T", max_length=100, use_ai=True)
+        out = generate_summary(title="T", content="body", max_length=100, use_ai=True)
         self.assertLessEqual(len(out), 100)
         self.assertTrue(out.endswith("..."))
 
@@ -305,19 +303,21 @@ class SummaryServiceTest(TestCase):
             knowledge_id=1, app_id=1, summary_id="65a1b2c3d4e5f6"
         )
 
-    @patch("app_know.services.summary_generator._get_text_ai")
+    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
     @patch("app_know.services.summary_service.save_summary")
-    @patch("app_know.services.summary_service.get_knowledge_by_id")
-    def test_generate_and_save_with_ai(self, mock_get_know, mock_save, mock_text_ai):
+    @patch("app_know.services.summary_service.get_batch_as_entity")
+    def test_generate_and_save_with_ai(self, mock_get_batch, mock_save, mock_ai):
         """generate_and_save with use_ai=True calls save_summary with AI-generated summary."""
-        mock_entity = MagicMock()
-        mock_entity.title = "Title"
-        mock_entity.description = "Desc"
-        mock_entity.source_type = "doc"
-        mock_get_know.return_value = mock_entity
-        mock_client = MagicMock()
-        mock_client.ask_and_answer.return_value = ("prompt", "AI summary")
-        mock_text_ai.return_value = mock_client
+        mock_get_batch.return_value = {
+            "id": 1,
+            "title": "Title",
+            "description": "Desc",
+            "content": "Content for summarization",
+            "source_type": "doc",
+            "ct": 0,
+            "ut": 0,
+        }
+        mock_ai.return_value = "AI summary"
         mock_save.return_value = {"kid": 1, "summary": "AI summary", "app_id": 1}
 
         svc = SummaryService()

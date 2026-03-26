@@ -1,11 +1,14 @@
 {% comment %}
 详情页 / 子页面顶部返回链接（复用组件）
-规范：详情页仅保留顶部返回链接，卡片内不放置返回按钮。
+规范：
+- back_url 须为对应列表页；详情页仅保留本链接作为「返回」，卡片内不再放返回按钮。
+- 已接 main.js 的 returnToList，优先用历史记录回到列表。
+- 禁止在详情页提供进入编辑页的入口；编辑用 console/includes/list_edit_icon.html（仅列表）。
 
 用法: {% include 'console/includes/detail_back_link.html' with back_url=... back_label="返回列表" %}
 {% endcomment %}
 <div class="mb-6">
-    <a href="{{ back_url }}" class="text-blue-600 hover:text-blue-800 flex items-center">
+    <a href="{{ back_url }}" onclick="return returnToList('{{ back_url|escapejs }}')" class="text-blue-600 hover:text-blue-800 flex items-center">
         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
         </svg>
