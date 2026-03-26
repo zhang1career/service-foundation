@@ -62,5 +62,11 @@ class DashboardView(TemplateView):
                 'description': '统一 LLM 调用、提示模板与调用方凭证',
                 'icon': 'sparkles',
             },
+            'searchrec': {
+                'name': '搜索推荐',
+                'enabled': getattr(settings, 'APP_SEARCHREC_ENABLED', False),
+                'description': '搜索、推荐、重排基础能力调试',
+                'icon': 'search',
+            },
         }
         return context

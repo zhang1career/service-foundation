@@ -2,10 +2,10 @@ import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
-import requests
 from django.conf import settings
 
 from common.consts.response_const import RET_OK
+from common.services.http import request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,14 @@ def aibroker_text_generate(
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
 
-    resp = requests.post(url, json=body, headers=headers, timeout=timeout_sec)
+    resp = request_sync(
+        method="POST",
+        url=url,
+        pool_name="thirdparty_pool",
+        json_body=body,
+        headers=headers,
+        timeout_sec=timeout_sec,
+    )
     if resp.status_code != 200:
         raise RuntimeError(f"aibroker HTTP {resp.status_code}: {resp.text[:500]}")
 
@@ -140,7 +147,14 @@ def aibroker_embed(
         "X-Correlation-Id": str(uuid.uuid4()),
     }
 
-    resp = requests.post(url, json=body, headers=headers, timeout=timeout_sec)
+    resp = request_sync(
+        method="POST",
+        url=url,
+        pool_name="thirdparty_pool",
+        json_body=body,
+        headers=headers,
+        timeout_sec=timeout_sec,
+    )
     if resp.status_code != 200:
         raise RuntimeError(f"aibroker HTTP {resp.status_code}: {resp.text[:500]}")
 

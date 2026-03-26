@@ -19,6 +19,7 @@ from .cdn_view import (
 from .user_view import UserListConsoleView, UserDetailConsoleView, UserEditConsoleView
 from .event_view import UserEventListConsoleView, UserEventDetailConsoleView, UserEventEditConsoleView
 from .reg_console_view import NoticeRegConsoleView, VerifyRegConsoleView
+from .searchrec_view import SearchRecConsoleView
 
 __all__ = [
     'DashboardView',
@@ -44,4 +45,5 @@ __all__ = [
     'UserEventEditConsoleView',
     'NoticeRegConsoleView',
     'VerifyRegConsoleView',
+    'SearchRecConsoleView',
 ]

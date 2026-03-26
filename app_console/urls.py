@@ -25,6 +25,7 @@ from app_console.views import (
     UserEventEditConsoleView,
     NoticeRegConsoleView,
     VerifyRegConsoleView,
+    SearchRecConsoleView,
 )
 
 app_name = 'console'
@@ -68,6 +69,7 @@ urlpatterns = [
     path('user/<int:user_id>/edit/', UserEditConsoleView.as_view(), name='user-edit'),
     path('notice/regs/', NoticeRegConsoleView.as_view(), name='notice-reg-list'),
     path('verify/regs/', VerifyRegConsoleView.as_view(), name='verify-reg-list'),
+    path('searchrec/', SearchRecConsoleView.as_view(), name='searchrec-console'),
 ]
 
 if getattr(settings, "APP_AIBROKER_ENABLED", False):

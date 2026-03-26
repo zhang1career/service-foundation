@@ -30,6 +30,12 @@ A distributed unique ID generator service based on the Snowflake algorithm. Prov
 
 **API Endpoint:** `/api/snowflake/`
 
+### app_searchrec - Search/Recommend Foundation Service
+
+A reusable base capability service for search and recommendation scenarios. It provides index upsert, retrieval, recommendation, and ranking APIs for business systems to compose with their own domain logic.
+
+**API Endpoint:** `/api/searchrec/`
+
 ## Common Module
 
 The `common` module provides shared utilities, services, and components used across applications:

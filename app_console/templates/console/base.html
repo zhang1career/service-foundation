@@ -141,6 +141,18 @@
                         </a>
                     </li>
                     {% endif %}
+
+                    {% if apps.searchrec.enabled %}
+                    <li>
+                        <a href="{% url 'console:searchrec-console' %}"
+                           class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/searchrec/' in request.path %}bg-gray-700{% endif %}" title="搜索推荐">
+                            <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z"></path>
+                            </svg>
+                            <span class="sidebar-text ml-3 whitespace-nowrap">搜索推荐</span>
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
             </nav>
             

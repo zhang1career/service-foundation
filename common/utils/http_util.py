@@ -3,7 +3,6 @@ import uuid
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 
-import requests
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBase, JsonResponse
 from rest_framework import status as http_status
@@ -14,6 +13,7 @@ from common.consts.response_const import RET_INVALID_PARAM, RET_OK, RET_UNKNOWN
 from common.exceptions.base_exception import CheckedException, UncheckedException, generic_message_for_ret
 from common.exceptions.checked.upstream_http_error import UpstreamHttpError
 from common.pojo.response import Response
+from common.services.http import HttpCallError, request_sync
 from common.utils.date_util import get_date_str_of_datetime
 from common.utils.url_util import url_decode
 
@@ -305,7 +305,10 @@ def get(url):
     """
     logger.debug("[get] url=%s", url)
 
-    response = requests.get(url)
+    try:
+        response = request_sync(method="GET", url=url, pool_name="thirdparty_pool")
+    except HttpCallError as exc:
+        raise UpstreamHttpError(f"request error: {exc}") from exc
     if response.status_code != 200:
         raise UpstreamHttpError(
             "request error, status={status}, response={response}".format(
@@ -337,7 +340,16 @@ def post(url, data, auth_token=None):
     if auth_token:
         headers["Authorization"] = "Bearer " + auth_token
 
-    response = requests.post(url, json=data, headers=headers)
+    try:
+        response = request_sync(
+            method="POST",
+            url=url,
+            pool_name="thirdparty_pool",
+            json_body=data,
+            headers=headers,
+        )
+    except HttpCallError as exc:
+        raise UpstreamHttpError(f"request error: {exc}") from exc
     if response.status_code != 200:
         raise UpstreamHttpError(
             "request error, status={status}, response={response}".format(

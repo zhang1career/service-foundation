@@ -64,3 +64,7 @@ if settings.APP_VERIFY_ENABLED:
 if settings.APP_AIBROKER_ENABLED:
     from app_aibroker import urls as app_aibroker_urls
     urlpatterns.append(path('api/aibroker/', include(app_aibroker_urls)))
+
+if settings.APP_SEARCHREC_ENABLED:
+    from app_searchrec import urls as app_searchrec_urls
+    urlpatterns.append(path('api/searchrec/', include(app_searchrec_urls)))

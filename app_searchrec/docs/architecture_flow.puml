@@ -1,0 +1,45 @@
+@startuml
+title SearchRec Overall Architecture
+left to right direction
+skinparam shadowing false
+
+rectangle "BusinessSystem" as BusinessSystem
+rectangle "app_searchrec.views" as SearchRecAPI
+rectangle "SearchRecService" as SearchRecService
+rectangle "RankingLogic" as RankEngine
+
+package "Adapters" as adapters {
+  rectangle "IndexAdapter" as IndexAdapter
+  rectangle "VectorAdapter" as VectorAdapter
+  rectangle "FeatureStoreAdapter" as FeatureAdapter
+  rectangle "EmbeddingProvider" as EmbedProvider
+}
+
+package "Backends" as backends {
+  rectangle "MemoryIndex" as MemoryIndex
+  rectangle "OpenSearch" as OpenSearch
+  rectangle "MemoryVector" as MemoryVector
+  rectangle "Qdrant" as Qdrant
+  rectangle "Milvus" as Milvus
+  rectangle "MemoryFeatureStore" as MemoryFeature
+  rectangle "FeastOnlineStore" as Feast
+}
+
+BusinessSystem --> SearchRecAPI : HTTP API
+SearchRecAPI --> SearchRecService
+
+SearchRecService --> IndexAdapter
+SearchRecService --> VectorAdapter
+SearchRecService --> FeatureAdapter
+SearchRecService --> RankEngine
+
+VectorAdapter --> EmbedProvider
+
+IndexAdapter --> MemoryIndex
+IndexAdapter --> OpenSearch
+VectorAdapter --> MemoryVector
+VectorAdapter --> Qdrant
+VectorAdapter --> Milvus
+FeatureAdapter --> MemoryFeature
+FeatureAdapter --> Feast
+@enduml

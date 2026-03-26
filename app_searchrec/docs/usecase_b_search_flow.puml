@@ -1,0 +1,16 @@
+@startuml
+title Use Case B - Keyword Search Flow
+skinparam shadowing false
+
+start
+:BusinessSystem\ncall search;
+fork
+  :IndexAdapter\nlexical recall;
+  :FeatureStoreAdapter\nload doc features;
+fork again
+  :VectorAdapter\nvector recall;
+end fork
+:SearchRecService\nmerge + score;
+:Return ranked items;
+stop
+@enduml

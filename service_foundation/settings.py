@@ -70,6 +70,7 @@ APP_NOTICE_ENABLED = env.bool("APP_NOTICE_ENABLED", default=True)
 APP_USER_ENABLED = env.bool("APP_USER_ENABLED", default=True)
 APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=True)
 APP_AIBROKER_ENABLED = env.bool("APP_AIBROKER_ENABLED", default=False)
+APP_SEARCHREC_ENABLED = env.bool("APP_SEARCHREC_ENABLED", default=False)
 
 # Application definition
 INSTALLED_APPS = [
@@ -105,6 +106,8 @@ if APP_VERIFY_ENABLED:
     INSTALLED_APPS.append("app_verify")
 if APP_AIBROKER_ENABLED:
     INSTALLED_APPS.append("app_aibroker")
+if APP_SEARCHREC_ENABLED:
+    INSTALLED_APPS.append("app_searchrec")
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
@@ -211,6 +214,20 @@ DATABASES = {
             "NAME": env("DB_OSS_TEST_NAME", default="sf_oss_test"),
         },
     },
+    "searchrec_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_SEARCHREC_NAME", default="sf_searchrec"),
+        "USER": env("DB_SEARCHREC_USER", default="zhang"),
+        "PASSWORD": env("DB_SEARCHREC_PASS", default=""),
+        "HOST": env("DB_SEARCHREC_HOST", default="127.0.0.1"),
+        "PORT": env("DB_SEARCHREC_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_SEARCHREC_TEST_NAME", default="sf_searchrec_test"),
+        },
+    },
     "snowflake_rw": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": env("DB_SNOWFLAKE_NAME", default="sf_snowflake"),
@@ -315,6 +332,8 @@ if APP_VERIFY_ENABLED:
     DATABASE_ROUTERS.append("app_verify.db_routers.ReadWriteRouter")
 if APP_AIBROKER_ENABLED:
     DATABASE_ROUTERS.append("app_aibroker.db_routers.ReadWriteRouter")
+if APP_SEARCHREC_ENABLED:
+    DATABASE_ROUTERS.append("app_searchrec.db_routers.ReadWriteRouter")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -473,6 +492,10 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_AIBROKER", default="INFO"),
             "handlers": [_log_handler],
         },
+        "app_searchrec": {
+            "level": env("LOG_LEVEL_APP_SEARCHREC", default="INFO"),
+            "handlers": [_log_handler],
+        },
         "common": {
             "level": env("LOG_LEVEL_COMMON", default="INFO"),
             "handlers": [_log_handler],
@@ -492,8 +515,50 @@ AIBROKER_SERVICE_URL = env("AIBROKER_SERVICE_URL", default="http://127.0.0.1:800
 KNOW_AIBROKER_ACCESS_KEY = env("KNOW_AIBROKER_ACCESS_KEY", default="")
 USER_VERIFY_ACCESS_KEY = env("USER_VERIFY_ACCESS_KEY", default="")
 USER_NOTICE_ACCESS_KEY = env("USER_NOTICE_ACCESS_KEY", default="")
-USER_AVATAR_OSS_ENDPOINT = env("USER_AVATAR_OSS_ENDPOINT", default="http://127.0.0.1:8000/api/oss")
-USER_AVATAR_OSS_BUCKET = env("USER_AVATAR_OSS_BUCKET", default="user-avatar")
+USER_OSS_ENDPOINT = env("USER_OSS_ENDPOINT", default="http://127.0.0.1:8000/api/oss")
+USER_OSS_BUCKET = env("USER_OSS_BUCKET", default="user-avatar")
+
+# HTTP client pools (httpx)
+HTTPX_DEFAULT_MAX_CONNECTIONS = env.int("HTTPX_DEFAULT_MAX_CONNECTIONS", default=100)
+HTTPX_DEFAULT_MAX_KEEPALIVE = env.int("HTTPX_DEFAULT_MAX_KEEPALIVE", default=20)
+HTTPX_DEFAULT_KEEPALIVE_EXPIRY = env.float("HTTPX_DEFAULT_KEEPALIVE_EXPIRY", default=30.0)
+HTTPX_DEFAULT_TIMEOUT = env.float("HTTPX_DEFAULT_TIMEOUT", default=30.0)
+
+HTTPX_AVATAR_MAX_CONNECTIONS = env.int("HTTPX_AVATAR_MAX_CONNECTIONS", default=32)
+HTTPX_WEBHOOK_MAX_CONNECTIONS = env.int("HTTPX_WEBHOOK_MAX_CONNECTIONS", default=64)
+HTTPX_THIRDPARTY_MAX_CONNECTIONS = env.int("HTTPX_THIRDPARTY_MAX_CONNECTIONS", default=64)
+
+# Search recommendation baseline config
+SEARCHREC_INDEX_BACKEND = env("SEARCHREC_INDEX_BACKEND", default="memory")
+SEARCHREC_VECTOR_BACKEND = env("SEARCHREC_VECTOR_BACKEND", default="memory")
+SEARCHREC_FEATURE_STORE_BACKEND = env("SEARCHREC_FEATURE_STORE_BACKEND", default="memory")
+SEARCHREC_DEFAULT_TOP_K = env.int("SEARCHREC_DEFAULT_TOP_K", default=10)
+SEARCHREC_HTTP_TIMEOUT = env.float("SEARCHREC_HTTP_TIMEOUT", default=3.0)
+SEARCHREC_OPENSEARCH_URL = env("SEARCHREC_OPENSEARCH_URL", default="")
+SEARCHREC_OPENSEARCH_INDEX = env("SEARCHREC_OPENSEARCH_INDEX", default="searchrec_docs")
+SEARCHREC_OPENSEARCH_API_KEY = env("SEARCHREC_OPENSEARCH_API_KEY", default="")
+SEARCHREC_MILVUS_ENDPOINT = env("SEARCHREC_MILVUS_ENDPOINT", default="")
+SEARCHREC_MILVUS_COLLECTION = env("SEARCHREC_MILVUS_COLLECTION", default="searchrec_vectors")
+SEARCHREC_MILVUS_API_KEY = env("SEARCHREC_MILVUS_API_KEY", default="")
+SEARCHREC_QDRANT_URL = env("SEARCHREC_QDRANT_URL", default="")
+SEARCHREC_QDRANT_COLLECTION = env("SEARCHREC_QDRANT_COLLECTION", default="searchrec_vectors")
+SEARCHREC_QDRANT_API_KEY = env("SEARCHREC_QDRANT_API_KEY", default="")
+SEARCHREC_FEAST_ONLINE_URL = env("SEARCHREC_FEAST_ONLINE_URL", default="")
+SEARCHREC_FEAST_API_KEY = env("SEARCHREC_FEAST_API_KEY", default="")
+
+# Celery + Redis
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+CELERY_TASK_DEFAULT_QUEUE = env("CELERY_TASK_DEFAULT_QUEUE", default="default")
+CELERY_TASK_ROUTES = {
+    "common.tasks.http_tasks.execute_http_request_task": {"queue": "thirdparty"},
+}
 
 # MongoDB Atlas configuration (for app_know)
 MONGO_ATLAS_USER = env("MONGO_ATLAS_USER", default="")

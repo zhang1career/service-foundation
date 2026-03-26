@@ -52,6 +52,10 @@
                     <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
                     </svg>
+                    {% elif app.icon == 'search' %}
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z"></path>
+                    </svg>
                     {% endif %}
                 </div>
                 <div>
@@ -83,6 +87,8 @@
                 <a href="{% url 'console:verify-reg-list' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
                 {% elif key == 'aibroker' %}
                 <a href="{% url 'console:aibroker-regs' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
+                {% elif key == 'searchrec' %}
+                <a href="{% url 'console:searchrec-console' %}" class="btn btn-primary btn-sm w-full">进入管理</a>
                 {% endif %}
             {% else %}
             <button class="btn btn-outline btn-sm w-full" disabled>未启用</button>
@@ -100,7 +106,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                     <p class="text-sm text-gray-500 mb-1">API 端点</p>
-                    <p class="font-mono text-sm">/api/cdn/, /api/know/, /api/mail/, /api/oss/, /api/snowflake/, /api/user/, /api/notice/, /api/verify/, /api/aibroker/</p>
+                    <p class="font-mono text-sm">/api/cdn/, /api/know/, /api/mail/, /api/oss/, /api/snowflake/, /api/user/, /api/notice/, /api/verify/, /api/aibroker/, /api/searchrec/</p>
                 </div>
                 <div>
                     <p class="text-sm text-gray-500 mb-1">控制台版本</p>

@@ -1,0 +1,13 @@
+@startuml
+title Use Case A - Content Upsert Flow
+skinparam shadowing false
+
+start
+:BusinessSystem\ncall index/upsert;
+:SearchRecAPI\nvalidate payload;
+:SearchRecService\nupsert to IndexAdapter;
+:SearchRecService\nupsert to VectorAdapter;
+:SearchRecService\nupsert to FeatureAdapter;
+:Return success;
+stop
+@enduml

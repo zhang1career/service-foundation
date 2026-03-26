@@ -1,9 +1,9 @@
 import logging
 from typing import Optional
 
-import requests
 from django.conf import settings
 
+from common.services.http import HttpCallError, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,17 @@ class SmsNoticeService:
             headers = {"Content-Type": "application/json"}
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
-            response = requests.post(endpoint, json=payload, headers=headers, timeout=5)
+            try:
+                response = request_sync(
+                    method="POST",
+                    url=endpoint,
+                    pool_name="thirdparty_pool",
+                    json_body=payload,
+                    headers=headers,
+                    timeout_sec=5,
+                )
+            except HttpCallError:
+                return False
             return response.status_code == 200
 
         raise ValueError(f"Unsupported SMS provider: {provider}")

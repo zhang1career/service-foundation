@@ -1,6 +1,5 @@
 import base64
 import binascii
-import concurrent.futures
 import imghdr
 import logging
 import uuid
@@ -8,11 +7,10 @@ from datetime import datetime
 from typing import Optional, Tuple
 from urllib.parse import quote
 
-import requests
 from django.conf import settings
-from requests import RequestException
 
 from common.exceptions import InvalidArgumentError, ObjectStorageError
+from common.services.http import HttpCallError, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +53,13 @@ def _decode_base64(value: str) -> Optional[bytes]:
 
 def _download_remote(url: str) -> Tuple[bytes, str, str]:
     try:
-        resp = requests.get(url, timeout=10)
-    except RequestException as e:
+        resp = request_sync(
+            method="GET",
+            url=url,
+            pool_name="avatar_http_pool",
+            timeout_sec=10,
+        )
+    except HttpCallError as e:
         raise ObjectStorageError(f"failed to fetch avatar url: {e}") from e
     if resp.status_code != 200:
         raise InvalidArgumentError("failed to fetch avatar url")
@@ -65,27 +68,24 @@ def _download_remote(url: str) -> Tuple[bytes, str, str]:
     return resp.content, content_type, filename
 
 
-def _http_put_object(*, url: str, data: bytes, content_type: str, timeout: int) -> requests.Response:
-    """
-    Run HTTP PUT in a worker thread so the Django dev server can accept the OSS request
-    on another thread (avoids self-deadlock when endpoint is the same process).
-    """
+def _http_put_object(*, url: str, data: bytes, content_type: str, timeout: int):
     headers = {"Content-Type": content_type}
-
-    def _call():
-        return requests.put(url, data=data, headers=headers, timeout=timeout)
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(_call)
-        return future.result(timeout=timeout + 10)
+    return request_sync(
+        method="PUT",
+        url=url,
+        pool_name="avatar_http_pool",
+        data=data,
+        headers=headers,
+        timeout_sec=timeout,
+    )
 
 
 def upload_avatar(avatar) -> str:
     if avatar is None:
         return ""
 
-    base = getattr(settings, "USER_AVATAR_OSS_ENDPOINT", "http://127.0.0.1:8000/api/oss").rstrip("/")
-    bucket = getattr(settings, "USER_AVATAR_OSS_BUCKET", "user-avatar").strip() or "user-avatar"
+    base = getattr(settings, "USER_OSS_ENDPOINT", "http://127.0.0.1:8000/api/oss").rstrip("/")
+    bucket = getattr(settings, "USER_OSS_BUCKET", "user-avatar").strip() or "user-avatar"
 
     data = b""
     content_type = "application/octet-stream"
@@ -117,7 +117,7 @@ def upload_avatar(avatar) -> str:
         raise InvalidArgumentError("avatar is empty")
 
     ext = _guess_ext(content_type=content_type, filename=filename, data=data)
-    object_key = f"user/avatar/{datetime.utcnow().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
+    object_key = f"avatar/{datetime.utcnow().strftime('%Y%m%d')}/{uuid.uuid4().hex}.{ext}"
     object_path = f"/api/oss/{bucket}/{quote(object_key, safe='/')}"
     public_url = object_path
     upload_url = f"{base}/{bucket}/{quote(object_key, safe='/')}"
@@ -133,8 +133,8 @@ def upload_avatar(avatar) -> str:
 
     try:
         put_resp = _http_put_object(url=upload_url, data=data, content_type=content_type, timeout=15)
-    except RequestException as e:
-        logger.exception("avatar HTTP PUT failed (RequestException): %s", upload_url)
+    except HttpCallError as e:
+        logger.exception("avatar HTTP PUT failed: %s", upload_url)
         raise ObjectStorageError(f"avatar upload request failed: {e}") from e
     except Exception as e:
         logger.exception("avatar HTTP PUT failed (unexpected): %s", upload_url)

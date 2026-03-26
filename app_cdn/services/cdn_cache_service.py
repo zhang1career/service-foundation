@@ -9,9 +9,8 @@ Provides:
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
-
 from app_cdn.config import get_app_config
+from common.services.http import HttpCallError, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -170,13 +169,18 @@ def fetch_from_origin(
         path = "/" + prefix + path
     url = origin_base_url.rstrip("/") + path
     try:
-        resp = requests.get(url, timeout=30)
+        resp = request_sync(
+            method="GET",
+            url=url,
+            pool_name="thirdparty_pool",
+            timeout_sec=30,
+        )
         if resp.status_code != 200:
             logger.warning("[fetch_from_origin] %s -> %d", url, resp.status_code)
             return None, None, resp.status_code, url
         ct = resp.headers.get("Content-Type", "application/octet-stream")
         return resp.content, ct, 200, url
-    except Exception as e:
+    except HttpCallError as e:
         logger.exception("[fetch_from_origin] Error: %s", e)
         return None, None, 502, url
 

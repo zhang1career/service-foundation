@@ -1,0 +1,13 @@
+@startuml
+title Use Case C - Personalized Recommend Flow
+skinparam shadowing false
+
+start
+:BusinessSystem\ncall recommend;
+:FeatureStoreAdapter\nget user features;
+:SearchRecService\nbuild query from profile;
+:SearchRecService\nrun search flow;
+:Apply affinity_boost;
+:Return recommendation list;
+stop
+@enduml

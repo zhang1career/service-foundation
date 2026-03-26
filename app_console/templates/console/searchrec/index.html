@@ -1,0 +1,84 @@
+{% extends 'console/base.html' %}
+
+{% block title %}搜索推荐{% endblock %}
+{% block page_title %}搜索推荐控制台{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800">SearchRec API 调试</h2>
+            <p class="text-sm text-gray-600 mt-1">最小可用控制台：支持 index/upsert、search、recommend、rank 四个接口。</p>
+            <p class="text-xs text-gray-500 mt-1">API Base: <code>{{ searchrec_api_base }}</code></p>
+            {% if not searchrec_enabled %}
+            <p class="text-sm text-red-600 mt-2">当前 APP_SEARCHREC_ENABLED=false，接口可能不可用。</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="font-semibold mb-2">index/upsert</h3>
+                <textarea id="payload-upsert" class="w-full h-44 p-2 border rounded font-mono text-xs">{"documents":[{"id":"doc_1","title":"Hello Search","content":"search and recommend","tags":["search"],"score_boost":1.0}]}</textarea>
+                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/index/upsert','payload-upsert','resp-upsert')">发送</button>
+                <pre id="resp-upsert" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3 class="font-semibold mb-2">search</h3>
+                <textarea id="payload-search" class="w-full h-44 p-2 border rounded font-mono text-xs">{"query":"search recommend","top_k":10,"preferred_tags":["search"]}</textarea>
+                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/search','payload-search','resp-search')">发送</button>
+                <pre id="resp-search" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3 class="font-semibold mb-2">recommend</h3>
+                <textarea id="payload-recommend" class="w-full h-44 p-2 border rounded font-mono text-xs">{"user_profile":{"preferred_tags":["search"],"recent_queries":["hybrid search"],"affinity_boost":1.1},"top_k":10}</textarea>
+                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/recommend','payload-recommend','resp-recommend')">发送</button>
+                <pre id="resp-recommend" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h3 class="font-semibold mb-2">rank</h3>
+                <textarea id="payload-rank" class="w-full h-44 p-2 border rounded font-mono text-xs">{"strategy":"hybrid","candidates":[{"id":"a","base_score":0.8,"ctr_score":0.2,"freshness_score":0.3},{"id":"b","base_score":0.6,"ctr_score":0.7,"freshness_score":0.1}]}</textarea>
+                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/rank','payload-rank','resp-rank')">发送</button>
+                <pre id="resp-rank" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function callSearchRec(path, payloadId, responseId) {
+    const out = document.getElementById(responseId);
+    let payload;
+    try {
+        payload = JSON.parse(document.getElementById(payloadId).value || "{}");
+    } catch (e) {
+        out.textContent = "JSON 解析失败: " + e.message;
+        return;
+    }
+    out.textContent = "请求中...";
+    try {
+        const resp = await fetch("{{ searchrec_api_base }}" + path, {
+            method: "POST",
+            headers: {"Content-Type": "application/json", "Accept": "application/json"},
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        out.textContent = JSON.stringify(data, null, 2);
+    } catch (e) {
+        out.textContent = "请求失败: " + e.message;
+    }
+}
+</script>
+{% endblock %}

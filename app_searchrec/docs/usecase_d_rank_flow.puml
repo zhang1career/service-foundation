@@ -1,0 +1,17 @@
+@startuml
+title Use Case D - Candidate Rank Flow
+skinparam shadowing false
+
+start
+:BusinessSystem\ncall rank with candidates;
+if (strategy?) then (hybrid)
+  :Compute hybrid score;
+elseif (ctr_first)
+  :Compute ctr_first score;
+else (fresh_first)
+  :Compute fresh_first score;
+endif
+:Sort by final_score;
+:Return ranked candidates;
+stop
+@enduml

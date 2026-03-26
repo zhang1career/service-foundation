@@ -20,10 +20,18 @@ class WebPageContentCrawler:
         return getattr(self, func_name)(url)
 
     def _crawl_semiengineering_com(self, url: str):
-        # lazy load
-        import requests
+        from common.services.http import HttpCallError, request_sync
 
-        response = requests.get(url)
+        try:
+            response = request_sync(
+                method="GET",
+                url=url,
+                pool_name="thirdparty_pool",
+                timeout_sec=30,
+            )
+        except HttpCallError:
+            logger.warning("[crawl_semiengineering_com] request failed. url=%s", url)
+            return []
         if not response.ok:
             logger.warning("[crawl_semiengineering_com] response is not ok. url=%s", url)
             return []
