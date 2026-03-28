@@ -1,3 +1,4 @@
+from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
 from app_aibroker.repos import (
     create_provider,
     delete_provider,
@@ -66,7 +67,7 @@ class ModelService:
     def create_by_payload(payload: dict) -> dict:
         provider_id = int(payload.get("provider_id", 0))
         model_name = (payload.get("model_name") or "").strip()
-        capability = int(payload.get("capability", 0))
+        capability = int(payload.get("capability", ModelCapabilityEnum.CHAT))
         status = int(payload.get("status", 1))
         if provider_id <= 0 or not model_name:
             raise ValueError("provider_id and model_name are required")

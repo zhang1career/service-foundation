@@ -2,6 +2,7 @@ import json
 import logging
 import threading
 import time
+
 from app_aibroker.repos import create_job, get_asset_by_id, get_job_by_id, get_reg_by_id, update_job
 from app_aibroker.services.callback_service import deliver_callback
 

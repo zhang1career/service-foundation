@@ -25,11 +25,14 @@ from app_know.repos.insight_repo import (
     update_insight,
     delete_insight,
 )
-
-def get_knowledge_by_id(entity_id: int):
-    """Backward compat: returns batch as dict (id, title, content, ...)."""
-    return get_batch_as_entity(entity_id)
-
+from app_know.repos.knowledge_entity_compat import (
+    create_knowledge,
+    delete_knowledge,
+    get_knowledge_by_id,
+    get_knowledge_by_ids,
+    list_knowledge,
+    update_knowledge,
+)
 
 __all__ = [
     "create_knowledge_point",
@@ -37,6 +40,11 @@ __all__ = [
     "get_by_id",
     "get_batch_as_entity",
     "get_knowledge_by_id",
+    "get_knowledge_by_ids",
+    "list_knowledge",
+    "create_knowledge",
+    "update_knowledge",
+    "delete_knowledge",
     "list_by_batch",
     "list_knowledge_points",
     "list_distinct_batch_ids",

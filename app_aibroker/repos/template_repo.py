@@ -10,21 +10,22 @@ def _now_ms() -> int:
 
 def create_template(
     template_key: str,
-    version: int,
     constraint_type: int,
     body: str,
-    variables_schema_json: str = None,
-    output_schema_json: str = None,
+    description: str = "",
+    input_variables: str = None,
+    output_variables: str = None,
     status: int = 1,
 ) -> PromptTemplate:
     now_ms = _now_ms()
-    return PromptTemplate.objects.using("aibroker_rw").create(
+    db = "aibroker_rw"
+    return PromptTemplate.objects.using(db).create(
         template_key=template_key,
-        version=version,
         constraint_type=constraint_type,
+        description=description,
         body=body,
-        variables_schema_json=variables_schema_json,
-        output_schema_json=output_schema_json,
+        input_variables=input_variables,
+        output_variables=output_variables,
         status=status,
         ct=now_ms,
         ut=now_ms,
@@ -35,36 +36,32 @@ def list_templates(template_key: str = None):
     qs = PromptTemplate.objects.using("aibroker_rw").all()
     if template_key:
         qs = qs.filter(template_key=template_key)
-    return list(qs.order_by("-id"))
+    return list(qs.order_by("template_key"))
 
 
 def get_template(template_id: int) -> Optional[PromptTemplate]:
     return PromptTemplate.objects.using("aibroker_rw").filter(id=template_id).first()
 
 
-def get_template_by_key_version(template_key: str, version: int) -> Optional[PromptTemplate]:
+def get_template_by_key(template_key: str) -> Optional[PromptTemplate]:
     return (
         PromptTemplate.objects.using("aibroker_rw")
-        .filter(template_key=template_key, version=version)
+        .filter(template_key=template_key, status=1)
         .first()
     )
 
 
 def get_latest_template(template_key: str) -> Optional[PromptTemplate]:
-    return (
-        PromptTemplate.objects.using("aibroker_rw")
-        .filter(template_key=template_key, status=1)
-        .order_by("-version")
-        .first()
-    )
+    return get_template_by_key(template_key)
 
 
 def update_template(
     template_id: int,
     body: str = None,
     constraint_type: int = None,
-    variables_schema_json: str = None,
-    output_schema_json: str = None,
+    description: str = None,
+    input_variables: str = None,
+    output_variables: str = None,
     status: int = None,
 ) -> Optional[PromptTemplate]:
     t = get_template(template_id)
@@ -77,12 +74,15 @@ def update_template(
     if constraint_type is not None:
         t.constraint_type = constraint_type
         fields.append("constraint_type")
-    if variables_schema_json is not None:
-        t.variables_schema_json = variables_schema_json
-        fields.append("variables_schema_json")
-    if output_schema_json is not None:
-        t.output_schema_json = output_schema_json
-        fields.append("output_schema_json")
+    if description is not None:
+        t.description = description
+        fields.append("description")
+    if input_variables is not None:
+        t.input_variables = input_variables
+        fields.append("input_variables")
+    if output_variables is not None:
+        t.output_variables = output_variables
+        fields.append("output_variables")
     if status is not None:
         t.status = status
         fields.append("status")

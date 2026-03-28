@@ -1,14 +1,15 @@
 import json
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from app_aibroker.models import PromptTemplate
+if TYPE_CHECKING:
+    from app_aibroker.models.prompt_template import PromptTemplate
 
 logger = logging.getLogger(__name__)
 
 
-def render_template_body(tpl: PromptTemplate, variables: Optional[dict]) -> str:
+def render_template_body(tpl: "PromptTemplate", variables: Optional[dict]) -> str:
     variables = variables or {}
     try:
         return tpl.body.format(**variables)
@@ -24,19 +25,33 @@ def _extract_json_object(text: str) -> Any:
     return json.loads(s)
 
 
-def validate_output(tpl: PromptTemplate, model_text: str) -> str:
+def _required_keys_from_name_list(spec: Any) -> list[str]:
+    if not isinstance(spec, list):
+        return []
+    out: list[str] = []
+    for item in spec:
+        if isinstance(item, dict):
+            n = item.get("name")
+            if isinstance(n, str):
+                n = n.strip()
+                if n:
+                    out.append(n)
+    return out
+
+
+def validate_output(tpl: "PromptTemplate", model_text: str) -> str:
     """
-    Strong constraint: if output_schema_json has \"required\" array, parse JSON from model output
-    and ensure keys exist. Returns normalized JSON string or original text for weak/empty schema.
+    Strong constraint: output_variables is a JSON array of {\"name\": \"...\"}.
+    Parse JSON from model output and ensure each name exists as a key on the object.
     """
-    if tpl.constraint_type != 1 or not tpl.output_schema_json:
+    if tpl.constraint_type != 1 or not tpl.output_variables:
         return model_text
     try:
-        spec = json.loads(tpl.output_schema_json)
+        spec = json.loads(tpl.output_variables)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid output_schema_json on template: {exc}") from exc
+        raise ValueError(f"invalid output_variables on template: {exc}") from exc
 
-    required = spec.get("required")
+    required = _required_keys_from_name_list(spec)
     if not required:
         return model_text
 

@@ -1,5 +1,6 @@
 from django.urls import path
 
+from common.views.dict_codes_view import DictCodesView
 from app_mailserver.views.mail_account_view import (
     MailAccountListView,
     MailAccountDetailView,
@@ -14,6 +15,7 @@ from app_mailserver.views.mailbox_view import (
 # These REST API endpoints are for mail account and mailbox management
 
 urlpatterns = [
+    path("dict", DictCodesView.as_view(), name="mail-dict"),
     # Mail account CRUD endpoints
     path('accounts', MailAccountListView.as_view(), name='mail-account-list'),
     path('accounts/<int:account_id>', MailAccountDetailView.as_view(), name='mail-account-detail'),

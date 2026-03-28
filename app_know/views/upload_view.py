@@ -17,6 +17,36 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_CONTENT_TYPES = {"text/plain", "application/octet-stream"}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+DEFAULT_UPLOAD_TITLE = "uploaded"
+_PARSE_TRUE = frozenset(("true", "1", "yes"))
+
+
+def _non_empty_form_value(request, key: str) -> str | None:
+    v = request.data.get(key)
+    if v is not None and str(v).strip() != "":
+        return str(v).strip()
+    v = request.POST.get(key)
+    if v is not None and str(v).strip() != "":
+        return str(v).strip()
+    return None
+
+
+def _upload_batch_title(request, file_obj) -> str:
+    title = _non_empty_form_value(request, "title")
+    if title is not None:
+        return title
+    if file_obj.name:
+        stripped = str(file_obj.name).strip()
+        if stripped:
+            return stripped
+    return DEFAULT_UPLOAD_TITLE
+
+
+def _parse_flag_requested(request) -> bool:
+    raw = _non_empty_form_value(request, "parse")
+    if raw is None:
+        return False
+    return raw.lower() in _PARSE_TRUE
 
 
 class KnowledgeUploadView(APIView):
@@ -54,8 +84,8 @@ class KnowledgeUploadView(APIView):
                     status=http_status.HTTP_200_OK,
                 )
 
-            do_parse = str(request.data.get("parse") or request.POST.get("parse") or "").lower() in ("true", "1", "yes")
-            title = request.data.get("title") or request.POST.get("title") or file_obj.name or "uploaded"
+            do_parse = _parse_flag_requested(request)
+            title = _upload_batch_title(request, file_obj)
             batch_record = create_batch(title=title, source_type=SOURCE_TYPE_FILE, filename=file_obj.name or None)
             batch_id = batch_record.id
 

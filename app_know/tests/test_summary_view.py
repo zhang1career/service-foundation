@@ -2,11 +2,10 @@
 Tests for knowledge summary API views (validation, error handling, edge cases). Generated.
 """
 import json
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
+from unittest.mock import patch, MagicMock
 
 from app_know.views.summary_view import (
     KnowledgeSummaryView,

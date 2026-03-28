@@ -85,9 +85,7 @@ function showErrorModal(message) {
         backdrop.remove();
     }
     btn.addEventListener('click', close);
-    backdrop.addEventListener('click', function (e) {
-        if (e.target === backdrop) close();
-    });
+    attachModalBackdropClose(backdrop, close);
 
     backdrop.appendChild(box);
     document.body.appendChild(backdrop);
@@ -97,6 +95,27 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+/**
+ * 点击遮罩关闭弹窗。
+ * 若仅用 click 且 e.target===backdrop，从弹窗内拖选文本到遮罩外松开时，click 可能落在遮罩上导致误关。
+ * 改为：仅当 mousedown 与 mouseup 的 target 均为该 backdrop 时才关闭（主键左键）。
+ */
+function attachModalBackdropClose(backdropEl, closeFn) {
+    if (!backdropEl || typeof closeFn !== 'function') return;
+    let startOnBackdrop = false;
+    backdropEl.addEventListener('mousedown', function (e) {
+        if (e.button !== 0) return;
+        startOnBackdrop = e.target === backdropEl;
+    });
+    backdropEl.addEventListener('mouseup', function (e) {
+        if (e.button !== 0) return;
+        if (startOnBackdrop && e.target === backdropEl) {
+            closeFn();
+        }
+        startOnBackdrop = false;
+    });
 }
 
 // Confirm dialog helper

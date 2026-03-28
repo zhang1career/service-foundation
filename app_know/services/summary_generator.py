@@ -74,7 +74,7 @@ def _generate_summary_with_ai(
     text = content[:1000] + "..." if len(content) > 1000 else content
 
     try:
-        from common.services.aibroker_client import aibroker_ask_and_answer
+        from app_aibroker.outbound_client import aibroker_ask_and_answer
 
         logger.info("[summary_generator] Calling AIBroker for title: %s", title[:50])
         result = aibroker_ask_and_answer(

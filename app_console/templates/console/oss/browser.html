@@ -480,14 +480,8 @@ document.getElementById('upload-form').addEventListener('submit', async function
     }
 });
 
-// Modal backdrop clicks
-document.getElementById('bucket-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeBucketModal();
-});
-
-document.getElementById('upload-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeUploadModal();
-});
+attachModalBackdropClose(document.getElementById('bucket-modal'), closeBucketModal);
+attachModalBackdropClose(document.getElementById('upload-modal'), closeUploadModal);
 
 // Initial load
 document.addEventListener('DOMContentLoaded', function() {

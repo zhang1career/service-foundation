@@ -1,9 +1,8 @@
 """
 Tests for summary service (generate, get, list, delete); validation and edge cases. Generated.
 """
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
+from unittest.mock import patch, MagicMock
 
 from app_know.services.summary_generator import generate_summary
 from app_know.services.summary_service import SummaryService
@@ -45,7 +44,7 @@ class SummaryGeneratorTest(TestCase):
         self.assertLessEqual(len(out), 103)
         self.assertTrue(out.endswith("...") or len(out) <= 100)
 
-    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    @patch("app_aibroker.outbound_client.aibroker_ask_and_answer")
     def test_generate_with_ai_success(self, mock_ai):
         """generate_summary with use_ai=True uses app_aibroker when available."""
         mock_ai.return_value = "AI generated summary for the knowledge."
@@ -56,7 +55,7 @@ class SummaryGeneratorTest(TestCase):
         self.assertEqual(out, "AI generated summary for the knowledge.")
         mock_ai.assert_called_once()
 
-    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    @patch("app_aibroker.outbound_client.aibroker_ask_and_answer")
     def test_generate_with_ai_fallback_on_failure(self, mock_ai):
         """generate_summary falls back to rule-based when broker fails."""
         mock_ai.side_effect = RuntimeError("API error")
@@ -67,7 +66,7 @@ class SummaryGeneratorTest(TestCase):
         self.assertIn("Test Title", out)
         self.assertIn("Test Desc", out)
 
-    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    @patch("app_aibroker.outbound_client.aibroker_ask_and_answer")
     def test_generate_with_ai_fallback_when_broker_unavailable(self, mock_ai):
         """generate_summary falls back to rule-based when broker raises."""
         mock_ai.side_effect = RuntimeError("AIBROKER_SERVICE_URL not set")
@@ -75,7 +74,7 @@ class SummaryGeneratorTest(TestCase):
         out = generate_summary(title="Test Title", content="x", use_ai=True)
         self.assertIn("Test Title", out)
 
-    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    @patch("app_aibroker.outbound_client.aibroker_ask_and_answer")
     def test_generate_with_ai_truncates_long_response(self, mock_ai):
         """AI-generated summary is truncated if too long."""
         mock_ai.return_value = "x" * 3000
@@ -303,7 +302,7 @@ class SummaryServiceTest(TestCase):
             knowledge_id=1, app_id=1, summary_id="65a1b2c3d4e5f6"
         )
 
-    @patch("common.services.aibroker_client.aibroker_ask_and_answer")
+    @patch("app_aibroker.outbound_client.aibroker_ask_and_answer")
     @patch("app_know.services.summary_service.save_summary")
     @patch("app_know.services.summary_service.get_batch_as_entity")
     def test_generate_and_save_with_ai(self, mock_get_batch, mock_save, mock_ai):

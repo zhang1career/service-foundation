@@ -184,8 +184,11 @@
         if (!confirm('确认删除该模型？')) return;
         document.getElementById('mdl-del-' + id).submit();
     };
-    document.getElementById('mdl-create-modal').addEventListener('click', function (e) { if (e.target === this) closeMdlCreateModal(); });
-    document.getElementById('mdl-edit-modal').addEventListener('click', function (e) { if (e.target === this) closeMdlEditModal(); });
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof attachModalBackdropClose !== 'function') return;
+        attachModalBackdropClose(document.getElementById('mdl-create-modal'), closeMdlCreateModal);
+        attachModalBackdropClose(document.getElementById('mdl-edit-modal'), closeMdlEditModal);
+    });
 })();
 </script>
 {% endif %}

@@ -170,11 +170,10 @@
         if (f) f.submit();
     };
 
-    modal('caller-create-modal').addEventListener('click', function (e) {
-        if (e.target === this) closeCallerCreateModal();
-    });
-    modal('caller-edit-modal').addEventListener('click', function (e) {
-        if (e.target === this) closeCallerEditModal();
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof attachModalBackdropClose !== 'function') return;
+        attachModalBackdropClose(modal('caller-create-modal'), closeCallerCreateModal);
+        attachModalBackdropClose(modal('caller-edit-modal'), closeCallerEditModal);
     });
 })();
 </script>

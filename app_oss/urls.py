@@ -1,9 +1,11 @@
 from django.urls import path, re_path
 
+from common.views.dict_codes_view import DictCodesView
 from app_oss.views.s3_unified_view import S3UnifiedView
 from app_oss.views.s3_bucket_view import S3ListBucketsView
 
 urlpatterns = [
+    path("dict", DictCodesView.as_view(), name="oss-dict"),
     # GET / - List buckets
     path('', S3ListBucketsView.as_view(), name='s3-list-buckets'),
     # Object operations: /{bucket}/{key}

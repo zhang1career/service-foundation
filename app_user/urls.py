@@ -1,5 +1,6 @@
 from django.urls import path
 
+from common.views.dict_codes_view import DictCodesView
 from app_user.views import (
     RegisterView,
     RegisterVerifyView,
@@ -21,6 +22,7 @@ from app_user.views import (
 
 
 urlpatterns = [
+    path("dict", DictCodesView.as_view(), name="user-dict"),
     path("register", RegisterView.as_view(), name="user-register"),
     path("register/verify", RegisterVerifyView.as_view(), name="user-register-verify"),
     path("login", LoginView.as_view(), name="user-login"),

@@ -2,9 +2,8 @@
 Tests for knowledge service (validation and CRUD).
 Generated.
 """
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
+from unittest.mock import patch, MagicMock
 
 from app_know.services.knowledge_service import (
     KnowledgeService,

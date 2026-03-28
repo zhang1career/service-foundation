@@ -1,40 +1,4 @@
-from app_aibroker.repos.reg_repo import (
-    create_reg,
-    list_regs,
-    get_reg_by_id,
-    get_reg_by_access_key,
-    update_reg,
-    delete_reg,
-)
-from app_aibroker.repos.provider_repo import (
-    create_provider,
-    list_providers,
-    get_provider_by_id,
-    update_provider,
-    delete_provider,
-    default_chat_model,
-    default_embedding_model,
-)
-from app_aibroker.repos.model_repo import (
-    create_model,
-    list_models_for_provider,
-    get_model_by_id,
-    update_model,
-    delete_model,
-)
-from app_aibroker.repos.template_repo import (
-    create_template,
-    list_templates,
-    get_template,
-    get_template_by_key_version,
-    get_latest_template,
-    update_template,
-    delete_template,
-)
-from app_aibroker.repos.call_log_repo import create_call_log
-from app_aibroker.repos.job_repo import create_job, get_job_by_id, update_job
-from app_aibroker.repos.asset_repo import create_asset, get_asset_by_id
-from app_aibroker.repos.idempotency_repo import get_idempotency, save_idempotency
+from importlib import import_module
 
 __all__ = [
     "create_reg",
@@ -58,7 +22,7 @@ __all__ = [
     "create_template",
     "list_templates",
     "get_template",
-    "get_template_by_key_version",
+    "get_template_by_key",
     "get_latest_template",
     "update_template",
     "delete_template",
@@ -71,3 +35,47 @@ __all__ = [
     "get_idempotency",
     "save_idempotency",
 ]
+
+_LAZY_ATTRS: dict[str, tuple[str, str]] = {
+    "create_reg": ("app_aibroker.repos.reg_repo", "create_reg"),
+    "list_regs": ("app_aibroker.repos.reg_repo", "list_regs"),
+    "get_reg_by_id": ("app_aibroker.repos.reg_repo", "get_reg_by_id"),
+    "get_reg_by_access_key": ("app_aibroker.repos.reg_repo", "get_reg_by_access_key"),
+    "update_reg": ("app_aibroker.repos.reg_repo", "update_reg"),
+    "delete_reg": ("app_aibroker.repos.reg_repo", "delete_reg"),
+    "create_provider": ("app_aibroker.repos.provider_repo", "create_provider"),
+    "list_providers": ("app_aibroker.repos.provider_repo", "list_providers"),
+    "get_provider_by_id": ("app_aibroker.repos.provider_repo", "get_provider_by_id"),
+    "update_provider": ("app_aibroker.repos.provider_repo", "update_provider"),
+    "delete_provider": ("app_aibroker.repos.provider_repo", "delete_provider"),
+    "default_chat_model": ("app_aibroker.repos.provider_repo", "default_chat_model"),
+    "default_embedding_model": ("app_aibroker.repos.provider_repo", "default_embedding_model"),
+    "create_model": ("app_aibroker.repos.model_repo", "create_model"),
+    "list_models_for_provider": ("app_aibroker.repos.model_repo", "list_models_for_provider"),
+    "get_model_by_id": ("app_aibroker.repos.model_repo", "get_model_by_id"),
+    "update_model": ("app_aibroker.repos.model_repo", "update_model"),
+    "delete_model": ("app_aibroker.repos.model_repo", "delete_model"),
+    "create_template": ("app_aibroker.repos.template_repo", "create_template"),
+    "list_templates": ("app_aibroker.repos.template_repo", "list_templates"),
+    "get_template": ("app_aibroker.repos.template_repo", "get_template"),
+    "get_template_by_key": ("app_aibroker.repos.template_repo", "get_template_by_key"),
+    "get_latest_template": ("app_aibroker.repos.template_repo", "get_latest_template"),
+    "update_template": ("app_aibroker.repos.template_repo", "update_template"),
+    "delete_template": ("app_aibroker.repos.template_repo", "delete_template"),
+    "create_call_log": ("app_aibroker.repos.call_log_repo", "create_call_log"),
+    "create_job": ("app_aibroker.repos.job_repo", "create_job"),
+    "get_job_by_id": ("app_aibroker.repos.job_repo", "get_job_by_id"),
+    "update_job": ("app_aibroker.repos.job_repo", "update_job"),
+    "create_asset": ("app_aibroker.repos.asset_repo", "create_asset"),
+    "get_asset_by_id": ("app_aibroker.repos.asset_repo", "get_asset_by_id"),
+    "get_idempotency": ("app_aibroker.repos.idempotency_repo", "get_idempotency"),
+    "save_idempotency": ("app_aibroker.repos.idempotency_repo", "save_idempotency"),
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_ATTRS:
+        module_path, attr_name = _LAZY_ATTRS[name]
+        module = import_module(module_path)
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

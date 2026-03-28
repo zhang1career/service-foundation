@@ -1,6 +1,9 @@
 from enum import Enum
 
+from common.dict_catalog import register_dict_code
 
+
+@register_dict_code("content_type")
 class ContentTypeEnum(Enum):
 
     # Default/Unknown
@@ -151,4 +154,8 @@ class ContentTypeEnum(Enum):
         }
         
         return enum_to_mime.get(self, 'application/octet-stream')
+
+    @classmethod
+    def to_dict_list(cls):
+        return [{"k": e.to_mime_type(), "v": str(e.value)} for e in cls]
 

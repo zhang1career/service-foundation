@@ -274,9 +274,7 @@ document.getElementById('invalidation-form').addEventListener('submit', async fu
     }
 });
 
-document.getElementById('invalidation-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeInvalidationModal();
-});
+attachModalBackdropClose(document.getElementById('invalidation-modal'), closeInvalidationModal);
 
 document.addEventListener('DOMContentLoaded', loadDetail);
 </script>

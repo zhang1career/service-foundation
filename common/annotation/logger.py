@@ -14,4 +14,5 @@ def timing(func):
             'cost': e_time - s_time
         })
         return result
+
     return wrapper

@@ -254,9 +254,7 @@ document.getElementById('create-form').addEventListener('submit', async function
     }
 });
 
-document.getElementById('create-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeCreateModal();
-});
+attachModalBackdropClose(document.getElementById('create-modal'), closeCreateModal);
 
 function editCdnDistribution(id) {
     window.location.href = '/console/cdn/distributions/' + encodeURIComponent(id) + '/edit/';

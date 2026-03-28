@@ -4,7 +4,6 @@ Supports multi-hop traversal, predicate filtering, and predicate logic output fo
 """
 import json
 import logging
-
 from rest_framework import status as http_status
 from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
@@ -18,18 +17,13 @@ from common.consts.response_const import (
     RET_DB_ERROR,
     RET_JSON_PARSE_ERROR,
 )
+from common.exceptions.base_exception import generic_code_for_ret
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_QUERY_LIMIT = 50
 DEFAULT_MAX_HOPS = 1
-
-
-def _error_code_for_validation(msg: str) -> int:
-    if "required" in msg.lower() or "cannot be empty" in msg.lower():
-        return RET_MISSING_PARAM
-    return RET_INVALID_PARAM
 
 
 class LogicalQueryView(APIView):
@@ -134,7 +128,7 @@ class LogicalQueryView(APIView):
             logger.warning("[LogicalQueryView.get] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except ParseError as e:
@@ -167,7 +161,7 @@ class LogicalQueryView(APIView):
             logger.warning("[LogicalQueryView.post] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except ParseError as e:

@@ -3,9 +3,10 @@ import subprocess
 
 from moviepy import editor
 
+from django.conf import settings
+
 from common.exceptions import ShellCommandError
 from common.utils.string_util import implode
-from data_analyzer import settings
 
 logger = logging.getLogger(__name__)
 

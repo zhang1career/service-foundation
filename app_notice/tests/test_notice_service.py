@@ -1,6 +1,5 @@
-from unittest.mock import patch, Mock
-
 from django.test import SimpleTestCase, override_settings
+from unittest.mock import patch, Mock
 
 from app_notice.services.email_notice_service import EmailNoticeService
 from app_notice.services.sms_notice_service import SmsNoticeService
@@ -30,4 +29,3 @@ class TestNoticeService(SimpleTestCase):
     def test_sms_notice_http_provider(self, mock_post, mock_create_record):
         mock_post.return_value = Mock(status_code=200)
         self.assertTrue(SmsNoticeService.send(phone="13912345678", content="code:123456"))
-

@@ -22,6 +22,7 @@ from common.consts.response_const import (
     RET_INVALID_PARAM,
     RET_DB_ERROR,
 )
+from common.exceptions.base_exception import generic_code_for_ret
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
 logger = logging.getLogger(__name__)
@@ -40,16 +41,6 @@ def _parse_entity_id(entity_id) -> int:
     if eid <= 0:
         raise ValueError("entity_id must be a positive integer")
     return eid
-
-
-def _error_code_for_validation(msg: str) -> int:
-    """Map ValueError message to response error code."""
-    m = msg.lower()
-    if "not found" in m:
-        return RET_RESOURCE_NOT_FOUND
-    if "required" in m or "cannot be empty" in m or "missing" in m:
-        return RET_MISSING_PARAM
-    return RET_INVALID_PARAM
 
 
 class RelationExtractView(APIView):
@@ -116,7 +107,7 @@ class RelationSaveView(APIView):
             logger.warning("[RelationSaveView.post] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except Exception as e:
@@ -146,7 +137,7 @@ class RelationGraphView(APIView):
             logger.warning("[RelationGraphView.get] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except Exception as e:
@@ -184,7 +175,11 @@ class RelationGraphNodeUpdateView(APIView):
                                 status=http_status.HTTP_200_OK)
             return resp_ok({"cid": cid, "name": name or cid})
         except ValueError as e:
-            return resp_err(str(e), code=_error_code_for_validation(str(e)), status=http_status.HTTP_200_OK)
+            return resp_err(
+                str(e),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
+                status=http_status.HTTP_200_OK,
+            )
         except Exception as e:
             logger.exception("[RelationGraphNodeUpdateView.patch] Error: %s", e)
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
@@ -228,7 +223,11 @@ class RelationGraphEdgeUpdateView(APIView):
                                 status=http_status.HTTP_200_OK)
             return resp_ok({"from": from_cid, "to": to_cid, "type": new_type})
         except ValueError as e:
-            return resp_err(str(e), code=_error_code_for_validation(str(e)), status=http_status.HTTP_200_OK)
+            return resp_err(
+                str(e),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
+                status=http_status.HTTP_200_OK,
+            )
         except Exception as e:
             logger.exception("[RelationGraphEdgeUpdateView.patch] Error: %s", e)
             return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)

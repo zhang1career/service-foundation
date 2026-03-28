@@ -4,12 +4,11 @@ Round 2: skills-scoped query tests (app_id=skills).
 LogicalQueryService is mocked so no real Atlas or Neo4j connection is used.
 """
 import json
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, APIClient
+from unittest.mock import patch, MagicMock
 
 from app_know.repos.summary_repo import QUERY_SEARCH_MAX_LEN
 from app_know.views.query_view import LogicalQueryView

@@ -1,6 +1,16 @@
 from __future__ import annotations
 
 from common.consts import response_const as rc
+from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_MISSING_PARAM, RET_OK
+
+
+def generic_code_for_ret(msg: str, code_by_default: int = RET_OK) -> tuple[int, str]:
+    m = msg.lower()
+    if "not found" in m:
+        return RET_RESOURCE_NOT_FOUND, m
+    if "required" in m or "cannot be empty" in m or "missing" in m or "non-empty" in m:
+        return RET_MISSING_PARAM, m
+    return code_by_default, m
 
 
 def generic_message_for_ret(ret_code: int) -> str:
@@ -22,12 +32,12 @@ class CheckedException(Exception):
     """
 
     def __init__(
-        self,
-        detail: str,
-        *,
-        ret_code: int = rc.RET_INVALID_PARAM,
-        message: str | None = None,
-        http_status: int | None = None,
+            self,
+            detail: str,
+            *,
+            ret_code: int = rc.RET_INVALID_PARAM,
+            message: str | None = None,
+            http_status: int | None = None,
     ):
         super().__init__(detail)
         self.detail = detail
@@ -43,10 +53,10 @@ class UncheckedException(Exception):
     """
 
     def __init__(
-        self,
-        detail: str,
-        *,
-        ret_code: int = rc.RET_UNKNOWN,
+            self,
+            detail: str,
+            *,
+            ret_code: int = rc.RET_UNKNOWN,
     ):
         super().__init__(detail)
         self.detail = detail

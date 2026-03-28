@@ -14,6 +14,16 @@ def _tokenize(text):
     return re.findall(r"[a-zA-Z0-9_\u4e00-\u9fff]+", text.lower())
 
 
+def _search_response_hits(data):
+    if not isinstance(data, dict):
+        return []
+    hits_outer = data.get("hits")
+    if not isinstance(hits_outer, dict):
+        return []
+    inner = hits_outer.get("hits")
+    return inner if isinstance(inner, list) else []
+
+
 class MemoryIndexAdapter:
     def __init__(self):
         self._docs = {}
@@ -129,7 +139,7 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             },
         )
         data = response.json()
-        hits = (((data or {}).get("hits") or {}).get("hits")) or []
+        hits = _search_response_hits(data)
         remote_items = []
         for hit in hits:
             src = hit.get("_source") or {}

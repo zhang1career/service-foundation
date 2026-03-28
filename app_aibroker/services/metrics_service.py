@@ -1,5 +1,4 @@
 import time
-
 from django.db.models import Avg, Count, Q
 
 from app_aibroker.models import AiCallLog

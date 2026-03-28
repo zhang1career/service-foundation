@@ -253,9 +253,7 @@ document.getElementById('mailbox-form').addEventListener('submit', async functio
     }
 });
 
-document.getElementById('mailbox-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
+attachModalBackdropClose(document.getElementById('mailbox-modal'), closeModal);
 
 document.addEventListener('DOMContentLoaded', function() {
     loadAccountInfo();

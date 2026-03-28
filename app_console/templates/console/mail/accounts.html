@@ -222,9 +222,7 @@ document.getElementById('account-form').addEventListener('submit', async functio
     }
 });
 
-document.getElementById('account-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeModal();
-});
+attachModalBackdropClose(document.getElementById('account-modal'), closeModal);
 
 document.addEventListener('DOMContentLoaded', loadAccounts);
 </script>

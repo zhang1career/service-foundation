@@ -3,14 +3,15 @@ Tests for logical query service (Atlas + Neo4j combined ranking). Generated.
 Round 2: skills-scoped query test (app_id=skills uses Neo4j pipeline).
 """
 from unittest import TestCase
+
 from unittest.mock import patch
 
 from app_know.repos.summary_repo import QUERY_SEARCH_MAX_LEN
 from app_know.services.query_service import (
     LogicalQueryService,
     DEFAULT_QUERY_LIMIT,
-    _validate_query,
-    _validate_limit,
+    validate_query,
+    validate_limit,
 )
 from common.consts.query_const import LIMIT_LIST
 
@@ -20,30 +21,30 @@ class ValidateQueryTest(TestCase):
 
     def test_requires_non_empty_string(self):
         with self.assertRaises(ValueError) as ctx:
-            _validate_query(None)
+            validate_query(None)
         self.assertIn("required", str(ctx.exception))
         with self.assertRaises(ValueError) as ctx:
-            _validate_query("")
+            validate_query("")
         self.assertIn("empty", str(ctx.exception))
         with self.assertRaises(ValueError) as ctx:
-            _validate_query("   ")
+            validate_query("   ")
         self.assertIn("empty", str(ctx.exception))
         with self.assertRaises(ValueError) as ctx:
-            _validate_query(123)
+            validate_query(123)
         self.assertIn("string", str(ctx.exception))
 
     def test_accepts_non_empty_string(self):
-        self.assertEqual(_validate_query("hello"), "hello")
-        self.assertEqual(_validate_query("  bar  "), "bar")
+        self.assertEqual(validate_query("hello"), "hello")
+        self.assertEqual(validate_query("  bar  "), "bar")
 
     def test_query_too_long_raises(self):
         with self.assertRaises(ValueError) as ctx:
-            _validate_query("x" * (QUERY_SEARCH_MAX_LEN + 1))
+            validate_query("x" * (QUERY_SEARCH_MAX_LEN + 1))
         self.assertIn("exceed", str(ctx.exception).lower())
 
     def test_query_max_length_accepted(self):
         self.assertEqual(
-            _validate_query("x" * QUERY_SEARCH_MAX_LEN),
+            validate_query("x" * QUERY_SEARCH_MAX_LEN),
             "x" * QUERY_SEARCH_MAX_LEN,
         )
 
@@ -52,23 +53,23 @@ class ValidateLimitTest(TestCase):
     """Tests for _validate_limit."""
 
     def test_none_returns_default(self):
-        self.assertEqual(_validate_limit(None), DEFAULT_QUERY_LIMIT)
+        self.assertEqual(validate_limit(None), DEFAULT_QUERY_LIMIT)
 
     def test_invalid_raises(self):
         with self.assertRaises(ValueError) as ctx:
-            _validate_limit("10")
+            validate_limit("10")
         self.assertIn("integer", str(ctx.exception))
         with self.assertRaises(ValueError):
-            _validate_limit(0)
+            validate_limit(0)
         with self.assertRaises(ValueError):
-            _validate_limit(-1)
+            validate_limit(-1)
         with self.assertRaises(ValueError):
-            _validate_limit(LIMIT_LIST + 1)
+            validate_limit(LIMIT_LIST + 1)
 
     def test_valid_returns_value(self):
-        self.assertEqual(_validate_limit(10), 10)
-        self.assertEqual(_validate_limit(1), 1)
-        self.assertEqual(_validate_limit(LIMIT_LIST), LIMIT_LIST)
+        self.assertEqual(validate_limit(10), 10)
+        self.assertEqual(validate_limit(1), 1)
+        self.assertEqual(validate_limit(LIMIT_LIST), LIMIT_LIST)
 
 
 class LogicalQueryServiceTest(TestCase):

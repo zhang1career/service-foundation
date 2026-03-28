@@ -9,7 +9,7 @@ from typing import Optional
 from bson import ObjectId
 
 from common.drivers.mongo_driver import MongoDriver
-from common.services.text.text_helper import TextHelper, VEC_DIM
+from app_know.services.text_helper import TextHelper, VEC_DIM
 from service_foundation import settings
 
 logger = logging.getLogger(__name__)

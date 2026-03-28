@@ -8,7 +8,7 @@
 {% include 'console/includes/aibroker_subnav.html' %}
 
 <div class="mb-6">
-    <p class="text-gray-600">按 template_key + version 唯一。约束类型：0 弱 · 1 强。</p>
+    <p class="text-gray-600">每个 <code class="text-xs">template_key</code> 对应一条模板记录。</p>
 </div>
 
 <div class="card">
@@ -26,9 +26,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Key</th>
-                        <th>版本</th>
-                        <th>约束</th>
-                        <th>正文预览</th>
+                        <th>描述</th>
                         <th>状态</th>
                         <th>操作</th>
                     </tr>
@@ -36,11 +34,11 @@
                 <tbody>
                     {% for t in templates %}
                     <tr>
-                        <td class="font-mono text-sm">{{ t.id }}</td>
+                        <td class="font-mono text-sm">
+                            <a class="text-blue-600 hover:underline" href="{% url 'console:aibroker-prompt-template-detail' t.id %}">{{ t.id }}</a>
+                        </td>
                         <td class="font-medium">{{ t.template_key }}</td>
-                        <td>{{ t.version }}</td>
-                        <td>{{ t.constraint_type }}</td>
-                        <td class="max-w-xs truncate text-gray-600" title="{{ t.body|escape }}">{{ t.body|truncatechars:80 }}</td>
+                        <td class="max-w-xs truncate text-gray-600" title="{{ t.description|escape }}">{{ t.description|truncatechars:48 }}</td>
                         <td class="align-middle">
                             <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
                                 <span class="console-toggle-wrap">
@@ -64,7 +62,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="7" class="empty-state py-8 text-center text-gray-500">暂无模板</td></tr>
+                    <tr><td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无模板</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -89,7 +87,7 @@
 <div id="tpl-create-modal" class="modal-backdrop hidden">
     <div class="modal-content max-w-2xl">
         <div class="modal-header"><h3 class="text-lg font-semibold">新增模板</h3></div>
-        <form method="post">
+        <form method="post" id="tpl-create-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="create">
             <div class="modal-body space-y-3 max-h-[70vh] overflow-y-auto">
@@ -97,30 +95,46 @@
                     <label class="form-label" for="tpl-c-key">template_key *</label>
                     <input type="text" id="tpl-c-key" name="template_key" class="form-input" required>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="form-group">
-                        <label class="form-label" for="tpl-c-ver">版本</label>
-                        <input type="number" id="tpl-c-ver" name="version" class="form-input" value="1" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="tpl-c-con">约束类型</label>
-                        <select id="tpl-c-con" name="constraint_type" class="form-input">
-                            <option value="0">0 — 弱</option>
-                            <option value="1">1 — 强</option>
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-c-con">约束类型</label>
+                    <select id="tpl-c-con" name="constraint_type" class="form-input">
+                        {% for opt in aibroker_constraint_options %}
+                        <option value="{{ opt.v }}">{{ opt.k }} ({{ opt.v }})</option>
+                        {% empty %}
+                        <option value="0">弱约束 (0)</option>
+                        <option value="1">强约束 (1)</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tpl-c-desc">描述</label>
+                    <input type="text" id="tpl-c-desc" name="description" class="form-input" maxlength="512">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="tpl-c-body">正文 *</label>
                     <textarea id="tpl-c-body" name="body" class="form-input font-mono text-xs" rows="8" required></textarea>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="tpl-c-vars">variables_schema_json</label>
-                    <textarea id="tpl-c-vars" name="variables_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
+                    <label class="form-label">入参列表</label>
+                    <p class="text-sm text-gray-500 mb-2">名称列表存为 <code class="text-xs">[{"name":"..."},...]</code>；点击<strong>创建</strong>时若正文相对打开本弹窗时已有变化，则按占位符重写本列表（与 Python <code class="text-xs">str.format</code> 一致，如 <code class="text-xs">{name}</code>）。</p>
+                    <div id="tpl-c-vars-rows" class="space-y-2"></div>
+                    <div class="flex justify-end mt-2">
+                        <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('c', 'vars')" title="添加名称" aria-label="添加名称">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                    <input type="hidden" name="input_variables" id="tpl-c-vars" value="[]">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="tpl-c-out">output_schema_json</label>
-                    <textarea id="tpl-c-out" name="output_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
+                    <label class="form-label">出参列表</label>
+                    <p class="text-sm text-gray-500 mb-2">强约束下要求模型 JSON 输出须包含下列键（同名列表格式）。</p>
+                    <div id="tpl-c-out-rows" class="space-y-2"></div>
+                    <div class="flex justify-end mt-2">
+                        <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('c', 'out')" title="添加名称" aria-label="添加名称">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                    <input type="hidden" name="output_variables" id="tpl-c-out" value="[]">
                 </div>
             </div>
             <div class="modal-footer">
@@ -134,11 +148,15 @@
 <div id="tpl-edit-modal" class="modal-backdrop hidden">
     <div class="modal-content max-w-2xl">
         <div class="modal-header"><h3 class="text-lg font-semibold">编辑模板</h3></div>
-        <form method="post">
+        <form method="post" id="tpl-edit-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="template_id" id="tpl-e-id" value="">
             <div class="modal-body space-y-3 max-h-[70vh] overflow-y-auto">
+                <div class="form-group">
+                    <label class="form-label" for="tpl-e-desc">描述</label>
+                    <input type="text" id="tpl-e-desc" name="description" class="form-input" maxlength="512">
+                </div>
                 <div class="form-group">
                     <label class="form-label" for="tpl-e-body">正文 *</label>
                     <textarea id="tpl-e-body" name="body" class="form-input font-mono text-xs" rows="10" required></textarea>
@@ -146,24 +164,35 @@
                 <div class="form-group">
                     <label class="form-label" for="tpl-e-con">约束类型</label>
                     <select id="tpl-e-con" name="constraint_type" class="form-input">
-                        <option value="0">0 — 弱</option>
-                        <option value="1">1 — 强</option>
+                        {% for opt in aibroker_constraint_options %}
+                        <option value="{{ opt.v }}">{{ opt.k }} ({{ opt.v }})</option>
+                        {% empty %}
+                        <option value="0">弱约束 (0)</option>
+                        <option value="1">强约束 (1)</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="tpl-e-vars">variables_schema_json</label>
-                    <textarea id="tpl-e-vars" name="variables_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
+                    <label class="form-label">入参列表</label>
+                    <p class="text-sm text-gray-500 mb-2">点击<strong>保存</strong>时若正文相对打开本弹窗时已有变化，则按占位符重写本列表。</p>
+                    <div id="tpl-e-vars-rows" class="space-y-2"></div>
+                    <div class="flex justify-end mt-2">
+                        <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('e', 'vars')" title="添加名称" aria-label="添加名称">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                    <input type="hidden" name="input_variables" id="tpl-e-vars" value="[]">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="tpl-e-out">output_schema_json</label>
-                    <textarea id="tpl-e-out" name="output_schema_json" class="form-input font-mono text-xs" rows="3"></textarea>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="tpl-e-status">状态</label>
-                    <select id="tpl-e-status" name="status" class="form-input">
-                        <option value="0">停用</option>
-                        <option value="1">启用</option>
-                    </select>
+                    <label class="form-label">出参列表</label>
+                    <p class="text-sm text-gray-500 mb-2">强约束下要求模型 JSON 输出须包含下列键。</p>
+                    <div id="tpl-e-out-rows" class="space-y-2"></div>
+                    <div class="flex justify-end mt-2">
+                        <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('e', 'out')" title="添加名称" aria-label="添加名称">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        </button>
+                    </div>
+                    <input type="hidden" name="output_variables" id="tpl-e-out" value="[]">
                 </div>
             </div>
             <div class="modal-footer">
@@ -176,28 +205,144 @@
 
 <script>
 (function () {
+    var tplCreateBodySnapshot = '';
+    var tplEditBodySnapshot = '';
+
+    function tplRowsId(prefix, kind) {
+        return kind === 'vars' ? ('tpl-' + prefix + '-vars-rows') : ('tpl-' + prefix + '-out-rows');
+    }
+    function tplHiddenId(prefix, kind) {
+        return kind === 'vars' ? ('tpl-' + prefix + '-vars') : ('tpl-' + prefix + '-out');
+    }
+
+    function extractPlaceholders(text) {
+        if (!text) return [];
+        var t = String(text).replace(/\{\{/g, '\uE000').replace(/\}\}/g, '\uE001');
+        var re = /\{([^}:!]+)(?:[!:][^}]*)?\}/g;
+        var order = [];
+        var seen = {};
+        var m;
+        while ((m = re.exec(t)) !== null) {
+            var raw = m[1].trim();
+            var base = raw.split('.')[0].split('[')[0].trim();
+            if (!base) continue;
+            if (!seen[base]) {
+                seen[base] = true;
+                order.push(base);
+            }
+        }
+        return order;
+    }
+
+    function parseNameListJson(s) {
+        if (!s || !String(s).trim()) return [];
+        try {
+            var a = JSON.parse(s);
+            if (!Array.isArray(a)) return [];
+            return a.map(function (x) {
+                var n = (x && x.name != null) ? String(x.name) : '';
+                return { name: n };
+            }).filter(function (x) { return x.name.trim() !== ''; });
+        } catch (e) {
+            return [];
+        }
+    }
+
+    window.tplNameListAddRow = function (prefix, kind, nameOpt) {
+        var box = document.getElementById(tplRowsId(prefix, kind));
+        if (!box) return;
+        var row = document.createElement('div');
+        row.className = 'flex gap-2 items-center name-list-row';
+        var v = (nameOpt != null) ? String(nameOpt) : '';
+        row.innerHTML = '<input type="text" class="form-input flex-1 min-w-0" data-name-list-input value="" placeholder="名称" autocomplete="off">' +
+            '<button type="button" class="btn btn-icon tpl-name-list-icon-remove shrink-0" onclick="tplNameListRemoveRow(this)" title="删除" aria-label="删除">' +
+            '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' +
+            '</button>';
+        row.querySelector('[data-name-list-input]').value = v;
+        box.appendChild(row);
+    };
+
+    window.tplNameListRemoveRow = function (btn) {
+        var row = btn.closest('.name-list-row');
+        if (row) row.remove();
+    };
+
+    function tplNameListRender(prefix, kind, items) {
+        var box = document.getElementById(tplRowsId(prefix, kind));
+        if (!box) return;
+        box.innerHTML = '';
+        if (!items || !items.length) {
+            tplNameListFlush(prefix, kind);
+            return;
+        }
+        items.forEach(function (it) {
+            tplNameListAddRow(prefix, kind, it.name);
+        });
+        tplNameListFlush(prefix, kind);
+    }
+
+    window.tplNameListFlush = function (prefix, kind) {
+        var box = document.getElementById(tplRowsId(prefix, kind));
+        var hidden = document.getElementById(tplHiddenId(prefix, kind));
+        if (!box || !hidden) return;
+        var items = [];
+        var seen = {};
+        box.querySelectorAll('[data-name-list-input]').forEach(function (inp) {
+            var n = (inp.value || '').trim();
+            if (!n || seen[n]) return;
+            seen[n] = true;
+            items.push({ name: n });
+        });
+        hidden.value = JSON.stringify(items);
+    };
+
+    function tplNameListFlushBoth(prefix) {
+        tplNameListFlush(prefix, 'vars');
+        tplNameListFlush(prefix, 'out');
+    }
+
+    function syncVarsFromBody(prefix) {
+        var bodyEl = document.getElementById('tpl-' + prefix + '-body');
+        var names = extractPlaceholders(bodyEl ? bodyEl.value : '');
+        var items = names.map(function (n) { return { name: n }; });
+        tplNameListRender(prefix, 'vars', items);
+    }
+
     window.openTplCreateModal = function () {
+        var form = document.getElementById('tpl-create-form');
+        if (form) form.reset();
+        tplNameListRender('c', 'out', []);
+        tplNameListRender('c', 'vars', []);
+        tplCreateBodySnapshot = document.getElementById('tpl-c-body').value || '';
         document.getElementById('tpl-create-modal').classList.remove('hidden');
     };
     window.closeTplCreateModal = function () {
         document.getElementById('tpl-create-modal').classList.add('hidden');
     };
-    window.openTplEditModal = function (btn) {
+
+    function _tplRow(btn) {
         var id = String(btn.dataset.id);
         var el = document.getElementById('aibroker-tpl-by-id');
         var map = el ? JSON.parse(el.textContent) : {};
-        var row = map[id] || {};
+        return map[id] || {};
+    }
+
+    window.openTplEditModal = function (btn) {
+        var row = _tplRow(btn);
+        var id = String(btn.dataset.id);
         document.getElementById('tpl-e-id').value = id;
+        document.getElementById('tpl-e-desc').value = row.description || '';
         document.getElementById('tpl-e-body').value = row.body || '';
         document.getElementById('tpl-e-con').value = String(row.constraint_type != null ? row.constraint_type : 0);
-        document.getElementById('tpl-e-vars').value = row.variables_schema_json || '';
-        document.getElementById('tpl-e-out').value = row.output_schema_json || '';
-        document.getElementById('tpl-e-status').value = String(row.status != null ? row.status : 1);
+        tplNameListRender('e', 'vars', parseNameListJson(row.input_variables));
+        tplNameListRender('e', 'out', parseNameListJson(row.output_variables));
+        tplEditBodySnapshot = document.getElementById('tpl-e-body').value || '';
         document.getElementById('tpl-edit-modal').classList.remove('hidden');
     };
     window.closeTplEditModal = function () {
         document.getElementById('tpl-edit-modal').classList.add('hidden');
     };
+
     window.submitTplStatus = function (id, on) {
         document.getElementById('tpl-st-val-' + id).value = on ? '1' : '0';
         document.getElementById('tpl-st-' + id).submit();
@@ -206,8 +351,27 @@
         if (!confirm('确认删除该模板？')) return;
         document.getElementById('tpl-del-' + id).submit();
     };
-    document.getElementById('tpl-create-modal').addEventListener('click', function (e) { if (e.target === this) closeTplCreateModal(); });
-    document.getElementById('tpl-edit-modal').addEventListener('click', function (e) { if (e.target === this) closeTplEditModal(); });
+
+    document.getElementById('tpl-create-form').addEventListener('submit', function () {
+        var b = document.getElementById('tpl-c-body').value || '';
+        if (b !== tplCreateBodySnapshot) {
+            syncVarsFromBody('c');
+        }
+        tplNameListFlushBoth('c');
+    });
+    document.getElementById('tpl-edit-form').addEventListener('submit', function () {
+        var b = document.getElementById('tpl-e-body').value || '';
+        if (b !== tplEditBodySnapshot) {
+            syncVarsFromBody('e');
+        }
+        tplNameListFlushBoth('e');
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof attachModalBackdropClose !== 'function') return;
+        attachModalBackdropClose(document.getElementById('tpl-create-modal'), closeTplCreateModal);
+        attachModalBackdropClose(document.getElementById('tpl-edit-modal'), closeTplEditModal);
+    });
 })();
 </script>
 {% endblock %}

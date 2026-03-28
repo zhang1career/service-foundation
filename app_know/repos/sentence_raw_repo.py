@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from pymongo.errors import ConnectionFailure, PyMongoError
 
 from common.drivers.mongo_driver import MongoDriver
-from common.services.text.text_helper import TextHelper, VEC_DIM
+from app_know.services.text_helper import TextHelper, VEC_DIM
 from service_foundation import settings
 
 logger = logging.getLogger(__name__)

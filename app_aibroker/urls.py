@@ -1,25 +1,23 @@
 from django.urls import path
 
-from app_aibroker.views import (
-    AssetCreateView,
-    AssetDetailView,
-    HealthView,
-    JobCreateView,
-    JobDetailView,
-    MetricsSummaryView,
+from common.views.dict_codes_view import DictCodesView
+from app_aibroker.views.asset_view import AssetCreateView, AssetDetailView
+from app_aibroker.views.embedding_view import EmbeddingCreateView
+from app_aibroker.views.health_view import HealthView
+from app_aibroker.views.job_view import JobCreateView, JobDetailView
+from app_aibroker.views.metrics_view import MetricsSummaryView
+from app_aibroker.views.provider_view import (
     ModelDetailView,
     ModelListCreateView,
     ProviderDetailView,
     ProviderListCreateView,
-    RegDetailView,
-    RegListCreateView,
-    TemplateDetailView,
-    TemplateListCreateView,
-    TextGenerateView,
-    EmbeddingCreateView,
 )
+from app_aibroker.views.reg_view import RegDetailView, RegListCreateView
+from app_aibroker.views.template_view import TemplateDetailView, TemplateListCreateView
+from app_aibroker.views.text_view import TextGenerateView
 
 urlpatterns = [
+    path("dict", DictCodesView.as_view(), name="aibroker-dict"),
     path("v1/health", HealthView.as_view(), name="aibroker-health"),
     path("v1/text/generate", TextGenerateView.as_view(), name="aibroker-text-generate"),
     path("v1/embeddings", EmbeddingCreateView.as_view(), name="aibroker-embeddings"),

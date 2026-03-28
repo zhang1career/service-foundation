@@ -1,6 +1,7 @@
 import time
 from typing import Optional
 
+from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
 from app_aibroker.models import AiModel
 
 
@@ -8,7 +9,12 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def create_model(provider_id: int, model_name: str, capability: int = 0, status: int = 1) -> AiModel:
+def create_model(
+    provider_id: int,
+    model_name: str,
+    capability: int = ModelCapabilityEnum.CHAT,
+    status: int = 1,
+) -> AiModel:
     now_ms = _now_ms()
     return AiModel.objects.using("aibroker_rw").create(
         provider_id=provider_id,

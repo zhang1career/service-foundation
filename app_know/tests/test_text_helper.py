@@ -1,16 +1,17 @@
 from unittest import TestCase
+
 from unittest.mock import patch
 
-from common.services.text.text_helper import TextHelper, VEC_DIM
+from app_know.services.text_helper import TextHelper, VEC_DIM
 
 
 class TestTextHelper(TestCase):
     def setUp(self):
         self.dut = TextHelper()
 
-    @patch("common.services.text.text_helper.aibroker_embed")
+    @patch("app_know.services.text_helper.aibroker_embed")
     def test_find_most_similar_str(self, mock_embed):
-        """Uses broker HTTP client; mock returns orthogonal-ish vectors so cosine picks match."""
+        """Mock returns orthogonal-ish vectors so cosine picks match."""
 
         def side_effect(text, dimensions=None):
             t = (text or "").strip()

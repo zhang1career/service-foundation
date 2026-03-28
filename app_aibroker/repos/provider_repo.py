@@ -1,7 +1,8 @@
 import time
 from typing import Optional
 
-from app_aibroker.models import AiProvider, AiModel
+from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
+from app_aibroker.models import AiModel, AiProvider
 
 
 def _now_ms() -> int:
@@ -65,8 +66,10 @@ def delete_provider(provider_id: int) -> bool:
 
 
 def default_chat_model():
-    """First active chat model (capability=0) with active provider."""
-    for m in AiModel.objects.using("aibroker_rw").filter(capability=0, status=1).order_by("id"):
+    """First active chat model with active provider."""
+    for m in AiModel.objects.using("aibroker_rw").filter(
+        capability=ModelCapabilityEnum.CHAT, status=1
+    ).order_by("id"):
         p = get_provider_by_id(m.provider_id)
         if p and p.status == 1:
             return p, m
@@ -74,8 +77,10 @@ def default_chat_model():
 
 
 def default_embedding_model():
-    """First active embedding model (capability=3) with active provider."""
-    for m in AiModel.objects.using("aibroker_rw").filter(capability=3, status=1).order_by("id"):
+    """First active embedding model with active provider."""
+    for m in AiModel.objects.using("aibroker_rw").filter(
+        capability=ModelCapabilityEnum.EMBEDDING, status=1
+    ).order_by("id"):
         p = get_provider_by_id(m.provider_id)
         if p and p.status == 1:
             return p, m

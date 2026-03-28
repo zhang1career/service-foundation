@@ -12,11 +12,11 @@ from app_know.services.summary_service import SummaryService, _validate_app_id
 from common.consts.query_const import LIMIT_LIST
 from common.consts.response_const import (
     RET_RESOURCE_NOT_FOUND,
-    RET_MISSING_PARAM,
     RET_INVALID_PARAM,
     RET_DB_ERROR,
     RET_JSON_PARSE_ERROR,
 )
+from common.exceptions.base_exception import generic_code_for_ret
 from common.utils.http_util import resp_ok, resp_err, resp_exception, with_type
 
 logger = logging.getLogger(__name__)
@@ -35,16 +35,6 @@ def _parse_entity_id(entity_id) -> int:
     if eid is None or eid <= 0:
         raise ValueError("entity_id must be a positive integer")
     return eid
-
-
-def _error_code_for_validation(msg: str) -> int:
-    """Map ValueError message to response error code."""
-    m = msg.lower()
-    if "not found" in m:
-        return RET_RESOURCE_NOT_FOUND
-    if "required" in m or "cannot be empty" in m or "missing" in m:
-        return RET_MISSING_PARAM
-    return RET_INVALID_PARAM
 
 
 class KnowledgeSummaryView(APIView):
@@ -69,7 +59,7 @@ class KnowledgeSummaryView(APIView):
             logger.warning("[KnowledgeSummaryView.get] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except Exception as e:
@@ -96,7 +86,7 @@ class KnowledgeSummaryView(APIView):
             logger.warning("[KnowledgeSummaryView.post] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except ParseError as e:
@@ -130,7 +120,7 @@ class KnowledgeSummaryView(APIView):
             logger.warning("[KnowledgeSummaryView.put] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except ParseError as e:
@@ -152,7 +142,7 @@ class KnowledgeSummaryView(APIView):
             logger.warning("[KnowledgeSummaryView.delete] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except Exception as e:
@@ -197,7 +187,7 @@ class KnowledgeSummaryListView(APIView):
             logger.warning("[KnowledgeSummaryListView.get] Validation error: %s", e)
             return resp_err(
                 str(e),
-                code=_error_code_for_validation(str(e)),
+                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
                 status=http_status.HTTP_200_OK,
             )
         except Exception as e:

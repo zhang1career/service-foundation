@@ -1,11 +1,9 @@
 """
-Tests for knowledge repository (CRUD on know_rw).
-Generated.
+Tests for knowledge_entity_compat repo (CRUD facade over Batch + KnowledgePoint).
 """
 import time
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
+from unittest.mock import patch, MagicMock
 
 from app_know.repos import (
     get_knowledge_by_id,
@@ -16,110 +14,159 @@ from app_know.repos import (
 )
 from common.consts.query_const import LIMIT_LIST
 
+_COMPAT = "app_know.repos.knowledge_entity_compat"
+
 
 class KnowledgeRepoTest(TestCase):
-    """Tests for knowledge repo functions (fully mocked, no DB required)."""
+    """Tests for compat repo functions (fully mocked, no DB required)."""
 
-    @patch("app_know.repos.knowledge_repo.Knowledge")
-    def test_create_and_get(self, mock_model):
-        mock_entity = MagicMock()
-        mock_entity.id = 1
-        mock_entity.title = "Test Title"
-        mock_entity.source_type = "document"
-        mock_model.objects.using.return_value.create.return_value = mock_entity
+    @patch(f"{_COMPAT}.create_knowledge_point")
+    @patch(f"{_COMPAT}.create_batch")
+    def test_create_and_get(self, mock_batch_model, mock_create_point):
+        mock_batch = MagicMock()
+        mock_batch.id = 1
+        mock_batch_model.return_value = mock_batch
+        mock_point = MagicMock()
+        mock_point.id = 10
+        mock_create_point.return_value = mock_point
 
-        entity = create_knowledge(
-            title="Test Title",
-            description="Desc",
-            content="Test content body",
-            source_type="document",
-        )
-        self.assertIsNotNone(entity.id)
+        with patch(f"{_COMPAT}.get_batch_as_entity") as mock_as_entity:
+            mock_as_entity.return_value = {
+                "id": 1,
+                "title": "Test Title",
+                "description": "",
+                "content": "Test content body",
+                "source_type": "batch",
+                "ct": 0,
+                "ut": 0,
+            }
+            entity = create_knowledge(
+                title="Test Title",
+                description="Desc",
+                content="Test content body",
+                source_type="document",
+                ct=0,
+                ut=0,
+            )
+        self.assertEqual(entity.id, 1)
         self.assertEqual(entity.title, "Test Title")
-        self.assertEqual(entity.source_type, "document")
-        mock_model.objects.using.assert_called_with("know_rw")
+        mock_batch_model.assert_called_once()
+        mock_create_point.assert_called_once()
 
-    @patch("app_know.repos.knowledge_repo.Knowledge")
-    def test_get_knowledge_by_id_success(self, mock_model):
-        mock_entity = MagicMock()
-        mock_entity.id = 1
-        mock_entity.title = "Test Title"
-        mock_qs = MagicMock()
-        mock_qs.filter.return_value.first.return_value = mock_entity
-        mock_model.objects.using.return_value = mock_qs
-
+    @patch(f"{_COMPAT}.get_batch_as_entity")
+    def test_get_knowledge_by_id_success(self, mock_as_entity):
+        mock_as_entity.return_value = {
+            "id": 1,
+            "title": "Test Title",
+            "description": "",
+            "content": "x",
+            "source_type": "batch",
+            "ct": 0,
+            "ut": 0,
+        }
         got = get_knowledge_by_id(1)
         self.assertIsNotNone(got)
         self.assertEqual(got.title, "Test Title")
-        mock_qs.filter.assert_called_once_with(id=1)
+        mock_as_entity.assert_called_once_with(1)
 
-    @patch("app_know.repos.knowledge_repo.Knowledge")
-    def test_get_not_found(self, mock_model):
-        mock_qs = MagicMock()
-        mock_qs.filter.return_value.first.return_value = None
-        mock_model.objects.using.return_value = mock_qs
-
+    @patch(f"{_COMPAT}.get_batch_as_entity")
+    def test_get_not_found(self, mock_as_entity):
+        mock_as_entity.return_value = None
         self.assertIsNone(get_knowledge_by_id(99999))
 
-    @patch("app_know.repos.knowledge_repo.Knowledge")
-    def test_list_knowledge(self, mock_model):
-        mock_item1 = MagicMock(id=1, title="A")
-        mock_item2 = MagicMock(id=2, title="B")
-        mock_item3 = MagicMock(id=3, title="C")
-        mock_items = [mock_item1, mock_item2, mock_item3]
-
+    @patch(f"{_COMPAT}.Batch")
+    def test_list_knowledge(self, mock_batch_model):
+        mock_b = MagicMock()
+        mock_b.id = 1
         mock_qs = MagicMock()
-        mock_qs.all.return_value = mock_qs
-        mock_qs.filter.return_value = mock_qs
         mock_qs.order_by.return_value = mock_qs
         mock_qs.count.return_value = 3
-        mock_qs.__getitem__ = lambda self, s: mock_items[s] if isinstance(s, int) else mock_items
-        mock_model.objects.using.return_value = mock_qs
+        def _getitem(_self, s):
+            rows = [mock_b, mock_b, mock_b]
+            return rows[s] if isinstance(s, int) else rows[s]
 
-        items, total = list_knowledge(offset=0, limit=10)
+        mock_qs.__getitem__ = _getitem
+        mock_batch_model.objects.using.return_value = mock_qs
+
+        with patch(f"{_COMPAT}.get_batch_as_entity") as mock_as_entity:
+            mock_as_entity.side_effect = lambda bid: {
+                "id": bid,
+                "title": f"T{bid}",
+                "description": "",
+                "content": "",
+                "source_type": "batch",
+                "ct": 0,
+                "ut": 0,
+            }
+            items, total = list_knowledge(offset=0, limit=10)
         self.assertEqual(total, 3)
+        self.assertEqual(len(items), 3)
 
-    @patch("app_know.repos.knowledge_repo.Knowledge")
-    def test_list_knowledge_with_source_type_filter(self, mock_model):
-        mock_item = MagicMock(id=3, title="C")
-        mock_items = [mock_item]
-
+    @patch(f"{_COMPAT}.Batch")
+    def test_list_knowledge_with_source_type_filter(self, mock_batch_model):
+        mock_b = MagicMock()
+        mock_b.id = 3
         mock_qs = MagicMock()
-        mock_qs.all.return_value = mock_qs
-        mock_qs.filter.return_value = mock_qs
         mock_qs.order_by.return_value = mock_qs
+        mock_qs.filter.return_value = mock_qs
         mock_qs.count.return_value = 1
-        mock_qs.__getitem__ = lambda self, s: mock_items[s] if isinstance(s, int) else mock_items
-        mock_model.objects.using.return_value = mock_qs
+        def _getitem(_self, s):
+            rows = [mock_b]
+            return rows[s] if isinstance(s, int) else rows[s]
 
-        items, total = list_knowledge(offset=0, limit=10, source_type="url")
+        mock_qs.__getitem__ = _getitem
+        mock_batch_model.objects.using.return_value = mock_qs
+
+        with patch(f"{_COMPAT}.get_batch_as_entity") as mock_as_entity:
+            mock_as_entity.return_value = {
+                "id": 3,
+                "title": "C",
+                "description": "",
+                "content": "",
+                "source_type": "batch",
+                "ct": 0,
+                "ut": 0,
+            }
+            items, total = list_knowledge(offset=0, limit=10, source_type="url")
         self.assertEqual(total, 1)
         mock_qs.filter.assert_called()
 
-    @patch("app_know.repos.knowledge_repo.Knowledge")
-    def test_update_knowledge(self, mock_model):
+    @patch(f"{_COMPAT}.update_content")
+    @patch(f"{_COMPAT}.list_by_batch")
+    @patch(f"{_COMPAT}.update_knowledge_point")
+    def test_update_knowledge(self, mock_update_point, mock_list_batch, mock_upd_content):
+        mock_point = MagicMock()
+        mock_point.id = 5
+        mock_point.seq = 0
+        mock_list_batch.return_value = ([mock_point], 1)
+        mock_update_point.return_value = True
+
         mock_entity = MagicMock()
         mock_entity.id = 1
-        mock_qs = MagicMock()
-        mock_qs.filter.return_value.update.return_value = 1
-        mock_model.objects.using.return_value = mock_qs
+        mock_entity.title = "Old"
+        mock_entity.description = ""
+        mock_entity.content = ""
 
         n = update_knowledge(mock_entity, title="Updated", ut=int(time.time() * 1000))
         self.assertEqual(n, 1)
+        mock_update_point.assert_called_once()
 
-    @patch("app_know.repos.knowledge_repo.get_knowledge_by_id")
-    def test_delete_knowledge(self, mock_get):
-        mock_entity = MagicMock()
-        mock_entity.delete = MagicMock()
-        mock_get.return_value = mock_entity
+    @patch(f"{_COMPAT}.delete_batch")
+    @patch(f"{_COMPAT}.delete_by_batch")
+    def test_delete_knowledge(self, mock_del_points, mock_del_batch):
+        mock_del_points.return_value = 2
+        mock_del_batch.return_value = True
 
         ok = delete_knowledge(1)
         self.assertTrue(ok)
-        mock_entity.delete.assert_called_once()
+        mock_del_points.assert_called_once_with(1)
+        mock_del_batch.assert_called_once_with(1)
 
-    @patch("app_know.repos.knowledge_repo.get_knowledge_by_id")
-    def test_delete_knowledge_not_found(self, mock_get):
-        mock_get.return_value = None
+    @patch(f"{_COMPAT}.delete_by_batch")
+    @patch(f"{_COMPAT}.delete_batch")
+    def test_delete_knowledge_not_found(self, mock_del_batch, mock_del_points):
+        mock_del_points.return_value = 0
+        mock_del_batch.return_value = False
 
         ok = delete_knowledge(99999)
         self.assertFalse(ok)
@@ -148,10 +195,24 @@ class KnowledgeRepoTest(TestCase):
 
     def test_create_empty_title_raises(self):
         with self.assertRaises(ValueError) as ctx:
-            create_knowledge(title="", source_type="doc")
+            create_knowledge(
+                title="",
+                description=None,
+                content=None,
+                source_type="doc",
+                ct=0,
+                ut=0,
+            )
         self.assertIn("title", str(ctx.exception).lower())
         with self.assertRaises(ValueError):
-            create_knowledge(title="   ", source_type="doc")
+            create_knowledge(
+                title="   ",
+                description=None,
+                content=None,
+                source_type="doc",
+                ct=0,
+                ut=0,
+            )
 
     def test_update_none_entity_raises(self):
         with self.assertRaises(ValueError) as ctx:

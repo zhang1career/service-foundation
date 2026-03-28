@@ -24,16 +24,38 @@ from common.consts.query_const import LIMIT_LIST
 
 logger = logging.getLogger(__name__)
 
+APP_ID_MAX_LEN = 64
 ENTITY_TYPE_MAX_LEN = 128
 ENTITY_ID_MAX_LEN = 512
 PREDICATE_MAX_LEN = 256
 RELATIONSHIP_TYPES = ("knowledge_entity", "knowledge_knowledge")
 
 
-def _validate_app_id(app_id) -> int:
-    """Validate and return app_id as integer. Uses summary_service validator."""
-    from app_know.services.summary_service import _validate_app_id as _validate
-    return _validate(app_id)
+def _validate_app_id(app_id) -> Any:
+    """
+    Normalize app_id for relationship APIs: non-negative int, or non-empty string slug (Neo4j scope).
+    Rejects empty string; enforces max length on strings.
+    """
+    from app_know.services.summary_service import _validate_app_id as _summary_validate
+
+    if isinstance(app_id, str):
+        s = app_id.strip()
+        if not s:
+            raise ValueError("app_id is required")
+        if len(s) > APP_ID_MAX_LEN:
+            raise ValueError(f"app_id must be at most {APP_ID_MAX_LEN} characters")
+        try:
+            v = int(s)
+        except ValueError:
+            return s
+        if v < 0:
+            raise ValueError("app_id must be a non-negative integer")
+        return v
+    if isinstance(app_id, int):
+        if app_id < 0:
+            raise ValueError("app_id must be a non-negative integer")
+        return app_id
+    return _summary_validate(app_id)
 
 
 def _validate_positive_int(value: Any, name: str) -> int:

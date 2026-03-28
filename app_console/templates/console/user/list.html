@@ -129,9 +129,7 @@ function closeUserCreateModal() {
   m.setAttribute('aria-hidden', 'true');
 }
 
-document.getElementById('user-create-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeUserCreateModal();
-});
+attachModalBackdropClose(document.getElementById('user-create-modal'), closeUserCreateModal);
 
 document.getElementById('user-create-form').addEventListener('submit', async function(e) {
   e.preventDefault();

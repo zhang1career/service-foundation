@@ -3,11 +3,10 @@ Tests for Knowledge REST API views (CRUD endpoints).
 Generated.
 """
 import json
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
+from unittest.mock import patch, MagicMock
 
 from app_know.views.knowledge_view import KnowledgeListView, KnowledgeDetailView
 from common.consts.query_const import LIMIT_LIST

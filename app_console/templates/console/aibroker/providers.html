@@ -168,8 +168,11 @@
         if (!confirm('确认删除？关联模型将一并删除。')) return;
         document.getElementById('prov-del-' + id).submit();
     };
-    document.getElementById('prov-create-modal').addEventListener('click', function (e) { if (e.target === this) closeProvCreateModal(); });
-    document.getElementById('prov-edit-modal').addEventListener('click', function (e) { if (e.target === this) closeProvEditModal(); });
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof attachModalBackdropClose !== 'function') return;
+        attachModalBackdropClose(document.getElementById('prov-create-modal'), closeProvCreateModal);
+        attachModalBackdropClose(document.getElementById('prov-edit-modal'), closeProvEditModal);
+    });
 })();
 </script>
 {% endblock %}

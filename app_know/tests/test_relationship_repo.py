@@ -2,9 +2,8 @@
 Tests for relationship repo (Neo4j persistence, validation, and edge cases).
 _get_neo4j_driver is mocked so no real Neo4j connection is used. Generated.
 """
-from unittest.mock import MagicMock, patch
-
 from django.test import TestCase
+from unittest.mock import MagicMock, patch
 
 from app_know.models.relationships import (
     RelationshipCreateInput,

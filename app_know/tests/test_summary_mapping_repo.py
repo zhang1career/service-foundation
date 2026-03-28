@@ -1,9 +1,8 @@
 """
 Tests for KnowledgeSummaryMapping repository CRUD operations. Generated.
 """
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
+from unittest.mock import patch, MagicMock
 
 from app_know.repos.summary_mapping_repo import (
     get_mapping_by_knowledge_id,

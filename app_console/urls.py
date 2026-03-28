@@ -76,6 +76,7 @@ if getattr(settings, "APP_AIBROKER_ENABLED", False):
     from app_console.views.aibroker_view import (
         AibrokerModelConsoleView,
         AibrokerPromptTemplateConsoleView,
+        AibrokerPromptTemplateDetailConsoleView,
         AibrokerProviderConsoleView,
         AibrokerRegConsoleView,
     )
@@ -88,6 +89,11 @@ if getattr(settings, "APP_AIBROKER_ENABLED", False):
                 "aibroker/providers/<int:provider_id>/models/",
                 AibrokerModelConsoleView.as_view(),
                 name="aibroker-models",
+            ),
+            path(
+                "aibroker/templates/<int:template_id>/",
+                AibrokerPromptTemplateDetailConsoleView.as_view(),
+                name="aibroker-prompt-template-detail",
             ),
             path(
                 "aibroker/templates/",

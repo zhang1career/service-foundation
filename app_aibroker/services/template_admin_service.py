@@ -11,11 +11,11 @@ def _tpl_dict(t):
     return {
         "id": t.id,
         "template_key": t.template_key,
-        "version": t.version,
         "constraint_type": t.constraint_type,
+        "description": t.description,
         "body": t.body,
-        "variables_schema_json": t.variables_schema_json,
-        "output_schema_json": t.output_schema_json,
+        "input_variables": t.input_variables,
+        "output_variables": t.output_variables,
         "status": t.status,
         "ct": t.ct,
         "ut": t.ut,
@@ -26,18 +26,17 @@ class TemplateAdminService:
     @staticmethod
     def create_by_payload(payload: dict) -> dict:
         key = (payload.get("template_key") or "").strip()
-        version = int(payload.get("version", 1))
         constraint_type = int(payload.get("constraint_type", 0))
         body = (payload.get("body") or "").strip()
         if not key or not body:
             raise ValueError("template_key and body are required")
         t = create_template(
             template_key=key,
-            version=version,
             constraint_type=constraint_type,
             body=body,
-            variables_schema_json=payload.get("variables_schema_json"),
-            output_schema_json=payload.get("output_schema_json"),
+            description=(payload.get("description") or "").strip(),
+            input_variables=payload.get("input_variables"),
+            output_variables=payload.get("output_variables"),
             status=int(payload.get("status", 1)),
         )
         return _tpl_dict(t)
@@ -59,10 +58,11 @@ class TemplateAdminService:
             template_id,
             body=payload.get("body") if "body" in payload else None,
             constraint_type=int(payload["constraint_type"]) if "constraint_type" in payload else None,
-            variables_schema_json=payload.get("variables_schema_json")
-            if "variables_schema_json" in payload
+            description=(payload.get("description") or "").strip()
+            if "description" in payload
             else None,
-            output_schema_json=payload.get("output_schema_json") if "output_schema_json" in payload else None,
+            input_variables=payload.get("input_variables") if "input_variables" in payload else None,
+            output_variables=payload.get("output_variables") if "output_variables" in payload else None,
             status=int(payload["status"]) if "status" in payload else None,
         )
         if not t:

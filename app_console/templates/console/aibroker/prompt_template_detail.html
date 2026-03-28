@@ -1,0 +1,83 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 提示模板详情{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{% url 'console:aibroker-prompt-templates' as tpl_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=tpl_list_url back_label="返回模板列表" %}
+
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">模板详情</h2>
+    </div>
+    <div class="card-body space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ID</p>
+                <p class="font-mono">{{ tpl.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">Key</p>
+                <p class="font-medium break-all">{{ tpl.template_key }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">描述</p>
+                <p class="break-words">{{ tpl.description|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">约束</p>
+                <p>{{ tpl.constraint_type_label|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">状态</p>
+                {% if tpl.status == 1 %}
+                <span class="badge badge-success">启用</span>
+                {% else %}
+                <span class="badge badge-warning">停用</span>
+                {% endif %}
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                <p class="font-mono text-sm">{{ tpl.ct_fmt }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                <p class="font-mono text-sm">{{ tpl.ut_fmt }}</p>
+            </div>
+        </div>
+        <div>
+            <p class="text-sm text-gray-500 mb-1">正文</p>
+            <div class="console-readonly-block rounded-lg p-4 font-mono text-xs whitespace-pre-wrap break-words max-h-[28rem] overflow-y-auto">{{ tpl.body|default:""|escape }}</div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">入参列表</label>
+            <p class="text-sm text-gray-500 mb-2">存为 <code class="text-xs">[{"name":"..."},...]</code>，与创建/编辑弹窗一致。</p>
+            <div class="space-y-2">
+                {% for name in tpl.input_variable_names %}
+                <div class="flex gap-2 items-center name-list-row">
+                    <input type="text" class="form-input flex-1 min-w-0 bg-gray-50 cursor-default" value="{{ name }}" readonly tabindex="-1" aria-readonly="true">
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-500">—</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">出参列表</label>
+            <p class="text-sm text-gray-500 mb-2">强约束下模型 JSON 输出须包含下列键（同名列表格式）。</p>
+            <div class="space-y-2">
+                {% for name in tpl.output_variable_names %}
+                <div class="flex gap-2 items-center name-list-row">
+                    <input type="text" class="form-input flex-1 min-w-0 bg-gray-50 cursor-default" value="{{ name }}" readonly tabindex="-1" aria-readonly="true">
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-500">—</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

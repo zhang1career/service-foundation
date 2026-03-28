@@ -218,19 +218,20 @@ def nest_clip(given_dict, given_key_list: list[str]) -> dict:
         return {}
 
     ret = {}
+    current_key = given_key_list[0]
+    if current_key not in given_dict:
+        return {}
     # recursive
     if len(given_key_list) > 1:
-        _ret = nest_clip(given_dict[given_key_list[0]], given_key_list[1:])
-        if _ret:
-            ret[given_key_list[0]] = _ret
+        nested_value = given_dict[current_key]
+        if not isinstance(nested_value, dict):
+            return {}
+        child = nest_clip(nested_value, given_key_list[1:])
+        if child:
+            ret[current_key] = child
         return ret
     # end
-    given_key = given_key_list[0]
-    if given_key not in given_dict:
-        return {}
-    return {
-        given_key: given_dict[given_key]
-    }
+    return {current_key: given_dict[current_key]}
 
 
 def sort_and_hash(param_dict: dict) -> tuple[dict, str]:

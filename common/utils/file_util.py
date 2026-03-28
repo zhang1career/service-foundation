@@ -1,7 +1,7 @@
 import os
 
-from data_analyzer.settings import BASE_DIR
+from django.conf import settings
 
 
-def app_path(sub_path):
-    return os.path.join(BASE_DIR, sub_path)
+def app_path(sub_path: str) -> str:
+    return os.path.join(settings.BASE_DIR, sub_path)

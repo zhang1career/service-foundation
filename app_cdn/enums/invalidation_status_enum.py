@@ -6,7 +6,10 @@ Invalidation status enum - CDN 缓存失效状态
 
 from enum import IntEnum
 
+from common.dict_catalog import register_dict_code
 
+
+@register_dict_code("cdn_invalidation_status")
 class InvalidationStatusEnum(IntEnum):
     """缓存失效状态枚举，id 存储于 invalid.status 字段"""
 
@@ -30,3 +33,10 @@ class InvalidationStatusEnum(IntEnum):
             "Completed": cls.COMPLETED,
         }
         return _map.get(label, cls.COMPLETED)
+
+    @classmethod
+    def to_dict_list(cls):
+        return [
+            {"k": "处理中", "v": str(cls.IN_PROGRESS)},
+            {"k": "已完成", "v": str(cls.COMPLETED)},
+        ]

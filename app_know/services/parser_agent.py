@@ -47,7 +47,7 @@ def classify_sentence(sentence: str) -> str:
     if not sentence or not sentence.strip():
         return CLASS_FACT
     try:
-        from common.services.aibroker_client import aibroker_ask_and_answer
+        from app_aibroker.outbound_client import aibroker_ask_and_answer
 
         result = aibroker_ask_and_answer(
             text=sentence[:500],

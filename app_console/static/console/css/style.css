@@ -283,6 +283,28 @@ body {
     border-color: #d1d5db !important;
 }
 
+/* AI Broker 提示模板：必需字段列表的圆形加减按钮 */
+.btn.tpl-name-list-icon-add {
+    background-color: #16a34a !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 9999px !important;
+}
+.btn.tpl-name-list-icon-add:hover {
+    background-color: #15803d !important;
+    color: #fff !important;
+}
+.btn.tpl-name-list-icon-remove {
+    background-color: #dc2626 !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 9999px !important;
+}
+.btn.tpl-name-list-icon-remove:hover {
+    background-color: #b91c1c !important;
+    color: #fff !important;
+}
+
 /* Form styles */
 .form-group {
     margin-bottom: 16px;
@@ -550,4 +572,11 @@ body {
 .pagination-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* 详情页只读块（正文 / JSON）：浅色前景，避免依赖 modal-body 未设字色 */
+.console-readonly-block {
+    background-color: #f9fafb;
+    color: #1f2937;
+    border: 1px solid #e5e7eb;
 }

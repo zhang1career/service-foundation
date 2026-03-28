@@ -6,7 +6,10 @@ Distribution status enum - CDN 分发状态
 
 from enum import IntEnum
 
+from common.dict_catalog import register_dict_code
 
+
+@register_dict_code("cdn_distribution_status")
 class DistributionStatusEnum(IntEnum):
     """CDN 分发状态枚举，id 存储于 d.status 字段"""
 
@@ -30,3 +33,10 @@ class DistributionStatusEnum(IntEnum):
             "Deployed": cls.DEPLOYED,
         }
         return _map.get(label, cls.DEPLOYED)
+
+    @classmethod
+    def to_dict_list(cls):
+        return [
+            {"k": "配置中", "v": str(cls.IN_PROGRESS)},
+            {"k": "已部署", "v": str(cls.DEPLOYED)},
+        ]

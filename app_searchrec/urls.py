@@ -1,5 +1,6 @@
 from django.urls import path
 
+from common.views.dict_codes_view import DictCodesView
 from app_searchrec.views import (
     SearchRecHealthView,
     SearchRecIndexUpsertView,
@@ -9,6 +10,7 @@ from app_searchrec.views import (
 )
 
 urlpatterns = [
+    path("dict", DictCodesView.as_view(), name="searchrec-dict"),
     path("health", SearchRecHealthView.as_view(), name="searchrec-health"),
     path("index/upsert", SearchRecIndexUpsertView.as_view(), name="searchrec-index-upsert"),
     path("search", SearchRecSearchView.as_view(), name="searchrec-search"),

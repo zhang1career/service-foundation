@@ -1,9 +1,9 @@
 import logging
 
+from django.conf import settings
+
 from common.consts.string_const import EMPTY_STRING
 from common.utils.string_util import implode
-from data_analyzer import settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +51,12 @@ class KnowledgeGraphRepo:
         # lazy load
         from common.drivers.neo4j_driver import Neo4jDriver
         # connect the text-filter-sensitive-dfa db
-        self._driver = Neo4jDriver(settings.GRAPH_DB_HOST + ":" + settings.GRAPH_DB_PORT,
-                                   "neo4j",
-                                   settings.GRAPH_DB_PASSWORD,
-                                   name)
+        self._driver = Neo4jDriver(
+            settings.NEO4J_URI,
+            settings.NEO4J_USER,
+            settings.NEO4J_PASS,
+            name,
+        )
 
     def find_node_list(self, node_label: str) -> list[dict]:
         """

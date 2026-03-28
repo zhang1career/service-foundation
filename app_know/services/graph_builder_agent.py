@@ -297,7 +297,16 @@ def parse_g_brief_to_triple(g_brief: str) -> Optional[Dict[str, str]]:
     object_name = (obj_m.group(1) or "").strip()
     predicate = "related_to"
     if pred_m:
-        predicate = (pred_m.group(1) or pred_m.group(2) or "").strip() or "related_to"
+        quoted = pred_m.group(1)
+        bare = pred_m.group(2)
+        if quoted:
+            raw = quoted.strip()
+        elif bare:
+            raw = bare.strip()
+        else:
+            raw = ""
+        if raw:
+            predicate = raw
     return {"subject": subject, "predicate": predicate, "object": object_name}
 
 

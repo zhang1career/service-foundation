@@ -1,7 +1,10 @@
+import logging
 from importlib import import_module
 
 from common.consts.result_const import RESULT_INDEX_MAP
 from common.utils.json_util import json_encode, json_decode
+
+logger = logging.getLogger(__name__)
 
 
 def build_result_index(result_id, param_map: dict):

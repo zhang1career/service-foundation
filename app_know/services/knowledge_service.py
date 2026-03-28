@@ -5,8 +5,6 @@ Generated.
 import logging
 import time
 from typing import Any, Dict, List, Optional
-
-from app_know.models import Knowledge
 from app_know.repos import (
     get_knowledge_by_id,
     get_knowledge_by_ids,
@@ -36,7 +34,7 @@ def _validate_entity_id(entity_id) -> None:
         raise ValueError("entity_id must be a positive integer")
 
 
-def _entity_to_dict(entity: Knowledge, similarity: Optional[float] = None) -> Dict[str, Any]:
+def _entity_to_dict(entity: Any, similarity: Optional[float] = None) -> Dict[str, Any]:
     """Convert KnowledgeEntity to API dict. Optionally include similarity (0-1) when filtered by summary."""
     out = {
         "id": entity.id,

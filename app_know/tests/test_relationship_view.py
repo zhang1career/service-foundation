@@ -3,12 +3,11 @@ Tests for relationship REST API views (create/update/query, validation, and erro
 RelationshipService is mocked so no real Neo4j connection is used. Generated.
 """
 import json
-from unittest.mock import patch, MagicMock
-
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, APIClient
+from unittest.mock import patch, MagicMock
 
 from app_know.views.relationship_view import (
     RelationshipListView,

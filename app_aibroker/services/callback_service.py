@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 def deliver_callback(
-    callback_url: str,
-    callback_secret: str,
-    body: Dict[str, Any],
-    *,
-    async_mode: bool = False,
+        callback_url: str,
+        callback_secret: str,
+        body: Dict[str, Any],
+        *,
+        async_mode: bool = False,
 ) -> Union[Tuple[bool, int], str]:
     """
     POST callback with HMAC headers. Retries on 5xx/429/network error with exponential backoff.

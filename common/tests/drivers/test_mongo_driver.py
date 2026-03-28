@@ -6,11 +6,6 @@ from unittest import TestCase
 
 from common.drivers.mongo_driver import MongoDriver
 
-try:
-    from app_finance.models.technic_spec_model import TechnicSpecModel
-except ImportError:
-    TechnicSpecModel = None
-
 # Integration tests require a running MongoDB; skip unless explicitly enabled.
 RUN_MONGO_INTEGRATION = os.environ.get("RUN_MONGO_INTEGRATION_TESTS", "").lower() in ("1", "true", "yes")
 
@@ -86,7 +81,7 @@ class TestMangoDriver(TestCase):
         self.dut.delete_search_index("test", "vec_voodoo")
 
 
-@unittest.skipIf(TechnicSpecModel is None, "app_finance not installed")
+@unittest.skipUnless(RUN_MONGO_INTEGRATION, "MongoDB integration tests disabled (set RUN_MONGO_INTEGRATION_TESTS=1 to run)")
 class TestTechnicSpecRepo(TestCase):
     def setUp(self):
         self.dut = MongoDriver("koi3w9q.mongodb.net", "rongjinzh", "Z6RdcXfmkYUZOgHd", "cluster0", "tech_xiangshan")

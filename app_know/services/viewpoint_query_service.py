@@ -33,7 +33,7 @@ def _integrate_sentences_with_ai(ordered_items: List[Dict[str, Any]]) -> str:
         return ""
     text_block = "\n".join(lines)
     try:
-        from common.services.aibroker_client import aibroker_ask_and_answer
+        from app_aibroker.outbound_client import aibroker_ask_and_answer
 
         answer = aibroker_ask_and_answer(
             text=text_block,
@@ -42,7 +42,10 @@ def _integrate_sentences_with_ai(ordered_items: List[Dict[str, Any]]) -> str:
             additional_question="",
             temperature=0,
         )
-        return (answer or "").strip() or "\n".join((item.get("content") or "").strip() for item in ordered_items)
+        stripped = (answer or "").strip()
+        if stripped:
+            return stripped
+        return "\n".join((item.get("content") or "").strip() for item in ordered_items)
     except Exception as e:
         logger.warning("[_integrate_sentences_with_ai] AI 整合失败: %s", e)
         return "\n".join((item.get("content") or "").strip() for item in ordered_items)

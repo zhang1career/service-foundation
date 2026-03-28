@@ -1,10 +1,31 @@
-from app_aibroker.repos import (
-    create_reg,
-    list_regs,
-    get_reg_by_id,
-    update_reg,
-    delete_reg,
-)
+def create_reg(*, name: str, status: int):
+    from app_aibroker.repos.reg_repo import create_reg as _impl
+
+    return _impl(name=name, status=status)
+
+
+def list_regs():
+    from app_aibroker.repos.reg_repo import list_regs as _impl
+
+    return _impl()
+
+
+def get_reg_by_id(reg_id: int):
+    from app_aibroker.repos.reg_repo import get_reg_by_id as _impl
+
+    return _impl(reg_id)
+
+
+def update_reg(*, reg_id: int, name, status):
+    from app_aibroker.repos.reg_repo import update_reg as _impl
+
+    return _impl(reg_id=reg_id, name=name, status=status)
+
+
+def delete_reg(reg_id: int):
+    from app_aibroker.repos.reg_repo import delete_reg as _impl
+
+    return _impl(reg_id)
 
 
 def _to_dict(reg, include_secrets_on_create: bool = False):

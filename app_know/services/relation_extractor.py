@@ -160,7 +160,7 @@ def extract_relations_from_content(
     text = content[:2000] if len(content) > 2000 else content
 
     try:
-        from common.services.aibroker_client import aibroker_ask_and_answer
+        from app_aibroker.outbound_client import aibroker_ask_and_answer
 
         logger.info("[relation_extractor] Calling AIBroker for knowledge_id: %d", knowledge_id)
         result = aibroker_ask_and_answer(

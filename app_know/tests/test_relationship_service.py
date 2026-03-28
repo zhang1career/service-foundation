@@ -2,9 +2,8 @@
 Tests for relationship service (validation, create/update/query, and edge cases).
 Repo layer (repo_create, repo_query, update_relationship_by_id) is mocked so no real Neo4j connection is used. Generated.
 """
-from unittest.mock import MagicMock, patch
-
 from django.test import TestCase
+from unittest.mock import MagicMock, patch
 
 from app_know.models.relationships import RelationshipQueryResult
 from app_know.services.relationship_service import (

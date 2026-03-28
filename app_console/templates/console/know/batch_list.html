@@ -221,9 +221,7 @@ document.getElementById('add-text-form').addEventListener('submit', async functi
     }
 });
 
-document.getElementById('add-text-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeAddTextModal();
-});
+attachModalBackdropClose(document.getElementById('add-text-modal'), closeAddTextModal);
 
 // Upload modal
 function openUploadModal() {
@@ -290,9 +288,7 @@ document.getElementById('upload-form').addEventListener('submit', async function
     }
 });
 
-document.getElementById('upload-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeUploadModal();
-});
+attachModalBackdropClose(document.getElementById('upload-modal'), closeUploadModal);
 
 // Delete batch
 async function deleteBatch(id) {

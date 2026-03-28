@@ -21,7 +21,7 @@ DEFAULT_MAX_HOPS = 1
 MAX_HOPS_LIMIT = 5
 
 
-def _validate_query(query: Optional[str]) -> str:
+def validate_query(query: Optional[str]) -> str:
     if query is None:
         raise ValueError("query is required")
     if not isinstance(query, str):
@@ -34,7 +34,7 @@ def _validate_query(query: Optional[str]) -> str:
     return q
 
 
-def _validate_limit(limit: Optional[int]) -> int:
+def validate_limit(limit: Optional[int]) -> int:
     if limit is None:
         return DEFAULT_QUERY_LIMIT
     if not isinstance(limit, int):
@@ -87,8 +87,8 @@ class LogicalQueryService(Singleton):
         Returns:
             Dict with data (results), total_num, and optional triples
         """
-        q = _validate_query(query)
-        limit = _validate_limit(limit)
+        q = validate_query(query)
+        limit = validate_limit(limit)
         max_hops = _validate_max_hops(max_hops)
         if app_id is not None and not (isinstance(app_id, int) and app_id >= 0):
             try:

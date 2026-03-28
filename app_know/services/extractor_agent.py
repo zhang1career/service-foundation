@@ -167,7 +167,7 @@ def extract_brief_with_options(
     subject_options_str = "\n".join(f"{i}. {s}" for i, s in enumerate(subject_list))
     predicate_options_str = "\n".join(f"{i}. {p}" for i, p in enumerate(predicate_list))
     try:
-        from common.services.aibroker_client import aibroker_ask_and_answer
+        from app_aibroker.outbound_client import aibroker_ask_and_answer
 
         question_part = PROMPT_BRIEF_SINGLE_CHOICE.format(
             subject_options=subject_options_str or "（无）",
@@ -205,7 +205,7 @@ def extract_sentence(sentence_content: str) -> Optional[Dict[str, Any]]:
     if not content:
         return None
     try:
-        from common.services.aibroker_client import aibroker_ask_and_answer
+        from app_aibroker.outbound_client import aibroker_ask_and_answer
 
         result = aibroker_ask_and_answer(
             text=content[:1500],
@@ -301,7 +301,7 @@ def analyze_components(sentence_content: str) -> Optional[Dict[str, Any]]:
     if not content:
         return None
     try:
-        from common.services.aibroker_client import aibroker_ask_and_answer
+        from app_aibroker.outbound_client import aibroker_ask_and_answer
 
         result = aibroker_ask_and_answer(
             text=content[:1500],
