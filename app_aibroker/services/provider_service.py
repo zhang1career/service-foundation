@@ -1,7 +1,4 @@
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
-from app_aibroker.services.ai_model_param_specs_validate import (
-    validate_ai_model_param_specs_json,
-)
 from app_aibroker.models.ai_model import AiModel
 from app_aibroker.repos import (
     create_provider,
@@ -9,6 +6,9 @@ from app_aibroker.repos import (
     get_provider_by_id,
     list_providers,
     update_provider,
+)
+from app_aibroker.services.ai_model_param_specs_validate import (
+    validate_ai_model_param_specs_json,
 )
 
 

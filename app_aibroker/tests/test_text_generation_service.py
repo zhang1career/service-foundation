@@ -11,10 +11,13 @@ if "openai" not in sys.modules:
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
 from app_aibroker.services.text_generation_service import (
     _apply_model_param_placeholders,
+    _build_user_message_content,
+    _consume_idempotency_if_hit,
     _coerce_model_params,
     _flatten_ai_model_param_specs_for_coerce,
     _load_ai_model_param_specs_tree,
     _merge_model_param_defaults,
+    _normalize_prompt_inputs,
     generate_text,
 )
 
@@ -24,6 +27,18 @@ def _specs_for_coerce(raw: str):
 
 
 class TextGenerationServiceTest(TestCase):
+    def test_normalize_prompt_inputs_rejects_invalid_variables(self):
+        _prompt, _key, _vars, _temp, _mid, _pid, _tid, _atts, _mp, err = _normalize_prompt_inputs(
+            {"variables": ["bad"]}
+        )
+        self.assertEqual(err, "variables must be an object")
+
+    def test_normalize_prompt_inputs_rejects_invalid_template_id(self):
+        _prompt, _key, _vars, _temp, _mid, _pid, _tid, _atts, _mp, err = _normalize_prompt_inputs(
+            {"template_id": "abc"}
+        )
+        self.assertEqual(err, "template_id must be an integer")
+
     def test_parse_and_coerce_model_params(self):
         specs = _specs_for_coerce(
             '[{"n":"max_tokens","t":"INT","r":{"min":1,"max":100}},'
@@ -156,6 +171,82 @@ class TextGenerationServiceTest(TestCase):
         self.assertIsNone(ph_err)
         self.assertEqual(coerced.get("image"), "iVBORw==")
 
+    @patch("app_aibroker.services.text_generation_service.request_sync")
+    def test_placeholder_alias_image_download_fail_returns_error(self, request_sync_mock):
+        specs = _specs_for_coerce(
+            '[{"n":"image","t":"STRING","r":{},"x":"image"}]'
+        )
+        raw = {"image": "https://oss.example.com/a.png"}
+        request_sync_mock.return_value = MagicMock(status_code=503, content=b"oops")
+        api: dict = {}
+
+        ph_err = _apply_model_param_placeholders(api, specs, raw, "uc")
+
+        self.assertEqual(ph_err, "model_params.image: download media failed: HTTP 503")
+        self.assertEqual(api, {})
+
+    def test_build_user_message_content_with_and_without_attachments(self):
+        plain = _build_user_message_content("hello", [])
+        self.assertEqual(plain, "hello")
+
+        rich = _build_user_message_content(
+            "hello",
+            [
+                {"mime_type": "image/png", "url": "https://x/img.png"},
+                {"mime_type": "application/pdf", "url": "https://x/a.pdf"},
+            ],
+        )
+        self.assertIsInstance(rich, list)
+        self.assertEqual(rich[0], {"type": "text", "text": "hello"})
+        self.assertEqual(rich[1]["type"], "image_url")
+        self.assertEqual(rich[2]["type"], "text")
+
+    @patch("app_aibroker.services.text_generation_service.get_idempotency")
+    def test_consume_idempotency_returns_cached_result(self, get_idempotency_mock):
+        get_idempotency_mock.return_value = MagicMock(
+            req_hash="abc",
+            resp_json='{"text":"cached","latency_ms":1}',
+        )
+        payload = {"prompt": "x"}
+
+        with patch(
+            "app_aibroker.services.text_generation_service._hash_payload",
+            return_value="abc",
+        ):
+            cached, err = _consume_idempotency_if_hit(1, "k1", payload)
+
+        self.assertIsNone(err)
+        self.assertEqual(cached, {"text": "cached", "latency_ms": 1})
+
+    @patch("app_aibroker.services.text_generation_service.get_idempotency")
+    def test_consume_idempotency_rejects_hash_mismatch(self, get_idempotency_mock):
+        get_idempotency_mock.return_value = MagicMock(
+            req_hash="first_hash",
+            resp_json='{"text":"cached"}',
+        )
+        payload = {"prompt": "y"}
+
+        with patch(
+            "app_aibroker.services.text_generation_service._hash_payload",
+            return_value="second_hash",
+        ):
+            cached, err = _consume_idempotency_if_hit(1, "k2", payload)
+
+        self.assertIsNone(cached)
+        self.assertEqual(err, "idempotency key reused with different payload")
+
+    @patch("app_aibroker.services.text_generation_service.get_idempotency")
+    def test_consume_idempotency_rejects_corrupt_cached_json(self, get_idempotency_mock):
+        get_idempotency_mock.return_value = MagicMock(req_hash="abc", resp_json="{bad")
+        payload = {"prompt": "x"}
+        with patch(
+            "app_aibroker.services.text_generation_service._hash_payload",
+            return_value="abc",
+        ):
+            cached, err = _consume_idempotency_if_hit(1, "k3", payload)
+        self.assertIsNone(cached)
+        self.assertEqual(err, "cached idempotency response is corrupt")
+
     @patch("app_aibroker.services.text_generation_service.create_call_log")
     @patch("app_aibroker.services.text_generation_service.chat_completion")
     @patch("app_aibroker.services.text_generation_service.get_template")
@@ -257,6 +348,13 @@ class TextGenerationServiceTest(TestCase):
         )
         self.assertEqual(result, {})
         self.assertEqual(err, "use only one of template_key or template_id")
+
+    def test_generate_text_requires_prompt_or_attachments(self):
+        reg = MagicMock()
+        reg.id = 1
+        result, err = generate_text(reg, {"prompt": "   "}, idempotency_key=None)
+        self.assertEqual(result, {})
+        self.assertEqual(err, "prompt (or template) or attachments required")
 
     @patch("app_aibroker.services.text_generation_service.get_template")
     def test_generate_text_template_id_not_found(self, get_template_mock):

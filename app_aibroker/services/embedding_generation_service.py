@@ -3,12 +3,12 @@ import time
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
-from app_aibroker.services.llm_client_service import create_embedding
 from app_aibroker.services.ai_model_param_specs_wire import (
     wire_param_children,
     wire_param_name,
     wire_param_type,
 )
+from app_aibroker.services.llm_client_service import create_embedding
 from app_aibroker.services.text_generation_service import (
     _apply_model_param_placeholders,
     _apply_spec_x_to_merged,
@@ -18,8 +18,8 @@ from app_aibroker.services.text_generation_service import (
     _merge_model_param_defaults,
     _normalize_coerce_flat_type,
 )
-from common.utils.nested_typed_tree_util import wrap_object_array_dict_branches_as_single_element_lists
 from common.consts.response_const import RET_AI_ERROR, RET_INVALID_PARAM
+from common.utils.nested_typed_tree_util import wrap_object_array_dict_branches_as_single_element_lists
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,10 @@ def embed_text(
         if isinstance(raw_dim, bool):
             return {}, INVALID_DIMENSIONS_MSG, RET_INVALID_PARAM
         try:
-            d = int(raw_dim)
+            raw_dim_text = str(raw_dim).strip()
+            if not raw_dim_text:
+                return {}, INVALID_DIMENSIONS_MSG, RET_INVALID_PARAM
+            d = int(raw_dim_text)
             if d <= 0:
                 return {}, INVALID_DIMENSIONS_MSG, RET_INVALID_PARAM
             dimensions = d

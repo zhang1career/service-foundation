@@ -17,6 +17,3 @@ class AiProvider(models.Model):
 
     class Meta:
         db_table = "ai_provider"
-        indexes = [
-            models.Index(fields=["status"], name="aibroker_provider_status_idx"),
-        ]

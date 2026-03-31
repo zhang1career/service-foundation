@@ -18,5 +18,5 @@ class AiModel(models.Model):
     class Meta:
         db_table = "ai_model"
         indexes = [
-            models.Index(fields=["provider_id", "status"], name="aibroker_model_provider_idx"),
+            models.Index(fields=["provider_id", "status"], name="idx_ai_model_provider"),
         ]

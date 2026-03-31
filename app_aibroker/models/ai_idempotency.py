@@ -14,6 +14,6 @@ class AiIdempotency(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["reg_id", "idem_key"],
-                name="aibroker_idem_reg_key_uniq",
+                name="uni_ai_idem_reg",
             ),
         ]

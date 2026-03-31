@@ -543,6 +543,7 @@ USER_OSS_BUCKET = env("USER_OSS_BUCKET", default="user-avatar")
 # AI Broker multimodal: HTTP PUT to app_oss (S3-compatible), same host or peer URL as USER_OSS.
 AIBROKER_OSS_ENDPOINT = env("AIBROKER_OSS_ENDPOINT", default="http://127.0.0.1:8000/api/oss")
 AIBROKER_OSS_BUCKET = env("AIBROKER_OSS_BUCKET", default="aibroker-mm")
+AIBROKER_OSS_MAX_BYTES_PER_FILE = env.int("AIBROKER_OSS_MAX_BYTES_PER_FILE", default=20 * 1024 * 1024)
 
 USER_VERIFY_ACCESS_KEY = env("USER_VERIFY_ACCESS_KEY", default="")
 

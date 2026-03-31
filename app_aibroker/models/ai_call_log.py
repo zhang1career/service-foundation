@@ -15,6 +15,5 @@ class AiCallLog(models.Model):
     class Meta:
         db_table = "call_log"
         indexes = [
-            models.Index(fields=["reg_id", "ct"], name="aibroker_log_reg_ct_idx"),
-            models.Index(fields=["success", "ct"], name="aibroker_log_success_ct_idx"),
+            models.Index(fields=["reg_id"], name="idx_ai_log_reg"),
         ]

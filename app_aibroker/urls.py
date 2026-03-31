@@ -1,6 +1,5 @@
 from django.urls import path
 
-from common.views.dict_codes_view import DictCodesView
 from app_aibroker.views.asset_view import AssetCreateView, AssetDetailView
 from app_aibroker.views.embedding_view import EmbeddingCreateView
 from app_aibroker.views.health_view import HealthView
@@ -15,6 +14,7 @@ from app_aibroker.views.provider_view import (
 from app_aibroker.views.reg_view import RegDetailView, RegListCreateView
 from app_aibroker.views.template_view import TemplateDetailView, TemplateListCreateView
 from app_aibroker.views.text_view import TextGenerateView
+from common.views.dict_codes_view import DictCodesView
 
 urlpatterns = [
     path("dict", DictCodesView.as_view(), name="aibroker-dict"),

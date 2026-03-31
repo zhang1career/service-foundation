@@ -1,5 +1,5 @@
-import copy
 import base64
+import copy
 import hashlib
 import json
 import logging
@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Optional, Tuple, Union
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
 from app_aibroker.models.ai_model import AiModel
 from app_aibroker.models.ai_provider import AiProvider
+from app_aibroker.models.prompt_template import PromptTemplate
 from app_aibroker.services.ai_model_param_specs_wire import (
     wire_param_children,
     wire_param_description,
@@ -443,7 +444,7 @@ def _resolve_prompt_from_template(
         template_key: str,
         template_id_from_payload: Optional[int],
         variables: dict,
-) -> tuple[str, int, Optional[object], Optional[str]]:
+) -> tuple[str, int, Optional[PromptTemplate], Optional[str]]:
     template_id = 0
     tpl = None
     if template_key:
@@ -451,14 +452,9 @@ def _resolve_prompt_from_template(
         if not tpl or tpl.status != 1:
             return "", 0, None, "template not found or inactive"
         template_id = tpl.id
-        try:
-            specs = parse_param_specs(tpl.param_specs)
-            if specs:
-                prompt = render_template_body_with_specs(tpl, variables, specs)
-            else:
-                prompt = render_template_body(tpl, variables)
-        except ValueError as exc:
-            return "", 0, None, str(exc)
+        prompt, render_err = _render_prompt_by_template(tpl, variables)
+        if render_err:
+            return "", 0, None, render_err
         return prompt, template_id, tpl, None
 
     if template_id_from_payload is not None:
@@ -468,19 +464,24 @@ def _resolve_prompt_from_template(
         if not tpl or tpl.status != 1:
             return "", 0, None, "template not found or inactive"
         template_id = tpl.id
-        try:
-            specs = parse_param_specs(tpl.param_specs)
-            if specs:
-                prompt = render_template_body_with_specs(tpl, variables, specs)
-            else:
-                prompt = render_template_body(tpl, variables)
-        except ValueError as exc:
-            return "", 0, None, str(exc)
+        prompt, render_err = _render_prompt_by_template(tpl, variables)
+        if render_err:
+            return "", 0, None, render_err
         return prompt, template_id, tpl, None
 
     if not prompt:
         return "", 0, None, None
     return prompt, template_id, None, None
+
+
+def _render_prompt_by_template(tpl_obj: PromptTemplate, variables: dict) -> tuple[str, Optional[str]]:
+    try:
+        specs = parse_param_specs(getattr(tpl_obj, "param_specs", None))
+        if specs:
+            return render_template_body_with_specs(tpl_obj, variables, specs), None
+        return render_template_body(tpl_obj, variables), None
+    except ValueError as exc:
+        return "", str(exc)
 
 
 def _resolve_model_and_provider(model_id: Optional[int],
@@ -513,8 +514,9 @@ def _resolve_model_and_provider(model_id: Optional[int],
     return provider, model, None
 
 
-def _consume_idempotency_if_hit(reg_id: int, idempotency_key: Optional[str], payload: dict) -> tuple[
-    Optional[dict], Optional[str]]:
+def _consume_idempotency_if_hit(reg_id: int,
+                                idempotency_key: Optional[str],
+                                payload: dict) -> tuple[Optional[dict], Optional[str]]:
     if not idempotency_key:
         return None, None
     existing = get_idempotency(reg_id, idempotency_key)
@@ -528,10 +530,8 @@ def _consume_idempotency_if_hit(reg_id: int, idempotency_key: Optional[str], pay
         return None, "cached idempotency response is corrupt"
 
 
-def _build_user_message_content(
-        prompt: str,
-        attachments: list[dict[str, Any]],
-) -> Union[str, list[dict[str, Any]]]:
+def _build_user_message_content(prompt: str,
+                                attachments: list[dict[str, Any]]) -> Union[str, list[dict[str, Any]]]:
     if not attachments:
         return prompt
     parts: list[dict[str, Any]] = []
@@ -557,11 +557,11 @@ def _build_user_message_content(
     return parts
 
 
-def _generate_with_model(
-        provider,
-        model,
-        request_params: dict[str, Any],
-) -> tuple[Optional[str], Optional[str], int]:
+def _generate_with_model(provider,
+                         model,
+                         request_params: dict[str, Any]) -> tuple[Optional[str],
+                                                                  Optional[str],
+                                                                  int]:
     started = time.perf_counter()
     err_msg = None
     text_out = None

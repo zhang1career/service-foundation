@@ -3,19 +3,14 @@ import json
 import logging
 import re
 import uuid
-from typing import Any, Optional
-
+from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
-from django.http import HttpRequest
+from typing import Any, Optional
 
 from app_aibroker.consts.multimodal_const import (
     AIBROKER_MM_ALLOWED_MIMES,
-    AIBROKER_MM_MAX_BYTES_PER_FILE,
-    AIBROKER_MM_MAX_FILES_TOTAL,
-    VARIABLE_KINDS_MEDIA,
 )
 from app_aibroker.services.aibroker_oss_http_service import put_uploaded_file
-from app_aibroker.services.template_render_service import parse_param_specs
 
 logger = logging.getLogger(__name__)
 
@@ -52,15 +47,15 @@ def upload_one_aibroker_file(uploaded: UploadedFile) -> tuple[Optional[dict[str,
     size = int(uploaded.size or 0)
     if size <= 0:
         return None, "empty file"
-    if size > AIBROKER_MM_MAX_BYTES_PER_FILE:
-        return None, f"file too large (max {AIBROKER_MM_MAX_BYTES_PER_FILE} bytes)"
+    if size > settings.AIBROKER_MM_MAX_BYTES_PER_FILE:
+        return None, f"file too large (max {settings.AIBROKER_MM_MAX_BYTES_PER_FILE} bytes)"
 
     sha256 = _digest_uploaded_file(uploaded)
     safe = _sanitize_filename(uploaded.name)
     obj_key = f"aibroker/mm/{uuid.uuid4().hex}_{safe}"
     try:
         url = put_uploaded_file(uploaded, obj_key, mime)
-    except Exception:
+    except RuntimeError:
         logger.exception("[aibroker] app_oss HTTP upload failed key=%s", obj_key)
         return None, "failed to store file"
 
@@ -74,53 +69,6 @@ def upload_one_aibroker_file(uploaded: UploadedFile) -> tuple[Optional[dict[str,
         },
         None,
     )
-
-
-def _upload_list(files: list[UploadedFile]) -> tuple[list[dict[str, Any]], Optional[str]]:
-    out: list[dict[str, Any]] = []
-    for f in files:
-        item, err = upload_one_aibroker_file(f)
-        if err:
-            return [], err
-        out.append(item)
-    return out, None
-
-
-def merge_multipart_attachments(
-    request: HttpRequest,
-    tpl_param_specs: Optional[str],
-) -> tuple[list[dict[str, Any]], Optional[str]]:
-    """
-    Collect uploads from multipart: var_<name> for media param_specs, then field `files`.
-    Order: media slots in spec order (each slot: all files for that name in upload order),
-    then global `files` in upload order.
-    """
-    specs = parse_param_specs(tpl_param_specs)
-    attachments: list[dict[str, Any]] = []
-
-    for spec in specs:
-        if spec.get("kind") not in VARIABLE_KINDS_MEDIA:
-            continue
-        name = spec.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-        key = f"var_{name}"
-        chunk, err = _upload_list(list(request.FILES.getlist(key)))
-        if err:
-            return [], err
-        attachments.extend(chunk)
-        if len(attachments) > AIBROKER_MM_MAX_FILES_TOTAL:
-            return [], f"too many files (max {AIBROKER_MM_MAX_FILES_TOTAL})"
-
-    global_files = list(request.FILES.getlist("files"))
-    chunk_g, err_g = _upload_list(global_files)
-    if err_g:
-        return [], err_g
-    attachments.extend(chunk_g)
-    if len(attachments) > AIBROKER_MM_MAX_FILES_TOTAL:
-        return [], f"too many files (max {AIBROKER_MM_MAX_FILES_TOTAL})"
-
-    return attachments, None
 
 
 def parse_meta_json(meta_raw: str) -> tuple[Optional[dict[str, Any]], Optional[str]]:

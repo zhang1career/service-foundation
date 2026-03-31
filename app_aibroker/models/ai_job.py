@@ -16,5 +16,5 @@ class AiJob(models.Model):
     class Meta:
         db_table = "ai_job"
         indexes = [
-            models.Index(fields=["reg_id", "status"], name="aibroker_job_reg_status_idx"),
+            models.Index(fields=["reg_id", "status"], name="idx_ai_job_reg_status"),
         ]

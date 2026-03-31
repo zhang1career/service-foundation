@@ -71,9 +71,9 @@ def text_variable_names_for_format(specs: list[dict[str, Any]]) -> Optional[set[
 
 
 def render_template_body_with_specs(
-    tpl: "PromptTemplate",
-    variables: Optional[dict],
-    specs: list[dict[str, Any]],
+        tpl: "PromptTemplate",
+        variables: Optional[dict],
+        specs: list[dict[str, Any]],
 ) -> str:
     """
     Like render_template_body, but omits media-kind variables from format() so file slots

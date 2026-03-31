@@ -18,6 +18,6 @@ class PromptTemplate(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["template_key"],
-                name="aibroker_tpl_key_uniq",
+                name="uni_ai_tpl",
             ),
         ]

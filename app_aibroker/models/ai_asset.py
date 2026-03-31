@@ -14,5 +14,5 @@ class AiAsset(models.Model):
     class Meta:
         db_table = "ai_asset"
         indexes = [
-            models.Index(fields=["reg_id"], name="aibroker_asset_reg_idx"),
+            models.Index(fields=["reg_id"], name="idx_ai_asset_reg"),
         ]

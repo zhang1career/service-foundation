@@ -8,7 +8,11 @@ if "openai" not in sys.modules:
     openai_stub.OpenAI = object
     sys.modules["openai"] = openai_stub
 
-from app_aibroker.services.llm_client_service import chat_completion, create_embedding
+from app_aibroker.services.llm_client_service import (
+    chat_completion,
+    create_embedding,
+    fetch_json,
+)
 from common.enums.aigc_invoke_op_enum import AigcInvokeOp
 
 
@@ -64,3 +68,18 @@ class LlmClientServiceTest(TestCase):
             "text-embedding-3-small",
             body,
         )
+
+    @patch("app_aibroker.services.llm_client_service.AigcAPI")
+    def test_fetch_json_uses_request_json(self, api_cls_mock):
+        provider = MagicMock(base_url="https://aib.example.com", api_key="ak")
+        api_mock = api_cls_mock.return_value
+        api_mock.request_json.return_value = {"ok": True}
+
+        out = fetch_json(provider, method="GET", path="/v1/models")
+
+        self.assertEqual(out, {"ok": True})
+        api_cls_mock.assert_called_once_with(
+            base_url="https://aib.example.com",
+            api_key="ak",
+        )
+        api_mock.request_json.assert_called_once_with(method="GET", path="/v1/models")

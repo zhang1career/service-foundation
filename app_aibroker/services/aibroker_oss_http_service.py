@@ -5,10 +5,9 @@ Must use HTTP to OSS; do not call app_oss Python APIs from here (service boundar
 """
 
 import logging
+from django.conf import settings
 from typing import Any
 from urllib.parse import quote
-
-from django.conf import settings
 
 from common.services.http import HttpCallError, request_sync
 
