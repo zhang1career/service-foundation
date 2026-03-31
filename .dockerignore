@@ -34,7 +34,6 @@ db.sqlite3-journal
 
 # Docker
 Dockerfile
-docker-compose.yml
 .dockerignore
 docker-build.sh
 DOCKER_README.md

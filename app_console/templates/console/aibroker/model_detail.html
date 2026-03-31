@@ -1,0 +1,71 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 模型详情{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{% url 'console:aibroker-models' provider_id as mdl_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=mdl_list_url back_label="返回模型列表" %}
+
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">模型详情</h2>
+    </div>
+    <div class="card-body space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ID</p>
+                <p class="font-mono">{{ model.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">模型名</p>
+                <p class="font-medium break-all">{{ model.model_name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">供应商</p>
+                <p>{{ provider.name }} <span class="text-gray-500 font-mono text-sm">({{ provider.id }})</span></p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">能力</p>
+                <p>{{ model.capability_label|default:"-" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">状态</p>
+                {% if model.status == 1 %}
+                <span class="badge badge-success">启用</span>
+                {% else %}
+                <span class="badge badge-warning">停用</span>
+                {% endif %}
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                <p class="font-mono text-sm">{{ model.ct_fmt }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                <p class="font-mono text-sm">{{ model.ut_fmt }}</p>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">入参列表</label>
+            <p class="text-sm text-gray-500 mb-2">存为 <code class="text-xs">ai_model.param_specs</code>。占位符（<code class="text-xs">x</code>）须与请求里 <code class="text-xs">model_params</code> 的<strong>顶层键名</strong>一致，则用该键的值覆盖本行路径；约定键名 <code class="text-xs">content</code> 表示渲染后的提示词（含附件），由服务端写入。</p>
+            <div class="space-y-1">
+                {% for it in model.param_specs_detail_rows %}
+                <div class="mdl-ps-detail-row flex flex-nowrap items-center gap-1 py-0.5 overflow-x-auto rounded border border-gray-100 px-2 bg-gray-50/50{% if it.indent_level %} mdl-ps-detail-row-nested{% endif %}" style="margin-left: {{ it.indent_level|default:0 }}rem">
+                    <input type="text" class="form-input mdl-ps-d-name text-xs bg-gray-50 cursor-default" value="{{ it.name|escape }}" readonly tabindex="-1" aria-readonly="true">
+                    <input type="text" class="form-input mdl-ps-d-desc text-xs bg-gray-50 cursor-default" value="{{ it.description|escape }}" readonly tabindex="-1" aria-readonly="true">
+                    <span class="text-xs font-mono text-gray-600 mdl-ps-d-type">{{ it.type }}</span>
+                    <input type="text" class="form-input mdl-ps-d-range text-xs bg-gray-50 cursor-default{% if it.type != 'ENUM' %} mdl-ps-d-range-locked{% endif %}" value="{{ it.range_display|escape }}" readonly tabindex="-1" aria-readonly="true">
+                    <input type="text" class="form-input mdl-ps-d-x text-xs bg-gray-50 cursor-default" value="{{ it.placeholder_display|escape }}" readonly tabindex="-1" aria-readonly="true">
+                    <input type="text" class="form-input mdl-ps-d-default flex-1 min-w-[5rem] text-xs bg-gray-50 cursor-default" value="{{ it.default_display|escape }}" readonly tabindex="-1" aria-readonly="true">
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-500">—</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -46,7 +46,7 @@ def load_env(base_dir: Path) -> environ.Env:
     
     if env_specific_file and env_specific_file.exists():
         environ.Env.read_env(env_specific_file, overwrite=True)
-    
+
     # Create and return env instance after loading all files
     env = environ.Env()
     return env

@@ -151,6 +151,13 @@ body {
     background-color: #f9fafb;
 }
 
+/* 调用方列表（通知中心 / 校验 / AI Broker）：Access Key 列加宽，避免长密钥在窄主栏中被压得过窄 */
+.caller-reg-list-table th:nth-child(3),
+.caller-reg-list-table td.caller-reg-access-key-cell {
+    min-width: 32rem;
+    max-width: none;
+}
+
 /* 知识列表：按列序号设置（需 table-layout: fixed 才能使 th 宽度生效） */
 #knowledge-list .data-table {
     table-layout: fixed;
@@ -283,7 +290,7 @@ body {
     border-color: #d1d5db !important;
 }
 
-/* AI Broker 提示模板：必需字段列表的圆形加减按钮 */
+/* AI Broker 提示词模版：必需字段列表的圆形加减按钮 */
 .btn.tpl-name-list-icon-add {
     background-color: #16a34a !important;
     color: #fff !important;
@@ -477,6 +484,239 @@ body {
     max-width: 500px;
     width: 100%;
     margin: 16px;
+}
+
+/*
+ * Large modal — use for forms with multiple columns or wide tables.
+ * (Tailwind max-w-* loses to .modal-content { max-width: 500px } because style.css loads after tailwind.css.)
+ */
+.modal-content.modal-content-lg {
+    max-width: min(48rem, 92vw);
+}
+
+/* —— AI Broker model param_specs editor (tree + fixed action column) —— */
+.mdl-ps-editor {
+    width: 100%;
+    min-width: 0;
+}
+
+.mdl-ps-rows-root {
+    width: 100%;
+    min-width: 0;
+}
+
+.mdl-ps-block {
+    width: 100%;
+    min-width: 0;
+}
+
+.mdl-ps-row {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+    gap: 0.375rem;
+}
+
+.mdl-ps-row-main {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+}
+
+.mdl-ps-row-actions {
+    flex: 0 0 2.25rem;
+    width: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+}
+
+.mdl-ps-row-fields {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    gap: 0.375rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+}
+
+.mdl-ps-add-child-gap {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 2rem;
+}
+
+.mdl-ps-col-head {
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.mdl-ps-col-head-inner {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    gap: 0.375rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.mdl-ps-col-head .mdl-ps-h-name {
+    flex: 0 0 6.5rem;
+    min-width: 0;
+}
+.mdl-ps-col-head .mdl-ps-h-desc {
+    flex: 0 0 7.5rem;
+    min-width: 0;
+}
+.mdl-ps-col-head .mdl-ps-h-type {
+    flex: 0 0 8rem;
+    min-width: 0;
+}
+.mdl-ps-col-head .mdl-ps-h-range {
+    flex: 0 0 7.5rem;
+    min-width: 0;
+}
+.mdl-ps-col-head .mdl-ps-h-x {
+    flex: 0 0 5.5rem;
+    min-width: 0;
+}
+.mdl-ps-col-head .mdl-ps-h-default {
+    flex: 1 1 8rem;
+    min-width: 5rem;
+}
+
+[data-mdl-ps-line] .form-input[data-mdl-ps-name] {
+    width: 6.5rem;
+    flex: 0 0 6.5rem;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+[data-mdl-ps-line] .form-input[data-mdl-ps-desc] {
+    width: 7.5rem;
+    flex: 0 0 7.5rem;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+[data-mdl-ps-line] select.form-input[data-mdl-ps-type] {
+    width: 8rem;
+    flex: 0 0 8rem;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 4px;
+    font-size: 12px;
+}
+/* Param_specs: lock shells (range / placeholder / default) share layout + locked hover */
+[data-mdl-ps-line] .mdl-ps-lock-shell {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+}
+[data-mdl-ps-line] .mdl-ps-lock-shell .form-input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+[data-mdl-ps-line] .mdl-ps-lock-shell[data-mdl-ps-range-shell] {
+    flex: 0 0 7.5rem;
+}
+[data-mdl-ps-line] .mdl-ps-lock-shell[data-mdl-ps-x-shell] {
+    flex: 0 0 5.5rem;
+}
+[data-mdl-ps-line] .mdl-ps-lock-shell[data-mdl-ps-default-shell] {
+    flex: 1 1 8rem;
+    min-width: 5rem;
+}
+
+[data-mdl-ps-line] .mdl-ps-lock-shell--locked .form-input {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background-color: #f3f4f6;
+}
+
+/* Nested subtree: vertical rail + elbow into row fields */
+[data-mdl-ps-object-extras] {
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px dashed #e2e8f0;
+}
+
+[data-mdl-ps-children] {
+    margin-top: 6px;
+    margin-left: 4px;
+    padding-left: 0.875rem;
+    border-left: 2px solid #94a3b8;
+}
+
+[data-mdl-ps-children] > .mdl-ps-block {
+    position: relative;
+}
+
+[data-mdl-ps-children] > .mdl-ps-block > .mdl-ps-row > .mdl-ps-row-main > [data-mdl-ps-line] {
+    position: relative;
+}
+
+[data-mdl-ps-children] > .mdl-ps-block > .mdl-ps-row > .mdl-ps-row-main > [data-mdl-ps-line]::before {
+    content: "";
+    position: absolute;
+    left: calc(-0.875rem - 1px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: calc(0.875rem - 2px);
+    height: 2px;
+    background-color: #94a3b8;
+    border-radius: 1px;
+}
+
+/* Model detail: same rail for nested param_specs rows */
+.mdl-ps-detail-row-nested {
+    border-left: 2px solid #94a3b8;
+    padding-left: 0.5rem;
+}
+
+.mdl-ps-detail-row .mdl-ps-d-name {
+    width: 6.5rem;
+    flex: 0 0 6.5rem;
+    min-width: 0;
+}
+.mdl-ps-detail-row .mdl-ps-d-desc {
+    width: 7.5rem;
+    flex: 0 0 7.5rem;
+    min-width: 0;
+}
+.mdl-ps-detail-row .mdl-ps-d-type {
+    flex: 0 0 8rem;
+    min-width: 0;
+}
+.mdl-ps-detail-row .mdl-ps-d-range {
+    width: 7.5rem;
+    flex: 0 0 7.5rem;
+    min-width: 0;
+}
+.mdl-ps-detail-row .mdl-ps-d-range-locked {
+    opacity: 0.55;
+}
+.mdl-ps-detail-row .mdl-ps-d-x {
+    width: 5.5rem;
+    flex: 0 0 5.5rem;
+    min-width: 0;
+}
+.mdl-ps-detail-row .mdl-ps-d-default {
+    min-width: 5rem;
 }
 
 .modal-header {

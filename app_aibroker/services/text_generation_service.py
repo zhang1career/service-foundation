@@ -1,17 +1,51 @@
+import copy
+import base64
 import hashlib
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Tuple, Union
 
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
+from app_aibroker.models.ai_model import AiModel
+from app_aibroker.models.ai_provider import AiProvider
+from app_aibroker.services.ai_model_param_specs_wire import (
+    wire_param_children,
+    wire_param_description,
+    wire_param_name,
+    wire_param_placeholder,
+    wire_param_range,
+    wire_param_type,
+)
 from app_aibroker.services.llm_client_service import chat_completion
-from app_aibroker.services.template_render_service import render_template_body, validate_output
+from app_aibroker.services.template_render_service import (
+    parse_param_specs,
+    render_template_body,
+    render_template_body_with_specs,
+    validate_output,
+)
+from common.enums.nested_type_enum import NestedParamType
+from common.services.http import HttpCallError, request_sync
+from common.utils.dict_util import get_at_path, set_at_path
+from common.utils.nested_typed_tree_util import (
+    apply_field_coercion,
+    iter_typed_tree_leaves,
+    walk_typed_tree_preorder,
+    wrap_object_array_dict_branches_as_single_element_lists,
+)
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app_aibroker.models.reg import Reg
+
+
+def _normalize_coerce_flat_type(t: str) -> str:
+    return (t or "").strip().upper() or NestedParamType.STRING.value
+
+
+def _normalize_detail_row_type(t: str) -> str:
+    return (t or "").strip().upper() or NestedParamType.STRING.value
 
 
 def create_call_log(**kwargs):
@@ -75,17 +109,306 @@ def save_idempotency(reg_id: int, idempotency_key: str, payload: dict, result: d
 
 
 def _hash_payload(payload: dict) -> str:
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    stable: dict[str, Any] = dict(payload)
+    atts = stable.get("attachments")
+    if isinstance(atts, list):
+        digests: list[tuple[Any, Any]] = []
+        for item in atts:
+            if isinstance(item, dict):
+                digests.append((item.get("sha256"), item.get("mime_type")))
+        stable["attachments"] = sorted(digests)
+    raw = json.dumps(stable, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
 
+def _normalize_attachments_list(raw: Any) -> tuple[list[dict[str, Any]], Optional[str]]:
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list):
+        return [], "attachments must be a list"
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            return [], "each attachment must be an object"
+        url = item.get("url")
+        mime = item.get("mime_type")
+        sha = item.get("sha256")
+        if not isinstance(url, str) or not url.strip():
+            return [], "attachment url invalid"
+        if not isinstance(mime, str) or not mime.strip():
+            return [], "attachment mime_type invalid"
+        if not isinstance(sha, str) or len(sha) != 64:
+            return [], "attachment sha256 invalid"
+        out.append(
+            {
+                "url": url.strip(),
+                "mime_type": mime.strip().lower(),
+                "sha256": sha,
+                "object_key": item.get("object_key") or "",
+                "original_name": item.get("original_name") or "",
+            }
+        )
+    return out, None
+
+
+def _attachment_summary_for_log(atts: list[dict[str, Any]]) -> str:
+    if not atts:
+        return ""
+    kinds = [a.get("mime_type", "") for a in atts]
+    keys = [str(a.get("object_key") or "")[:24] for a in atts]
+    return f"n={len(atts)} mime={kinds} keys~={keys}"
+
+
+def _load_ai_model_param_specs_tree(raw: Optional[str]) -> list[dict[str, Any]]:
+    if raw is None or not str(raw).strip():
+        return []
+    try:
+        arr = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return arr if isinstance(arr, list) else []
+
+
+def _flatten_ai_model_param_specs_for_coerce(
+        items: list[Any],
+        prefix: str = "",
+) -> list[dict[str, Any]]:
+    """DFS: object rows with non-empty children contribute only nested leaves; bare object is one leaf."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for node, full, t_s in iter_typed_tree_leaves(
+            items,
+            path_prefix=prefix,
+            get_local_name=wire_param_name,
+            get_type_tag=wire_param_type,
+            get_child_list=wire_param_children,
+            normalize_type_tag=_normalize_coerce_flat_type,
+    ):
+        if full in seen:
+            continue
+        seen.add(full)
+        d_raw = node.get("default")
+        def_s = d_raw.strip() if isinstance(d_raw, str) else ""
+        ph_s = wire_param_placeholder(node)
+        out.append(
+            {
+                "name": full,
+                "type": t_s,
+                "range": wire_param_range(node),
+                "default": def_s,
+                "x": ph_s,
+            }
+        )
+    return out
+
+
+def _ai_model_param_specs_detail_rows(raw: Optional[str]) -> list[dict[str, Any]]:
+    """Depth-first rows with indent_level for console model detail."""
+    rows: list[dict[str, Any]] = []
+
+    def visit(node: dict[str, Any], depth: int, typ: str, _ch: list[Any]) -> None:
+        n = wire_param_name(node)
+        if not n:
+            return
+        desc = wire_param_description(node)
+        rng = wire_param_range(node)
+        rng_disp = ""
+        if typ == NestedParamType.ENUM.value and isinstance(rng, dict):
+            vals = rng.get("values")
+            if isinstance(vals, list) and vals:
+                rng_disp = ",".join(str(v) for v in vals)
+        d_raw = node.get("default")
+        default_disp = d_raw if isinstance(d_raw, str) else ""
+        ph_disp = wire_param_placeholder(node)
+        rows.append(
+            {
+                "name": n.strip(),
+                "description": desc,
+                "type": typ,
+                "range_display": rng_disp,
+                "default_display": default_disp,
+                "placeholder_display": ph_disp,
+                "indent_level": depth,
+            }
+        )
+
+    walk_typed_tree_preorder(
+        _load_ai_model_param_specs_tree(raw),
+        depth=0,
+        get_local_name=wire_param_name,
+        get_type_tag=wire_param_type,
+        get_child_list=wire_param_children,
+        normalize_type_tag=_normalize_detail_row_type,
+        visit=visit,
+    )
+    return rows
+
+
+def _placeholder_name_to_value(
+        model_params_raw: Any,
+        resolved_payload: Union[str, list],
+        *,
+        synthetic_key: str = "content",
+) -> dict[str, Any]:
+    """Top-level ``model_params`` keys plus *synthetic_key* (e.g. rendered user message or ``input``)."""
+    out: dict[str, Any] = {}
+    if isinstance(model_params_raw, dict):
+        for k, v in model_params_raw.items():
+            if isinstance(k, str):
+                out[k] = v
+    out[synthetic_key] = resolved_payload
+    return out
+
+
+def _is_http_url(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    s = value.strip().lower()
+    return s.startswith("http://") or s.startswith("https://")
+
+
+def _download_base64_from_url(url: str) -> tuple[Optional[str], Optional[str]]:
+    try:
+        resp = request_sync(
+            method="GET",
+            url=url,
+            pool_name="aigc_upstream_pool",
+            timeout_sec=30.0,
+        )
+    except HttpCallError as exc:
+        return None, f"download media failed: {exc}"
+    if resp.status_code >= 400:
+        return None, f"download media failed: HTTP {resp.status_code}"
+    raw = resp.content
+    if not raw:
+        return None, "download media failed: empty content"
+    return base64.b64encode(raw).decode("ascii"), None
+
+
+def _apply_spec_x_to_merged(
+        merged: dict[str, Any],
+        specs: list[dict[str, Any]],
+        x: str,
+        value: Any,
+) -> None:
+    for spec in specs:
+        if spec.get("x") != x:
+            continue
+        path = spec.get("name")
+        if isinstance(path, str) and path.strip():
+            set_at_path(merged, path.strip(), value)
+
+
+def _apply_model_param_placeholders(
+        api_kwargs: dict[str, Any],
+        specs: list[dict[str, Any]],
+        model_params_raw: Any,
+        resolved_payload: Union[str, list],
+        *,
+        synthetic_key: str = "content",
+) -> Optional[str]:
+    """If spec ``x`` equals a top-level ``model_params`` key name, copy that value to spec path."""
+    sources = _placeholder_name_to_value(
+        model_params_raw, resolved_payload, synthetic_key=synthetic_key
+    )
+    for spec in specs:
+        ph = spec.get("x")
+        if not isinstance(ph, str):
+            continue
+        key = ph.strip()
+        if not key or key not in sources:
+            continue
+        path = spec.get("name")
+        if not isinstance(path, str) or not path.strip():
+            continue
+        source_val = sources[key]
+        # Keep OSS as source of truth; convert URL placeholders to base64 before upstream call.
+        if _is_http_url(source_val):
+            source_val, dl_err = _download_base64_from_url(str(source_val).strip())
+            if dl_err:
+                return f"model_params.{path}: {dl_err}"
+        # Synthetic payload (e.g. content/input) may be rich objects; keep original shape.
+        if key == synthetic_key:
+            set_at_path(api_kwargs, path, source_val)
+            continue
+        coerced, err = apply_field_coercion(path, source_val, spec)
+        if err:
+            return f"model_params.{path}: {err}"
+        set_at_path(api_kwargs, path, coerced)
+    return None
+
+
+def _merge_model_param_defaults(
+        raw: dict[str, Any],
+        specs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Fill missing or empty leaf keys from spec.default (literal; coerced in _coerce_model_params)."""
+    merged: dict[str, Any] = copy.deepcopy(raw) if isinstance(raw, dict) else {}
+    if not isinstance(merged, dict):
+        merged = {}
+    for spec in specs:
+        name = spec.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        val, ok = get_at_path(merged, name)
+        if ok and val is not None and val != "":
+            continue
+        def_raw = spec.get("default")
+        if not isinstance(def_raw, str) or not def_raw.strip():
+            continue
+        set_at_path(merged, name, def_raw.strip())
+    return merged
+
+
+def _coerce_model_params(
+        raw: Any,
+        specs: list[dict[str, Any]],
+) -> tuple[dict[str, Any], Optional[str]]:
+    """Coerce by dotted leaf names; build nested dict for the HTTP API."""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        return {}, "model_params must be an object"
+    spec_by_name = {s["name"]: s for s in specs}
+    out: dict[str, Any] = {}
+    for path, field_def in spec_by_name.items():
+        val, ok = get_at_path(raw, path)
+        if not ok or val is None or val == "":
+            continue
+        coerced, err = apply_field_coercion(path, val, field_def)
+        if err:
+            return {}, f"model_params.{path}: {err}"
+        set_at_path(out, path, coerced)
+    return out, None
+
+
 def _normalize_prompt_inputs(payload: dict) -> tuple[
-    str, str, dict, float, Optional[int], Optional[int], Optional[int], Optional[str]]:
+    str,
+    str,
+    dict,
+    float,
+    Optional[int],
+    Optional[int],
+    Optional[int],
+    list[dict[str, Any]],
+    dict[str, Any],
+    Optional[str],
+]:
     prompt = (payload.get("prompt") or "").strip()
     template_key = (payload.get("template_key") or "").strip()
     variables = payload.get("variables") or {}
     if variables is not None and not isinstance(variables, dict):
-        return "", "", {}, 0.0, None, None, None, "variables must be an object"
+        return "", "", {}, 0.0, None, None, None, [], {}, "variables must be an object"
+
+    model_params_raw = payload.get("model_params")
+    if model_params_raw is not None and not isinstance(model_params_raw, dict):
+        return "", "", {}, 0.0, None, None, None, [], {}, "model_params must be an object"
+    if model_params_raw is None:
+        model_params_raw = {}
+
+    attachments, att_err = _normalize_attachments_list(payload.get("attachments"))
+    if att_err:
+        return "", "", {}, 0.0, None, None, None, [], {}, att_err
 
     temperature = float(payload.get("temperature", 0.7))
     model_id = payload.get("model_id")
@@ -97,10 +420,10 @@ def _normalize_prompt_inputs(payload: dict) -> tuple[
         try:
             template_id_from_payload = int(tid_raw)
         except (TypeError, ValueError):
-            return "", "", {}, 0.0, None, None, None, "template_id must be an integer"
+            return "", "", {}, 0.0, None, None, None, [], {}, "template_id must be an integer"
 
     if template_key and template_id_from_payload is not None:
-        return "", "", {}, 0.0, None, None, None, "use only one of template_key or template_id"
+        return "", "", {}, 0.0, None, None, None, [], {}, "use only one of template_key or template_id"
     return (
         prompt,
         template_key,
@@ -109,6 +432,8 @@ def _normalize_prompt_inputs(payload: dict) -> tuple[
         model_id,
         provider_id,
         template_id_from_payload,
+        attachments,
+        model_params_raw,
         None,
     )
 
@@ -127,7 +452,11 @@ def _resolve_prompt_from_template(
             return "", 0, None, "template not found or inactive"
         template_id = tpl.id
         try:
-            prompt = render_template_body(tpl, variables)
+            specs = parse_param_specs(tpl.param_specs)
+            if specs:
+                prompt = render_template_body_with_specs(tpl, variables, specs)
+            else:
+                prompt = render_template_body(tpl, variables)
         except ValueError as exc:
             return "", 0, None, str(exc)
         return prompt, template_id, tpl, None
@@ -140,18 +469,24 @@ def _resolve_prompt_from_template(
             return "", 0, None, "template not found or inactive"
         template_id = tpl.id
         try:
-            prompt = render_template_body(tpl, variables)
+            specs = parse_param_specs(tpl.param_specs)
+            if specs:
+                prompt = render_template_body_with_specs(tpl, variables, specs)
+            else:
+                prompt = render_template_body(tpl, variables)
         except ValueError as exc:
             return "", 0, None, str(exc)
         return prompt, template_id, tpl, None
 
     if not prompt:
-        return "", 0, None, "prompt or template_key or template_id is required"
+        return "", 0, None, None
     return prompt, template_id, None, None
 
 
-def _resolve_model_and_provider(model_id: Optional[int], provider_id: Optional[int]) -> tuple[
-    Optional[object], Optional[object], Optional[str]]:
+def _resolve_model_and_provider(model_id: Optional[int],
+                                provider_id: Optional[int]) -> tuple[Optional[AiProvider],
+                                                                     Optional[AiModel],
+                                                                     Optional[str]]:
     if model_id:
         model = get_model_by_id(int(model_id))
         if not model or model.status != 1:
@@ -193,12 +528,45 @@ def _consume_idempotency_if_hit(reg_id: int, idempotency_key: Optional[str], pay
         return None, "cached idempotency response is corrupt"
 
 
-def _generate_with_model(provider, model, prompt: str, temperature: float) -> tuple[Optional[str], Optional[str], int]:
+def _build_user_message_content(
+        prompt: str,
+        attachments: list[dict[str, Any]],
+) -> Union[str, list[dict[str, Any]]]:
+    if not attachments:
+        return prompt
+    parts: list[dict[str, Any]] = []
+    p = (prompt or "").strip()
+    if p:
+        parts.append({"type": "text", "text": p})
+    for att in attachments:
+        mime = (att.get("mime_type") or "").lower()
+        url = (att.get("url") or "").strip()
+        if not url:
+            continue
+        if mime.startswith("image/"):
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+        else:
+            parts.append(
+                {
+                    "type": "text",
+                    "text": f"[Attachment {mime or 'unknown'}]\n{url}",
+                }
+            )
+    if not parts:
+        parts.append({"type": "text", "text": ""})
+    return parts
+
+
+def _generate_with_model(
+        provider,
+        model,
+        request_params: dict[str, Any],
+) -> tuple[Optional[str], Optional[str], int]:
     started = time.perf_counter()
     err_msg = None
     text_out = None
     try:
-        text_out = chat_completion(provider, model, prompt, temperature=temperature)
+        text_out = chat_completion(provider, model, dict(request_params))
         if text_out is None:
             err_msg = "empty model response"
     except Exception as exc:
@@ -224,6 +592,8 @@ def generate_text(
         model_id,
         provider_id,
         template_id_from_payload,
+        attachments,
+        model_params_raw,
         normalize_err,
     ) = _normalize_prompt_inputs(payload)
     if normalize_err:
@@ -238,6 +608,13 @@ def generate_text(
     if template_err:
         return {}, template_err
 
+    if not (prompt or "").strip() and not attachments:
+        return {}, "prompt (or template) or attachments required"
+
+    att_summary = _attachment_summary_for_log(attachments)
+    if att_summary:
+        logger.info("[aibroker] multimodal request %s", att_summary)
+
     cached_result, idempotency_err = _consume_idempotency_if_hit(reg.id, idempotency_key, payload)
     if idempotency_err:
         return {}, idempotency_err
@@ -248,10 +625,46 @@ def generate_text(
     if model_err:
         return {}, model_err
 
-    text_out, err_msg, latency_ms = _generate_with_model(provider, model, prompt, temperature)
+    user_content = _build_user_message_content(prompt, attachments)
+    specs = _flatten_ai_model_param_specs_for_coerce(
+        _load_ai_model_param_specs_tree(model.param_specs)
+    )
+    if not specs:
+        request_body: dict[str, Any] = {
+            "messages": [{"role": "user", "content": user_content}],
+            "temperature": temperature,
+        }
+    else:
+        merged_params = _merge_model_param_defaults(model_params_raw, specs)
+        _apply_spec_x_to_merged(merged_params, specs, "model", model.model_name)
+        coerced_params, coerce_err = _coerce_model_params(merged_params, specs)
+        if coerce_err:
+            return {}, coerce_err
+        placeholder_err = _apply_model_param_placeholders(
+            coerced_params, specs, model_params_raw, user_content
+        )
+        if placeholder_err:
+            return {}, placeholder_err
+        wrap_object_array_dict_branches_as_single_element_lists(
+            _load_ai_model_param_specs_tree(model.param_specs),
+            coerced_params,
+            get_local_name=wire_param_name,
+            get_type_tag=wire_param_type,
+            get_child_list=wire_param_children,
+            normalize_type_tag=_normalize_coerce_flat_type,
+        )
+        if "temperature" not in coerced_params:
+            coerced_params["temperature"] = temperature
+        request_body = coerced_params
+
+    text_out, err_msg, latency_ms = _generate_with_model(
+        provider,
+        model,
+        request_body,
+    )
     success = err_msg is None and text_out is not None
 
-    if success and tpl is not None:
+    if success and tpl is not None and isinstance(text_out, str):
         try:
             text_out = validate_output(tpl, text_out)
         except ValueError as exc:
@@ -269,6 +682,13 @@ def generate_text(
     )
 
     if not success:
+        logger.warning(
+            "[aibroker] generate_text failed reg_id=%s template_id=%s model_id=%s: %s",
+            reg.id,
+            template_id,
+            model.id,
+            err_msg or "generation failed",
+        )
         return {}, err_msg or "generation failed"
 
     result = {

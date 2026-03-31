@@ -1,0 +1,58 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 供应商详情{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{% url 'console:aibroker-providers' as prov_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=prov_list_url back_label="返回供应商列表" %}
+
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">供应商详情</h2>
+        <a href="{% url 'console:aibroker-models' provider_id %}" class="btn btn-outline btn-sm">模型列表</a>
+    </div>
+    <div class="card-body space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ID</p>
+                <p class="font-mono">{{ provider.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">名称</p>
+                <p class="font-medium">{{ provider.name }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">连接主机 (base_url)</p>
+                <p class="font-mono text-sm break-all">{{ provider.base_url }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">HTTP 路径 (url_path)</p>
+                <p class="font-mono text-sm break-all">{{ provider.url_path }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">API Key</p>
+                <p class="font-mono text-sm text-gray-600">已配置（不在此展示）</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">状态</p>
+                {% if provider.status == 1 %}
+                <span class="badge badge-success">启用</span>
+                {% else %}
+                <span class="badge badge-warning">停用</span>
+                {% endif %}
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                <p class="font-mono text-sm">{{ ct_fmt }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                <p class="font-mono text-sm">{{ ut_fmt }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

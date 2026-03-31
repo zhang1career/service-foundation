@@ -1,6 +1,6 @@
 {% extends 'console/base.html' %}
 
-{% block title %}AI Broker — 提示模板{% endblock %}
+{% block title %}AI Broker — 提示词模版{% endblock %}
 {% block page_title %}AI Broker{% endblock %}
 
 {% block content %}
@@ -8,12 +8,12 @@
 {% include 'console/includes/aibroker_subnav.html' %}
 
 <div class="mb-6">
-    <p class="text-gray-600">每个 <code class="text-xs">template_key</code> 对应一条模板记录。</p>
+    <p class="text-gray-600">每个 <code class="text-xs">template_key</code> 对应一条提示词模版记录。</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h2 class="text-lg font-semibold">模板列表</h2>
+        <h2 class="text-lg font-semibold">提示词模版列表</h2>
         <button type="button" class="btn btn-primary btn-sm" onclick="openTplCreateModal()">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             新增
@@ -62,7 +62,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无模板</td></tr>
+                    <tr><td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无提示词模版</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -86,7 +86,7 @@
 
 <div id="tpl-create-modal" class="modal-backdrop hidden">
     <div class="modal-content max-w-2xl">
-        <div class="modal-header"><h3 class="text-lg font-semibold">新增模板</h3></div>
+        <div class="modal-header"><h3 class="text-lg font-semibold">新增提示词模版</h3></div>
         <form method="post" id="tpl-create-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="create">
@@ -99,7 +99,7 @@
                     <label class="form-label" for="tpl-c-con">约束类型</label>
                     <select id="tpl-c-con" name="constraint_type" class="form-input">
                         {% for opt in aibroker_constraint_options %}
-                        <option value="{{ opt.v }}">{{ opt.k }} ({{ opt.v }})</option>
+                        <option value="{{ opt.v }}">{{ opt.k }}</option>
                         {% empty %}
                         <option value="0">弱约束 (0)</option>
                         <option value="1">强约束 (1)</option>
@@ -116,25 +116,25 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">入参列表</label>
-                    <p class="text-sm text-gray-500 mb-2">名称列表存为 <code class="text-xs">[{"name":"..."},...]</code>；点击<strong>创建</strong>时若正文相对打开本弹窗时已有变化，则按占位符重写本列表（与 Python <code class="text-xs">str.format</code> 一致，如 <code class="text-xs">{name}</code>）。</p>
+                    <p class="text-sm text-gray-500 mb-2">名称列表存为字段 <code class="text-xs">param_specs</code>：<code class="text-xs">[{"name":"...","kind":"text"},...]</code>；<code class="text-xs">kind</code> 可选 <code class="text-xs">text</code>（默认）/ <code class="text-xs">image</code> / <code class="text-xs">audio</code> / <code class="text-xs">file</code>。仅 <code class="text-xs">text</code> 参与正文 <code class="text-xs">str.format</code>；媒体类在「调用」中通过同名 multipart 字段 <code class="text-xs">var_名称</code> 上传。点击<strong>创建</strong>时若正文相对打开本弹窗时已有变化，则按占位符重写本列表（与 Python <code class="text-xs">str.format</code> 一致）。</p>
                     <div id="tpl-c-vars-rows" class="space-y-2"></div>
                     <div class="flex justify-end mt-2">
                         <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('c', 'vars')" title="添加名称" aria-label="添加名称">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         </button>
                     </div>
-                    <input type="hidden" name="input_variables" id="tpl-c-vars" value="[]">
+                    <input type="hidden" name="param_specs" id="tpl-c-vars" value="[]">
                 </div>
                 <div class="form-group">
                     <label class="form-label">出参列表</label>
-                    <p class="text-sm text-gray-500 mb-2">强约束下要求模型 JSON 输出须包含下列键（同名列表格式）。</p>
+                    <p class="text-sm text-gray-500 mb-2">强约束下要求模型 JSON 输出须包含下列键（字段 <code class="text-xs">resp_specs</code>，同名列表格式）。</p>
                     <div id="tpl-c-out-rows" class="space-y-2"></div>
                     <div class="flex justify-end mt-2">
                         <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('c', 'out')" title="添加名称" aria-label="添加名称">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         </button>
                     </div>
-                    <input type="hidden" name="output_variables" id="tpl-c-out" value="[]">
+                    <input type="hidden" name="resp_specs" id="tpl-c-out" value="[]">
                 </div>
             </div>
             <div class="modal-footer">
@@ -147,7 +147,7 @@
 
 <div id="tpl-edit-modal" class="modal-backdrop hidden">
     <div class="modal-content max-w-2xl">
-        <div class="modal-header"><h3 class="text-lg font-semibold">编辑模板</h3></div>
+        <div class="modal-header"><h3 class="text-lg font-semibold">编辑提示词模版</h3></div>
         <form method="post" id="tpl-edit-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="update">
@@ -165,7 +165,7 @@
                     <label class="form-label" for="tpl-e-con">约束类型</label>
                     <select id="tpl-e-con" name="constraint_type" class="form-input">
                         {% for opt in aibroker_constraint_options %}
-                        <option value="{{ opt.v }}">{{ opt.k }} ({{ opt.v }})</option>
+                        <option value="{{ opt.v }}">{{ opt.k }}</option>
                         {% empty %}
                         <option value="0">弱约束 (0)</option>
                         <option value="1">强约束 (1)</option>
@@ -174,25 +174,25 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">入参列表</label>
-                    <p class="text-sm text-gray-500 mb-2">点击<strong>保存</strong>时若正文相对打开本弹窗时已有变化，则按占位符重写本列表。</p>
+                    <p class="text-sm text-gray-500 mb-2">格式同创建（<code class="text-xs">param_specs</code>：<code class="text-xs">{"name","kind"}</code>）；<strong>保存</strong>时若正文相对打开本弹窗时已有变化，则按占位符重写本列表。</p>
                     <div id="tpl-e-vars-rows" class="space-y-2"></div>
                     <div class="flex justify-end mt-2">
                         <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('e', 'vars')" title="添加名称" aria-label="添加名称">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         </button>
                     </div>
-                    <input type="hidden" name="input_variables" id="tpl-e-vars" value="[]">
+                    <input type="hidden" name="param_specs" id="tpl-e-vars" value="[]">
                 </div>
                 <div class="form-group">
                     <label class="form-label">出参列表</label>
-                    <p class="text-sm text-gray-500 mb-2">强约束下要求模型 JSON 输出须包含下列键。</p>
+                    <p class="text-sm text-gray-500 mb-2">强约束下要求模型 JSON 输出须包含下列键（<code class="text-xs">resp_specs</code>）。</p>
                     <div id="tpl-e-out-rows" class="space-y-2"></div>
                     <div class="flex justify-end mt-2">
                         <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="tplNameListAddRow('e', 'out')" title="添加名称" aria-label="添加名称">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         </button>
                     </div>
-                    <input type="hidden" name="output_variables" id="tpl-e-out" value="[]">
+                    <input type="hidden" name="resp_specs" id="tpl-e-out" value="[]">
                 </div>
             </div>
             <div class="modal-footer">
@@ -334,8 +334,8 @@
         document.getElementById('tpl-e-desc').value = row.description || '';
         document.getElementById('tpl-e-body').value = row.body || '';
         document.getElementById('tpl-e-con').value = String(row.constraint_type != null ? row.constraint_type : 0);
-        tplNameListRender('e', 'vars', parseNameListJson(row.input_variables));
-        tplNameListRender('e', 'out', parseNameListJson(row.output_variables));
+        tplNameListRender('e', 'vars', parseNameListJson(row.param_specs));
+        tplNameListRender('e', 'out', parseNameListJson(row.resp_specs));
         tplEditBodySnapshot = document.getElementById('tpl-e-body').value || '';
         document.getElementById('tpl-edit-modal').classList.remove('hidden');
     };
@@ -348,7 +348,7 @@
         document.getElementById('tpl-st-' + id).submit();
     };
     window.submitTplDelete = function (id) {
-        if (!confirm('确认删除该模板？')) return;
+        if (!confirm('确认删除该提示词模版？')) return;
         document.getElementById('tpl-del-' + id).submit();
     };
 

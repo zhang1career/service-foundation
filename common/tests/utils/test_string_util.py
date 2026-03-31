@@ -24,6 +24,25 @@ class Test(TestCase):
         actual_result = explode(origin_str)
         self.assertEqual(expected_result, actual_result)
 
+        # custom separator (str.split semantics)
+        self.assertEqual(explode("a.b.c", sep="."), ["a", "b", "c"])
+        self.assertEqual(explode("x", sep="|"), ["x"])
+
+        # trailing delimiter preserves empty last part, like str.split
+        self.assertEqual(explode("a,b,", sep=","), ["a", "b", ""])
+
+        # no strip
+        self.assertEqual(explode(" a , b ", sep=","), [" a ", " b "])
+
+        with self.assertRaises(ValueError):
+            explode("a,b", sep="")
+
+        with self.assertRaises(TypeError):
+            explode(123)
+
+        with self.assertRaises(TypeError):
+            explode(["a", "b"])
+
     def test_check_blank(self):
         # lazy load
         from common.utils.string_util import check_blank

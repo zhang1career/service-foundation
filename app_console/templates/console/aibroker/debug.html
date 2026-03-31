@@ -1,0 +1,658 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 调用{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{{ debug_boot|json_script:"aibroker-debug-boot" }}
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<div class="mb-6">
+    <p class="text-gray-600">选提供商与模型、提示词模版；填写模版变量与入参列表。请求发出时：<code class="text-xs">content</code> 来自模版渲染结果；<code class="text-xs">image</code> 在模型 <code class="text-xs">param_specs</code> 含 <code class="text-xs">x=image</code> 时由本页上传提供；<code class="text-xs">model</code> 由所选模型的 <code class="text-xs">model_name</code> 写入实际参数；其余字段按 <code class="text-xs">param_specs</code> 映射。</p>
+    {% if not has_debug_reg %}
+    <p class="mt-2 text-amber-700">请在 .env 中配置 <code class="text-xs">AIBROKER_REG_ID_TEST</code> 为「调用方」里存在的主键 ID，否则无法发送（<code class="text-xs">call_log.reg_id</code> 将使用该值）。</p>
+    {% endif %}
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">请求</h2>
+    </div>
+    <div class="card-body space-y-4">
+        {% csrf_token %}
+        <div class="grid gap-4 md:grid-cols-2">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1" for="debug-provider">提供商</label>
+                <select id="debug-provider" class="w-full border border-gray-300 rounded-md px-3 py-2 bg-white">
+                    <option value="">— 选择提供商 —</option>
+                    {% for p in debug_providers %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1" for="debug-model">模型</label>
+                <select id="debug-model" class="w-full border border-gray-300 rounded-md px-3 py-2 bg-white" disabled>
+                    <option value="">— 先选提供商 —</option>
+                </select>
+            </div>
+        </div>
+        <div id="debug-model-params-wrap" class="space-y-3 border-t border-gray-100 pt-4">
+            <p class="text-sm text-gray-600">入参列表</p>
+            <div id="debug-model-params" class="space-y-3"></div>
+        </div>
+        <div class="grid gap-4 md:grid-cols-1 border-t border-gray-100 pt-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1" for="debug-tpl">提示词模版</label>
+                <select id="debug-tpl" class="w-full border border-gray-300 rounded-md px-3 py-2 bg-white">
+                    <option value="">— 选择提示词模版 —</option>
+                    {% for t in debug_templates %}
+                    <option value="{{ t.id }}">{{ t.template_key }}{% if t.description %} — {{ t.description|truncatechars:40 }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div id="debug-vars-wrap" class="hidden space-y-3 border-t border-gray-100 pt-4">
+            <p class="text-sm text-gray-600">模版变量（<code class="text-xs">param_specs</code>）</p>
+            <div id="debug-vars" class="space-y-3"></div>
+        </div>
+        <div id="debug-image-section" class="hidden space-y-3 border-t border-gray-100 pt-4">
+            <p class="text-sm text-gray-600">image</p>
+            <div class="flex flex-wrap items-center gap-2">
+                <input type="file" id="debug-global-file"
+                       accept="image/jpeg,image/png,image/gif,image/webp"
+                       class="text-sm">
+                <button type="button" id="debug-global-add" class="btn btn-outline btn-sm">添加图片</button>
+            </div>
+            <div id="debug-global-list" class="text-sm text-gray-700"></div>
+            <p class="text-xs text-gray-500">单图不超过 20MB；上传后的 URL 按 <code class="text-xs">param_specs</code> 中 <code class="text-xs">x=image</code> 映射写入实际参数。</p>
+        </div>
+        <div>
+            <button type="button" id="debug-send" class="btn btn-primary"
+                    {% if not has_debug_reg %}disabled{% endif %}>发送</button>
+        </div>
+    </div>
+</div>
+
+<div class="card" id="debug-response-card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">响应</h2>
+    </div>
+    <div class="card-body">
+        <div id="debug-response-meta" class="text-xs text-gray-500 mb-2 font-mono"></div>
+        <div id="debug-response-body" class="rounded-md bg-gray-50 border border-gray-200 p-4 min-h-[4rem] whitespace-pre-wrap break-words text-gray-900"
+             data-response-kind="text">选择提示词模版并发送后，在此显示结果。</div>
+    </div>
+</div>
+
+<div class="card mt-6" id="debug-video-card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">视频</h2>
+    </div>
+    <div class="card-body space-y-3">
+        <div class="flex flex-wrap gap-2 items-center">
+            <input id="debug-video-url" type="text"
+                   class="flex-1 min-w-[18rem] border border-gray-300 rounded-md px-3 py-2 font-mono text-sm"
+                   placeholder="等待视频地址..." />
+            <button type="button" id="debug-video-refresh" class="btn btn-outline btn-sm" disabled>刷新</button>
+        </div>
+        <div id="debug-video-tip" class="text-xs text-gray-500">选择视频模型并发送后，可在此刷新并播放视频。</div>
+        <video id="debug-video-player" controls class="w-full max-h-[30rem] rounded border border-gray-200 bg-black hidden"></video>
+    </div>
+</div>
+
+<script>
+(function () {
+    var MM_MAX_BYTES = 20 * 1024 * 1024;
+    var VIDEO_CAPABILITY = 2;
+
+    var bootEl = document.getElementById('aibroker-debug-boot');
+    var boot = bootEl ? JSON.parse(bootEl.textContent) : { templatesById: {}, modelsByProvider: {} };
+    var templatesById = boot.templatesById || {};
+    var modelsByProvider = boot.modelsByProvider || {};
+
+    var globalImage = null;
+
+    function parseInputVariableSpecs(jsonStr) {
+        if (!jsonStr || !String(jsonStr).trim()) return [];
+        try {
+            var arr = JSON.parse(jsonStr);
+            if (!Array.isArray(arr)) return [];
+            var out = [];
+            var seen = {};
+            for (var i = 0; i < arr.length; i++) {
+                var x = arr[i];
+                if (!x || typeof x !== 'object') continue;
+                var n = x.name;
+                if (typeof n !== 'string') continue;
+                var t = n.trim();
+                if (!t || seen[t]) continue;
+                seen[t] = true;
+                var k = x.kind;
+                if (typeof k !== 'string' || !k.trim()) k = 'text';
+                else k = k.trim().toLowerCase();
+                out.push({ name: t, kind: k });
+            }
+            return out;
+        } catch (e) {
+            return [];
+        }
+    }
+
+    var tplSel = document.getElementById('debug-tpl');
+    var varsWrap = document.getElementById('debug-vars-wrap');
+    var varsRoot = document.getElementById('debug-vars');
+    var modelParamsRoot = document.getElementById('debug-model-params');
+    var provSel = document.getElementById('debug-provider');
+    var modelSel = document.getElementById('debug-model');
+    var sendBtn = document.getElementById('debug-send');
+    var metaEl = document.getElementById('debug-response-meta');
+    var bodyEl = document.getElementById('debug-response-body');
+    var globalFileInput = document.getElementById('debug-global-file');
+    var globalAddBtn = document.getElementById('debug-global-add');
+    var globalListEl = document.getElementById('debug-global-list');
+    var videoUrlEl = document.getElementById('debug-video-url');
+    var videoRefreshBtn = document.getElementById('debug-video-refresh');
+    var videoPlayerEl = document.getElementById('debug-video-player');
+    var videoTipEl = document.getElementById('debug-video-tip');
+    var lastVideoTaskId = '';
+
+    function renderGlobalList() {
+        if (!globalImage) {
+            globalListEl.textContent = '未添加图片';
+            return;
+        }
+        globalListEl.innerHTML = '';
+        var row = document.createElement('div');
+        row.className = 'flex items-center gap-2 flex-wrap';
+        var span = document.createElement('span');
+        span.textContent = globalImage.original_name + ' -> ' + globalImage.url;
+        var rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'btn btn-outline btn-sm text-red-700';
+        rm.textContent = '移除';
+        rm.onclick = function () {
+            globalImage = null;
+            renderGlobalList();
+        };
+        row.appendChild(span);
+        row.appendChild(rm);
+        globalListEl.appendChild(row);
+    }
+
+    function parseModelParamSpecs(jsonStr) {
+        if (!jsonStr || !String(jsonStr).trim()) return [];
+        var arr;
+        try {
+            arr = JSON.parse(jsonStr);
+        } catch (e) {
+            return [];
+        }
+        if (!Array.isArray(arr)) return [];
+        var out = [];
+        function walk(items) {
+            if (!Array.isArray(items)) return;
+            for (var i = 0; i < items.length; i++) {
+                var node = items[i];
+                if (!node || typeof node !== 'object') continue;
+                var n = typeof node.n === 'string' ? node.n.trim() : '';
+                var x = typeof node.x === 'string' ? node.x.trim() : '';
+                var t = typeof node.t === 'string' ? node.t.trim().toUpperCase() : 'STRING';
+                var c = Array.isArray(node.c) ? node.c : [];
+                var defRaw = node.default;
+                var defStr = (typeof defRaw === 'string') ? defRaw.trim() : '';
+                if (n && x) out.push({ n: n, x: x, t: t, defaultValue: defStr });
+                if (c.length) walk(c);
+            }
+        }
+        walk(arr);
+        return out;
+    }
+
+    function selectedModelMeta() {
+        var pid = String(provSel.value || '');
+        var mid = String(modelSel.value || '');
+        if (!pid || !mid) return null;
+        var list = modelsByProvider[pid] || [];
+        for (var i = 0; i < list.length; i++) {
+            if (String(list[i].id) === mid) return list[i];
+        }
+        return null;
+    }
+
+    function selectedModelIsVideo() {
+        var m = selectedModelMeta();
+        return !!(m && parseInt(m.capability, 10) === VIDEO_CAPABILITY);
+    }
+
+    function setVideoTip(msg) {
+        videoTipEl.textContent = msg || '';
+    }
+
+    function setVideoUrl(url) {
+        var s = (url || '').trim();
+        videoUrlEl.value = s;
+        if (!s) {
+            videoPlayerEl.removeAttribute('src');
+            videoPlayerEl.classList.add('hidden');
+            videoPlayerEl.load();
+            return;
+        }
+        videoPlayerEl.src = s;
+        videoPlayerEl.classList.remove('hidden');
+        videoPlayerEl.load();
+    }
+
+    async function refreshVideoByTaskId(taskId) {
+        var tid = (taskId || '').trim();
+        if (!tid) {
+            setVideoTip('缺少 task_id，无法刷新');
+            return;
+        }
+        var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+        var csrfToken = csrf ? csrf.value : '';
+        videoRefreshBtn.disabled = true;
+        var oldTxt = videoRefreshBtn.textContent;
+        videoRefreshBtn.textContent = '刷新中...';
+        setVideoTip('正在查询视频任务...');
+        try {
+            var resp = await fetch('{% url "console:aibroker-debug-video-result" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ task_id: tid })
+            });
+            var json = await resp.json();
+            if (!json || json.errorCode !== 0 || !json.data) {
+                var em = (json && json.message) ? json.message : '刷新视频失败';
+                setVideoTip(em);
+                return;
+            }
+            var url = (json.data.result_url || '').trim();
+            if (!url) {
+                setVideoTip('任务暂未完成，result_url 为空，可稍后再刷新');
+                return;
+            }
+            setVideoUrl(url);
+            setVideoTip('视频地址已更新');
+        } catch (e) {
+            setVideoTip('刷新失败: ' + (e && e.message ? e.message : String(e)));
+        } finally {
+            videoRefreshBtn.disabled = !lastVideoTaskId;
+            videoRefreshBtn.textContent = oldTxt;
+        }
+    }
+
+    function handleVideoTaskFromPayload(payloadObj) {
+        if (!selectedModelIsVideo()) {
+            lastVideoTaskId = '';
+            videoRefreshBtn.disabled = true;
+            setVideoTip('当前模型不是视频模型');
+            setVideoUrl('');
+            return;
+        }
+        if (!payloadObj || typeof payloadObj !== 'object') {
+            return;
+        }
+        var taskId = '';
+        if (typeof payloadObj.task_id === 'string') taskId = payloadObj.task_id.trim();
+        if (!taskId && typeof payloadObj.id === 'string' && payloadObj.id.indexOf('task_') === 0) {
+            taskId = payloadObj.id.trim();
+        }
+        if (!taskId) {
+            setVideoTip('未从响应中找到 task_id');
+            return;
+        }
+        lastVideoTaskId = taskId;
+        videoRefreshBtn.disabled = false;
+        setVideoTip('已收到 task_id，点击刷新可查询并播放视频');
+        refreshVideoByTaskId(taskId);
+    }
+
+    function updateImageSectionVisibility() {
+        var section = document.getElementById('debug-image-section');
+        if (!section) return;
+        var m = selectedModelMeta();
+        var specs = parseModelParamSpecs(m ? m.param_specs : '');
+        var show = specs.some(function (s) { return s.x === 'image'; });
+        if (show) section.classList.remove('hidden');
+        else section.classList.add('hidden');
+    }
+
+    function renderModelParams() {
+        modelParamsRoot.innerHTML = '';
+        var m = selectedModelMeta();
+        var specs = parseModelParamSpecs(m ? m.param_specs : '');
+        specs.forEach(function (spec) {
+            if (spec.x === 'content' || spec.x === 'image' || spec.x === 'model') return;
+            var row = document.createElement('div');
+            row.className = 'space-y-1';
+            var lab = document.createElement('label');
+            var inputId = 'debug-model-param-' + spec.x.replace(/[^a-zA-Z0-9_-]/g, '_');
+            lab.className = 'block text-sm font-medium text-gray-700';
+            lab.setAttribute('for', inputId);
+            lab.textContent = spec.x;
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.id = inputId;
+            inp.className = 'w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm';
+            inp.dataset.paramX = spec.x;
+            inp.dataset.paramN = spec.n;
+            inp.placeholder = spec.x;
+            if (spec.defaultValue) inp.value = spec.defaultValue;
+            row.appendChild(lab);
+            row.appendChild(inp);
+            modelParamsRoot.appendChild(row);
+        });
+        updateImageSectionVisibility();
+    }
+
+    globalAddBtn.addEventListener('click', function () {
+        var inp = globalFileInput;
+        if (!inp || !inp.files || !inp.files.length) return;
+        var f = inp.files[0];
+        if (f.size > MM_MAX_BYTES) {
+            alert('文件过大: ' + f.name);
+            return;
+        }
+        var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+        var csrfToken = csrf ? csrf.value : '';
+        var fd = new FormData();
+        fd.append('file', f);
+        globalAddBtn.disabled = true;
+        var oldTxt = globalAddBtn.textContent;
+        globalAddBtn.textContent = '上传中...';
+        fetch('{% url "console:aibroker-debug-upload-image" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            body: fd
+        }).then(function (resp) {
+            return resp.json();
+        }).then(function (json) {
+            if (!json || json.errorCode !== 0 || !json.data || !json.data.url) {
+                var msg = (json && json.message) ? json.message : '上传失败';
+                alert(msg);
+                return;
+            }
+            globalImage = {
+                url: json.data.url,
+                original_name: json.data.original_name || f.name
+            };
+            inp.value = '';
+            renderGlobalList();
+        }).catch(function (e) {
+            alert('上传失败: ' + (e && e.message ? e.message : String(e)));
+        }).finally(function () {
+            globalAddBtn.disabled = false;
+            globalAddBtn.textContent = oldTxt;
+        });
+    });
+
+    function renderVarsForTemplate(tplId) {
+        varsRoot.innerHTML = '';
+        if (!tplId) {
+            varsWrap.classList.add('hidden');
+            return;
+        }
+        var meta = templatesById[String(tplId)];
+        var specs = meta ? parseInputVariableSpecs(meta.param_specs) : [];
+        if (!specs.length) {
+            varsWrap.classList.add('hidden');
+            return;
+        }
+        varsWrap.classList.remove('hidden');
+        specs.forEach(function (spec) {
+            var row = document.createElement('div');
+            row.className = 'space-y-1';
+            var lab = document.createElement('label');
+            lab.className = 'block text-sm font-medium text-gray-700';
+            lab.setAttribute('for', 'debug-var-' + spec.name);
+            lab.textContent = spec.name;
+            var ta = document.createElement('textarea');
+            ta.id = 'debug-var-' + spec.name;
+            ta.name = spec.name;
+            ta.rows = 3;
+            ta.className = 'w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm';
+            ta.placeholder = spec.name;
+            row.appendChild(lab);
+            row.appendChild(ta);
+            varsRoot.appendChild(row);
+        });
+    }
+
+    function refillModels() {
+        var pid = provSel.value;
+        modelSel.innerHTML = '';
+        if (!pid) {
+            modelSel.disabled = true;
+            var o0 = document.createElement('option');
+            o0.value = '';
+            o0.textContent = '— 先选提供商 —';
+            modelSel.appendChild(o0);
+            renderModelParams();
+            return;
+        }
+        var list = modelsByProvider[String(pid)] || [];
+        if (!list.length) {
+            modelSel.disabled = true;
+            var o1 = document.createElement('option');
+            o1.value = '';
+            o1.textContent = '该提供商下无可用模型';
+            modelSel.appendChild(o1);
+            renderModelParams();
+            return;
+        }
+        modelSel.disabled = false;
+        var ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = '— 选择模型 —';
+        modelSel.appendChild(ph);
+        list.forEach(function (m) {
+            var o = document.createElement('option');
+            o.value = String(m.id);
+            o.textContent = m.model_name || ('#' + m.id);
+            modelSel.appendChild(o);
+        });
+        renderModelParams();
+        if (!selectedModelIsVideo()) {
+            lastVideoTaskId = '';
+            videoRefreshBtn.disabled = true;
+            setVideoUrl('');
+            setVideoTip('当前模型不是视频模型');
+        } else {
+            setVideoTip('选择视频模型并发送后，可在此刷新并播放视频');
+        }
+    }
+
+    tplSel.addEventListener('change', function () {
+        renderVarsForTemplate(tplSel.value);
+    });
+
+    function handleModelChanged() {
+        renderModelParams();
+        if (!selectedModelIsVideo()) {
+            lastVideoTaskId = '';
+            videoRefreshBtn.disabled = true;
+            setVideoUrl('');
+            setVideoTip('当前模型不是视频模型');
+            return;
+        }
+        setVideoTip('选择视频模型并发送后，可在此刷新并播放视频');
+    }
+
+    provSel.addEventListener('change', refillModels);
+    modelSel.addEventListener('change', handleModelChanged);
+    videoRefreshBtn.addEventListener('click', function () {
+        if (!lastVideoTaskId) {
+            setVideoTip('缺少 task_id，请先发送请求');
+            return;
+        }
+        refreshVideoByTaskId(lastVideoTaskId);
+    });
+    refillModels();
+    renderGlobalList();
+
+    function collectVariablesText() {
+        var out = {};
+        varsRoot.querySelectorAll('textarea[name]').forEach(function (ta) {
+            var k = ta.name;
+            if (k) out[k] = ta.value;
+        });
+        return out;
+    }
+
+    function buildModelParams() {
+        var m = selectedModelMeta();
+        var specs = parseModelParamSpecs(m ? m.param_specs : '');
+        var out = {};
+        function setDotted(obj, path, value) {
+            var parts = path.split('.');
+            var cur = obj;
+            for (var i = 0; i < parts.length - 1; i++) {
+                var p = parts[i];
+                if (!cur[p] || typeof cur[p] !== 'object' || Array.isArray(cur[p])) cur[p] = {};
+                cur = cur[p];
+            }
+            cur[parts[parts.length - 1]] = value;
+        }
+        specs.forEach(function (spec) {
+            if (spec.x === 'content') return;
+            var value;
+            if (spec.x === 'image') {
+                value = globalImage ? globalImage.url : '';
+            } else if (spec.x === 'model') {
+                value = m && m.model_name ? String(m.model_name) : '';
+            } else {
+                var input = modelParamsRoot.querySelector('[data-param-x="' + spec.x.replace(/"/g, '\\"') + '"]');
+                value = input ? input.value : '';
+            }
+            if (value === '') return;
+            setDotted(out, spec.n, value);
+        });
+        return out;
+    }
+
+    function renderResponseEnvelope(data) {
+        bodyEl.dataset.responseKind = 'text';
+        metaEl.textContent = '';
+        if (!data) {
+            bodyEl.textContent = '';
+            return;
+        }
+        var parts = [];
+        if (data.template_id != null) parts.push('template_id=' + data.template_id);
+        if (data.provider_id != null) parts.push('provider_id=' + data.provider_id);
+        if (data.model_id != null) parts.push('model_id=' + data.model_id);
+        if (data.latency_ms != null) parts.push('latency_ms=' + data.latency_ms);
+        metaEl.textContent = parts.join(' · ');
+        var text = data.text;
+        var payloadObj = null;
+        if (text && typeof text === 'object') {
+            payloadObj = text;
+        } else if (typeof text === 'string') {
+            var s = text.trim();
+            if (s && (s[0] === '{' || s[0] === '[')) {
+                try {
+                    payloadObj = JSON.parse(s);
+                } catch (e) {
+                    payloadObj = null;
+                }
+            }
+        }
+        var imageSrc = '';
+        if (payloadObj && payloadObj.data && Array.isArray(payloadObj.data) && payloadObj.data.length) {
+            var row0 = payloadObj.data[0];
+            if (row0 && typeof row0 === 'object') {
+                if (typeof row0.b64_json === 'string' && row0.b64_json.trim()) {
+                    imageSrc = 'data:image/png;base64,' + row0.b64_json.trim();
+                } else if (typeof row0.url === 'string' && row0.url.trim()) {
+                    imageSrc = row0.url.trim();
+                }
+            }
+        }
+        if (imageSrc) {
+            bodyEl.dataset.responseKind = 'image';
+            bodyEl.innerHTML = '';
+            var wrap = document.createElement('div');
+            wrap.className = 'space-y-3';
+            var img = document.createElement('img');
+            img.src = imageSrc;
+            img.alt = '生成图片';
+            img.className = 'max-w-full h-auto rounded border border-gray-200';
+            wrap.appendChild(img);
+            var raw = document.createElement('pre');
+            raw.className = 'text-xs text-gray-600 bg-white border border-gray-200 rounded p-3 overflow-auto';
+            raw.textContent = JSON.stringify(payloadObj, null, 2);
+            wrap.appendChild(raw);
+            bodyEl.appendChild(wrap);
+            handleVideoTaskFromPayload(payloadObj);
+            return;
+        }
+        bodyEl.innerHTML = '';
+        bodyEl.textContent = typeof text === 'string' ? text : (text == null ? '' : JSON.stringify(text, null, 2));
+        handleVideoTaskFromPayload(payloadObj);
+    }
+
+    sendBtn.addEventListener('click', async function () {
+        var tid = tplSel.value;
+        var mid = modelSel.value;
+        if (!mid) {
+            alert('请选择提供商与模型');
+            return;
+        }
+        if (!tid) {
+            alert('请选择提示词模版');
+            return;
+        }
+        var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+        var csrfToken = csrf ? csrf.value : '';
+        var metaObj = {
+            template_id: parseInt(tid, 10),
+            model_id: parseInt(mid, 10),
+            variables: collectVariablesText(),
+            model_params: buildModelParams()
+        };
+
+        sendBtn.disabled = true;
+        var orig = sendBtn.textContent;
+        sendBtn.textContent = '请求中…';
+        metaEl.textContent = '';
+        bodyEl.textContent = '等待上游响应…';
+
+        try {
+            var resp = await fetch('{% url "console:aibroker-debug-invoke" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(metaObj)
+            });
+            var json = await resp.json();
+            if (json.errorCode !== 0) {
+                var errMsg = json.message || '请求失败';
+                if (json.detail) errMsg += '\n\n' + json.detail;
+                bodyEl.textContent = errMsg;
+                return;
+            }
+            renderResponseEnvelope(json.data);
+        } catch (e) {
+            bodyEl.textContent = '网络或解析错误: ' + (e && e.message ? e.message : String(e));
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.textContent = orig;
+        }
+    });
+})();
+</script>
+{% endblock %}

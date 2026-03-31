@@ -1,0 +1,373 @@
+<script>
+(function () {
+    /** Populated async from ``/api/ai/dict?codes=aibroker_nested_param_type``; see models.html */
+    var MDL_PS_TYPES_FALLBACK = ['STRING', 'INT', 'FLOAT', 'BOOL', 'ENUM', 'ARRAY', 'OBJECT', 'OBJECT_ARRAY'];
+    function mdlPsTypeTags() {
+        if (window.MDL_PS_TYPES && window.MDL_PS_TYPES.length) return window.MDL_PS_TYPES;
+        return MDL_PS_TYPES_FALLBACK;
+    }
+    var MDL_PS_MAX_DEPTH = 2;
+    var ENUM_RANGE_PLACEHOLDER = '输入全部枚举值，用逗号分隔';
+    var X_PLACEHOLDER = 'model_params 键名';
+    var DEFAULT_PLACEHOLDER = '';
+
+    function mdlPsRowsEl(prefix) {
+        return document.getElementById('mdl-' + prefix + '-param-rows');
+    }
+    function mdlPsHiddenEl(prefix) {
+        return document.getElementById('mdl-' + prefix + '-param-specs-hidden');
+    }
+
+    function enumRangeToText(rangeVal) {
+        if (rangeVal == null || rangeVal === '') return '';
+        if (typeof rangeVal === 'object' && !Array.isArray(rangeVal)) {
+            var vals = rangeVal.values;
+            if (Array.isArray(vals) && vals.length) {
+                return vals.map(function (v) { return String(v); }).join(',');
+            }
+            return '';
+        }
+        return '';
+    }
+
+    function parseEnumRangeText(s) {
+        if (!s || !String(s).trim()) return [];
+        return String(s).split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+
+    /** Lock shell + readOnly: shared visuals/hover overlay for range / placeholder / default. */
+    function mdlPsSetShellLocked(shell, input, locked) {
+        if (!input) return;
+        input.readOnly = locked;
+        if (locked) {
+            input.setAttribute('aria-readonly', 'true');
+            input.tabIndex = -1;
+        } else {
+            input.removeAttribute('aria-readonly');
+            input.removeAttribute('tabindex');
+        }
+        if (shell) shell.classList.toggle('mdl-ps-lock-shell--locked', locked);
+    }
+
+    function syncRangeEditable(block) {
+        var sel = block.querySelector('[data-mdl-ps-type]');
+        var typ = sel ? (sel.value || '').trim().toUpperCase() : '';
+        var shell = block.querySelector('[data-mdl-ps-range-shell]');
+        var rIn = block.querySelector('[data-mdl-ps-range]');
+        if (!rIn) return;
+        if (typ === 'ENUM') {
+            mdlPsSetShellLocked(shell, rIn, false);
+            rIn.placeholder = ENUM_RANGE_PLACEHOLDER;
+        } else {
+            rIn.value = '';
+            rIn.placeholder = '';
+            mdlPsSetShellLocked(shell, rIn, true);
+        }
+    }
+
+    function syncObjectExtras(block) {
+        var sel = block.querySelector('[data-mdl-ps-type]');
+        var typ = sel ? (sel.value || '').trim().toUpperCase() : '';
+        var ex = block.querySelector('[data-mdl-ps-object-extras]');
+        var addBar = block.querySelector('[data-mdl-ps-add-child-bar]');
+        var dep = parseInt(block.getAttribute('data-mdl-ps-depth'), 10) || 0;
+        if (!ex) return;
+        if (typ === 'OBJECT' || typ === 'OBJECT_ARRAY') {
+            ex.classList.remove('hidden');
+            if (addBar) addBar.classList.toggle('hidden', dep >= MDL_PS_MAX_DEPTH);
+        } else {
+            ex.classList.add('hidden');
+            var chb = block.querySelector('[data-mdl-ps-children]');
+            if (chb) chb.innerHTML = '';
+        }
+    }
+
+    function syncPlaceholderDefaultEditable(block) {
+        var sel = block.querySelector('[data-mdl-ps-type]');
+        var typ = sel ? (sel.value || '').trim().toUpperCase() : '';
+        var isObjectLike = (typ === 'OBJECT' || typ === 'OBJECT_ARRAY');
+        var phIn = block.querySelector('[data-mdl-ps-x]');
+        var dfIn = block.querySelector('[data-mdl-ps-default]');
+        var shPh = block.querySelector('[data-mdl-ps-x-shell]');
+        var shDf = block.querySelector('[data-mdl-ps-default-shell]');
+        if (isObjectLike) {
+            if (phIn) phIn.value = '';
+            if (dfIn) dfIn.value = '';
+        }
+        mdlPsSetShellLocked(shPh, phIn, isObjectLike);
+        mdlPsSetShellLocked(shDf, dfIn, isObjectLike);
+        if (phIn) phIn.placeholder = isObjectLike ? '' : X_PLACEHOLDER;
+        if (dfIn) dfIn.placeholder = isObjectLike ? '' : DEFAULT_PLACEHOLDER;
+    }
+
+    function syncTypeUi(block) {
+        syncObjectExtras(block);
+        syncRangeEditable(block);
+        syncPlaceholderDefaultEditable(block);
+    }
+
+    function readBlock(block) {
+        var line = block.querySelector('[data-mdl-ps-line]');
+        if (!line) return null;
+        var nIn = line.querySelector('[data-mdl-ps-name]');
+        var dIn = line.querySelector('[data-mdl-ps-desc]');
+        var tIn = line.querySelector('[data-mdl-ps-type]');
+        var rIn = line.querySelector('[data-mdl-ps-range]');
+        var phIn = line.querySelector('[data-mdl-ps-x]');
+        var dfIn = line.querySelector('[data-mdl-ps-default]');
+        var n = nIn ? (nIn.value || '').trim() : '';
+        if (!n) return null;
+        var desc = dIn ? (dIn.value || '').trim() : '';
+        var typ = tIn ? (tIn.value || 'STRING').trim().toUpperCase() : 'STRING';
+        var rangeObj = {};
+        if (typ === 'ENUM') {
+            var raw = rIn ? (rIn.value || '').trim() : '';
+            var vals = parseEnumRangeText(raw);
+            if (vals.length) rangeObj = { values: vals };
+        }
+        var defV = dfIn ? (dfIn.value || '').trim() : '';
+        var children = [];
+        if (typ === 'OBJECT' || typ === 'OBJECT_ARRAY') {
+            var chb = block.querySelector('[data-mdl-ps-children]');
+            if (chb) {
+                for (var i = 0; i < chb.children.length; i++) {
+                    var sub = chb.children[i];
+                    if (sub.classList && sub.classList.contains('mdl-ps-block')) {
+                        var o = readBlock(sub);
+                        if (o) children.push(o);
+                    }
+                }
+            }
+        }
+        var out = { n: n, d: desc, t: typ, r: rangeObj };
+        var phV = phIn ? (phIn.value || '').trim() : '';
+        if (phV) out.x = phV;
+        if (defV) out.default = defV;
+        if (children.length) out.c = children;
+        return out;
+    }
+
+    function createBlock(container, depth, itemOpt) {
+        var it = itemOpt && typeof itemOpt === 'object' ? itemOpt : {};
+        var name = (it.n != null) ? String(it.n) : '';
+        var desc = (it.d != null) ? String(it.d) : '';
+        var typRaw = (it.t != null && String(it.t).trim()) ? String(it.t).trim().toUpperCase() : '';
+        var typ = typRaw || 'STRING';
+        if (typ === 'JSON') typ = 'OBJECT';
+        if (typ === 'TEXT') typ = 'STRING';
+        if (mdlPsTypeTags().indexOf(typ) < 0) typ = 'STRING';
+        var rngObj = (it.r != null && typeof it.r === 'object' && !Array.isArray(it.r)) ? it.r : null;
+        var enumText = typ === 'ENUM' ? enumRangeToText(rngObj) : '';
+        var defStr = (it.default != null && typeof it.default === 'string') ? it.default : '';
+        var phVal = (it.x != null) ? String(it.x).trim() : '';
+
+        var block = document.createElement('div');
+        block.className = 'mdl-ps-block';
+        block.setAttribute('data-mdl-ps-depth', String(depth));
+
+        var rowOuter = document.createElement('div');
+        rowOuter.className = 'mdl-ps-row';
+        rowOuter.setAttribute('data-mdl-ps-row', '1');
+
+        var rowMain = document.createElement('div');
+        rowMain.className = 'mdl-ps-row-main';
+
+        var line = document.createElement('div');
+        line.setAttribute('data-mdl-ps-line', '1');
+        line.className = 'mdl-ps-row-fields';
+
+        var inName = document.createElement('input');
+        inName.type = 'text';
+        inName.className = 'form-input';
+        inName.placeholder = '名称';
+        inName.setAttribute('data-mdl-ps-name', '1');
+        inName.value = name;
+        inName.autocomplete = 'off';
+
+        var inDesc = document.createElement('input');
+        inDesc.type = 'text';
+        inDesc.className = 'form-input';
+        inDesc.placeholder = '描述';
+        inDesc.setAttribute('data-mdl-ps-desc', '1');
+        inDesc.value = desc;
+        inDesc.autocomplete = 'off';
+
+        var sel = document.createElement('select');
+        sel.className = 'form-input';
+        sel.setAttribute('data-mdl-ps-type', '1');
+        mdlPsTypeTags().forEach(function (t) {
+            var o = document.createElement('option');
+            o.value = t;
+            o.textContent = t;
+            if (t === typ) o.selected = true;
+            sel.appendChild(o);
+        });
+        sel.addEventListener('change', function () { syncTypeUi(block); });
+
+        var rangeWrap = document.createElement('span');
+        rangeWrap.className = 'mdl-ps-range-wrap mdl-ps-lock-shell';
+        rangeWrap.setAttribute('data-mdl-ps-range-wrap', '1');
+        rangeWrap.setAttribute('data-mdl-ps-range-shell', '1');
+
+        var inRange = document.createElement('input');
+        inRange.type = 'text';
+        inRange.className = 'form-input';
+        inRange.setAttribute('data-mdl-ps-range', '1');
+        inRange.setAttribute('aria-label', '取值范围');
+        inRange.value = enumText;
+        inRange.autocomplete = 'off';
+
+        rangeWrap.appendChild(inRange);
+
+        var inPh = document.createElement('input');
+        inPh.type = 'text';
+        inPh.className = 'form-input';
+        inPh.setAttribute('data-mdl-ps-x', '1');
+        inPh.setAttribute('aria-label', '占位符');
+        inPh.placeholder = X_PLACEHOLDER;
+        inPh.value = phVal;
+        inPh.autocomplete = 'off';
+
+        var inDefault = document.createElement('input');
+        inDefault.type = 'text';
+        inDefault.className = 'form-input';
+        inDefault.placeholder = DEFAULT_PLACEHOLDER;
+        inDefault.setAttribute('data-mdl-ps-default', '1');
+        inDefault.setAttribute('aria-label', '默认值');
+        inDefault.value = defStr;
+        inDefault.autocomplete = 'off';
+
+        var shellPh = document.createElement('span');
+        shellPh.className = 'mdl-ps-lock-shell';
+        shellPh.setAttribute('data-mdl-ps-x-shell', '1');
+        shellPh.appendChild(inPh);
+
+        var shellDf = document.createElement('span');
+        shellDf.className = 'mdl-ps-lock-shell';
+        shellDf.setAttribute('data-mdl-ps-default-shell', '1');
+        shellDf.appendChild(inDefault);
+
+        line.appendChild(inName);
+        line.appendChild(inDesc);
+        line.appendChild(sel);
+        line.appendChild(rangeWrap);
+        line.appendChild(shellPh);
+        line.appendChild(shellDf);
+
+        var rowActions = document.createElement('div');
+        rowActions.className = 'mdl-ps-row-actions';
+
+        var rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'btn btn-icon tpl-name-list-icon-remove';
+        rm.title = '删除';
+        rm.setAttribute('aria-label', '删除');
+        rm.onclick = function () {
+            var b = rm.closest('.mdl-ps-block');
+            if (b) b.remove();
+        };
+        rm.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+
+        rowActions.appendChild(rm);
+        rowMain.appendChild(line);
+        rowOuter.appendChild(rowMain);
+        rowOuter.appendChild(rowActions);
+
+        var objExtras = document.createElement('div');
+        objExtras.setAttribute('data-mdl-ps-object-extras', '1');
+        objExtras.className = 'hidden mt-1';
+
+        var addBar = document.createElement('div');
+        addBar.setAttribute('data-mdl-ps-add-child-bar', '1');
+        addBar.className = 'mdl-ps-row mdl-ps-add-child-bar';
+
+        var addMain = document.createElement('div');
+        addMain.className = 'mdl-ps-row-main';
+        var addGap = document.createElement('div');
+        addGap.className = 'mdl-ps-add-child-gap';
+        addMain.appendChild(addGap);
+
+        var addActions = document.createElement('div');
+        addActions.className = 'mdl-ps-row-actions';
+        var addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'btn btn-icon tpl-name-list-icon-add';
+        addBtn.title = '添加';
+        addBtn.setAttribute('aria-label', '添加子项');
+        addBtn.onclick = function () {
+            var d = parseInt(block.getAttribute('data-mdl-ps-depth'), 10) || 0;
+            if (d >= MDL_PS_MAX_DEPTH) return;
+            var ch = block.querySelector('[data-mdl-ps-children]');
+            if (ch) createBlock(ch, d + 1, null);
+        };
+        addBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>';
+        addActions.appendChild(addBtn);
+        addBar.appendChild(addMain);
+        addBar.appendChild(addActions);
+
+        var childrenBox = document.createElement('div');
+        childrenBox.setAttribute('data-mdl-ps-children', '1');
+        childrenBox.className = 'mdl-ps-children mt-1 space-y-1';
+
+        objExtras.appendChild(addBar);
+        objExtras.appendChild(childrenBox);
+
+        block.appendChild(rowOuter);
+        block.appendChild(objExtras);
+        container.appendChild(block);
+
+        var chList = Array.isArray(it.c) ? it.c : [];
+        if ((typ === 'OBJECT' || typ === 'OBJECT_ARRAY') && chList.length) {
+            chList.forEach(function (ch) {
+                createBlock(childrenBox, depth + 1, ch);
+            });
+        }
+        syncTypeUi(block);
+    }
+
+    window.aibrokerMdlParamSpecsAddRow = function (prefix, itemOpt) {
+        var box = mdlPsRowsEl(prefix);
+        if (!box) return;
+        createBlock(box, 0, itemOpt);
+    };
+
+    window.aibrokerMdlParamSpecsFlush = function (prefix) {
+        var box = mdlPsRowsEl(prefix);
+        var hidden = mdlPsHiddenEl(prefix);
+        if (!box || !hidden) return;
+        var items = [];
+        for (var i = 0; i < box.children.length; i++) {
+            var b = box.children[i];
+            if (b.classList && b.classList.contains('mdl-ps-block')) {
+                var o = readBlock(b);
+                if (o) items.push(o);
+            }
+        }
+        hidden.value = JSON.stringify(items);
+    };
+
+    window.aibrokerMdlParamSpecsRender = function (prefix, items) {
+        var box = mdlPsRowsEl(prefix);
+        if (!box) return;
+        box.innerHTML = '';
+        if (!items || !items.length) {
+            window.aibrokerMdlParamSpecsFlush(prefix);
+            return;
+        }
+        items.forEach(function (it) {
+            createBlock(box, 0, it);
+        });
+        window.aibrokerMdlParamSpecsFlush(prefix);
+    };
+
+    window.aibrokerMdlParamSpecsParseStored = function (jsonStr) {
+        if (!jsonStr || !String(jsonStr).trim()) return [];
+        try {
+            var a = JSON.parse(jsonStr);
+            return Array.isArray(a) ? a : [];
+        } catch (e) {
+            return [];
+        }
+    };
+})();
+</script>

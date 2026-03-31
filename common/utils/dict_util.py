@@ -1,7 +1,70 @@
-from typing import Optional
+from typing import Any, Optional
 
 from common.consts.string_const import EMPTY_STRING
 from common.utils.hash_util import md5
+from common.utils.string_util import explode
+
+
+def get_at_path(
+    mapping: dict[str, Any],
+    path: str,
+    sep: str = ".",
+) -> tuple[Any, bool]:
+    """Read *mapping* along *path* split by *sep*; (value, True) or (None, False) if missing."""
+    parts = _nested_path_keys(path, sep)
+    cur: Any = mapping
+    for p in parts:
+        if not isinstance(cur, dict) or p not in cur:
+            return None, False
+        cur = cur[p]
+    return cur, True
+
+
+def set_at_path(
+    root: dict[str, Any],
+    path: str,
+    value: Any,
+    sep: str = ".",
+) -> dict[str, Any]:
+    """Ensure nested dicts for *path* / *sep* and set the leaf; return *root*."""
+    parent, leaf_key = ensure_parent_for_path(root, path, sep)
+    parent[leaf_key] = value
+    return root
+
+
+def ensure_parent_for_path(
+    root: dict[str, Any],
+    path: str,
+    sep: str = ".",
+) -> tuple[dict[str, Any], str]:
+    """Walk *root* by *path* / *sep*, creating missing dict segments.
+
+    Returns the dict that holds the leaf key, and the leaf key name.
+    """
+    parts = _nested_path_keys(path, sep)
+    if len(parts) == 1:
+        return root, parts[0]
+    cur = root
+    for p in parts[:-1]:
+        nxt = cur.get(p)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[p] = nxt
+        cur = nxt
+    return cur, parts[-1]
+
+
+def _nested_path_keys(path: str, sep: str) -> list[str]:
+    """Split *path* on *sep* after strip; forbid empty *path* and empty segments."""
+    if not sep:
+        raise ValueError("sep must be non-empty")
+    s = path.strip()
+    if not s:
+        raise ValueError("nested path must be non-empty")
+    parts = explode(s, sep)
+    if any(not p for p in parts):
+        raise ValueError("nested path must not contain empty segments")
+    return parts
 
 
 def check_empty(param: Optional[dict]):

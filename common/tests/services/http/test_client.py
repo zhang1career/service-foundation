@@ -21,13 +21,12 @@ class HttpClientTest(TestCase):
         self.assertIn("thirdparty_pool", http_client_module._CLIENTS)
 
     @patch("common.services.http.client.httpx.Client")
-    def test_get_http_client_timeout_override_for_reused_client(self, client_cls):
+    def test_get_http_client_reuse_does_not_mutate_shared_timeout(self, client_cls):
         client_instance = MagicMock()
         client_cls.return_value = client_instance
         http_client_module.get_http_client(pool_name="webhook_pool")
-
         http_client_module.get_http_client(pool_name="webhook_pool", timeout_sec=3)
-        self.assertIsNotNone(client_instance.timeout)
+        client_cls.assert_called_once()
 
     def test_close_all_clients_closes_and_clears(self):
         c1 = MagicMock()

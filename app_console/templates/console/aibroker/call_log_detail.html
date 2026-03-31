@@ -1,0 +1,64 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 调用日志 #{{ log.id }}{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{% url 'console:aibroker-call-logs' as call_logs_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=call_logs_url back_label="返回调用日志列表" %}
+
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">调用日志</h2>
+        <form method="post" class="inline" onsubmit="return confirm('确认删除该条调用日志？');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <button type="submit" class="btn btn-danger btn-sm">删除</button>
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">调用方</p>
+                <p class="font-medium break-words">{{ log.reg_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">模板</p>
+                <p class="font-medium break-all">{{ log.template_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">提供商</p>
+                <p class="font-medium break-words">{{ log.provider_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">模型</p>
+                <p class="font-medium break-words text-sm">{{ log.model_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">耗时</p>
+                <p>{{ log.latency_ms }} 毫秒</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">结果</p>
+                <p>
+                    {% if log.success == 1 %}
+                    <span class="badge badge-success">{{ log.success_label }}</span>
+                    {% else %}
+                    <span class="badge badge-danger">{{ log.success_label }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">时间</p>
+                <p>{{ log.ct_fmt }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">错误信息</p>
+                <p class="break-words text-sm">{{ log.error_message|default:"—" }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

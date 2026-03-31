@@ -1,0 +1,166 @@
+{% extends 'console/base.html' %}
+
+{% block title %}AI Broker — 调用日志{% endblock %}
+{% block page_title %}AI Broker{% endblock %}
+
+{% block content %}
+{% include 'console/includes/aibroker_subnav.html' %}
+
+<form id="call-logs-bulk-form" method="post" class="hidden" aria-hidden="true">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="bulk_delete">
+    <input type="hidden" name="page" value="{{ page }}">
+</form>
+
+<div class="mb-6">
+    <p class="text-gray-600">查看 <code class="text-xs bg-gray-100 px-1 rounded">call_log</code> 表记录（按时间倒序）。每页 {{ page_size }} 条，共 {{ total }} 条。</p>
+</div>
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">调用日志</h2>
+        <div class="flex flex-wrap items-center gap-3">
+            <button type="submit" form="call-logs-bulk-form"
+                    class="btn btn-danger btn-sm" id="call-logs-bulk-submit" disabled
+                    onclick="return callLogsBulkDeleteConfirm();">
+                批量删除
+            </button>
+            {% if total_pages > 1 %}
+            <div class="flex items-center gap-2 text-sm text-gray-600">
+                {% if has_prev %}
+                <a href="?page={{ page|add:'-1' }}" class="text-blue-600 hover:underline">上一页</a>
+                {% else %}
+                <span class="text-gray-400">上一页</span>
+                {% endif %}
+                <span>第 {{ page }} / {{ total_pages }} 页</span>
+                {% if has_next %}
+                <a href="?page={{ page|add:'1' }}" class="text-blue-600 hover:underline">下一页</a>
+                {% else %}
+                <span class="text-gray-400">下一页</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th class="w-10">
+                            <input type="checkbox" id="call-log-check-all" class="call-log-check-all" title="全选本页" aria-label="全选本页">
+                        </th>
+                        <th>ID</th>
+                        <th>调用方</th>
+                        <th>模板</th>
+                        <th>提供商</th>
+                        <th>模型</th>
+                        <th>耗时</th>
+                        <th>结果</th>
+                        <th>时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in logs %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" form="call-logs-bulk-form" name="log_ids" value="{{ row.id }}"
+                                   class="call-log-row-check" aria-label="选中日志 {{ row.id }}">
+                        </td>
+                        <td class="font-mono text-sm">
+                            <a class="text-blue-600 hover:underline" href="{% url 'console:aibroker-call-log-detail' row.id %}">{{ row.id }}</a>
+                        </td>
+                        <td class="text-sm max-w-xs" title="{{ row.reg_label|escape }}">
+                            <span class="break-words">{{ row.reg_label }}</span>
+                        </td>
+                        <td class="text-sm max-w-xs truncate text-gray-800" title="{{ row.template_label|escape }}">{{ row.template_label }}</td>
+                        <td class="text-sm max-w-[10rem] truncate" title="{{ row.provider_label|escape }}">{{ row.provider_label }}</td>
+                        <td class="text-sm max-w-xs truncate text-gray-700" title="{{ row.model_label|escape }}">{{ row.model_label }}</td>
+                        <td class="text-sm">{{ row.latency_ms }} 毫秒</td>
+                        <td>
+                            {% if row.success == 1 %}
+                            <span class="badge badge-success">{{ row.success_label }}</span>
+                            {% else %}
+                            <span class="badge badge-danger">{{ row.success_label }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm whitespace-nowrap">{{ row.ct_fmt }}</td>
+                        <td>
+                            <div class="flex gap-1 items-center flex-wrap">
+                                <button type="button" class="btn btn-danger btn-icon" title="删除" onclick="submitCallLogDelete({{ row.id }})">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="10" class="empty-state py-8 text-center text-gray-500">暂无数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for row in logs %}
+<form id="call-log-del-{{ row.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="log_id" value="{{ row.id }}">
+    <input type="hidden" name="page" value="{{ page }}">
+</form>
+{% endfor %}
+
+<script>
+(function () {
+    var BULK_LOG_SEL = 'input.call-log-row-check[name="log_ids"]';
+
+    window.submitCallLogDelete = function (id) {
+        if (!confirm('确认删除该条调用日志？')) return;
+        var f = document.getElementById('call-log-del-' + id);
+        if (f) f.submit();
+    };
+
+    window.callLogsBulkDeleteConfirm = function () {
+        var boxes = document.querySelectorAll(BULK_LOG_SEL + ':checked');
+        if (!boxes.length) {
+            return false;
+        }
+        if (!confirm('确认删除选中的 ' + boxes.length + ' 条调用日志？')) {
+            return false;
+        }
+        return true;
+    };
+
+    function syncCallLogBulkUi() {
+        var submitBtn = document.getElementById('call-logs-bulk-submit');
+        var allBox = document.getElementById('call-log-check-all');
+        if (!submitBtn) return;
+        var rowBoxes = document.querySelectorAll(BULK_LOG_SEL);
+        var checked = document.querySelectorAll(BULK_LOG_SEL + ':checked');
+        submitBtn.disabled = checked.length === 0;
+        if (allBox && rowBoxes.length) {
+            allBox.checked = checked.length === rowBoxes.length;
+            allBox.indeterminate = checked.length > 0 && checked.length < rowBoxes.length;
+        }
+    }
+
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.id === 'call-log-check-all') {
+            var on = e.target.checked;
+            document.querySelectorAll(BULK_LOG_SEL).forEach(function (cb) {
+                cb.checked = on;
+            });
+            syncCallLogBulkUi();
+            return;
+        }
+        if (e.target && e.target.classList && e.target.classList.contains('call-log-row-check')) {
+            syncCallLogBulkUi();
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', syncCallLogBulkUi);
+})();
+</script>
+{% endblock %}

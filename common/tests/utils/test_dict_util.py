@@ -303,3 +303,62 @@ class Test(TestCase):
         expected_result = ({}, "")
         actual_result = sort_and_hash(given_dict)
         self.assertEqual(expected_result, actual_result)
+
+    def test_get_at_path(self):
+        from common.utils.dict_util import get_at_path
+
+        d = {"a": {"b": 1}}
+        self.assertEqual(get_at_path(d, "a.b"), (1, True))
+        self.assertEqual(get_at_path(d, "a"), ({"b": 1}, True))
+        self.assertEqual(get_at_path(d, "a.c"), (None, False))
+        self.assertEqual(get_at_path(d, "x"), (None, False))
+
+        self.assertEqual(get_at_path(d, "a/b", sep="/"), (1, True))
+        nested = {"x": {"y": {"z": 2}}}
+        self.assertEqual(get_at_path(nested, "x/y/z", sep="/"), (2, True))
+
+        bad = {"a": []}
+        self.assertEqual(get_at_path(bad, "a.b"), (None, False))
+
+        with self.assertRaises(ValueError):
+            get_at_path(d, "")
+        with self.assertRaises(ValueError):
+            get_at_path(d, "a..b")
+        with self.assertRaises(ValueError):
+            get_at_path(d, "a", sep="")
+
+    def test_ensure_parent_for_path(self):
+        from common.utils.dict_util import ensure_parent_for_path
+
+        root: dict = {}
+        parent, leaf = ensure_parent_for_path(root, "a.b.c")
+        self.assertIs(parent, root["a"]["b"])
+        self.assertEqual(leaf, "c")
+
+        single: dict = {}
+        p1, k1 = ensure_parent_for_path(single, "z")
+        self.assertIs(p1, single)
+        self.assertEqual(k1, "z")
+
+        slash: dict = {}
+        p2, k2 = ensure_parent_for_path(slash, "a/b", sep="/")
+        self.assertIs(p2, slash["a"])
+        self.assertEqual(k2, "b")
+
+    def test_set_at_path(self):
+        from common.utils.dict_util import set_at_path
+
+        root = {}
+        ret = set_at_path(root, "foo.bar", 9)
+        self.assertIs(ret, root)
+        self.assertEqual(root, {"foo": {"bar": 9}})
+
+        set_at_path(root, "foo.bar", 10)
+        self.assertEqual(root["foo"]["bar"], 10)
+
+        set_at_path(root, "left/right", 7, sep="/")
+        self.assertEqual(root["left"], {"right": 7})
+
+        root2 = {"p": 1}
+        set_at_path(root2, "p.q", 3)
+        self.assertEqual(root2, {"p": {"q": 3}})

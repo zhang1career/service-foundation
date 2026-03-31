@@ -1,6 +1,7 @@
 import logging
 import uuid
 from dataclasses import asdict
+from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 
 from django.conf import settings
@@ -19,6 +20,47 @@ from common.utils.url_util import url_decode
 
 
 logger = logging.getLogger(__name__)
+
+
+def parse_http_target(base_url: str) -> tuple[str, int, bool]:
+    """
+    Parse a base URL (or host) into (host, port, use_tls) for http.client connections.
+    Scheme-less input defaults to https. Only http/https are treated as TLS vs plain;
+    other schemes get use_tls=False and default port 80 when omitted.
+    """
+    s = (base_url or "").strip()
+    if not s:
+        raise RuntimeError("base_url is required")
+    if "://" not in s:
+        s = "https://" + s
+    parsed = urlparse(s)
+    host = parsed.hostname
+    if not host:
+        raise RuntimeError(f"invalid base_url: {base_url!r}")
+    scheme = (parsed.scheme or "https").lower()
+    use_tls = scheme == "https"
+    port = parsed.port
+    if port is None:
+        port = 443 if use_tls else 80
+    return host, port, use_tls
+
+
+def normalize_http_path(path: str) -> str:
+    """
+    Strip and ensure an absolute request-target (leading '/') for http.client.request.
+    """
+    p = path.strip()
+    if not p:
+        raise RuntimeError("request path is empty")
+    return p if p.startswith("/") else "/" + p
+
+
+def http_origin_url(host: str, port: int, use_tls: bool) -> str:
+    """Build origin URL (scheme + netloc, no path) for httpx full URL assembly."""
+    scheme = "https" if use_tls else "http"
+    if (use_tls and port == 443) or (not use_tls and port == 80):
+        return f"{scheme}://{host}"
+    return f"{scheme}://{host}:{port}"
 
 
 def response_as_dict(obj: Response) -> dict:
@@ -207,6 +249,16 @@ class UnifiedExceptionMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
+    @staticmethod
+    def _html_error_detail(request, exception) -> str:
+        """控制台 HTML 页在 DEBUG=False 时也返回可诊断摘要，便于无日志环境排错。"""
+        if settings.DEBUG:
+            return repr(exception)
+        path = getattr(request, "path", "") or ""
+        if path.startswith("/console/"):
+            return f"{type(exception).__name__}: {exception}"
+        return ""
+
     def __call__(self, request):
         return self.get_response(request)
 
@@ -239,7 +291,12 @@ class UnifiedExceptionMiddleware:
                 exception.detail,
                 extra={"request_id": request_id},
             )
-            detail_out = exception.detail if settings.DEBUG else ""
+            if settings.DEBUG:
+                detail_out = exception.detail
+            elif (getattr(request, "path", "") or "").startswith("/console/"):
+                detail_out = f"unchecked: {type(exception).__name__}: {exception}"
+            else:
+                detail_out = ""
             return self._respond(
                 request,
                 resp_err(
@@ -257,7 +314,9 @@ class UnifiedExceptionMiddleware:
             exception,
             extra={"request_id": request_id},
         )
-        detail_out = repr(exception) if settings.DEBUG else ""
+        detail_out = self._html_error_detail(request, exception)
+        if settings.DEBUG and not detail_out:
+            detail_out = repr(exception)
         return self._respond(
             request,
             resp_err(

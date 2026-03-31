@@ -1,9 +1,24 @@
 import logging
 import time
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
 from app_aibroker.services.llm_client_service import create_embedding
+from app_aibroker.services.ai_model_param_specs_wire import (
+    wire_param_children,
+    wire_param_name,
+    wire_param_type,
+)
+from app_aibroker.services.text_generation_service import (
+    _apply_model_param_placeholders,
+    _apply_spec_x_to_merged,
+    _coerce_model_params,
+    _flatten_ai_model_param_specs_for_coerce,
+    _load_ai_model_param_specs_tree,
+    _merge_model_param_defaults,
+    _normalize_coerce_flat_type,
+)
+from common.utils.nested_typed_tree_util import wrap_object_array_dict_branches_as_single_element_lists
 from common.consts.response_const import RET_AI_ERROR, RET_INVALID_PARAM
 
 logger = logging.getLogger(__name__)
@@ -47,6 +62,7 @@ def list_models_for_provider(provider_id: int):
 def embed_text(
         reg: "Reg",
         payload: dict,
+        model_api_kwargs: Optional[dict[str, Any]] = None,
 ) -> Tuple[dict, Optional[str], Optional[int]]:
     """
     Returns (result_dict, error_message, error_code).
@@ -71,6 +87,11 @@ def embed_text(
 
     model_id = payload.get("model_id")
     provider_id = payload.get("provider_id")
+
+    extra = dict(model_api_kwargs or {})
+    body_raw: dict[str, Any] = {**extra, "input": raw_input.strip()}
+    if dimensions is not None:
+        body_raw["dimensions"] = dimensions
 
     model = None
     if model_id:
@@ -97,11 +118,39 @@ def embed_text(
                 RET_AI_ERROR,
             )
 
+    specs = _flatten_ai_model_param_specs_for_coerce(
+        _load_ai_model_param_specs_tree(model.param_specs)
+    )
+    if not specs:
+        request_body: dict[str, Any] = {"input": body_raw["input"]}
+        if dimensions is not None:
+            request_body["dimensions"] = dimensions
+    else:
+        merged = _merge_model_param_defaults(body_raw, specs)
+        _apply_spec_x_to_merged(merged, specs, "model", model.model_name)
+        coerced, coerce_err = _coerce_model_params(merged, specs)
+        if coerce_err:
+            return {}, coerce_err, RET_INVALID_PARAM
+        placeholder_err = _apply_model_param_placeholders(
+            coerced, specs, extra, body_raw["input"], synthetic_key="input"
+        )
+        if placeholder_err:
+            return {}, placeholder_err, RET_INVALID_PARAM
+        wrap_object_array_dict_branches_as_single_element_lists(
+            _load_ai_model_param_specs_tree(model.param_specs),
+            coerced,
+            get_local_name=wire_param_name,
+            get_type_tag=wire_param_type,
+            get_child_list=wire_param_children,
+            normalize_type_tag=_normalize_coerce_flat_type,
+        )
+        request_body = coerced
+
     started = time.perf_counter()
     err_msg = None
     vec: Optional[List[float]] = None
     try:
-        vec = create_embedding(provider, model, raw_input.strip(), dimensions=dimensions)
+        vec = create_embedding(provider, model, request_body)
     except Exception as exc:
         logger.exception("[aibroker] embedding failed")
         err_msg = str(exc)

@@ -4,11 +4,11 @@
 
 ## 变量与 schema
 
-- [ ] **`input_variables` 未参与运行时**：字段已存库，生成路径未按 schema 校验 `variables`（类型、必填、枚举等）。建议在保存与调用前校验，避免线上才因 `format` 或语义错误失败。
+- [ ] **`param_specs` 未参与运行时**：字段已存库，生成路径未按 schema 校验 `variables`（类型、必填、枚举等）。建议在保存与调用前校验，避免线上才因 `format` 或语义错误失败。
 
 ## 输出约束
 
-- [ ] **`output_variables` 校验过弱**：仅检查 `[{"name":...}]` 所列键在模型 JSON 对象上存在，无完整 JSON Schema（类型、嵌套、格式）。
+- [ ] **`resp_specs` 校验过弱**：仅检查 `[{"name":...}]` 所列键在模型 JSON 对象上存在，无完整 JSON Schema（类型、嵌套、格式）。
 - [ ] **校验失败无恢复路径**：无自动重试或带 schema 违例信息的纠错再生成；可与模型原生 structured output / JSON mode 对齐。
 
 ## 对话与 API 形态
@@ -31,4 +31,4 @@
 
 ---
 
-*来源：对当前 `template_render_service`、`text_generation_service`、`llm_client_service`、`PromptTemplate` 模型与 `AigcBestAPI.chat` 行为的代码审阅归纳。*
+*来源：对当前 `template_render_service`、`text_generation_service`、`llm_client_service`、`PromptTemplate` 模型与 `AigcBestAPI.invoke` 行为的代码审阅归纳。*

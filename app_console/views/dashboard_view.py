@@ -59,7 +59,7 @@ class DashboardView(TemplateView):
             'aibroker': {
                 'name': 'AI Broker',
                 'enabled': getattr(settings, 'APP_AIBROKER_ENABLED', False),
-                'description': '统一 LLM 调用、提示模板与调用方凭证',
+                'description': '统一 LLM 调用、提示词模版与调用方凭证',
                 'icon': 'sparkles',
             },
             'searchrec': {

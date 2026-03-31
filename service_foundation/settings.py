@@ -361,7 +361,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Shanghai"
 
 USE_I18N = True
 
@@ -408,10 +408,12 @@ if _log_handler == "logfile":
         )
         _log_handler = "console"
 
+# StreamHandler：不在生产环境使用 RequireDebugTrue，否则 DEBUG=False 时（常见 Docker 部署）
+# 所有走 console handler 的 app_* / 自定义 logger 日志会被丢弃，docker logs 看不到排错信息。
 _logging_handlers = {
     "console": {
         "level": "DEBUG",
-        "filters": ["request_id", "require_debug_true"],
+        "filters": ["request_id"],
         "class": "logging.StreamHandler",
         "formatter": "simple",
     }
@@ -442,17 +444,23 @@ LOGGING = {
         },
     },
     "filters": {
-        'request_id': {
-            '()': 'log_request_id.filters.RequestIDFilter'
+        "request_id": {
+            "()": "log_request_id.filters.RequestIDFilter",
         },
-        "require_debug_true": {
-            "()": "django.utils.log.RequireDebugTrue",
-        }
     },
     "handlers": _logging_handlers,
     "loggers": {
+        "django.request": {
+            "level": "ERROR",
+            "handlers": [_log_handler],
+            "propagate": False,
+        },
         "django.db.backends": {
             "level": env("LOG_LEVEL_DJANGO_DB", default="INFO"),
+            "handlers": [_log_handler],
+        },
+        "app_console": {
+            "level": env("LOG_LEVEL_APP_CONSOLE", default="INFO"),
             "handlers": [_log_handler],
         },
         "service_foundation": {
@@ -512,6 +520,9 @@ REQUEST_ID_RESPONSE_HEADER = "X_Request_Id"
 
 # Internal HTTP integration
 AIBROKER_SERVICE_URL = env("AIBROKER_SERVICE_URL", default="http://127.0.0.1:8000/api/ai")
+# Console「调试」调用写入 call_log 时使用的 reg 主键；须在 aibroker 库中存在对应调用方
+AIBROKER_REG_ID_TEST = env.int("AIBROKER_REG_ID_TEST", default=0)
+AI_PROVIDER_ID_GET_VIDEO = env.int("AI_PROVIDER_ID_GET_VIDEO", default=0)
 PROMPT_TEMPLATE_ID_ASK_AND_ANSWER = env.int("PROMPT_TEMPLATE_ID_ASK_AND_ANSWER", default=0)
 PROMPT_TEMPLATE_ID_SUMMARY = env.int("PROMPT_TEMPLATE_ID_SUMMARY", default=0)
 PROMPT_TEMPLATE_ID_RELATION_EXTRACT = env.int("PROMPT_TEMPLATE_ID_RELATION_EXTRACT", default=0)
@@ -529,6 +540,10 @@ USER_NOTICE_ACCESS_KEY = env("USER_NOTICE_ACCESS_KEY", default="")
 USER_OSS_ENDPOINT = env("USER_OSS_ENDPOINT", default="http://127.0.0.1:8000/api/oss")
 USER_OSS_BUCKET = env("USER_OSS_BUCKET", default="user-avatar")
 
+# AI Broker multimodal: HTTP PUT to app_oss (S3-compatible), same host or peer URL as USER_OSS.
+AIBROKER_OSS_ENDPOINT = env("AIBROKER_OSS_ENDPOINT", default="http://127.0.0.1:8000/api/oss")
+AIBROKER_OSS_BUCKET = env("AIBROKER_OSS_BUCKET", default="aibroker-mm")
+
 USER_VERIFY_ACCESS_KEY = env("USER_VERIFY_ACCESS_KEY", default="")
 
 # HTTP client pools (httpx)
@@ -540,6 +555,7 @@ HTTPX_DEFAULT_TIMEOUT = env.float("HTTPX_DEFAULT_TIMEOUT", default=30.0)
 HTTPX_AVATAR_MAX_CONNECTIONS = env.int("HTTPX_AVATAR_MAX_CONNECTIONS", default=32)
 HTTPX_WEBHOOK_MAX_CONNECTIONS = env.int("HTTPX_WEBHOOK_MAX_CONNECTIONS", default=64)
 HTTPX_THIRDPARTY_MAX_CONNECTIONS = env.int("HTTPX_THIRDPARTY_MAX_CONNECTIONS", default=64)
+HTTPX_AIGC_MAX_CONNECTIONS = env.int("HTTPX_AIGC_MAX_CONNECTIONS", default=32)
 
 # Search recommendation baseline config
 SEARCHREC_INDEX_BACKEND = env("SEARCHREC_INDEX_BACKEND", default="memory")

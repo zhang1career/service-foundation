@@ -1,20 +1,9 @@
 from django.http import Http404
 from django.views.generic import TemplateView
 
+from app_console.utils import format_epoch_ms_for_display
 from app_know.repos.batch_repo import get_batch_detail
 from app_know.utils.knowledge_point_dict import get_knowledge_point_detail_dict
-
-
-def _format_ts(ts):
-    """Format timestamp (ms) for display."""
-    if not ts or ts <= 0:
-        return '-'
-    from datetime import datetime
-    try:
-        dt = datetime.fromtimestamp(ts / 1000.0)
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
-    except (ValueError, OSError):
-        return '-'
 
 
 class KnowListView(TemplateView):
@@ -42,8 +31,8 @@ class KnowPointDetailView(TemplateView):
         context['point_data'] = getattr(self, 'point_data', None)
         if context['point_data']:
             d = context['point_data']
-            d['ct_fmt'] = _format_ts(d.get('ct'))
-            d['ut_fmt'] = _format_ts(d.get('ut'))
+            d['ct_fmt'] = format_epoch_ms_for_display(d.get('ct'))
+            d['ut_fmt'] = format_epoch_ms_for_display(d.get('ut'))
         return context
 
 
@@ -115,8 +104,8 @@ class KnowBatchDetailView(TemplateView):
         context['batch_data'] = getattr(self, 'batch_data', None)
         show_know_list_btn = False
         if context['batch_data']:
-            context['batch_data']['ct_fmt'] = _format_ts(context['batch_data'].get('ct'))
-            context['batch_data']['ut_fmt'] = _format_ts(context['batch_data'].get('ut'))
+            context['batch_data']['ct_fmt'] = format_epoch_ms_for_display(context['batch_data'].get('ct'))
+            context['batch_data']['ut_fmt'] = format_epoch_ms_for_display(context['batch_data'].get('ut'))
             try:
                 sc = int(context['batch_data'].get('sentence_count') or 0)
             except (TypeError, ValueError):
@@ -152,8 +141,8 @@ class KnowBatchEditView(TemplateView):
         context['entity_id'] = entity_id
         context['batch_data'] = getattr(self, 'batch_data', None)
         if context['batch_data']:
-            context['batch_data']['ct_fmt'] = _format_ts(context['batch_data'].get('ct'))
-            context['batch_data']['ut_fmt'] = _format_ts(context['batch_data'].get('ut'))
+            context['batch_data']['ct_fmt'] = format_epoch_ms_for_display(context['batch_data'].get('ct'))
+            context['batch_data']['ut_fmt'] = format_epoch_ms_for_display(context['batch_data'].get('ut'))
         context.update(get_edit_return_context(
             list_url_name='console:know-batch-list',
             list_label='返回批次列表',

@@ -1,18 +1,18 @@
 {% extends 'console/base.html' %}
 
-{% block title %}AI Broker — 提供商{% endblock %}
+{% block title %}AI Broker — 供应商{% endblock %}
 {% block page_title %}AI Broker{% endblock %}
 
 {% block content %}
 {% include 'console/includes/aibroker_subnav.html' %}
 
 <div class="mb-6">
-    <p class="text-gray-600">配置 LLM 上游：名称、Base URL、API Key。停用后不再用于路由。</p>
+    <p class="text-gray-600">配置 LLM 上游：<strong>连接主机</strong>（<code class="text-xs">base_url</code>）与 <strong>HTTP 路径</strong>（<code class="text-xs">url_path</code>）。对话模型填如 <code class="text-xs">/v1/chat/completions</code>；仅用于嵌入的供应商填 <code class="text-xs">/v1/embeddings</code>（或上游实际路径）。</p>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h2 class="text-lg font-semibold">提供商列表</h2>
+        <h2 class="text-lg font-semibold">供应商列表</h2>
         <button type="button" class="btn btn-primary btn-sm" onclick="openProvCreateModal()">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
             新增
@@ -25,7 +25,8 @@
                     <tr>
                         <th>ID</th>
                         <th>名称</th>
-                        <th>Base URL</th>
+                        <th>连接主机</th>
+                        <th>HTTP 路径</th>
                         <th>状态</th>
                         <th>操作</th>
                     </tr>
@@ -33,9 +34,14 @@
                 <tbody>
                     {% for p in providers %}
                     <tr>
-                        <td class="font-mono text-sm">{{ p.id }}</td>
-                        <td class="font-medium">{{ p.name }}</td>
-                        <td class="break-all text-sm max-w-md"><a href="{{ p.base_url }}" class="text-blue-600 hover:underline" target="_blank" rel="noopener">{{ p.base_url }}</a></td>
+                        <td class="font-mono text-sm">
+                            <a href="{% url 'console:aibroker-models' p.id %}" class="text-blue-600 hover:underline">{{ p.id }}</a>
+                        </td>
+                        <td class="font-medium">
+                            <a href="{% url 'console:aibroker-provider-detail' p.id %}" class="text-blue-600 hover:underline">{{ p.name }}</a>
+                        </td>
+                        <td class="break-all text-sm max-w-md"><span class="font-mono text-xs">{{ p.base_url }}</span></td>
+                        <td class="break-all text-sm font-mono text-xs">{{ p.url_path }}</td>
                         <td class="align-middle">
                             <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
                                 <span class="console-toggle-wrap">
@@ -47,11 +53,11 @@
                         </td>
                         <td>
                             <div class="flex gap-1 items-center flex-wrap">
-                                <a href="{% url 'console:aibroker-models' p.id %}" class="btn btn-outline btn-sm" title="模型">模型</a>
                                 <button type="button" class="btn btn-outline btn-icon" title="编辑"
                                         data-id="{{ p.id }}"
                                         data-name="{{ p.name|escape }}"
                                         data-base-url="{{ p.base_url|escape }}"
+                                        data-url-path='{{ p.url_path|escape }}'
                                         onclick="openProvEditModal(this)">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 </button>
@@ -62,7 +68,7 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无数据</td></tr>
+                    <tr><td colspan="6" class="empty-state py-8 text-center text-gray-500">暂无数据</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -86,7 +92,7 @@
 
 <div id="prov-create-modal" class="modal-backdrop hidden">
     <div class="modal-content">
-        <div class="modal-header"><h3 class="text-lg font-semibold">新增提供商</h3></div>
+        <div class="modal-header"><h3 class="text-lg font-semibold">新增供应商</h3></div>
         <form method="post">
             {% csrf_token %}
             <input type="hidden" name="action" value="create">
@@ -96,8 +102,12 @@
                     <input type="text" id="prov-c-name" name="name" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="prov-c-url">Base URL *</label>
-                    <input type="text" id="prov-c-url" name="base_url" class="form-input" placeholder="https://api.openai.com/v1" required>
+                    <label class="form-label" for="prov-c-url">连接主机 (base_url) *</label>
+                    <input type="text" id="prov-c-url" name="base_url" class="form-input" placeholder="https://api2.aigcbest.top" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="prov-c-path">HTTP 路径 (url_path)</label>
+                    <input type="text" id="prov-c-path" name="url_path" class="form-input" placeholder="/v1/chat/completions 或 /v1/embeddings" value="/v1/chat/completions">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="prov-c-key">API Key *</label>
@@ -114,7 +124,7 @@
 
 <div id="prov-edit-modal" class="modal-backdrop hidden">
     <div class="modal-content">
-        <div class="modal-header"><h3 class="text-lg font-semibold">编辑提供商</h3></div>
+        <div class="modal-header"><h3 class="text-lg font-semibold">编辑供应商</h3></div>
         <form method="post">
             {% csrf_token %}
             <input type="hidden" name="action" value="update">
@@ -125,8 +135,12 @@
                     <input type="text" id="prov-e-name" name="name" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="prov-e-url">Base URL *</label>
+                    <label class="form-label" for="prov-e-url">连接主机 (base_url) *</label>
                     <input type="text" id="prov-e-url" name="base_url" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="prov-e-path">HTTP 路径 (url_path) *</label>
+                    <input type="text" id="prov-e-path" name="url_path" class="form-input" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="prov-e-key">API Key（留空则不修改）</label>
@@ -154,6 +168,7 @@
         document.getElementById('prov-e-id').value = d.id;
         document.getElementById('prov-e-name').value = d.name || '';
         document.getElementById('prov-e-url').value = d.baseUrl || '';
+        document.getElementById('prov-e-path').value = d.urlPath || '/v1/chat/completions';
         document.getElementById('prov-e-key').value = '';
         document.getElementById('prov-edit-modal').classList.remove('hidden');
     };

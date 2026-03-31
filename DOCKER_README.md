@@ -14,7 +14,6 @@
 ```
 .
 ├── Dockerfile                   # Docker镜像构建文件
-├── docker-compose.yml           # 部署配置
 ├── docker-build.sh              # 构建脚本
 ├── docker-entrypoint.sh         # 容器启动脚本
 ├── requirements.txt             # Python依赖
@@ -41,22 +40,13 @@
 
 ### 3. 启动服务
 
-```bash
-# 启动服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f service_foundation
-
-# 停止服务
-docker-compose down
-```
+本仓库不再维护 `docker-compose.yml`，由你的部署环境（自有 compose、Swarm、K8s 等）引用已构建的镜像并配置卷、环境变量与网络。
 
 ### 4. 环境配置
 
 #### 环境变量
 
-可以通过 `docker-compose.yml` 中的 `environment` 部分配置环境变量，或者创建 `.env.prod` 文件：
+可通过运行时的环境变量、挂载的 `.env` / `.env.prod` 等配置：
 
 ```bash
 # .env.prod 示例
@@ -114,8 +104,8 @@ ports:
 
 **邮件服务器日志**：
 - 邮件服务器的日志会输出到 `${LOG_DIR}/mail_server.log`
-- 可以通过 `docker-compose logs -f service_foundation` 查看所有服务日志
-- 单独查看邮件服务器日志：`docker-compose exec service_foundation tail -f /var/log/serv-fd/mail_server.log`
+- 应用日志：`docker logs -f <容器名>`（`<容器名>` 以你的运行时为准）
+- 单独查看邮件服务器日志：`docker exec <容器名> tail -f ${LOG_DIR:-/var/log/serv-fd}/mail_server.log`
 
 ### 5. 访问应用
 
@@ -141,37 +131,31 @@ ports:
 
 ### 6. 常用操作
 
-```bash
-# 查看运行状态
-docker-compose ps
+以下用 `<容器名>` 指运行中的实例，请按 `docker ps` 或你的编排里实际名称替换。
 
+```bash
 # 查看应用日志
-docker-compose logs -f service_foundation
+docker logs -f <容器名>
 
 # 进入容器
-docker-compose exec service_foundation bash
+docker exec -it <容器名> bash
 
-# 执行Django管理命令
-docker-compose exec service_foundation python manage.py migrate
-docker-compose exec service_foundation python manage.py createsuperuser
-docker-compose exec service_foundation python manage.py collectstatic
+# 执行 Django 管理命令
+docker exec <容器名> python manage.py migrate
+docker exec <容器名> python manage.py createsuperuser
+docker exec <容器名> python manage.py collectstatic
 
-# 邮件服务器管理命令（如果需要在容器内手动启动）
-docker-compose exec service_foundation python manage.py start_mail_server
-docker-compose exec service_foundation python manage.py start_mail_server --smtp-only  # 仅启动 SMTP
-docker-compose exec service_foundation python manage.py start_mail_server --imap-only  # 仅启动 IMAP
+# 邮件服务器管理命令（如需在容器内手动启动）
+docker exec <容器名> python manage.py start_mail_server
+docker exec <容器名> python manage.py start_mail_server --smtp-only
+docker exec <容器名> python manage.py start_mail_server --imap-only
 
 # 查看邮件服务器日志
-docker-compose exec service_foundation tail -f /var/log/serv-fd/mail_server.log
+docker exec <容器名> tail -f ${LOG_DIR:-/var/log/serv-fd}/mail_server.log
 
-# 重启服务
-docker-compose restart service_foundation
-
-# 停止并删除容器（保留数据卷）
-docker-compose down
-
-# 停止并删除容器和数据卷
-docker-compose down -v
+# 重启 / 停止（无 compose 时由运行时或编排负责）
+docker restart <容器名>
+docker stop <容器名>
 ```
 
 ### 7. 生产环境注意事项
@@ -195,7 +179,7 @@ docker-compose down -v
    - 根据业务需求配置限流和熔断策略
 
 5. **日志**：
-   - Django的日志会输出到stdout/stderr，可通过 `docker-compose logs` 查看
+   - Django 的日志会输出到 stdout/stderr，可通过 `docker logs` 查看
    - 日志目录 `./docker/log/` 用于其他日志文件
 
 6. **网络**：
@@ -204,7 +188,7 @@ docker-compose down -v
 
 7. **首次启动**：
    - 首次启动时，容器会自动运行数据库迁移
-   - 如果需要创建超级用户，使用：`docker-compose exec service_foundation python manage.py createsuperuser`
+   - 如需创建超级用户：`docker exec <容器名> python manage.py createsuperuser`
 
 8. **性能考虑**：
    - Django开发服务器是单线程的，不适合高并发场景

@@ -14,8 +14,8 @@ def _tpl_dict(t):
         "constraint_type": t.constraint_type,
         "description": t.description,
         "body": t.body,
-        "input_variables": t.input_variables,
-        "output_variables": t.output_variables,
+        "param_specs": t.param_specs,
+        "resp_specs": t.resp_specs,
         "status": t.status,
         "ct": t.ct,
         "ut": t.ut,
@@ -35,8 +35,8 @@ class TemplateAdminService:
             constraint_type=constraint_type,
             body=body,
             description=(payload.get("description") or "").strip(),
-            input_variables=payload.get("input_variables"),
-            output_variables=payload.get("output_variables"),
+            param_specs=payload.get("param_specs"),
+            resp_specs=payload.get("resp_specs"),
             status=int(payload.get("status", 1)),
         )
         return _tpl_dict(t)
@@ -61,8 +61,8 @@ class TemplateAdminService:
             description=(payload.get("description") or "").strip()
             if "description" in payload
             else None,
-            input_variables=payload.get("input_variables") if "input_variables" in payload else None,
-            output_variables=payload.get("output_variables") if "output_variables" in payload else None,
+            param_specs=payload.get("param_specs") if "param_specs" in payload else None,
+            resp_specs=payload.get("resp_specs") if "resp_specs" in payload else None,
             status=int(payload["status"]) if "status" in payload else None,
         )
         if not t:

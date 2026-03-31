@@ -74,10 +74,18 @@ urlpatterns = [
 
 if getattr(settings, "APP_AIBROKER_ENABLED", False):
     from app_console.views.aibroker_view import (
+        AibrokerCallLogConsoleView,
+        AibrokerCallLogDetailConsoleView,
+        AibrokerDebugConsoleView,
+        AibrokerDebugInvokeView,
+        AibrokerDebugVideoResultView,
+        AibrokerDebugUploadImageView,
         AibrokerModelConsoleView,
+        AibrokerModelDetailConsoleView,
         AibrokerPromptTemplateConsoleView,
         AibrokerPromptTemplateDetailConsoleView,
         AibrokerProviderConsoleView,
+        AibrokerProviderDetailConsoleView,
         AibrokerRegConsoleView,
     )
 
@@ -86,9 +94,19 @@ if getattr(settings, "APP_AIBROKER_ENABLED", False):
             path("aibroker/", AibrokerRegConsoleView.as_view(), name="aibroker-regs"),
             path("aibroker/providers/", AibrokerProviderConsoleView.as_view(), name="aibroker-providers"),
             path(
+                "aibroker/providers/<int:provider_id>/",
+                AibrokerProviderDetailConsoleView.as_view(),
+                name="aibroker-provider-detail",
+            ),
+            path(
                 "aibroker/providers/<int:provider_id>/models/",
                 AibrokerModelConsoleView.as_view(),
                 name="aibroker-models",
+            ),
+            path(
+                "aibroker/providers/<int:provider_id>/models/<int:model_id>/",
+                AibrokerModelDetailConsoleView.as_view(),
+                name="aibroker-model-detail",
             ),
             path(
                 "aibroker/templates/<int:template_id>/",
@@ -100,5 +118,15 @@ if getattr(settings, "APP_AIBROKER_ENABLED", False):
                 AibrokerPromptTemplateConsoleView.as_view(),
                 name="aibroker-prompt-templates",
             ),
+            path("aibroker/debug/invoke/", AibrokerDebugInvokeView.as_view(), name="aibroker-debug-invoke"),
+            path("aibroker/debug/video-result/", AibrokerDebugVideoResultView.as_view(), name="aibroker-debug-video-result"),
+            path("aibroker/debug/upload-image/", AibrokerDebugUploadImageView.as_view(), name="aibroker-debug-upload-image"),
+            path("aibroker/debug/", AibrokerDebugConsoleView.as_view(), name="aibroker-debug"),
+            path(
+                "aibroker/call-logs/<int:log_id>/",
+                AibrokerCallLogDetailConsoleView.as_view(),
+                name="aibroker-call-log-detail",
+            ),
+            path("aibroker/call-logs/", AibrokerCallLogConsoleView.as_view(), name="aibroker-call-logs"),
         ]
     )

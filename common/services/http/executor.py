@@ -1,10 +1,9 @@
+import httpx
 import json
 import logging
 import time
-from typing import Any, Dict, Optional
-
-import httpx
 from django.conf import settings
+from typing import Any, Dict, Optional
 
 from common.services.http.client import get_http_client
 
@@ -16,15 +15,15 @@ class HttpCallError(RuntimeError):
 
 
 def request_sync(
-    *,
-    method: str,
-    url: str,
-    pool_name: str = "thirdparty_pool",
-    headers: Optional[Dict[str, str]] = None,
-    params: Optional[Dict[str, Any]] = None,
-    json_body: Any = None,
-    data: Any = None,
-    timeout_sec: Optional[float] = None,
+        *,
+        method: str,
+        url: str,
+        pool_name: str = "thirdparty_pool",
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Any = None,
+        data: Any = None,
+        timeout_sec: Optional[float] = None,
 ) -> httpx.Response:
     client = get_http_client(pool_name=pool_name, timeout_sec=timeout_sec)
     start = time.perf_counter()
@@ -62,16 +61,16 @@ def request_sync(
 
 
 def request_async(
-    *,
-    method: str,
-    url: str,
-    pool_name: str = "thirdparty_pool",
-    queue_name: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None,
-    params: Optional[Dict[str, Any]] = None,
-    json_body: Any = None,
-    data: Any = None,
-    timeout_sec: Optional[float] = None,
+        *,
+        method: str,
+        url: str,
+        pool_name: str = "thirdparty_pool",
+        queue_name: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Any = None,
+        data: Any = None,
+        timeout_sec: Optional[float] = None,
 ) -> str:
     from common.tasks.http_tasks import execute_http_request_task
 

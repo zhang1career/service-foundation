@@ -1,9 +1,18 @@
-{# AI Broker 子导航 #}
-<nav class="flex flex-wrap gap-2 mb-6 border-b border-gray-200 pb-3">
+{% comment %}
+AI Broker 子导航（与用户中心 user_subnav.html 大号样式一致：激活项蓝底白字，未激活灰底）
+参数: aibroker_nav — regs | providers | models | templates | debug | call_logs
+{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex space-x-4 mb-6">
     <a href="{% url 'console:aibroker-regs' %}"
-       class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if aibroker_nav == 'regs' %}bg-blue-100 text-blue-800{% else %}text-gray-600 hover:bg-gray-100{% endif %}">调用方</a>
+       class="{{ base_cls }} {% if aibroker_nav == 'regs' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
     <a href="{% url 'console:aibroker-providers' %}"
-       class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if aibroker_nav == 'providers' or aibroker_nav == 'models' %}bg-blue-100 text-blue-800{% else %}text-gray-600 hover:bg-gray-100{% endif %}">提供商与模型</a>
+       class="{{ base_cls }} {% if aibroker_nav == 'providers' or aibroker_nav == 'models' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">供应商与模型</a>
     <a href="{% url 'console:aibroker-prompt-templates' %}"
-       class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if aibroker_nav == 'templates' %}bg-blue-100 text-blue-800{% else %}text-gray-600 hover:bg-gray-100{% endif %}">提示模板</a>
+       class="{{ base_cls }} {% if aibroker_nav == 'templates' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">提示词模版</a>
+    <a href="{% url 'console:aibroker-debug' %}"
+       class="{{ base_cls }} {% if aibroker_nav == 'debug' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用</a>
+    <a href="{% url 'console:aibroker-call-logs' %}"
+       class="{{ base_cls }} {% if aibroker_nav == 'call_logs' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用日志</a>
 </nav>
+{% endwith %}

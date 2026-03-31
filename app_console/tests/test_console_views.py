@@ -1,10 +1,31 @@
+import json
+
 from django.http import Http404
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
+from app_console.utils import embed_dict_as_json_script_body
 from app_console.views.cdn_view import CdnDistributionDetailView, CdnDistributionListView
 from app_console.views.dashboard_view import DashboardView
 from app_console.views.know_view import KnowPointDetailView
 from app_console.views.searchrec_view import SearchRecConsoleView
+
+
+class EmbedJsonScriptBodyTest(SimpleTestCase):
+    def test_object_array_like_nested_braces_round_trip(self):
+        inner = (
+            '[{"n":"messages","t":"OBJECT_ARRAY","r":{},'
+            '"c":[{"n":"role","t":"STRING","r":{}}]}]'
+        )
+        blob = embed_dict_as_json_script_body({"42": inner})
+        parsed = json.loads(str(blob))
+        self.assertEqual(parsed["42"], inner)
+
+    def test_escapes_angle_brackets_for_script_context(self):
+        raw = "</script><script>evil"
+        blob = embed_dict_as_json_script_body({"1": raw})
+        wire = str(blob)
+        self.assertNotIn("<script>", wire)
+        self.assertEqual(json.loads(wire)["1"], raw)
 
 
 class ConsoleViewsFunctionalTest(SimpleTestCase):

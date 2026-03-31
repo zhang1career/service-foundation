@@ -13,8 +13,8 @@ def create_template(
     constraint_type: int,
     body: str,
     description: str = "",
-    input_variables: str = None,
-    output_variables: str = None,
+    param_specs: str = None,
+    resp_specs: str = None,
     status: int = 1,
 ) -> PromptTemplate:
     now_ms = _now_ms()
@@ -24,8 +24,8 @@ def create_template(
         constraint_type=constraint_type,
         description=description,
         body=body,
-        input_variables=input_variables,
-        output_variables=output_variables,
+        param_specs=param_specs,
+        resp_specs=resp_specs,
         status=status,
         ct=now_ms,
         ut=now_ms,
@@ -60,8 +60,8 @@ def update_template(
     body: str = None,
     constraint_type: int = None,
     description: str = None,
-    input_variables: str = None,
-    output_variables: str = None,
+    param_specs: str = None,
+    resp_specs: str = None,
     status: int = None,
 ) -> Optional[PromptTemplate]:
     t = get_template(template_id)
@@ -77,12 +77,12 @@ def update_template(
     if description is not None:
         t.description = description
         fields.append("description")
-    if input_variables is not None:
-        t.input_variables = input_variables
-        fields.append("input_variables")
-    if output_variables is not None:
-        t.output_variables = output_variables
-        fields.append("output_variables")
+    if param_specs is not None:
+        t.param_specs = param_specs
+        fields.append("param_specs")
+    if resp_specs is not None:
+        t.resp_specs = resp_specs
+        fields.append("resp_specs")
     if status is not None:
         t.status = status
         fields.append("status")

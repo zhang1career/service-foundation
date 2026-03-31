@@ -53,6 +53,18 @@ def _to_dict_masked(reg):
     }
 
 
+def _to_dict_console(reg):
+    """管理后台列表用：与 notice/verify 控制台一致展示完整 access_key。"""
+    return {
+        "id": reg.id,
+        "name": reg.name,
+        "access_key": reg.access_key or "",
+        "status": reg.status,
+        "ct": reg.ct,
+        "ut": reg.ut,
+    }
+
+
 class RegService:
     @staticmethod
     def create_by_payload(payload: dict) -> dict:
@@ -66,6 +78,10 @@ class RegService:
     @staticmethod
     def list_all() -> list:
         return [_to_dict_masked(item) for item in list_regs()]
+
+    @staticmethod
+    def list_all_for_console() -> list:
+        return [_to_dict_console(item) for item in list_regs()]
 
     @staticmethod
     def get_one(reg_id: int) -> dict:

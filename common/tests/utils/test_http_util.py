@@ -1,6 +1,111 @@
 from unittest import TestCase
 
 
+class TestParseHttpTarget(TestCase):
+    def test_https_default_port_and_tls(self):
+        from common.utils.http_util import parse_http_target
+
+        h, p, tls = parse_http_target("https://api.example.com")
+        self.assertEqual(h, "api.example.com")
+        self.assertEqual(p, 443)
+        self.assertTrue(tls)
+
+    def test_http_default_port_no_tls(self):
+        from common.utils.http_util import parse_http_target
+
+        h, p, tls = parse_http_target("http://api.example.com")
+        self.assertEqual(h, "api.example.com")
+        self.assertEqual(p, 80)
+        self.assertFalse(tls)
+
+    def test_schemeless_defaults_to_https(self):
+        from common.utils.http_util import parse_http_target
+
+        h, p, tls = parse_http_target("api.example.com")
+        self.assertEqual(h, "api.example.com")
+        self.assertEqual(p, 443)
+        self.assertTrue(tls)
+
+    def test_explicit_ports(self):
+        from common.utils.http_util import parse_http_target
+
+        h, p, tls = parse_http_target("https://h.example:8443")
+        self.assertEqual(h, "h.example")
+        self.assertEqual(p, 8443)
+        self.assertTrue(tls)
+
+        h2, p2, tls2 = parse_http_target("http://h.example:8080")
+        self.assertEqual(h2, "h.example")
+        self.assertEqual(p2, 8080)
+        self.assertFalse(tls2)
+
+    def test_strips_whitespace(self):
+        from common.utils.http_util import parse_http_target
+
+        h, p, tls = parse_http_target("  https://x.test/path  ")
+        self.assertEqual(h, "x.test")
+        self.assertEqual(p, 443)
+        self.assertTrue(tls)
+
+    def test_empty_raises(self):
+        from common.utils.http_util import parse_http_target
+
+        with self.assertRaises(RuntimeError) as ctx:
+            parse_http_target("")
+        self.assertIn("required", str(ctx.exception).lower())
+
+        with self.assertRaises(RuntimeError):
+            parse_http_target("   ")
+
+    def test_invalid_no_host_raises(self):
+        from common.utils.http_util import parse_http_target
+
+        with self.assertRaises(RuntimeError) as ctx:
+            parse_http_target("https://")
+        self.assertIn("invalid", str(ctx.exception).lower())
+
+
+class TestNormalizeHttpPath(TestCase):
+    def test_keeps_absolute_path(self):
+        from common.utils.http_util import normalize_http_path
+
+        self.assertEqual(normalize_http_path("/v1/chat/completions"), "/v1/chat/completions")
+
+    def test_adds_leading_slash(self):
+        from common.utils.http_util import normalize_http_path
+
+        self.assertEqual(normalize_http_path("v1/embeddings"), "/v1/embeddings")
+
+    def test_strips_whitespace(self):
+        from common.utils.http_util import normalize_http_path
+
+        self.assertEqual(normalize_http_path("  /x/y  "), "/x/y")
+        self.assertEqual(normalize_http_path("  api  "), "/api")
+
+    def test_empty_raises(self):
+        from common.utils.http_util import normalize_http_path
+
+        with self.assertRaises(RuntimeError) as ctx:
+            normalize_http_path("")
+        self.assertIn("empty", str(ctx.exception).lower())
+
+        with self.assertRaises(RuntimeError):
+            normalize_http_path("   ")
+
+
+class TestHttpOriginUrl(TestCase):
+    def test_default_ports_omit_colon(self):
+        from common.utils.http_util import http_origin_url
+
+        self.assertEqual(http_origin_url("api.example.com", 443, True), "https://api.example.com")
+        self.assertEqual(http_origin_url("api.example.com", 80, False), "http://api.example.com")
+
+    def test_non_default_port_in_netloc(self):
+        from common.utils.http_util import http_origin_url
+
+        self.assertEqual(http_origin_url("h.test", 8443, True), "https://h.test:8443")
+
+
 class Test(TestCase):
 
     def setUp(self):

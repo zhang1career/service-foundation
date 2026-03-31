@@ -4,6 +4,7 @@ import types
 from unittest import TestCase
 from unittest.mock import patch
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIRequestFactory
 
 # Avoid importing heavy OpenAI dependency chain during test collection.
@@ -56,6 +57,35 @@ class AIBrokerViewsFunctionalTest(TestCase):
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_OK)
         self.assertEqual(payload["data"]["text"], "hello")
+
+    @patch("app_aibroker.views.text_view.generate_text")
+    @patch("app_aibroker.views.text_view.resolve_reg")
+    def test_text_generate_multipart_rejects_files(
+        self, resolve_reg_mock, generate_text_mock
+    ):
+        resolve_reg_mock.return_value = ({"id": 1}, None)
+        generate_text_mock.return_value = ({"text": "ok"}, None)
+        meta = {
+            "access_key": "k",
+            "template_id": 1,
+            "model_id": 2,
+            "variables": {},
+            "temperature": 0.5,
+        }
+        request = self.factory.post(
+            "/api/ai/v1/text/generate",
+            data={
+                "meta": json.dumps(meta),
+                "files": SimpleUploadedFile("x.jpg", b"\xff\xd8\xff", content_type="image/jpeg"),
+            },
+            format="multipart",
+        )
+        response = TextGenerateView.as_view()(request)
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
+        self.assertIn("files are not accepted", payload.get("message", ""))
+        generate_text_mock.assert_not_called()
 
     @patch("app_aibroker.views.embedding_view.embed_text")
     @patch("app_aibroker.views.embedding_view.resolve_reg")

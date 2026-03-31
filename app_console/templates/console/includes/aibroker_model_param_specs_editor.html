@@ -1,0 +1,29 @@
+{# prefix: 'c' | 'e' #}
+<div class="form-group mdl-ps-editor">
+    <label class="form-label">入参列表</label>
+    <div class="mdl-ps-col-head mdl-ps-row" aria-hidden="true">
+        <div class="mdl-ps-row-main">
+            <div class="mdl-ps-row-fields mdl-ps-col-head-inner">
+                <span class="mdl-ps-h-name">名称</span>
+                <span class="mdl-ps-h-desc">描述</span>
+                <span class="mdl-ps-h-type">类型</span>
+                <span class="mdl-ps-h-range">取值范围</span>
+                <span class="mdl-ps-h-x">占位符</span>
+                <span class="mdl-ps-h-default">默认值</span>
+            </div>
+        </div>
+        <div class="mdl-ps-row-actions mdl-ps-col-head-actions"></div>
+    </div>
+    <div id="mdl-{{ prefix }}-param-rows" class="mdl-ps-rows-root space-y-1"></div>
+    <div class="mdl-ps-footer-add mdl-ps-row mt-2">
+        <div class="mdl-ps-row-main">
+            <div class="mdl-ps-row-fields"></div>
+        </div>
+        <div class="mdl-ps-row-actions">
+            <button type="button" class="btn btn-icon tpl-name-list-icon-add" onclick="aibrokerMdlParamSpecsAddRow('{{ prefix }}')" title="添加" aria-label="添加入参">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            </button>
+        </div>
+    </div>
+    <input type="hidden" name="param_specs" id="mdl-{{ prefix }}-param-specs-hidden" value="[]">
+</div>

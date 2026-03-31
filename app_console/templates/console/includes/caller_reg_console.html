@@ -15,12 +15,12 @@
     </div>
     <div class="card-body p-0">
         <div class="overflow-x-auto">
-            <table class="data-table">
+            <table class="data-table caller-reg-list-table">
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>名称</th>
-                        <th class="min-w-[18rem]">Access Key</th>
+                        <th>Access Key</th>
                         <th>状态</th>
                         <th>操作</th>
                     </tr>
@@ -30,7 +30,7 @@
                     <tr>
                         <td class="font-mono text-sm">{{ reg.id }}</td>
                         <td class="font-medium">{{ reg.name|default:"-" }}</td>
-                        <td class="break-all text-sm font-mono min-w-[18rem] max-w-none">{{ reg.access_key }}</td>
+                        <td class="break-all text-sm font-mono caller-reg-access-key-cell">{{ reg.access_key }}</td>
                         <td class="align-middle">
                             <div class="flex items-center justify-center">
                                 <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">

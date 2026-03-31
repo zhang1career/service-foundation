@@ -15,13 +15,26 @@ def lowercase(param_str: str) -> str:
     return param_str.lower()
 
 
-def explode(data: str, symbol: str = ","):
+def explode(data: str | None, sep: str = ",") -> list[str]:
+    """Split *data* by *sep* (same rules as :meth:`str.split` without *maxsplit*).
+
+    Returns an empty list when *data* is ``None`` or ``""``. Does not strip;
+    whitespace-only strings are split normally.
+
+    :param data: String to split, or ``None``.
+    :param sep: Non-empty delimiter (default ``,``).
+    :raises TypeError: If *data* is not ``None`` and not a :class:`str`.
+    :raises ValueError: If *sep* is empty.
     """
-    逗号分隔（默认逗号）
-    """
+    if data is None:
+        return []
+    if not isinstance(data, str):
+        raise TypeError(f"explode expects str | None, got {type(data).__name__}")
     if not data:
         return []
-    return data.split(symbol)
+    if not sep:
+        raise ValueError("sep must be non-empty")
+    return data.split(sep)
 
 
 def implode(item_list: list, symbol: str = ","):

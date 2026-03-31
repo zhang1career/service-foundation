@@ -80,6 +80,18 @@ html.theme-dark .console-modal-content { background: #1f2937; border: 1px solid 
 html.theme-dark .modal-header,
 html.theme-dark .modal-footer { border-color: #374151; color: #e5e7eb; }
 
+/* AI Broker param_specs tree guides */
+html.theme-dark [data-mdl-ps-object-extras] { border-top-color: #4b5563; }
+html.theme-dark [data-mdl-ps-children] { border-left-color: #6b7280; }
+html.theme-dark [data-mdl-ps-children] > .mdl-ps-block > [data-mdl-ps-line]::before {
+    background-color: #6b7280;
+}
+html.theme-dark .mdl-ps-detail-row-nested { border-left-color: #6b7280; }
+html.theme-dark [data-mdl-ps-line] .mdl-ps-lock-shell--locked .form-input {
+    background-color: #374151;
+    opacity: 0.85;
+}
+
 /* 文本颜色 */
 html.theme-dark .text-gray-500 { color: #9ca3af; }
 html.theme-dark .text-gray-600 { color: #d1d5db; }

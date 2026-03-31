@@ -7,8 +7,8 @@ class PromptTemplate(models.Model):
     constraint_type = models.PositiveSmallIntegerField(default=0)  # 0 weak, 1 strong
     description = models.CharField(max_length=512, default="")
     body = models.TextField()
-    input_variables = models.TextField(null=True, blank=True)
-    output_variables = models.TextField(null=True, blank=True)
+    param_specs = models.TextField(null=True, blank=True)
+    resp_specs = models.TextField(null=True, blank=True)
     status = models.SmallIntegerField(default=1)
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)
