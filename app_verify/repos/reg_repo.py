@@ -1,16 +1,13 @@
-import time
+from __future__ import annotations
+
 import uuid
-from typing import Optional
 
 from app_verify.models import Reg
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def create_reg(name: str, status: int = 0) -> Reg:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     return Reg.objects.using("verify_rw").create(
         name=name,
         access_key=uuid.uuid4().hex,
@@ -24,15 +21,15 @@ def list_regs():
     return list(Reg.objects.using("verify_rw").all().order_by("-id"))
 
 
-def get_reg_by_id(reg_id: int) -> Optional[Reg]:
+def get_reg_by_id(reg_id: int) -> Reg | None:
     return Reg.objects.using("verify_rw").filter(id=reg_id).first()
 
 
-def get_reg_by_access_key(access_key: str) -> Optional[Reg]:
+def get_reg_by_access_key(access_key: str) -> Reg | None:
     return Reg.objects.using("verify_rw").filter(access_key=access_key).first()
 
 
-def update_reg(reg_id: int, name: str = None, status: int = None) -> Optional[Reg]:
+def update_reg(reg_id: int, name: str | None = None, status: int | None = None) -> Reg | None:
     reg = get_reg_by_id(reg_id)
     if not reg:
         return None
@@ -44,7 +41,7 @@ def update_reg(reg_id: int, name: str = None, status: int = None) -> Optional[Re
         reg.status = status
         update_fields.append("status")
     if update_fields:
-        reg.ut = _now_ms()
+        reg.ut = get_now_timestamp_ms()
         update_fields.append("ut")
         reg.save(using="verify_rw", update_fields=update_fields)
     return reg

@@ -2,11 +2,11 @@
 Invalidation model - CloudFront-compatible cache invalidation
 """
 import json
-import time
 
 from django.db import models
 
 from app_cdn.enums.invalidation_status_enum import InvalidationStatusEnum
+from common.utils.date_util import get_now_timestamp_ms
 
 
 class Invalidation(models.Model):
@@ -43,7 +43,7 @@ class Invalidation(models.Model):
         return f"{self.id} ({dist_id})" if self.pk else f"({dist_id})"
 
     def save(self, *args, **kwargs):
-        now = int(time.time() * 1000)
+        now = get_now_timestamp_ms()
         if self.ct == 0:
             self.ct = now
         super().save(*args, **kwargs)

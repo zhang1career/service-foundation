@@ -292,7 +292,7 @@ class ServicesCoverageBoostTest(TestCase):
         self.assertEqual(d["payload_json"], {"a": 1})
         self.assertEqual(d["result_json"], {"b": 2})
 
-    @patch("app_aibroker.services.metrics_service._now_ms")
+    @patch("app_aibroker.services.metrics_service.get_now_timestamp_ms")
     @patch("app_aibroker.services.metrics_service.AiCallLog")
     def test_metrics_summary_since(self, model_mock, now_ms_mock):
         now_ms_mock.return_value = 10000
@@ -305,7 +305,7 @@ class ServicesCoverageBoostTest(TestCase):
         self.assertEqual(out["success_rate"], 0.75)
         qs.filter.assert_called_once_with(reg_id=9)
 
-    @patch("app_aibroker.services.metrics_service._now_ms")
+    @patch("app_aibroker.services.metrics_service.get_now_timestamp_ms")
     @patch("app_aibroker.services.metrics_service.AiCallLog")
     def test_metrics_summary_since_zero_total(self, model_mock, now_ms_mock):
         now_ms_mock.return_value = 10000

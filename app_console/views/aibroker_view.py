@@ -43,6 +43,7 @@ from common.dict_catalog import dict_value_to_label, get_dict_by_codes
 from common.exceptions.base_exception import generic_message_for_ret
 from common.pojo.response import Response as ApiResponse
 from common.utils.http_util import attach_request_id_header, resolve_request_id, response_as_dict
+from common.utils.page_util import slice_window_for_page
 
 logger = logging.getLogger(__name__)
 
@@ -459,7 +460,7 @@ class AibrokerCallLogConsoleView(_AibrokerConsoleMixin, TemplateView):
             rows, total, resolved_page = list_call_logs_page(page, self.PAGE_SIZE)
         except Exception:
             rows, total, resolved_page = [], 0, 1
-        total_pages = max(1, (total + self.PAGE_SIZE - 1) // self.PAGE_SIZE) if total else 1
+        _, _, total_pages = slice_window_for_page(total, page, self.PAGE_SIZE)
         reg_m, tpl_m, prov_m, model_m = _aibroker_call_log_label_maps()
         logs: list[dict] = []
         for r in rows:

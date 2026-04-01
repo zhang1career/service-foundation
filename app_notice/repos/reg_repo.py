@@ -1,16 +1,12 @@
-import time
 import uuid
 from typing import Optional
 
 from app_notice.models import Reg
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def create_reg(name: str, status: int = 0) -> Reg:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     return Reg.objects.using("notice_rw").create(
         name=name,
         access_key=uuid.uuid4().hex,
@@ -44,7 +40,7 @@ def update_reg(reg_id: int, name: str = None, status: int = None) -> Optional[Re
         reg.status = status
         update_fields.append("status")
     if update_fields:
-        reg.ut = _now_ms()
+        reg.ut = get_now_timestamp_ms()
         update_fields.append("ut")
         reg.save(using="notice_rw", update_fields=update_fields)
     return reg

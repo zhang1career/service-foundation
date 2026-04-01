@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+from typing import Any
+
+from app_verify.enums import RegStatusEnum
+from app_verify.models import Reg
 from app_verify.repos import (
     create_reg,
     list_regs,
@@ -7,7 +13,14 @@ from app_verify.repos import (
 )
 
 
-def _to_dict(reg):
+def _parse_reg_status(raw) -> int:
+    try:
+        return int(RegStatusEnum(int(raw)))
+    except ValueError:
+        raise ValueError(f"status must be one of {RegStatusEnum.values()}") from None
+
+
+def _to_dict(reg: Reg) -> dict[str, Any]:
     return {
         "id": reg.id,
         "name": reg.name,
@@ -20,29 +33,29 @@ def _to_dict(reg):
 
 class RegService:
     @staticmethod
-    def create_by_payload(payload: dict) -> dict:
+    def create_by_payload(payload: dict) -> dict[str, Any]:
         name = (payload.get("name") or "").strip()
-        status = int(payload.get("status", 0))
+        status = _parse_reg_status(payload.get("status", RegStatusEnum.DISABLED.value))
         if not name:
             raise ValueError("name is required")
         reg = create_reg(name=name, status=status)
         return _to_dict(reg)
 
     @staticmethod
-    def list_all() -> list:
+    def list_all() -> list[dict[str, Any]]:
         return [_to_dict(item) for item in list_regs()]
 
     @staticmethod
-    def get_one(reg_id: int) -> dict:
+    def get_one(reg_id: int) -> dict[str, Any]:
         reg = get_reg_by_id(reg_id)
         if not reg:
             raise ValueError("reg not found")
         return _to_dict(reg)
 
     @staticmethod
-    def update_by_payload(reg_id: int, payload: dict) -> dict:
+    def update_by_payload(reg_id: int, payload: dict) -> dict[str, Any]:
         name = payload.get("name") if "name" in payload else None
-        status = int(payload.get("status")) if "status" in payload else None
+        status = _parse_reg_status(payload["status"]) if "status" in payload else None
         reg = update_reg(reg_id=reg_id, name=name, status=status)
         if not reg:
             raise ValueError("reg not found")

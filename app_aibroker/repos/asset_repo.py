@@ -1,12 +1,8 @@
-import time
 from typing import Optional
 
 from app_aibroker.models import AiAsset
 from common.enums.content_type_enum import ContentTypeEnum
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def create_asset(
@@ -21,7 +17,7 @@ def create_asset(
         oss_bucket=oss_bucket,
         oss_key=oss_key,
         content_type=content_type,
-        ct=_now_ms(),
+        ct=get_now_timestamp_ms(),
     )
 
 

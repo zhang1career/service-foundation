@@ -1,11 +1,8 @@
-import time
 from typing import Optional
 
+from common.utils.date_util import get_now_timestamp_ms
+
 from app_aibroker.models import PromptTemplate
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
 
 
 def create_template(
@@ -17,7 +14,7 @@ def create_template(
     resp_specs: str = None,
     status: int = 1,
 ) -> PromptTemplate:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     db = "aibroker_rw"
     return PromptTemplate.objects.using(db).create(
         template_key=template_key,
@@ -87,7 +84,7 @@ def update_template(
         t.status = status
         fields.append("status")
     if fields:
-        t.ut = _now_ms()
+        t.ut = get_now_timestamp_ms()
         fields.append("ut")
         t.save(using="aibroker_rw", update_fields=fields)
     return t

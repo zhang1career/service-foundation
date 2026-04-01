@@ -2,7 +2,6 @@
 Knowledge point repository: CRUD for KnowledgePoint (知识点, table knowledge).
 """
 import logging
-import time
 from typing import List, Optional, Tuple
 
 from django.db.models import Q
@@ -11,6 +10,7 @@ from app_know.enums.classification_enum import ClassificationEnum
 from app_know.enums.knowledge_status_enum import KnowledgeStatusEnum
 from app_know.models import KnowledgePoint
 from common.consts.query_const import LIMIT_LIST
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def create_knowledge_point(
     """Create a knowledge point. Returns the created KnowledgePoint."""
     if not content or not isinstance(content, str):
         raise ValueError("content must be a non-empty string")
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     cls_val = int(classification) if classification is not None else ClassificationEnum.FACT
     k = KnowledgePoint(
         batch_id=batch_id,
@@ -143,7 +143,7 @@ def update(kid: int, **kwargs) -> bool:
             updates[key] = ""
     if not updates:
         return False
-    updates["ut"] = int(time.time() * 1000)
+    updates["ut"] = get_now_timestamp_ms()
     updated = KnowledgePoint.objects.using(_DB).filter(id=kid).update(**updates)
     return updated > 0
 

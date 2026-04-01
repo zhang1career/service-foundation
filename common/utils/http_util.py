@@ -74,6 +74,15 @@ def response_as_dict(obj: Response) -> dict:
     return d
 
 
+def post_payload(request):
+    """
+    Parsed POST body for API views: DRF ``request.data`` when present, else Django ``POST``.
+    """
+    if hasattr(request, "data"):
+        return request.data
+    return request.POST
+
+
 def resolve_request_id(request) -> str:
     if request is None:
         return uuid.uuid4().hex[:16]

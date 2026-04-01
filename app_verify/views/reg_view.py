@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 
 from app_verify.services import RegService
 from common.consts.response_const import RET_INVALID_PARAM
-from common.utils.http_util import resp_ok, resp_err, with_type
+from common.utils.http_util import post_payload, resp_ok, resp_err, with_type
 
 
 class RegListCreateView(APIView):
@@ -10,7 +10,7 @@ class RegListCreateView(APIView):
         return resp_ok({"data": RegService.list_all()})
 
     def post(self, request, *args, **kwargs):
-        data = request.data if hasattr(request, "data") else request.POST
+        data = post_payload(request)
         try:
             return resp_ok(RegService.create_by_payload(data))
         except ValueError as exc:
@@ -25,7 +25,7 @@ class RegDetailView(APIView):
             return resp_err(str(exc), code=RET_INVALID_PARAM)
 
     def patch(self, request, reg_id, *args, **kwargs):
-        data = request.data if hasattr(request, "data") else request.POST
+        data = post_payload(request)
         try:
             return resp_ok(RegService.update_by_payload(reg_id=with_type(reg_id), payload=data))
         except ValueError as exc:

@@ -154,19 +154,62 @@ var ConsoleNavStrings = {
 };
 
 /**
- * 返回列表：优先使用浏览器历史（保留筛选/滚动等记忆），不可用时回退到列表 URL。
+ * 返回列表：仅当 referrer 表明「从列表页点进当前页」时用 history.back（保留筛选/分页等）；
+ * referrer 为空、与当前页相同（刷新后常见）或非列表时，用 location.replace，避免误 back 或 href 叠栈。
  */
 function returnToList(fallbackUrl) {
     var fallback = String(fallbackUrl || '').trim() || '/console/';
+    var here;
     try {
-        var ref = document.referrer ? new URL(document.referrer) : null;
-        if (ref && ref.origin === window.location.origin && window.history.length > 1) {
-            window.history.back();
-            return false;
-        }
-    } catch (e) {}
-    window.location.href = fallback;
+        here = new URL(window.location.href);
+    } catch (e) {
+        window.location.replace(fallback);
+        return false;
+    }
+    var fall;
+    try {
+        fall = new URL(fallback, window.location.origin);
+    } catch (e) {
+        window.location.replace(fallback);
+        return false;
+    }
+    function normPath(p) {
+        var s = p && p !== '/' ? String(p) : '/';
+        if (s.length > 1) s = s.replace(/\/+$/, '');
+        return s || '/';
+    }
+    if (!document.referrer) {
+        window.location.replace(fallback);
+        return false;
+    }
+    var ref;
+    try {
+        ref = new URL(document.referrer);
+    } catch (e) {
+        window.location.replace(fallback);
+        return false;
+    }
+    if (ref.origin !== window.location.origin) {
+        window.location.replace(fallback);
+        return false;
+    }
+    if (normPath(ref.pathname) === normPath(here.pathname) && ref.search === here.search) {
+        window.location.replace(fallback);
+        return false;
+    }
+    if (normPath(ref.pathname) === normPath(fall.pathname) && window.history.length > 1) {
+        window.history.back();
+        return false;
+    }
+    window.location.replace(fallback);
     return false;
+}
+
+/**
+ * 刷新当前控制台页面（完整重载）。与「表单 POST 后服务端 302 回到本页」效果相同；fetch 场景可在成功后调用。
+ */
+function reloadConsolePage() {
+    window.location.reload();
 }
 
 // API helper for fetch requests

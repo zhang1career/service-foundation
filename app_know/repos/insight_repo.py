@@ -2,11 +2,11 @@
 Insight repository: CRUD for Insight model.
 """
 import logging
-import time
 from typing import List, Optional, Tuple
 
 from app_know.models import Insight
 from common.consts.query_const import LIMIT_LIST
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def create_insight(
     content = (content or "").strip()
     if not content:
         raise ValueError("content is required and cannot be empty")
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     i = Insight(
         content=content,
         type=type if type is not None else 1,
@@ -82,7 +82,7 @@ def update_insight(iid: int, **kwargs) -> bool:
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return False
-    updates["ut"] = int(time.time() * 1000)
+    updates["ut"] = get_now_timestamp_ms()
     try:
         updated = Insight.objects.using(_DB).filter(id=iid).update(**updates)
         return updated > 0

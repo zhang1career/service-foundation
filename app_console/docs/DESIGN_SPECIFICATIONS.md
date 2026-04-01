@@ -17,8 +17,8 @@
    - 所有保存操作在**成功**或**失败**时都应用**同一套通知**展示（见下）。
 
 5. **导航记忆（保留）**：
-   - 返回列表时优先使用浏览器历史（`history.back`）以保留筛选、滚动、分页等状态。
-   - 当历史不可用时，再回退到列表 URL。
+   - `main.js` 的 `returnToList(fallbackUrl)`：仅当 `document.referrer` 与当前页不同、且其 path 与列表 `fallbackUrl` 的 path 一致（search 可不同，以保留 `?page=` 等）时，才 `history.back()`。
+   - `referrer` 为空、与当前 URL 相同（常见于刷新后）、或来源非该列表时，使用 `location.replace(fallbackUrl)`，避免历史栈被「假返回」叠高。
 
 ## 通知（全控制台唯一）
 

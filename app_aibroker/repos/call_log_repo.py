@@ -1,12 +1,9 @@
-import time
+from common.utils.date_util import get_now_timestamp_ms
+from common.utils.page_util import slice_window_for_page
 
 from app_aibroker.models import AiCallLog
 
 _BULK_DELETE_MAX = 500
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
 
 
 def list_call_logs_page(page: int, page_size: int) -> tuple[list[AiCallLog], int, int]:
@@ -14,14 +11,11 @@ def list_call_logs_page(page: int, page_size: int) -> tuple[list[AiCallLog], int
     Paginated list ordered by ct desc, then id desc.
     Returns (rows, total_count, resolved_page).
     """
-    if page_size < 1:
-        page_size = 1
+    ps = page_size if page_size >= 1 else 1
     qs = AiCallLog.objects.using("aibroker_rw").order_by("-ct", "-id")
     total = qs.count()
-    total_pages = max(1, (total + page_size - 1) // page_size) if total else 1
-    resolved = max(1, min(page, total_pages))
-    offset = (resolved - 1) * page_size
-    rows = list(qs[offset : offset + page_size])
+    offset, resolved, _ = slice_window_for_page(total, page, ps)
+    rows = list(qs[offset : offset + ps])
     return rows, total, resolved
 
 
@@ -80,5 +74,5 @@ def create_call_log(
         latency_ms=latency_ms,
         success=1 if success else 0,
         error_message=(error_message or "")[:512],
-        ct=_now_ms(),
+        ct=get_now_timestamp_ms(),
     )

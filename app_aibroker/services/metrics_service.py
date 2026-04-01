@@ -1,15 +1,12 @@
-import time
 from django.db.models import Avg, Count, Q
+
+from common.utils.date_util import get_now_timestamp_ms
 
 from app_aibroker.models import AiCallLog
 
 
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
 def summary_since(reg_id: int = None, window_ms: int = 86400000) -> dict:
-    since = _now_ms() - window_ms
+    since = get_now_timestamp_ms() - window_ms
     qs = AiCallLog.objects.using("aibroker_rw").filter(ct__gte=since)
     if reg_id is not None:
         qs = qs.filter(reg_id=reg_id)

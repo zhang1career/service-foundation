@@ -5,12 +5,12 @@ content: source_type=0 -> text content; source_type=1 -> file path.
 数据逻辑：更新内容时更新 ut；详情返回时 ut 始终为批次表记录的 ut。
 """
 import logging
-import time
 from typing import Any, Dict, List, Optional
 
 from app_know.consts import SOURCE_TYPE_INSTANT
 from app_know.models import Batch
 from app_know.repos.knowledge_point_repo import list_by_batch
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def create_batch(
         source_type: int = SOURCE_TYPE_INSTANT,
 ) -> Batch:
     """Create a batch record. Returns the created Batch (id = batch_id for knowledge)."""
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     b = Batch(
         content=content or "",
         source_type=source_type if source_type in (0, 1) else SOURCE_TYPE_INSTANT,
@@ -86,7 +86,7 @@ def update_content(batch_id: int, content: str) -> bool:
     """Update batch content and ut. Only for source_type=0 (text). Returns True if updated."""
     if batch_id is None or not isinstance(batch_id, int) or batch_id <= 0:
         return False
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     count = Batch.objects.using(_DB).filter(id=batch_id, source_type=SOURCE_TYPE_INSTANT).update(
         content=content or "", ut=now_ms
     )

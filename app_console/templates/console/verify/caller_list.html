@@ -1,0 +1,12 @@
+{% extends 'console/base.html' %}
+
+{% block title %}校验中心-调用方{% endblock %}
+{% block page_title %}校验中心{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/verify_subnav.html' with active='callers' %}
+</div>
+
+{% include 'console/includes/caller_reg_console.html' %}
+{% endblock %}

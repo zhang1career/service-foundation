@@ -7,8 +7,9 @@ Synthetic cids (stub-{app_id}-{hash}) are used for Neo4j + MySQL mapping compati
 """
 import hashlib
 import logging
-import time
 from typing import Any, Dict, List, Optional
+
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ def get_or_create_node(
     if not name:
         raise ValueError("name cannot be empty")
     cid = _stub_cid(name, app_id)
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     logger.info("[component_repo] knowledge_components disabled, get_or_create_node stub for name=%s", name[:50])
     return {
         "id": cid,

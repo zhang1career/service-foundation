@@ -1,11 +1,16 @@
 from django.db import models
 
+from app_verify.enums import RegStatusEnum
+
 
 class Reg(models.Model):
     id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=128)
     access_key = models.CharField(max_length=64)
-    status = models.SmallIntegerField(default=0)
+    status = models.SmallIntegerField(
+        choices=[(item.value, item.name) for item in RegStatusEnum],
+        default=RegStatusEnum.DISABLED.value,
+    )
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)
 

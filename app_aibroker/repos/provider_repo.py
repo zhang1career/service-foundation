@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-import time
 from typing import Optional
 
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
 from app_aibroker.models import AiProvider
 from app_aibroker.repos.model_repo import _ai_model_qs
+from common.utils.date_util import get_now_timestamp_ms
 from common.utils.http_util import normalize_http_path
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
 
 
 def create_provider(
@@ -20,7 +16,7 @@ def create_provider(
     url_path: str,
     status: int = 1,
 ) -> AiProvider:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     path = normalize_http_path(url_path)
     return AiProvider.objects.using("aibroker_rw").create(
         name=name,
@@ -69,7 +65,7 @@ def update_provider(
         p.status = status
         fields.append("status")
     if fields:
-        p.ut = _now_ms()
+        p.ut = get_now_timestamp_ms()
         fields.append("ut")
         p.save(using="aibroker_rw", update_fields=fields)
     return p

@@ -1,16 +1,12 @@
 import json
-import time
 from typing import Optional
 
 from app_aibroker.models import AiJob
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def create_job(reg_id: int, job_type: str, callback_url: str, payload: dict) -> AiJob:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     return AiJob.objects.using("aibroker_rw").create(
         reg_id=reg_id,
         job_type=job_type,
@@ -46,7 +42,7 @@ def update_job(
         j.message = message[:512]
         fields.append("message")
     if fields:
-        j.ut = _now_ms()
+        j.ut = get_now_timestamp_ms()
         fields.append("ut")
         j.save(using="aibroker_rw", update_fields=fields)
     return j

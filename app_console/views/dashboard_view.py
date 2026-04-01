@@ -51,9 +51,9 @@ class DashboardView(TemplateView):
                 'icon': 'bell',
             },
             'verify': {
-                'name': '校验工具',
+                'name': '校验中心',
                 'enabled': getattr(settings, 'APP_VERIFY_ENABLED', False),
-                'description': '验证码生成、校验与调用方注册管理',
+                'description': '校验码生成、校验与调用方注册管理',
                 'icon': 'shield',
             },
             'aibroker': {

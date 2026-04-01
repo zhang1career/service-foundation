@@ -120,12 +120,12 @@
 
                     {% if apps.verify.enabled %}
                     <li>
-                        <a href="{% url 'console:verify-reg-list' %}"
-                           class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/verify/' in request.path %}bg-gray-700{% endif %}" title="校验工具">
+                        <a href="{% url 'console:verify-callers' %}"
+                           class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/verify/' in request.path %}bg-gray-700{% endif %}" title="校验中心">
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l7 4v5c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V7l7-4z"></path>
                             </svg>
-                            <span class="sidebar-text ml-3 whitespace-nowrap">校验工具</span>
+                            <span class="sidebar-text ml-3 whitespace-nowrap">校验中心</span>
                         </a>
                     </li>
                     {% endif %}

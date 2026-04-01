@@ -6,7 +6,6 @@ Maps older CRUD (title/description/content/source_type) onto Batch + KnowledgePo
 from __future__ import annotations
 
 import logging
-import time
 from types import SimpleNamespace
 from typing import Any, List, Optional, Tuple
 
@@ -20,6 +19,7 @@ from app_know.repos.knowledge_point_repo import (
     update as update_knowledge_point,
 )
 from common.consts.query_const import LIMIT_LIST
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ def update_knowledge(entity: Any, **kwargs: Any) -> int:
     if content:
         body_parts.append(content)
     body = "\n\n".join(body_parts)
-    ut = kwargs.get("ut", int(time.time() * 1000))
+    ut = kwargs.get("ut", get_now_timestamp_ms())
     first = min(items, key=lambda x: x.seq)
     n = update_knowledge_point(first.id, content=body, ut=ut)
     update_content(batch_id, body)

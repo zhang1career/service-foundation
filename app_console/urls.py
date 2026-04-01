@@ -24,8 +24,12 @@ from app_console.views import (
     UserEventDetailConsoleView,
     UserEventEditConsoleView,
     NoticeRegConsoleView,
-    VerifyRegConsoleView,
     SearchRecConsoleView,
+    VerifyCallerConsoleView,
+    VerifyCodeDetailConsoleView,
+    VerifyCodeListConsoleView,
+    VerifyLogDetailConsoleView,
+    VerifyLogListConsoleView,
 )
 
 app_name = 'console'
@@ -68,7 +72,11 @@ urlpatterns = [
     path('user/<int:user_id>/', UserDetailConsoleView.as_view(), name='user-detail'),
     path('user/<int:user_id>/edit/', UserEditConsoleView.as_view(), name='user-edit'),
     path('notice/regs/', NoticeRegConsoleView.as_view(), name='notice-reg-list'),
-    path('verify/regs/', VerifyRegConsoleView.as_view(), name='verify-reg-list'),
+    path('verify/callers/', VerifyCallerConsoleView.as_view(), name='verify-callers'),
+    path('verify/codes/', VerifyCodeListConsoleView.as_view(), name='verify-code-list'),
+    path('verify/codes/<int:code_id>/', VerifyCodeDetailConsoleView.as_view(), name='verify-code-detail'),
+    path('verify/history/', VerifyLogListConsoleView.as_view(), name='verify-history-list'),
+    path('verify/history/<int:log_id>/', VerifyLogDetailConsoleView.as_view(), name='verify-history-detail'),
     path('searchrec/', SearchRecConsoleView.as_view(), name='searchrec-console'),
 ]
 

@@ -1,7 +1,6 @@
 """
 Tests for knowledge_entity_compat repo (CRUD facade over Batch + KnowledgePoint).
 """
-import time
 from django.test import TestCase
 from unittest.mock import patch, MagicMock
 
@@ -13,6 +12,7 @@ from app_know.repos import (
     delete_knowledge,
 )
 from common.consts.query_const import LIMIT_LIST
+from common.utils.date_util import get_now_timestamp_ms
 
 _COMPAT = "app_know.repos.knowledge_entity_compat"
 
@@ -147,7 +147,7 @@ class KnowledgeRepoTest(TestCase):
         mock_entity.description = ""
         mock_entity.content = ""
 
-        n = update_knowledge(mock_entity, title="Updated", ut=int(time.time() * 1000))
+        n = update_knowledge(mock_entity, title="Updated", ut=get_now_timestamp_ms())
         self.assertEqual(n, 1)
         mock_update_point.assert_called_once()
 

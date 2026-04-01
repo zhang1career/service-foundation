@@ -1,10 +1,5 @@
-import time
-
 from app_user.models import Event
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def create_event(
@@ -14,7 +9,7 @@ def create_event(
     notice_target: str,
     payload_json: str,
 ) -> Event:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     return Event.objects.using("user_rw").create(
         biz_type=biz_type,
         status=0,
@@ -38,7 +33,7 @@ def update_event_after_code(event_id: int, verify_code_id: int, verify_ref_id: i
     event.verify_code_id = verify_code_id
     event.verify_ref_id = verify_ref_id
     event.status = 1
-    event.ut = _now_ms()
+    event.ut = get_now_timestamp_ms()
     event.save(using="user_rw", update_fields=["verify_code_id", "verify_ref_id", "status", "ut"])
     return True
 
@@ -49,7 +44,7 @@ def update_event_status(event_id: int, status: int, message: str = "") -> bool:
         return False
     event.status = status
     event.message = message
-    event.ut = _now_ms()
+    event.ut = get_now_timestamp_ms()
     event.save(using="user_rw", update_fields=["status", "message", "ut"])
     return True
 
@@ -106,7 +101,7 @@ def update_event_fields(
         event.message = message or ""
         update_fields.append("message")
     if update_fields:
-        event.ut = _now_ms()
+        event.ut = get_now_timestamp_ms()
         update_fields.append("ut")
         event.save(using="user_rw", update_fields=update_fields)
     return event

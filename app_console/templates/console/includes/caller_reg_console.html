@@ -1,7 +1,9 @@
-{# 通知中心 / 校验工具 — 调用方列表：只读列 + 状态拨动 + 操作列图标（与 list-actions.js、CDN 分发列一致） #}
+{# 通知中心 / 校验中心 — 调用方列表：只读列 + 状态拨动 + 操作列图标（与 list-actions.js、CDN 分发列一致） #}
+{% if lead_text %}
 <div class="mb-6">
     <p class="text-gray-600">{{ lead_text }}</p>
 </div>
+{% endif %}
 
 <div class="card">
     <div class="card-header">

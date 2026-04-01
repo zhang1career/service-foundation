@@ -1,0 +1,95 @@
+{% extends 'console/base.html' %}
+
+{% block title %}校验中心-校验码详情{% endblock %}
+{% block page_title %}校验中心{% endblock %}
+
+{% block content %}
+{% url 'console:verify-code-list' as code_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=code_list_url back_label="返回校验码列表" %}
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">校验码 #{{ row.id }}</h2>
+        <form method="post" class="inline" onsubmit="return confirm('确认删除该条校验码记录？');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <button type="submit" class="btn btn-danger btn-sm">删除</button>
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ID</p>
+                <p class="font-mono">{{ row.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">调用方</p>
+                <p class="break-words">{{ row.reg_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ref_id</p>
+                <p class="font-mono">{{ row.ref_id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">等级</p>
+                <p>{{ row.level_label }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">校验码</p>
+                <p class="font-mono text-lg tracking-widest">{{ row.code_masked }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">过期时间</p>
+                <p>{{ row.expires_at_fmt }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">使用时间</p>
+                <p>{{ row.used_at_fmt }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                <p>{{ row.ct_fmt }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if show_verify_panel %}
+<div class="card mt-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">校验</h2>
+    </div>
+    <div class="card-body">
+        <p class="text-sm text-gray-500 mb-3">输入待核对的校验码，将调用与开放接口相同的核销逻辑；成功后会刷新本页（使用时间等字段会更新）。</p>
+        <form method="post" class="flex flex-wrap items-end gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="verify">
+            <div class="form-group mb-0 flex-1 min-w-[12rem]">
+                <label class="form-label" for="verify-check-code-input">校验码</label>
+                <input type="text" name="check_code" id="verify-check-code-input" class="form-input w-full max-w-xs font-mono"
+                       placeholder="输入 6 位数字" maxlength="32" autocomplete="one-time-code">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm shrink-0">校验</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    try {
+        var p = new URLSearchParams(window.location.search);
+        var v = p.get('verify');
+        if (v === 'ok') {
+            showToast('校验成功', 'success');
+            window.history.replaceState(null, '', window.location.pathname);
+        } else if (v === 'err') {
+            showToast('校验失败，请检查校验码是否正确、未过期且未使用', 'warning');
+            window.history.replaceState(null, '', window.location.pathname);
+        }
+    } catch (e) {}
+})();
+</script>
+{% endblock %}

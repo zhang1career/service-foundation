@@ -4,10 +4,10 @@ Mailbox repository
 This module provides database operations for Mailbox model.
 """
 import logging
-import time
 from typing import Optional, List, Tuple
 
 from app_mailserver.models.mailbox import Mailbox
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ def create_mailbox(
     """
     try:
         if ct == 0:
-            ct = int(time.time() * 1000)
+            ct = get_now_timestamp_ms()
         if ut == 0:
             ut = ct
             

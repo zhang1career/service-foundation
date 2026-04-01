@@ -33,6 +33,16 @@ def embed_dict_as_json_script_body(data: dict):
     return mark_safe(raw)
 
 
+def mask_verify_code_for_display(code: str) -> str:
+    """校验码列表/详情展示用脱敏：与控制台列表列一致（≤2 位全掩；否则 `****` + 末 2 位）。"""
+    s = (code or "").strip()
+    if not s:
+        return "—"
+    if len(s) <= 2:
+        return "**"
+    return "****" + s[-2:]
+
+
 def format_epoch_ms_for_display(ms) -> str:
     """Unix 毫秒时间戳 → 本地墙钟时间字符串（遵循 settings.TIME_ZONE，默认东八区）。"""
     if ms is None:

@@ -3,8 +3,8 @@ Knowledge service: validation and CRUD business logic for knowledge entities.
 Generated.
 """
 import logging
-import time
 from typing import Any, Dict, List, Optional
+
 from app_know.repos import (
     get_knowledge_by_id,
     get_knowledge_by_ids,
@@ -15,6 +15,7 @@ from app_know.repos import (
 )
 from app_know.repos.summary_repo import search_summaries_by_vector_filtered
 from common.components.singleton import Singleton
+from common.utils.date_util import get_now_timestamp_ms
 from common.consts.query_const import LIMIT_LIST
 
 logger = logging.getLogger(__name__)
@@ -186,7 +187,7 @@ class KnowledgeService(Singleton):
         desc_val = description if description is not None else ""
         desc_str = str(desc_val).strip() if not isinstance(desc_val, str) else desc_val.strip()
         content_str = (str(content) if content is not None else "") or ""
-        now_ms = int(time.time() * 1000)
+        now_ms = get_now_timestamp_ms()
         entity = create_knowledge(
             title=t,
             description=desc_str or None,
@@ -230,7 +231,7 @@ class KnowledgeService(Singleton):
                 raise ValueError(f"source_type must be at most {SOURCE_TYPE_MAX_LEN} characters")
             updates["source_type"] = st
         if updates:
-            updates["ut"] = int(time.time() * 1000)
+            updates["ut"] = get_now_timestamp_ms()
             update_knowledge(entity, **updates)
             entity = get_knowledge_by_id(entity_id)
         return _entity_to_dict(entity)

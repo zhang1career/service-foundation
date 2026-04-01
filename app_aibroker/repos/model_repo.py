@@ -1,16 +1,12 @@
-import time
 from typing import Optional
 
 from app_aibroker.enums.model_capability_enum import ModelCapabilityEnum
 from app_aibroker.models import AiModel
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def _ai_model_qs():
     return AiModel.objects.using("aibroker_rw")
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
 
 
 def create_model(
@@ -20,7 +16,7 @@ def create_model(
     status: int = 1,
     param_specs: str = "",
 ) -> AiModel:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     return _ai_model_qs().create(
         provider_id=provider_id,
         model_name=model_name,
@@ -68,7 +64,7 @@ def update_model(
         m.param_specs = param_specs or ""
         fields.append("param_specs")
     if fields:
-        m.ut = _now_ms()
+        m.ut = get_now_timestamp_ms()
         fields.append("ut")
         m.save(using="aibroker_rw", update_fields=fields)
     return m

@@ -1,13 +1,9 @@
 import hashlib
 import json
-import time
 from typing import Optional
 
 from app_aibroker.models import AiIdempotency
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def _hash_payload(payload: dict) -> str:
@@ -29,5 +25,5 @@ def save_idempotency(reg_id: int, idempotency_key: str, payload: dict, response_
         idem_key=idempotency_key,
         req_hash=_hash_payload(payload),
         resp_json=json.dumps(response_obj),
-        ct=_now_ms(),
+        ct=get_now_timestamp_ms(),
     )

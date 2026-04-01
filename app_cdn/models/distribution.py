@@ -2,12 +2,12 @@
 Distribution model - CloudFront-compatible CDN distribution
 """
 import json
-import time
 import uuid
 
 from django.db import models
 
 from app_cdn.enums.distribution_status_enum import DistributionStatusEnum
+from common.utils.date_util import get_now_timestamp_ms
 
 
 class Distribution(models.Model):
@@ -49,7 +49,7 @@ class Distribution(models.Model):
         return f"{self.id} ({self.domain_name})" if self.pk else f"({self.domain_name})"
 
     def save(self, *args, **kwargs):
-        now = int(time.time() * 1000)
+        now = get_now_timestamp_ms()
         if self.ct == 0:
             self.ct = now
         self.ut = now

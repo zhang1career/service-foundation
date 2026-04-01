@@ -5,12 +5,12 @@ Nodes use sp_type=1 (名词/主语), edges use sp_type=2 (谓语) for candidate 
 """
 import logging
 import re
-import time
 import zlib
 from typing import Any, Dict, List, Optional
 
 from app_know.repos import knowledge_point_repo
 from common.drivers.neo4j_driver import Neo4jDriver
+from common.utils.date_util import get_now_timestamp_ms
 from service_foundation import settings
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ def build_graph_for_knowledge(kid: int) -> Dict[str, Any]:
         try:
             sub_key = _node_key(subject, kid)
             obj_key = _node_key(obj, kid)
-            ut_ms = int(time.time() * 1000)
+            ut_ms = get_now_timestamp_ms()
             if sub_key and sub_key not in nodes_cache:
                 existing = driver.find_node(
                     LABEL_SVO_NODE,
@@ -494,7 +494,7 @@ def save_components(
     Returns { created_nodes, created_edges, errors }.
     """
     driver = _get_driver()
-    ut_ms = int(time.time() * 1000)
+    ut_ms = get_now_timestamp_ms()
     created_nodes = 0
     created_edges = 0
     errors = []

@@ -1,0 +1,66 @@
+{% extends 'console/base.html' %}
+
+{% block title %}校验中心-校验日志详情{% endblock %}
+{% block page_title %}校验中心{% endblock %}
+
+{% block content %}
+{% url 'console:verify-history-list' as history_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=history_list_url back_label="返回校验日志列表" %}
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">校验日志 #{{ row.id }}</h2>
+        <form method="post" class="inline" onsubmit="return confirm('确认删除该条校验日志？');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            <button type="submit" class="btn btn-danger btn-sm">删除</button>
+        </form>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ID</p>
+                <p class="font-mono">{{ row.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">类型</p>
+                <p>{{ row.action_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">结果</p>
+                <p>
+                    {% if row.ok == 1 %}
+                    <span class="badge badge-success">{{ row.ok_label }}</span>
+                    {% else %}
+                    <span class="badge badge-danger">{{ row.ok_label }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">调用方</p>
+                <p class="break-words">{{ row.reg_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">code_id</p>
+                <p class="font-mono">{{ row.code_id|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ref_id</p>
+                <p class="font-mono">{{ row.ref_id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">等级</p>
+                <p>{{ row.level_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">时间</p>
+                <p>{{ row.ct_fmt }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">说明</p>
+                <p class="break-words text-sm">{{ row.message }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

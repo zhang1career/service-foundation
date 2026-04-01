@@ -1,0 +1,16 @@
+{% comment %}
+校验中心子导航（与用户中心 user_subnav.html 大号样式一致：激活项蓝底白字，未激活灰底）
+
+参数:
+  active — callers | codes | history
+{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex space-x-4 mb-6" aria-label="校验中心导航">
+    <a href="{% url 'console:verify-callers' %}"
+       class="{{ base_cls }} {% if active == 'callers' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
+    <a href="{% url 'console:verify-code-list' %}"
+       class="{{ base_cls }} {% if active == 'codes' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">校验码</a>
+    <a href="{% url 'console:verify-history-list' %}"
+       class="{{ base_cls }} {% if active == 'history' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">校验日志</a>
+</nav>
+{% endwith %}

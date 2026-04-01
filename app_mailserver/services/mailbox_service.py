@@ -8,7 +8,6 @@ This service handles business logic for mailbox operations:
 - Error handling
 """
 import logging
-import time
 from typing import Dict, Any, Optional
 
 from app_mailserver.repos import (
@@ -21,6 +20,7 @@ from app_mailserver.repos import (
     delete_mailbox,
 )
 from common.components.singleton import Singleton
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,7 @@ class MailboxService(Singleton):
                 update_fields['unread_count'] = unread_count
 
             # Update timestamp
-            update_fields['ut'] = int(time.time() * 1000)
+            update_fields['ut'] = get_now_timestamp_ms()
 
             # Perform update
             if update_fields:

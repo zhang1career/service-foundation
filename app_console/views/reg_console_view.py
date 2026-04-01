@@ -57,5 +57,5 @@ class NoticeRegConsoleView(RegConsoleView):
 
 
 class VerifyRegConsoleView(RegConsoleView):
-    template_name = "console/verify/reg_list.html"
+    template_name = "console/verify/caller_list.html"
     reg_service = VerifyRegService

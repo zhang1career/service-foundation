@@ -1,13 +1,9 @@
-import time
 import json
 from typing import Optional
 
 from app_user.enums import UserStatusEnum
 from app_user.models import User
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def get_user_by_id(user_id: int) -> Optional[User]:
@@ -44,7 +40,7 @@ def create_user(
     avatar: str = "",
     ext: Optional[dict] = None,
 ) -> User:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     ext_json = json.dumps(ext or {}, ensure_ascii=False)
     return User.objects.using("user_rw").create(
         username=username,
@@ -78,7 +74,7 @@ def update_user_profile(user_id: int, email: Optional[str], phone: Optional[str]
         user.ext = json.dumps(ext or {}, ensure_ascii=False)
         update_fields.append("ext")
     if update_fields:
-        user.ut = _now_ms()
+        user.ut = get_now_timestamp_ms()
         update_fields.append("ut")
         user.save(using="user_rw", update_fields=update_fields)
     return user
@@ -89,7 +85,7 @@ def update_user_password(user_id: int, password_hash: str) -> bool:
     if not user:
         return False
     user.password_hash = password_hash
-    user.ut = _now_ms()
+    user.ut = get_now_timestamp_ms()
     user.save(using="user_rw", update_fields=["password_hash", "ut"])
     return True
 
@@ -106,7 +102,7 @@ def update_user_status(user_id: int, status: int) -> Optional[User]:
     if not user:
         return None
     user.status = status
-    user.ut = _now_ms()
+    user.ut = get_now_timestamp_ms()
     user.save(using="user_rw", update_fields=["status", "ut"])
     return user
 
@@ -116,6 +112,6 @@ def update_user_auth_status(user_id: int, auth_status: int) -> Optional[User]:
     if not user:
         return None
     user.auth_status = int(auth_status or 0)
-    user.ut = _now_ms()
+    user.ut = get_now_timestamp_ms()
     user.save(using="user_rw", update_fields=["auth_status", "ut"])
     return user

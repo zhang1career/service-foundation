@@ -4,12 +4,12 @@ Stores sentence embedding for vector similarity search.
 Document links to MySQL sentence via sentence_id.
 """
 import logging
-import time
 from typing import Any, Dict, List, Optional
 
 from pymongo.errors import ConnectionFailure, PyMongoError
 
 from common.drivers.mongo_driver import MongoDriver
+from common.utils.date_util import get_now_timestamp_ms
 from app_know.services.text_helper import TextHelper, VEC_DIM
 from service_foundation import settings
 
@@ -72,7 +72,7 @@ def save_sentence_raw(sentence_id: int, content: str) -> Dict[str, Any]:
     if not isinstance(content, str):
         raise ValueError("content must be a string")
 
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     doc = {
         KEY_SENTENCE_ID: sentence_id,
         KEY_CONTENT: content,

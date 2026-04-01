@@ -2,7 +2,7 @@
 详情页 / 子页面顶部返回链接（复用组件）
 规范：
 - back_url 须为对应列表页；详情页仅保留本链接作为「返回」，卡片内不再放返回按钮。
-- 已接 main.js 的 returnToList，优先用历史记录回到列表。
+- 已接 main.js 的 returnToList（自列表进入时用 history.back；刷新/直达等用 replace，见 DESIGN_SPECIFICATIONS）。
 - 禁止在详情页提供进入编辑页的入口；编辑用 console/includes/list_edit_icon.html（仅列表）。
 
 用法: {% include 'console/includes/detail_back_link.html' with back_url=... back_label="返回列表" %}

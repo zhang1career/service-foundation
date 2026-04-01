@@ -3,12 +3,12 @@ MongoDB repository for sub_deco and obj_deco collections (subject/object decorat
 Used for vector index: build short sentence from graph_subject/graph_object, embed, store in Atlas.
 """
 import logging
-import time
 from typing import Optional
 
 from bson import ObjectId
 
 from common.drivers.mongo_driver import MongoDriver
+from common.utils.date_util import get_now_timestamp_ms
 from app_know.services.text_helper import TextHelper, VEC_DIM
 from service_foundation import settings
 
@@ -62,7 +62,7 @@ def _upsert_deco(
     """
     if not content or not isinstance(content, str):
         content = ""
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     doc = {
         KEY_CONTENT: content,
         KEY_CT: now_ms,
@@ -124,7 +124,7 @@ def _backfill_content_vec_for_docs(coll_name: str, text: str) -> list:
     updated_ids = []
     try:
         helper = _get_text_helper()
-        now_ms = int(time.time() * 1000)
+        now_ms = get_now_timestamp_ms()
         for doc in cursor:
             oid = doc.get(KEY_ID)
             if oid is None:

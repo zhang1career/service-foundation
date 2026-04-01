@@ -212,7 +212,6 @@ class AuthService:
                 "access_key": verify_access_key,
                 "code_id": event.verify_code_id,
                 "code": code,
-                "level": event.level,
             },
         )
         if not verify_resp or verify_resp.get("errorCode") != 0:

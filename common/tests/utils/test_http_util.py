@@ -106,6 +106,36 @@ class TestHttpOriginUrl(TestCase):
         self.assertEqual(http_origin_url("h.test", 8443, True), "https://h.test:8443")
 
 
+class _DummyRequest:
+    def __init__(self, data_marker=None, post=None, with_data=True):
+        self.POST = post if post is not None else {}
+        if with_data:
+            self.data = data_marker
+
+
+class TestPostPayload(TestCase):
+    def test_prefers_drf_data_when_present(self):
+        from common.utils.http_util import post_payload
+
+        req = _DummyRequest(data_marker={"a": 1}, post={"b": 2}, with_data=True)
+        payload = post_payload(req)
+        self.assertEqual(payload, {"a": 1})
+
+    def test_falls_back_to_post_when_data_missing(self):
+        from common.utils.http_util import post_payload
+
+        req = _DummyRequest(post={"x": "y"}, with_data=False)
+        payload = post_payload(req)
+        self.assertEqual(payload, {"x": "y"})
+
+    def test_returns_none_when_data_exists_but_none(self):
+        from common.utils.http_util import post_payload
+
+        req = _DummyRequest(data_marker=None, post={"x": "y"}, with_data=True)
+        payload = post_payload(req)
+        self.assertIsNone(payload)
+
+
 class Test(TestCase):
 
     def setUp(self):

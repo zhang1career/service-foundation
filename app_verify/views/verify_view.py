@@ -2,12 +2,12 @@ from rest_framework.views import APIView
 
 from app_verify.services import VerifyService
 from common.consts.response_const import RET_INVALID_PARAM
-from common.utils.http_util import resp_ok, resp_err
+from common.utils.http_util import post_payload, resp_ok, resp_err
 
 
 class VerifyRequestView(APIView):
     def post(self, request, *args, **kwargs):
-        data = request.data if hasattr(request, "data") else request.POST
+        data = post_payload(request)
         try:
             return resp_ok(VerifyService.request_code_by_payload(data))
         except ValueError as exc:
@@ -16,7 +16,7 @@ class VerifyRequestView(APIView):
 
 class VerifyCheckView(APIView):
     def post(self, request, *args, **kwargs):
-        data = request.data if hasattr(request, "data") else request.POST
+        data = post_payload(request)
         try:
             return resp_ok(VerifyService.verify_code_by_payload(data))
         except ValueError as exc:

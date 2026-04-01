@@ -1,10 +1,5 @@
-import time
-
 from app_notice.models import NoticeRecord
-
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
+from common.utils.date_util import get_now_timestamp_ms
 
 
 def create_notice_record(
@@ -18,7 +13,7 @@ def create_notice_record(
     provider: str,
     message: str,
 ) -> NoticeRecord:
-    now_ms = _now_ms()
+    now_ms = get_now_timestamp_ms()
     return NoticeRecord.objects.using("notice_rw").create(
         reg_id=reg_id,
         event_id=event_id,
@@ -41,6 +36,6 @@ def update_notice_record_status(record_id: int, status: int, provider: str, mess
     record.status = status
     record.provider = provider
     record.message = message
-    record.ut = _now_ms()
+    record.ut = get_now_timestamp_ms()
     record.save(using="notice_rw", update_fields=["status", "provider", "message", "ut"])
     return True

@@ -18,6 +18,7 @@ from app_mailserver.repos import (
     create_account,
 )
 from app_mailserver.services.mail_storage_service import MailStorageService
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +92,7 @@ class SMTPHandler:
 
             if not account:
                 # Create new account
-                import time
-                now = int(time.time() * 1000)
+                now = get_now_timestamp_ms()
                 account = await sync_to_async(create_account)(
                     username=email_address,
                     password='',  # No password for incoming mail

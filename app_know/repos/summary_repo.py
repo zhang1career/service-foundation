@@ -5,10 +5,10 @@ MongoDB Atlas knowledge_summaries is not used (account limits).
 All functions return stubs: no persistence, no vector search.
 """
 import logging
-import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from common.consts.query_const import LIMIT_LIST
+from common.utils.date_util import get_now_timestamp_ms
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def save_summary(
         raise ValueError(f"summary must not exceed {SUMMARY_STORAGE_MAX_LEN} characters")
     if app_id is None or not isinstance(app_id, int) or app_id < 0:
         raise ValueError("app_id is required and must be a non-negative integer")
-    now_ms = int(time.time() * 1000)
+    now_ms = get_now_timestamp_ms()
     logger.info("[summary_repo] knowledge_summaries disabled, save_summary no-op for kid=%s", knowledge_id)
     return {"id": None, "kid": knowledge_id, "summary": summary, "app_id": app_id, "ct": now_ms, "ut": now_ms}
 
