@@ -79,4 +79,6 @@ scripts/mock/
 scripts/out/
 __pycache__/
 
+# Deployment
+DEPLOY.md
 

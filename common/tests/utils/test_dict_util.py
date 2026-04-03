@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from unittest import TestCase
 
 
@@ -122,14 +123,14 @@ class Test(TestCase):
         # empty case
         given_param = {}
         given_keys = ["foo", "baz"]
-        expected_result = None
+        expected_result = []
         actual_result = get_multiple_value_list(given_param, given_keys)
         self.assertEqual(expected_result, actual_result)
 
         # None case
         given_param = None
         given_keys = ["foo", "baz"]
-        expected_result = None
+        expected_result = []
         actual_result = get_multiple_value_list(given_param, given_keys)
         self.assertEqual(expected_result, actual_result)
 
@@ -273,15 +274,18 @@ class Test(TestCase):
         # lazy load
         from common.utils.dict_util import sort_and_hash
 
+        sorted_ab = OrderedDict([("a", 1), ("b", 2)])
+        expected_hash = "49b2dc7b3a86bdf30ebc8a3b3bcc902d"
+
         # normal case
         given_dict = {"a": 1, "b": 2}
-        expected_result = ({"a": 1, "b": 2}, "e338569978c20c19af9ac8cb81b86482")
+        expected_result = (sorted_ab, expected_hash)
         actual_result = sort_and_hash(given_dict)
         self.assertEqual(expected_result, actual_result)
 
         # disordered case
         given_dict = {"b": 2, "a": 1}
-        expected_result = ({"a": 1, "b": 2}, "e338569978c20c19af9ac8cb81b86482")
+        expected_result = (sorted_ab, expected_hash)
         actual_result = sort_and_hash(given_dict)
         self.assertEqual(expected_result, actual_result)
 

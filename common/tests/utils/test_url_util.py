@@ -24,13 +24,25 @@ class Test(TestCase):
 
     def test_url_encode(self):
         _input = "https://zhangrj-data-analyzer.s3.amazonaws.com/report/crawl/daily_adj/20240517/Summary_Daily_AAPL-10.mp4?AWSAccessKeyId=AKIA6QKGZHG2T5CA2K5B&Signature=863BpdtT2OdQ90v%2F50u8IB28I18%3D&Expires=1717075198"
-        expected_result = "https%3A//zhangrj-data-analyzer.s3.amazonaws.com/report/crawl/daily_adj/20240517/Summary_Daily_AAPL-10.mp4%3FAWSAccessKeyId%3DAKIA6QKGZHG2T5CA2K5B%2526Signature%3D34Vc1xf1fKuRmf2MrvKIUvktjhc%253D%2526Expires%3D1716984440"
+        expected_result = (
+            "https%3A//zhangrj-data-analyzer.s3.amazonaws.com/report/crawl/daily_adj/"
+            "20240517/Summary_Daily_AAPL-10.mp4%3FAWSAccessKeyId%3DAKIA6QKGZHG2T5CA2K5B"
+            "%26Signature%3D863BpdtT2OdQ90v%252F50u8IB28I18%253D%26Expires%3D1717075198"
+        )
         result = url_encode(_input)
         self.assertEqual(expected_result, result)
 
     def test_url_dencode(self):
-        _input= "https%3A//zhangrj-data-analyzer.s3.amazonaws.com/report/crawl/daily_adj/20240517/Summary_Daily_AAPL-10.mp4%3FAWSAccessKeyId%3DAKIA6QKGZHG2T5CA2K5B%2526Signature%3D34Vc1xf1fKuRmf2MrvKIUvktjhc%253D%2526Expires%3D1716984440"
-        expected_result = "https://zhangrj-data-analyzer.s3.amazonaws.com/report/crawl/daily_adj/20240517/Summary_Daily_AAPL-10.mp4?AWSAccessKeyId=AKIA6QKGZHG2T5CA2K5B%26Signature=34Vc1xf1fKuRmf2MrvKIUvktjhc%3D%26Expires=1716984440"
+        _input = (
+            "https%3A//zhangrj-data-analyzer.s3.amazonaws.com/report/crawl/daily_adj/"
+            "20240517/Summary_Daily_AAPL-10.mp4%3FAWSAccessKeyId%3DAKIA6QKGZHG2T5CA2K5B"
+            "%26Signature%3D863BpdtT2OdQ90v%252F50u8IB28I18%253D%26Expires%3D1717075198"
+        )
+        expected_result = (
+            "https://zhangrj-data-analyzer.s3.amazonaws.com/report/crawl/daily_adj/"
+            "20240517/Summary_Daily_AAPL-10.mp4?AWSAccessKeyId=AKIA6QKGZHG2T5CA2K5B"
+            "&Signature=863BpdtT2OdQ90v%2F50u8IB28I18%3D&Expires=1717075198"
+        )
         result = url_decode(_input)
         self.assertEqual(expected_result, result)
 

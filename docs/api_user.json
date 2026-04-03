@@ -1,0 +1,819 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "用户中心 API (app_user)",
+    "description": "统一用户注册、登录、资料、JWT 与控制台管理接口。HTTP 状态码多为 200；业务结果看响应体 `errorCode`（0 成功）。需登录的接口在请求头携带 `Authorization: Bearer <access_token>`。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/user",
+      "description": "Django 挂载前缀（见 service_foundation.urls）"
+    }
+  ],
+  "tags": [
+    { "name": "Dict", "description": "枚举字典查询（与其它 app 的 dict 接口同形）" },
+    { "name": "Auth", "description": "注册、登录、刷新令牌" },
+    { "name": "Password", "description": "密码重置（当前实现会返回业务错误）" },
+    { "name": "Me", "description": "当前登录用户资料（JWT）" },
+    { "name": "Users", "description": "用户列表与按 ID 查询/改状态" },
+    { "name": "Console", "description": "控制台用户与事件管理（无额外网关鉴权，部署时需自行保护）" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "登录或注册验证成功后返回的 access_token（HS256，type=access）"
+      }
+    },
+    "schemas": {
+      "StdResponse": {
+        "type": "object",
+        "required": ["errorCode"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "0 成功；非 0 为错误码（见 common.consts.response_const）"
+          },
+          "data": { "description": "成功时载荷；失败时多为 null" },
+          "message": { "type": "string", "description": "错误或提示文案" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "username": { "type": "string" },
+          "email": { "type": "string" },
+          "phone": { "type": "string" },
+          "avatar": { "type": "string", "description": "头像 URL 或空串" },
+          "status": { "type": "integer", "description": "0 禁用，1 启用（user_status）" },
+          "auth_status": { "type": "integer", "description": "位掩码，控制台验证码认证等" },
+          "ext": { "type": "object", "additionalProperties": true },
+          "ct": { "type": "integer", "format": "int64", "description": "创建时间 ms" },
+          "ut": { "type": "integer", "format": "int64", "description": "更新时间 ms" }
+        }
+      },
+      "LoginTokens": {
+        "type": "object",
+        "properties": {
+          "access_token": { "type": "string" },
+          "refresh_token": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "RefreshResult": {
+        "type": "object",
+        "properties": {
+          "access_token": { "type": "string" },
+          "refresh_token": { "type": "string", "description": "新签发的 refresh token（客户端应覆盖本地保存；无状态 JWT 下旧 refresh 在自身 exp 前仍可用）" }
+        },
+        "description": "PUT /login 刷新返回新的 access_token 与 refresh_token（与 POST 登录返回字段对齐）"
+      },
+      "PageUsers": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+          "next_offset": { "type": "integer", "nullable": true, "description": "下一页 offset，无更多为 null" },
+          "total_num": { "type": "integer" }
+        }
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "biz_type": { "type": "integer" },
+          "status": { "type": "integer" },
+          "level": { "type": "integer" },
+          "verify_code_id": { "type": "integer" },
+          "verify_ref_id": { "type": "integer" },
+          "notice_target": { "type": "string" },
+          "notice_channel": { "type": "integer" },
+          "payload_json": { "type": "string" },
+          "message": { "type": "string" },
+          "ct": { "type": "integer", "format": "int64" },
+          "ut": { "type": "integer", "format": "int64" }
+        }
+      },
+      "PageEvents": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Event" } },
+          "next_offset": { "type": "integer", "nullable": true },
+          "total_num": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/dict": {
+      "get": {
+        "tags": ["Dict"],
+        "summary": "按 codes 查询字典",
+        "description": "查询参数 `codes` 为逗号分隔的字典名；未知 code 忽略。无需登录。",
+        "operationId": "userDict",
+        "parameters": [
+          {
+            "name": "codes",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "example": "user_status" },
+            "description": "逗号分隔，如 user_status"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "errorCode=0 时 data 为 { codeName: [{k,v}, ...], ... }",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "注册（请求验证码）",
+        "description": "创建待注册事件并调用 verify/notice 服务下发验证码。支持 JSON 或 multipart（含 avatar 文件）。",
+        "operationId": "userRegisterRequest",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password", "notice_channel", "notice_target"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "ext": { "type": "object", "additionalProperties": true },
+                  "notice_channel": { "type": "string", "enum": ["email", "sms"] },
+                  "notice_target": { "type": "string" }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password", "notice_channel", "notice_target"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "ext": { "type": "string", "description": "JSON 字符串" },
+                  "notice_channel": { "type": "string", "enum": ["email", "sms"] },
+                  "notice_target": { "type": "string" },
+                  "avatar": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 data 含 event_id；失败 errorCode=100 等",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" },
+                "example": {
+                  "errorCode": 0,
+                  "data": { "event_id": 1 },
+                  "message": ""
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/register/verify": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "注册（提交验证码）",
+        "operationId": "userRegisterVerify",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["event_id", "code"],
+                "properties": {
+                  "event_id": { "type": "integer" },
+                  "code": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功返回 access_token、refresh_token、user",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "登录",
+        "operationId": "userLogin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["login_key", "password"],
+                "properties": {
+                  "login_key": { "type": "string", "description": "用户名 / 邮箱 / 手机号" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功 data 为 LoginTokens；凭证错误 errorCode=200",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Auth"],
+        "summary": "刷新 access_token",
+        "description": "使用 refresh_token 换取新的 access_token（原 POST /refresh 已合并到此）。",
+        "operationId": "userRefresh",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["refresh_token"],
+                "properties": {
+                  "refresh_token": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功 data 含 access_token、refresh_token；无效 refresh 时 errorCode=211",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reset-password": {
+      "post": {
+        "tags": ["Password"],
+        "summary": "请求密码重置",
+        "description": "向已存在且 status=1 的用户的 email 或 phone 发送验证码（与注册相同依赖 VERIFY / NOTICE 服务）。若账号不存在或非活跃，仍返回 sent=true 且不返回 event_id，避免枚举。成功时 data 含 event_id 供 /reset-password/verify 使用。",
+        "operationId": "userResetPasswordRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "notice_channel": { "type": "string", "description": "email 或 sms" },
+                  "notice_target": { "type": "string", "description": "邮箱或手机号" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "标准信封",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reset-password/verify": {
+      "post": {
+        "tags": ["Password"],
+        "summary": "确认密码重置",
+        "description": "校验验证码并更新密码。须携带请求重置接口返回的 event_id；客户端需自行保存该 id。",
+        "operationId": "userResetPasswordVerify",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["event_id", "code", "new_password"],
+                "properties": {
+                  "event_id": { "type": "integer" },
+                  "code": { "type": "string" },
+                  "new_password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": ["Me"],
+        "summary": "当前用户资料",
+        "operationId": "userMeGet",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "未带或非法 token：errorCode=202/211；成功 data 为 User",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Me"],
+        "summary": "更新当前用户资料",
+        "description": "支持 JSON 或 multipart（avatar 文件）。字段存在则更新：email、phone、ext、avatar。",
+        "operationId": "userMePatch",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "ext": { "type": "object", "additionalProperties": true },
+                  "avatar": { "type": "string", "description": "URL/base64 等由服务端 avatar 逻辑解析" }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "ext": { "type": "string", "description": "JSON 字符串" },
+                  "avatar": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/update/request": {
+      "post": {
+        "tags": ["Me"],
+        "summary": "资料变更请求验证码",
+        "description": "创建 UPDATE_PROFILE 事件并下发验证码。需登录。",
+        "operationId": "userMeUpdateRequest",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["notice_channel", "notice_target"],
+                "properties": {
+                  "notice_channel": { "type": "string", "enum": ["email", "sms"] },
+                  "notice_target": { "type": "string" },
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "avatar": { "type": "string" },
+                  "ext": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功 data.event_id",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/update/verify": {
+      "post": {
+        "tags": ["Me"],
+        "summary": "资料变更提交验证码",
+        "operationId": "userMeUpdateVerify",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["event_id", "code"],
+                "properties": {
+                  "event_id": { "type": "integer" },
+                  "code": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "用户分页列表",
+        "description": "无需 JWT；生产环境应自行限制访问。默认 limit=20，最大 1000。",
+        "operationId": "userList",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20, "maximum": 1000 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{user_id}": {
+      "parameters": [
+        {
+          "name": "user_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "integer" }
+        }
+      ],
+      "get": {
+        "tags": ["Users"],
+        "summary": "按 ID 获取用户",
+        "operationId": "userDetail",
+        "responses": {
+          "200": {
+            "description": "不存在 errorCode=301",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Users"],
+        "summary": "更新用户状态",
+        "description": "body 必须含 status（0 禁用 / 1 启用）。",
+        "operationId": "userSetStatus",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": { "type": "integer", "enum": [0, 1] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/users": {
+      "post": {
+        "tags": ["Console"],
+        "summary": "控制台创建用户并发验证码",
+        "description": "JSON 或 multipart。notice_channel/notice_target 可省略时由 email/phone 推导。",
+        "operationId": "consoleUserCreate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "status": { "type": "integer", "default": 1 },
+                  "ext": { "type": "object" },
+                  "notice_channel": { "type": "string", "enum": ["email", "sms"] },
+                  "notice_target": { "type": "string" }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" },
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "status": { "type": "string" },
+                  "ext": { "type": "string", "description": "JSON 字符串" },
+                  "notice_channel": { "type": "string" },
+                  "notice_target": { "type": "string" },
+                  "avatar": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data: { user, event_id }",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/users/{user_id}/verify": {
+      "parameters": [
+        {
+          "name": "user_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "integer" }
+        }
+      ],
+      "post": {
+        "tags": ["Console"],
+        "summary": "控制台提交用户认证验证码",
+        "operationId": "consoleUserVerify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["code"],
+                "properties": {
+                  "code": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data: { user, auth_status }",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/users/{user_id}": {
+      "parameters": [
+        {
+          "name": "user_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "integer" }
+        }
+      ],
+      "patch": {
+        "tags": ["Console"],
+        "summary": "控制台更新用户",
+        "description": "当前实现仅持久化：email、phone、avatar、ext、status（UserService.console_update_user_by_payload）。支持 multipart avatar；其它字段若出现在表单中会被忽略。",
+        "operationId": "consoleUserUpdate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "status": { "type": "integer" },
+                  "ext": { "type": "object" }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "status": { "type": "string" },
+                  "ext": { "type": "string", "description": "JSON 字符串" },
+                  "avatar": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/events": {
+      "get": {
+        "tags": ["Console"],
+        "summary": "事件分页列表",
+        "operationId": "consoleEventList",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/events/{event_id}": {
+      "parameters": [
+        {
+          "name": "event_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "integer" }
+        }
+      ],
+      "get": {
+        "tags": ["Console"],
+        "summary": "事件详情",
+        "operationId": "consoleEventGet",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Console"],
+        "summary": "更新事件字段",
+        "description": "仅 payload 中出现的字段会更新：biz_type、status、level、verify_code_id、verify_ref_id、notice_target、notice_channel、payload_json、message。",
+        "operationId": "consoleEventPatch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "biz_type": { "type": "integer" },
+                  "status": { "type": "integer" },
+                  "level": { "type": "integer" },
+                  "verify_code_id": { "type": "integer" },
+                  "verify_ref_id": { "type": "integer" },
+                  "notice_target": { "type": "string" },
+                  "notice_channel": { "type": "integer" },
+                  "payload_json": { "type": "string" },
+                  "message": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Console"],
+        "summary": "删除事件",
+        "operationId": "consoleEventDelete",
+        "responses": {
+          "200": {
+            "description": "成功 data: { deleted: true, id }",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

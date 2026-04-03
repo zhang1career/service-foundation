@@ -1,39 +1,16 @@
 from rest_framework.views import APIView
 
 from app_user.enums import UserStatusEnum
-from app_user.services import UserService, EventService
-from app_user.services.jwt_util import parse_bearer_token, decode_token
+from app_user.services import AuthService, EventService, UserService
+from app_user.views.auth_context import bearer_user_id_from_request
 from common.consts.query_const import LIMIT_PAGE
-from common.consts.response_const import RET_LOGIN_REQUIRED, RET_TOKEN_INVALID, RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
+from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, with_type
-
-
-def _extract_console_payload(data) -> dict:
-    payload = {}
-    for key in ("username", "password", "email", "phone", "status", "notice_channel", "notice_target"):
-        if key in data:
-            payload[key] = data.get(key)
-    if "ext" in data:
-        payload["ext"] = data.get("ext")
-    if "avatar" in data:
-        payload["avatar"] = data.get("avatar")
-    return payload
-
-
-def _current_user_id(request):
-    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-    token = parse_bearer_token(auth_header)
-    if not token:
-        return None, RET_LOGIN_REQUIRED, "login required"
-    payload = decode_token(token)
-    if not payload or payload.get("type") != "access":
-        return None, RET_TOKEN_INVALID, "invalid token"
-    return payload.get("user_id"), 0, ""
 
 
 class UserMeView(APIView):
     def get(self, request, *args, **kwargs):
-        user_id, code, message = _current_user_id(request)
+        user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
             return resp_err(message, code=code)
         user = UserService.get_me(user_id=user_id)
@@ -42,7 +19,7 @@ class UserMeView(APIView):
         return resp_ok(user)
 
     def patch(self, request, *args, **kwargs):
-        user_id, code, message = _current_user_id(request)
+        user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
             return resp_err(message, code=code)
         data = request.data if hasattr(request, "data") else request.POST
@@ -63,20 +40,26 @@ class UserMeView(APIView):
 
 class UserMeUpdateRequestView(APIView):
     def post(self, request, *args, **kwargs):
-        user_id, code, message = _current_user_id(request)
+        user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
             return resp_err(message, code=code)
         data = request.data if hasattr(request, "data") else request.POST
-        return resp_ok(UserService.update_me_request_by_payload(user_id=user_id, payload=data))
+        try:
+            return resp_ok(UserService.update_me_request_by_payload(user_id=user_id, payload=data))
+        except ValueError as exc:
+            return resp_err(str(exc), code=RET_INVALID_PARAM)
 
 
 class UserMeUpdateVerifyView(APIView):
     def post(self, request, *args, **kwargs):
-        user_id, code, message = _current_user_id(request)
+        user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
             return resp_err(message, code=code)
         data = request.data if hasattr(request, "data") else request.POST
-        user = UserService.update_me_verify_by_payload(user_id=user_id, payload=data)
+        try:
+            user = UserService.update_me_verify_by_payload(user_id=user_id, payload=data)
+        except ValueError as exc:
+            return resp_err(str(exc), code=RET_INVALID_PARAM)
         if not user:
             return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
         return resp_ok(user)
@@ -113,7 +96,7 @@ class UserDetailView(APIView):
         return resp_ok(user)
 
 
-class UserConsoleCreateView(APIView):
+class UserConsoleListView(APIView):
     """
     控制台新建用户：
     - 直接插入 user 记录（auth_status=0）
@@ -125,7 +108,21 @@ class UserConsoleCreateView(APIView):
         payload = _extract_console_payload(data)
         if hasattr(request, "FILES") and request.FILES.get("avatar"):
             payload["avatar"] = request.FILES.get("avatar")
-        return resp_ok(UserService.console_create_user_by_payload(payload=payload))
+        # Keep console create flow consistent with public register:
+        # create register event first, then create user after verify passed.
+        email = (payload.get("email") or "").strip()
+        phone = (payload.get("phone") or "").strip()
+        if not payload.get("notice_target"):
+            if email:
+                payload["notice_channel"] = "email"
+                payload["notice_target"] = email
+            elif phone:
+                payload["notice_channel"] = "sms"
+                payload["notice_target"] = phone
+        try:
+            return resp_ok(AuthService.register_request_by_payload(payload))
+        except ValueError as exc:
+            return resp_err(str(exc), code=RET_INVALID_PARAM)
 
 
 class UserConsoleVerifyView(APIView):
@@ -133,12 +130,17 @@ class UserConsoleVerifyView(APIView):
 
     def post(self, request, user_id, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
-        return resp_ok(
-            UserService.console_verify_user_by_code(user_id=with_type(user_id), code=data.get("code"))
-        )
+        try:
+            result = UserService.console_verify_user_by_code(
+                user_id=with_type(user_id),
+                code=data.get("code"),
+            )
+        except ValueError as exc:
+            return resp_err(str(exc), code=RET_INVALID_PARAM)
+        return resp_ok(result)
 
 
-class UserConsoleUpdateView(APIView):
+class UserConsoleDetailView(APIView):
     """控制台用户编辑：不支持认证状态修改。"""
 
     def patch(self, request, user_id, *args, **kwargs):
@@ -150,6 +152,18 @@ class UserConsoleUpdateView(APIView):
         if not user:
             return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
         return resp_ok(user)
+
+
+def _extract_console_payload(data) -> dict:
+    payload = {}
+    for key in ("username", "password", "email", "phone", "status", "notice_channel", "notice_target"):
+        if key in data:
+            payload[key] = data.get(key)
+    if "ext" in data:
+        payload["ext"] = data.get("ext")
+    if "avatar" in data:
+        payload["avatar"] = data.get("avatar")
+    return payload
 
 
 class EventConsoleListView(APIView):

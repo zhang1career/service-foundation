@@ -1,8 +1,9 @@
 from rest_framework.views import APIView
 
+from app_user.services import AuthService
 from common.consts.response_const import RET_INVALID_PARAM, RET_UNAUTHORIZED, RET_TOKEN_INVALID
 from common.utils.http_util import resp_ok, resp_err
-from app_user.services import AuthService
+
 
 class RegisterView(APIView):
     def post(self, request, *args, **kwargs):
@@ -37,9 +38,7 @@ class LoginView(APIView):
         except ValueError as exc:
             return resp_err(str(exc), code=RET_UNAUTHORIZED)
 
-
-class RefreshView(APIView):
-    def post(self, request, *args, **kwargs):
+    def put(self, request, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
         try:
             result = AuthService.refresh(refresh_token=(data.get("refresh_token") or "").strip())
@@ -48,7 +47,7 @@ class RefreshView(APIView):
             return resp_err(str(exc), code=RET_TOKEN_INVALID)
 
 
-class PasswordResetRequestView(APIView):
+class PasswordResetView(APIView):
     def post(self, request, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
         try:

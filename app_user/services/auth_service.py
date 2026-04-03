@@ -1,79 +1,39 @@
 import json
-from typing import Optional
 
-from django.conf import settings
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import check_password, make_password
 
-from common.utils.http_util import post
+from app_user.enums import EventBizTypeEnum, EventStatusEnum, UserStatusEnum
 from app_user.repos import (
-    get_user_by_login,
+    cancel_pending_events_by_notice,
     create_user,
-    get_user_by_username,
-    get_user_by_email,
-    get_user_by_phone,
-    create_event,
     get_event_by_id,
-    update_event_after_code,
+    get_user_by_email,
+    get_user_by_id,
+    get_user_by_login,
+    get_user_by_phone,
+    get_user_by_username,
     update_event_status,
+    update_user_password,
 )
-from app_user.services.jwt_util import create_access_token, create_refresh_token, decode_token
 from app_user.services.avatar_storage_service import upload_avatar
-from app_user.enums import EventBizTypeEnum
+from app_user.services.jwt_util import create_access_token, create_refresh_token, decode_token
+from app_user.services.user_serialization import user_to_public_dict
+from app_user.services.verify_notice_integration import (
+    create_verify_event_and_send_notice,
+    load_verify_notice_access_keys,
+    post_verify_check,
+    verify_payload_code_for_pending_event,
+)
 from app_verify.enums import ChannelEnum, VerifyLevelEnum
 
 
-def _get_integration_access_keys() -> tuple[str, str]:
-    verify_access_key = (getattr(settings, "USER_VERIFY_ACCESS_KEY", "") or "").strip()
-    notice_access_key = (getattr(settings, "USER_NOTICE_ACCESS_KEY", "") or "").strip()
-    if not verify_access_key:
-        raise ValueError("USER_VERIFY_ACCESS_KEY is required")
-    if not notice_access_key:
-        raise ValueError("USER_NOTICE_ACCESS_KEY is required")
-    return verify_access_key, notice_access_key
-
-
-def _mask_user(user) -> dict:
-    try:
-        ext_data = json.loads(user.ext or "{}")
-    except (TypeError, ValueError):
-        ext_data = {}
-    return {
-        "id": user.id,
-        "username": user.username,
-        "email": user.email or "",
-        "phone": user.phone or "",
-        "avatar": user.avatar,
-        "status": user.status,
-        "auth_status": getattr(user, "auth_status", 0) or 0,
-        "ext": ext_data,
-        "ct": user.ct,
-        "ut": user.ut,
-    }
-
-
 class AuthService:
-    @staticmethod
-    def register(username: str, password: str, email: str = "", phone: str = "", avatar=None, ext: Optional[dict] = None) -> dict:
-        username = (username or "").strip()
-        if not username or not password:
-            raise ValueError("username and password are required")
-        if get_user_by_username(username):
-            raise ValueError("username already exists")
-        if email and get_user_by_email(email):
-            raise ValueError("email already exists")
-        if phone and get_user_by_phone(phone):
-            raise ValueError("phone already exists")
-
-        avatar_url = upload_avatar(avatar) if avatar else ""
-        user = create_user(username=username, password_hash=make_password(password), email=email, phone=phone, avatar=avatar_url, ext=ext)
-        return AuthService._tokens(user)
-
     @staticmethod
     def login(login_key: str, password: str) -> dict:
         if not login_key or not password:
             raise ValueError("login_key and password are required")
         user = get_user_by_login(login_key.strip())
-        if not user or user.status != 1:
+        if not user or user.status != UserStatusEnum.ENABLED.value:
             raise ValueError("invalid username/email/phone or password")
         if not check_password(password, user.password_hash):
             raise ValueError("invalid username/email/phone or password")
@@ -90,36 +50,108 @@ class AuthService:
             raise ValueError("invalid refresh token payload")
         return {
             "access_token": create_access_token(user_id=user_id, username=username),
+            "refresh_token": create_refresh_token(user_id=user_id, username=username),
         }
 
     @staticmethod
-    def _request_password_reset(channel: str, target: str) -> bool:
-        raise ValueError("password reset flow is removed")
-
-    @staticmethod
     def request_password_reset_by_payload(payload: dict) -> dict:
-        channel = (payload.get("channel") or "").strip()
-        target = (payload.get("target") or "").strip()
-        sent = AuthService._request_password_reset(channel=channel, target=target)
-        return {"sent": sent}
+        channel = (payload.get("notice_channel") or "").strip()
+        target = (payload.get("notice_target") or "").strip()
+        return AuthService._request_password_reset(channel=channel, target=target)
 
     @staticmethod
-    def _verify_password_reset(channel: str, target: str, code: str, new_password: str) -> bool:
-        raise ValueError("password reset flow is removed")
+    def _request_password_reset(channel: str, target: str) -> dict:
+        notice_channel_label = channel.lower()
+        if notice_channel_label not in {"email", "sms"}:
+            raise ValueError("channel must be email or sms")
+        target = target.strip()
+        if not target:
+            raise ValueError("target is required")
+
+        notice_channel = ChannelEnum.from_label(notice_channel_label)
+        user = (
+            get_user_by_email(target)
+            if notice_channel_label == "email"
+            else get_user_by_phone(target)
+        )
+        if not user or user.status != UserStatusEnum.ENABLED.value:
+            return {"sent": True}
+
+        cancel_pending_events_by_notice(
+            EventBizTypeEnum.PASSWORD_RESET.value,
+            notice_channel,
+            target,
+        )
+        pending_payload = {"user_id": user.id}
+        event = create_verify_event_and_send_notice(
+            biz_type=EventBizTypeEnum.PASSWORD_RESET.value,
+            level=VerifyLevelEnum.HIGH.value,
+            notice_channel=notice_channel,
+            notice_target=target,
+            payload_json=json.dumps(pending_payload, ensure_ascii=False),
+            subject="Password reset verify code",
+            content_template="Your password reset code is {code}. Event ID: {event_id}",
+        )
+        return {"sent": True, "event_id": event.id}
 
     @staticmethod
     def verify_password_reset_by_payload(payload: dict) -> dict:
-        channel = (payload.get("channel") or "").strip()
-        target = (payload.get("target") or "").strip()
         code = (payload.get("code") or "").strip()
         new_password = payload.get("new_password") or ""
         reset = AuthService._verify_password_reset(
-            channel=channel,
-            target=target,
+            event_id=int(payload.get("event_id") or 0),
             code=code,
             new_password=new_password,
         )
         return {"reset": reset}
+
+    @staticmethod
+    def _verify_password_reset(
+            *,
+            event_id: int,
+            code: str,
+            new_password: str,
+    ) -> bool:
+        if event_id <= 0:
+            raise ValueError("event_id is required")
+        if not code:
+            raise ValueError("code is required")
+        if not new_password:
+            raise ValueError("new_password is required")
+
+        event = get_event_by_id(event_id)
+
+        if (
+                not event
+                or event.biz_type != EventBizTypeEnum.PASSWORD_RESET
+                or event.status != EventStatusEnum.PENDING_VERIFY.value
+        ):
+            raise ValueError("invalid or expired reset request")
+
+        try:
+            payload_data = json.loads(event.payload_json or "{}")
+        except (TypeError, ValueError):
+            payload_data = {}
+        user_id = int(payload_data.get("user_id") or 0)
+        if user_id <= 0:
+            raise ValueError("invalid event payload")
+
+        user = get_user_by_id(user_id)
+        if not user or user.status != UserStatusEnum.ENABLED.value:
+            raise ValueError("user not found or inactive")
+
+        verify_access_key, _ = load_verify_notice_access_keys()
+        verify_resp = post_verify_check(
+            verify_access_key=verify_access_key,
+            code_id=event.verify_code_id,
+            code=code,
+        )
+        if not verify_resp or verify_resp.get("errorCode") != 0:
+            raise ValueError("invalid or expired verify code")
+
+        update_user_password(user_id, make_password(new_password))
+        update_event_status(event.id, status=EventStatusEnum.COMPLETED.value, message="completed")
+        return True
 
     @staticmethod
     def register_request_by_payload(payload: dict) -> dict:
@@ -153,71 +185,23 @@ class AuthService:
             "avatar": avatar_url,
             "ext": ext,
         }
-        event = create_event(
+        event = create_verify_event_and_send_notice(
             biz_type=EventBizTypeEnum.REGISTER,
             level=VerifyLevelEnum.HIGH.value,
             notice_channel=ChannelEnum.from_label(notice_channel),
             notice_target=notice_target,
             payload_json=json.dumps(pending_payload, ensure_ascii=False),
+            subject="Register verify code",
+            content_template="Your register verify code is {code}. Event ID: {event_id}",
         )
-        verify_access_key, notice_access_key = _get_integration_access_keys()
-        verify_resp = post(
-            url=getattr(settings, "VERIFY_REQUEST_URL"),
-            data={
-                "access_key": verify_access_key,
-                "level": VerifyLevelEnum.HIGH.value,
-                "ref_id": event.id,
-            },
-        )
-        if not verify_resp or verify_resp.get("errorCode") != 0:
-            update_event_status(event.id, status=9, message="verify request failed")
-            raise ValueError("failed to request verify code")
-        verify_data = verify_resp.get("data") or {}
-        code = verify_data.get("code")
-        code_id = int(verify_data.get("code_id") or 0)
-        ref_id = int(verify_data.get("ref_id") or 0)
-        if not code or code_id <= 0 or ref_id != event.id:
-            update_event_status(event.id, status=9, message="invalid verify response")
-            raise ValueError("invalid verify response")
-        update_event_after_code(event.id, verify_code_id=code_id, verify_ref_id=ref_id)
-        notice_resp = post(
-            url=getattr(settings, "NOTICE_SERVICE_URL"),
-            data={
-                "access_key": notice_access_key,
-                "event_id": event.id,
-                "channel": ChannelEnum.from_label(notice_channel),
-                "target": notice_target,
-                "subject": "Register verify code",
-                "content": f"Your register verify code is {code}. Event ID: {event.id}",
-            },
-        )
-        if not notice_resp or notice_resp.get("errorCode") != 0:
-            update_event_status(event.id, status=9, message="notice enqueue failed")
-            raise ValueError("failed to enqueue notice")
         return {"event_id": event.id}
 
     @staticmethod
     def register_verify_by_payload(payload: dict) -> dict:
-        event_id = int(payload.get("event_id") or 0)
-        code = (payload.get("code") or "").strip()
-        if event_id <= 0 or not code:
-            raise ValueError("event_id and code are required")
-        event = get_event_by_id(event_id)
-        if not event or event.biz_type != EventBizTypeEnum.REGISTER or event.status != 1:
-            raise ValueError("invalid event")
-        verify_access_key, _ = _get_integration_access_keys()
-        verify_resp = post(
-            url=getattr(settings, "VERIFY_CHECK_URL"),
-            data={
-                "access_key": verify_access_key,
-                "code_id": event.verify_code_id,
-                "code": code,
-            },
+        event, data = verify_payload_code_for_pending_event(
+            payload=payload,
+            expected_biz_type=EventBizTypeEnum.REGISTER,
         )
-        if not verify_resp or verify_resp.get("errorCode") != 0:
-            update_event_status(event.id, status=1, message="waiting for verified")
-            raise ValueError("invalid or expired verify code")
-        data = json.loads(event.payload_json or "{}")
         user = create_user(
             username=(data.get("username") or "").strip(),
             password_hash=data.get("password_hash") or "",
@@ -226,9 +210,9 @@ class AuthService:
             avatar=data.get("avatar") or "",
             ext=data.get("ext") if isinstance(data.get("ext"), dict) else {},
         )
-        user.status = 1
+        user.status = UserStatusEnum.ENABLED.value
         user.save(using="user_rw", update_fields=["status"])
-        update_event_status(event.id, status=3, message="completed")
+        update_event_status(event.id, status=EventStatusEnum.COMPLETED.value, message="completed")
         return AuthService._tokens(user)
 
     @staticmethod
@@ -236,5 +220,5 @@ class AuthService:
         return {
             "access_token": create_access_token(user_id=user.id, username=user.username),
             "refresh_token": create_refresh_token(user_id=user.id, username=user.username),
-            "user": _mask_user(user),
+            "user": user_to_public_dict(user),
         }

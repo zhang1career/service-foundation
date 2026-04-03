@@ -12,8 +12,10 @@ from app_user.repos.user_repo import (
     update_user_auth_status,
 )
 from app_user.repos.event_repo import (
+    cancel_pending_events_by_notice,
     create_event,
     get_event_by_id,
+    get_latest_pending_event_by_notice,
     update_event_after_code,
     update_event_status,
     list_events,
@@ -33,8 +35,10 @@ __all__ = [
     "list_users",
     "update_user_status",
     "update_user_auth_status",
+    "cancel_pending_events_by_notice",
     "create_event",
     "get_event_by_id",
+    "get_latest_pending_event_by_notice",
     "update_event_after_code",
     "update_event_status",
     "list_events",

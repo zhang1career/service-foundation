@@ -80,14 +80,27 @@ def _http_put_object(*, url: str, data: bytes, content_type: str, timeout: int):
     )
 
 
+def _oss_base_url() -> str:
+    raw = getattr(settings, "USER_OSS_ENDPOINT", None)
+    if raw is None or not str(raw).strip():
+        return "http://127.0.0.1:8000/api/oss"
+    return str(raw).strip().rstrip("/")
+
+
+def _oss_bucket_name() -> str:
+    raw = getattr(settings, "USER_OSS_BUCKET", None)
+    if raw is None or not str(raw).strip():
+        return "user-avatar"
+    return str(raw).strip()
+
+
 def upload_avatar(avatar) -> str:
     if avatar is None:
         return ""
 
-    base = getattr(settings, "USER_OSS_ENDPOINT", "http://127.0.0.1:8000/api/oss").rstrip("/")
-    bucket = getattr(settings, "USER_OSS_BUCKET", "user-avatar").strip() or "user-avatar"
+    base = _oss_base_url()
+    bucket = _oss_bucket_name()
 
-    data = b""
     content_type = "application/octet-stream"
     filename = ""
 
