@@ -1,9 +1,10 @@
 """
 Upload view: accept txt file (UTF-8), create batch of knowledge points, optionally parse.
 """
+from __future__ import annotations
+
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.views import APIView
 
@@ -62,27 +63,19 @@ class KnowledgeUploadView(APIView):
         try:
             file_obj = request.FILES.get("file")
             if not file_obj:
-                return resp_err("file is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="file is required")
 
             if file_obj.size > MAX_FILE_SIZE:
-                return resp_err(
-                    f"file too large (max {MAX_FILE_SIZE // 1024 // 1024}MB)",
-                    code=RET_INVALID_PARAM,
-                    status=http_status.HTTP_200_OK,
-                )
+                return resp_err(code=RET_INVALID_PARAM, message=f"file too large (max {MAX_FILE_SIZE // 1024 // 1024}MB)")
 
             name = (file_obj.name or "").lower()
             if not name.endswith(".txt"):
-                return resp_err("only .txt files allowed", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="only .txt files allowed")
 
             try:
                 content = file_obj.read().decode("utf-8")
             except UnicodeDecodeError as e:
-                return resp_err(
-                    f"file must be UTF-8 encoded: {e}",
-                    code=RET_INVALID_PARAM,
-                    status=http_status.HTTP_200_OK,
-                )
+                return resp_err(code=RET_INVALID_PARAM, message=f"file must be UTF-8 encoded: {e}")
 
             do_parse = _parse_flag_requested(request)
             title = _upload_batch_title(request, file_obj)
@@ -108,7 +101,7 @@ class KnowledgeUploadView(APIView):
             return resp_ok(result)
         except ValueError as e:
             logger.warning("[KnowledgeUploadView] Validation error: %s", e)
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[KnowledgeUploadView] Error: %s", e)
             return resp_exception(e)

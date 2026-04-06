@@ -4,7 +4,7 @@ Generated.
 """
 import json
 import logging
-from rest_framework import status as http_status
+
 from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
 
@@ -113,10 +113,10 @@ class RelationshipListView(APIView):
             logger.warning("[RelationshipListView.get] Validation error: %s", e)
             msg = str(e)
             code, _ = generic_code_for_ret(msg, RET_INVALID_PARAM)
-            return resp_err(msg, code=code, status=http_status.HTTP_200_OK)
+            return resp_err(code=code, message=msg)
         except Exception as e:
             logger.exception("[RelationshipListView.get] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
     def post(self, request, *args, **kwargs):
         """Create a relationship. Body: app_id, relationship_type, source_knowledge_id; for knowledge_entity: entity_type, entity_id; for knowledge_knowledge: target_knowledge_id; optional predicate and properties."""
@@ -155,13 +155,13 @@ class RelationshipListView(APIView):
             logger.warning("[RelationshipListView.post] Validation error: %s", e)
             msg = str(e)
             code, _ = generic_code_for_ret(msg, RET_INVALID_PARAM)
-            return resp_err(msg, code=code, status=http_status.HTTP_200_OK)
+            return resp_err(code=code, message=msg)
         except ParseError as e:
             logger.warning("[RelationshipListView.post] Parse error: %s", e)
-            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_JSON_PARSE_ERROR, message=str(e))
         except Exception as e:
             logger.exception("[RelationshipListView.post] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
 
 class RelationshipDetailView(APIView):
@@ -177,19 +177,15 @@ class RelationshipDetailView(APIView):
             service = RelationshipService()
             out = service.get_relationship(app_id=app_id, relationship_id=rid)
             if out is None:
-                return resp_err(
-                    f"Relationship {rid} not found or app_id mismatch",
-                    code=RET_RESOURCE_NOT_FOUND,
-                    status=http_status.HTTP_200_OK,
-                )
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=f"Relationship {rid} not found or app_id mismatch")
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[RelationshipDetailView.get] Validation error: %s", e)
             code, _ = generic_code_for_ret(str(e), RET_INVALID_PARAM)
-            return resp_err(str(e), code=code, status=http_status.HTTP_200_OK)
+            return resp_err(code=code, message=str(e))
         except Exception as e:
             logger.exception("[RelationshipDetailView.get] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
     def put(self, request, relationship_id, *args, **kwargs):
         """Update relationship properties. Body: app_id (required), properties (dict)."""
@@ -220,13 +216,13 @@ class RelationshipDetailView(APIView):
             logger.warning("[RelationshipDetailView.put] Validation error: %s", e)
             msg = str(e)
             code, _ = generic_code_for_ret(msg, RET_INVALID_PARAM)
-            return resp_err(msg, code=code, status=http_status.HTTP_200_OK)
+            return resp_err(code=code, message=msg)
         except ParseError as e:
             logger.warning("[RelationshipDetailView.put] Parse error: %s", e)
-            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_JSON_PARSE_ERROR, message=str(e))
         except Exception as e:
             logger.exception("[RelationshipDetailView.put] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
     def delete(self, request, relationship_id, *args, **kwargs):
         """Delete relationship by Neo4j relationship id. Query param: app_id (required)."""
@@ -241,7 +237,7 @@ class RelationshipDetailView(APIView):
         except ValueError as e:
             logger.warning("[RelationshipDetailView.delete] Validation error: %s", e)
             code, _ = generic_code_for_ret(str(e), RET_INVALID_PARAM)
-            return resp_err(str(e), code=code, status=http_status.HTTP_200_OK)
+            return resp_err(code=code, message=str(e))
         except Exception as e:
             logger.exception("[RelationshipDetailView.delete] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)

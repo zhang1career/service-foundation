@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from django.test import SimpleTestCase
 from rest_framework import status
@@ -13,11 +13,15 @@ from app_user.views.auth_view import (
     RegisterView,
 )
 from common.consts.response_const import (
+    RET_ACCOUNT_RESTRICTED,
+    RET_DUPLICATE_REQUEST,
     RET_INVALID_PARAM,
     RET_OK,
     RET_TOKEN_INVALID,
+    RET_TOKEN_REVOKED,
     RET_UNAUTHORIZED,
 )
+from common.exceptions.base_exception import CheckedException
 
 
 def _json_response(response):
@@ -55,6 +59,22 @@ class AuthViewsTest(SimpleTestCase):
         self.assertEqual(body["errorCode"], RET_INVALID_PARAM)
         self.assertIn("bad payload", body["message"])
 
+    @patch("app_user.views.auth_view.AuthService.register_request_by_payload")
+    def test_register_post_duplicate_request(self, mock_register):
+        mock_register.side_effect = CheckedException(
+            detail="dup",
+            ret_code=RET_DUPLICATE_REQUEST,
+            message="dup msg",
+            http_status=200,
+            data={"event_id": 0},
+        )
+        request = self.factory.post("/api/user/register", data={}, format="json")
+        response = RegisterView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_DUPLICATE_REQUEST)
+        self.assertEqual(body["message"], "dup msg")
+        self.assertEqual(body["data"], {"event_id": 0})
+
     @patch("app_user.views.auth_view.AuthService.register_verify_by_payload")
     def test_register_verify_post_success(self, mock_verify):
         mock_verify.return_value = {"user_id": 1}
@@ -83,7 +103,7 @@ class AuthViewsTest(SimpleTestCase):
         response = LoginView.as_view()(request)
         body = _json_response(response)
         self.assertEqual(body["errorCode"], RET_OK)
-        mock_login.assert_called_once_with(login_key="u", password="p")
+        mock_login.assert_called_once_with(login_key="u", password="p", client_ip=ANY)
 
     @patch("app_user.views.auth_view.AuthService.login")
     def test_login_post_unauthorized(self, mock_login):
@@ -96,6 +116,24 @@ class AuthViewsTest(SimpleTestCase):
         response = LoginView.as_view()(request)
         body = _json_response(response)
         self.assertEqual(body["errorCode"], RET_UNAUTHORIZED)
+
+    @patch("app_user.views.auth_view.AuthService.login")
+    def test_login_post_account_restricted(self, mock_login):
+        mock_login.side_effect = CheckedException(
+            detail="disposition",
+            ret_code=RET_ACCOUNT_RESTRICTED,
+            message="账户受限",
+            http_status=200,
+        )
+        request = self.factory.post(
+            "/api/user/login",
+            data={"login_key": "u", "password": "p"},
+            format="json",
+        )
+        response = LoginView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_ACCOUNT_RESTRICTED)
+        self.assertEqual(body["message"], "账户受限")
 
     @patch("app_user.views.auth_view.AuthService.refresh")
     def test_login_put_refresh_success(self, mock_refresh):
@@ -121,6 +159,23 @@ class AuthViewsTest(SimpleTestCase):
         response = LoginView.as_view()(request)
         body = _json_response(response)
         self.assertEqual(body["errorCode"], RET_TOKEN_INVALID)
+
+    @patch("app_user.views.auth_view.AuthService.refresh")
+    def test_login_put_refresh_checked_exception(self, mock_refresh):
+        mock_refresh.side_effect = CheckedException(
+            detail="revoked",
+            ret_code=RET_TOKEN_REVOKED,
+            message="登录已失效",
+            http_status=200,
+        )
+        request = self.factory.put(
+            "/api/user/login",
+            data={"refresh_token": "rt"},
+            format="json",
+        )
+        response = LoginView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_TOKEN_REVOKED)
 
     @patch("app_user.views.auth_view.AuthService.request_password_reset_by_payload")
     def test_password_reset_post_success(self, mock_req):

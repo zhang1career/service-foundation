@@ -1,5 +1,6 @@
 from django.db import models
-from app_user.enums import UserStatusEnum
+
+from app_user.enums import UserDispositionEnum, UserStatusEnum
 
 
 class User(models.Model):
@@ -16,6 +17,12 @@ class User(models.Model):
     )
     # 认证状态：bitmask。0 表示未通过任何认证；各 bit 的含义由业务层定义。
     auth_status = models.PositiveSmallIntegerField(default=0, db_index=True, db_column="auth_status")
+    ctrl_status = models.SmallIntegerField(
+        choices=UserDispositionEnum.choices(),
+        default=UserDispositionEnum.NONE.value,
+        db_index=True,
+    )
+    ctrl_reason = models.CharField(max_length=512, default="", blank=True)
     ext = models.TextField(default="{}")
     ct = models.PositiveBigIntegerField(default=0, db_index=True)
     ut = models.PositiveBigIntegerField(default=0, db_index=True)

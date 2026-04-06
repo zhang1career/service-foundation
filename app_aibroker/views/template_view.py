@@ -18,7 +18,7 @@ class TemplateListCreateView(APIView):
         try:
             return resp_ok(TemplateAdminService.create_by_payload(data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class TemplateDetailView(APIView):
@@ -29,18 +29,18 @@ class TemplateDetailView(APIView):
         try:
             return resp_ok(TemplateAdminService.get_one(with_type(template_id)))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def patch(self, request, template_id, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
         try:
             return resp_ok(TemplateAdminService.update_by_payload(with_type(template_id), data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def delete(self, request, template_id, *args, **kwargs):
         try:
             TemplateAdminService.delete(with_type(template_id))
             return resp_ok({"deleted": True})
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))

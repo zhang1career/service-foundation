@@ -1,0 +1,99 @@
+{% extends 'console/base.html' %}
+
+{% block title %}通知中心-通知详情 #{{ row.id }}{% endblock %}
+{% block page_title %}通知中心{% endblock %}
+
+{% block content %}
+{% include 'console/includes/detail_back_link.html' with back_url=list_url back_label="返回通知列表" %}
+
+<div class="mb-6">
+    {% include 'console/includes/notice_subnav.html' with active='notices' %}
+</div>
+
+{% if flash %}
+<div class="mb-4 rounded-lg border px-4 py-3 {% if flash.ok %}border-green-200 bg-green-50 text-green-800{% else %}border-red-200 bg-red-50 text-red-800{% endif %}">
+    {% if flash.ok %}
+    <p>已重新入队发送。</p>
+    {% else %}
+    <p>{{ flash.message }}</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">通知详情 #{{ row.id }}</h2>
+        {% if show_send and can_resend %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="send">
+            <button type="submit" class="btn btn-primary btn-sm">发送</button>
+        </form>
+        {% elif show_send and not can_resend %}
+        <p class="text-sm text-amber-700">该记录缺少 broker，无法从此处重发；请使用「调用」页发送。</p>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-500 mb-1">ID</p>
+                <p class="font-mono">{{ row.id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">调用方</p>
+                <p class="break-words">{{ row.reg_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">event_id</p>
+                <p class="font-mono">{{ row.event_id }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">渠道</p>
+                <p>{{ row.channel_label }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">broker</p>
+                <p>{% if row.broker != 0 %}{{ row.broker_label }}（{{ row.broker }}）{% else %}—{% endif %}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">状态</p>
+                <p>
+                    {% if row.status == 1 %}
+                    <span class="badge badge-success">{{ row.status_label }}</span>
+                    {% else %}
+                    <span class="badge badge-warning">{{ row.status_label }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">provider</p>
+                <p class="break-words text-sm">{{ row.provider|default:"—" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">创建时间</p>
+                <p>{{ row.ct_fmt }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 mb-1">更新时间</p>
+                <p>{{ row.ut_fmt }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">target</p>
+                <p class="break-words font-mono text-sm">{{ row.target|default:"—" }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">主题 subject</p>
+                <p class="break-words">{{ row.subject|default:"—" }}</p>
+            </div>
+            <div class="md:col-span-2">
+                <p class="text-sm text-gray-500 mb-1">message</p>
+                <p class="break-words text-sm">{{ row.message|default:"—" }}</p>
+            </div>
+        </div>
+        <div class="mt-4">
+            <p class="text-sm text-gray-500 mb-1">正文 content</p>
+            <div class="console-readonly-block rounded-lg p-4 text-sm whitespace-pre-wrap break-words">{{ row.content|default:"—" }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

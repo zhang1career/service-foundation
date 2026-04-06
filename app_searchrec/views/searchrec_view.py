@@ -16,7 +16,7 @@ class SearchRecIndexUpsertView(APIView):
         try:
             return resp_ok(SearchRecService.upsert_documents(data.get("documents")))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class SearchRecSearchView(APIView):
@@ -31,7 +31,7 @@ class SearchRecSearchView(APIView):
                 )
             )
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class SearchRecRecommendView(APIView):
@@ -45,7 +45,7 @@ class SearchRecRecommendView(APIView):
                 )
             )
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class SearchRecRankView(APIView):
@@ -59,4 +59,4 @@ class SearchRecRankView(APIView):
                 )
             )
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))

@@ -1,3 +1,4 @@
+-- Dumping database structure for sf
 CREATE DATABASE IF NOT EXISTS `sf` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
 USE `sf`;
 
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `auth_permission` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `auth_permission_content_type_id_codename_01ab375a_uniq` (`content_type_id`,`codename`),
   CONSTRAINT `auth_permission_content_type_id_2f476e4b_fk_django_co` FOREIGN KEY (`content_type_id`) REFERENCES `django_content_type` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2565 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3917 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 
@@ -111,7 +112,7 @@ CREATE TABLE IF NOT EXISTS `django_content_type` (
   `model` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `django_content_type_app_label_model_76bd3d3b_uniq` (`app_label`,`model`)
-) ENGINE=InnoDB AUTO_INCREMENT=642 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=980 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 
@@ -122,7 +123,7 @@ CREATE TABLE IF NOT EXISTS `django_migrations` (
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `applied` datetime(6) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 
@@ -193,13 +194,14 @@ CREATE TABLE IF NOT EXISTS `ai_model` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `provider_id` bigint(20) unsigned NOT NULL DEFAULT '0',
   `model_name` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `param_specs` varchar(1024) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `capability` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '0=chat,1=image,2=video',
   `status` tinyint(2) NOT NULL DEFAULT '0',
   `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
   `ut` bigint(20) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_ai_model_provider` (`provider_id`,`status`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 
@@ -208,12 +210,13 @@ CREATE TABLE IF NOT EXISTS `ai_provider` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `base_url` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `url_path` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `api_key` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `status` tinyint(2) NOT NULL DEFAULT '0',
   `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
   `ut` bigint(20) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 
@@ -230,7 +233,7 @@ CREATE TABLE IF NOT EXISTS `call_log` (
   `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_ai_log_reg` (`reg_id`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='调用日志';
+) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='调用日志';
 
 -- Data exporting was unselected.
 
@@ -240,15 +243,15 @@ CREATE TABLE IF NOT EXISTS `prompt_tpl` (
   `template_key` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `description` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `body` text COLLATE utf8mb4_unicode_ci,
-  `input_variables` text COLLATE utf8mb4_unicode_ci COMMENT 'json',
-  `output_variables` text COLLATE utf8mb4_unicode_ci COMMENT 'json',
+  `param_specs` text COLLATE utf8mb4_unicode_ci COMMENT 'json',
+  `resp_specs` text COLLATE utf8mb4_unicode_ci COMMENT 'json',
   `constraint_type` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '0=weak,1=strong',
   `status` tinyint(2) NOT NULL DEFAULT '0',
   `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
   `ut` bigint(20) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `uni_ai_tpl` (`template_key`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='提示词模版';
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='提示词模版';
 
 -- Data exporting was unselected.
 
@@ -263,7 +266,7 @@ CREATE TABLE IF NOT EXISTS `reg` (
   `ut` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `uni_ai_reg_access` (`access_key`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 
@@ -482,6 +485,7 @@ CREATE TABLE IF NOT EXISTS `notice` (
   `reg_id` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '注册ID',
   `event_id` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '事件ID',
   `channel` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `broker` tinyint(3) unsigned NOT NULL DEFAULT '0',
   `target` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `subject` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `content` text COLLATE utf8mb4_unicode_ci,
@@ -494,7 +498,7 @@ CREATE TABLE IF NOT EXISTS `notice` (
   KEY `idx_notice_channel_status_ct` (`channel`,`status`,`ct`) USING BTREE,
   KEY `idx_notice_target_ct` (`target`,`ct`) USING BTREE,
   KEY `idx_notice_reg_event` (`reg_id`,`event_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='通知记录';
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='通知记录';
 
 -- Data exporting was unselected.
 
@@ -531,7 +535,7 @@ CREATE TABLE IF NOT EXISTS `m` (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE KEY `uni_bucket_key` (`bucket_name`,`object_key`) USING BTREE,
   KEY `idx_object_key` (`object_key`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OSS object metadata table';
+) ENGINE=InnoDB AUTO_INCREMENT=38 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OSS object metadata table';
 
 -- Data exporting was unselected.
 
@@ -851,8 +855,8 @@ USE `sf_user`;
 -- Dumping structure for table sf_user.event
 CREATE TABLE IF NOT EXISTS `event` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `biz_type` tinyint(4) NOT NULL DEFAULT '0' COMMENT '0-unknown, 1- register, 2-update_profile',
-  `status` tinyint(2) NOT NULL DEFAULT '0',
+  `biz_type` tinyint(4) NOT NULL DEFAULT '0' COMMENT '0-unknown, 1-register, 2-update_profile, 3-user_auth, 4-password_reset',
+  `status` tinyint(2) NOT NULL DEFAULT '0' COMMENT '0-init, 1-pending, 3-completed, 9-failed',
   `level` tinyint(3) unsigned NOT NULL DEFAULT '3',
   `verify_code_id` bigint(20) unsigned NOT NULL DEFAULT '0',
   `verify_ref_id` bigint(20) unsigned NOT NULL DEFAULT '0',
@@ -863,9 +867,26 @@ CREATE TABLE IF NOT EXISTS `event` (
   `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
   `ut` bigint(20) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) USING BTREE,
-  KEY `idx_event_biz_status_ct` (`biz_type`,`status`,`ct`) USING BTREE,
-  KEY `idx_event_verify_code_id` (`verify_code_id`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_event_verify_code_id` (`verify_code_id`) USING BTREE,
+  KEY `idx_event_biz_status_notice_ct` (`biz_type`,`status`,`notice_target`,`ct`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Data exporting was unselected.
+
+-- Dumping structure for table sf_user.token
+CREATE TABLE IF NOT EXISTS `token` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `token` varchar(512) COLLATE utf8_unicode_ci NOT NULL DEFAULT '' COMMENT 'access token',
+  `refresh` varchar(255) COLLATE utf8_unicode_ci NOT NULL DEFAULT '' COMMENT 'refresh token',
+  `status` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'token状态，0-init, 1-in_use, 2-deprecated',
+  `expires_at` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uni_user_token_refresh` (`user_id`,`refresh`) USING BTREE,
+  UNIQUE KEY `uni_user_token_token` (`user_id`,`token`),
+  KEY `idx_user_token_status` (`user_id`,`status`)
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci COMMENT='令牌';
 
 -- Data exporting was unselected.
 
@@ -879,6 +900,8 @@ CREATE TABLE IF NOT EXISTS `user` (
   `avatar` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT 'avatar url',
   `status` tinyint(2) NOT NULL DEFAULT '0' COMMENT '用户状态，0-未激活，1-激活',
   `auth_status` smallint(5) unsigned NOT NULL DEFAULT '0' COMMENT '认证状态 bitmask，0-未认证',
+  `ctrl_status` tinyint(4) NOT NULL DEFAULT '0' COMMENT '处置状态，0-none, 1-login_forbidden',
+  `ctrl_reason` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '处置原因',
   `ext` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '扩展',
   `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
   `ut` bigint(20) unsigned NOT NULL DEFAULT '0',
@@ -886,7 +909,7 @@ CREATE TABLE IF NOT EXISTS `user` (
   UNIQUE KEY `uni_user_email` (`email`) USING BTREE,
   UNIQUE KEY `uni_user_phone` (`phone`) USING BTREE,
   UNIQUE KEY `uni_user_name` (`name`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- Data exporting was unselected.
 
@@ -912,14 +935,39 @@ CREATE TABLE IF NOT EXISTS `reg` (
 -- Dumping structure for table sf_verify.verify_code
 CREATE TABLE IF NOT EXISTS `verify_code` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `level` tinyint(4) NOT NULL DEFAULT '0' COMMENT '安全等级：0-pass, 1-low, 2-medium, 3-high',
-  `code` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `reg_id` bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '注册ID',
   `ref_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `level` tinyint(4) NOT NULL DEFAULT '0' COMMENT '安全等级：0-pass, 1-low, 2-medium, 3-high',
+  `code` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
   `expires_at` bigint(20) unsigned NOT NULL DEFAULT '0',
   `used_at` bigint(20) unsigned NOT NULL DEFAULT '0',
   `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_verify_exp` (`expires_at`) USING BTREE,
   KEY `idx_verify_reg_ref` (`reg_id`,`ref_id`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='验证码';
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校验码';
+
+-- Data exporting was unselected.
+
+-- Dumping structure for table sf_verify.verify_log
+CREATE TABLE IF NOT EXISTS `verify_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `reg_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `ref_id` bigint(20) NOT NULL DEFAULT '0',
+  `code_id` bigint(20) unsigned DEFAULT '0',
+  `level` smallint(6) NOT NULL DEFAULT '0',
+  `action` smallint(6) NOT NULL DEFAULT '0',
+  `ok` smallint(6) NOT NULL DEFAULT '1',
+  `message` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `ct` bigint(20) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_verify_log_code` (`code_id`) USING BTREE,
+  KEY `idx_verify_log_reg_ref` (`reg_id`,`ref_id`) USING BTREE
+) ENGINE=MyISAM AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='校验历史';
+
+-- Data exporting was unselected.
+
+/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
+/*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;

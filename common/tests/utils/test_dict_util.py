@@ -366,3 +366,31 @@ class Test(TestCase):
         root2 = {"p": 1}
         set_at_path(root2, "p.q", 3)
         self.assertEqual(root2, {"p": {"q": 3}})
+
+
+class TestMapDictValuesBySharedKeys(TestCase):
+    def test_maps_intersection(self):
+        from common.utils.dict_util import map_dict_values_by_shared_keys
+
+        left = {"a": 1, "b": 2, "only_left": 99}
+        right = {"a": 10, "b": 20, "only_right": 0}
+        self.assertEqual(map_dict_values_by_shared_keys(left, right), {1: 10, 2: 20})
+
+    def test_duplicate_left_value_latter_wins(self):
+        from common.utils.dict_util import map_dict_values_by_shared_keys
+
+        left = {"a": 1, "b": 1}
+        right = {"a": 10, "b": 20}
+        self.assertEqual(map_dict_values_by_shared_keys(left, right), {1: 20})
+
+    def test_duplicate_callback(self):
+        from common.utils.dict_util import map_dict_values_by_shared_keys
+
+        left = {"a": 1, "b": 1}
+        right = {"a": 10, "b": 20}
+        out = map_dict_values_by_shared_keys(
+            left,
+            right,
+            on_duplicate=lambda prev, new, k: prev + new,
+        )
+        self.assertEqual(out, {1: 30})

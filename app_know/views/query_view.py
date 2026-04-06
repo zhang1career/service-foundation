@@ -4,7 +4,7 @@ Supports multi-hop traversal, predicate filtering, and predicate logic output fo
 """
 import json
 import logging
-from rest_framework import status as http_status
+
 from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
 
@@ -109,11 +109,7 @@ class LogicalQueryView(APIView):
         try:
             query, app_id, limit, max_hops, predicate_filter, output_format = self._get_params(request)
             if not query:
-                return resp_err(
-                    "query is required (use query= or q=)",
-                    code=RET_MISSING_PARAM,
-                    status=http_status.HTTP_200_OK,
-                )
+                return resp_err(code=RET_MISSING_PARAM, message="query is required (use query= or q=)")
             service = LogicalQueryService()
             out = service.query(
                 query=query,
@@ -126,27 +122,19 @@ class LogicalQueryView(APIView):
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[LogicalQueryView.get] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except ParseError as e:
-            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_JSON_PARSE_ERROR, message=str(e))
         except Exception as e:
             logger.exception("[LogicalQueryView.get] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
     def post(self, request, *args, **kwargs):
         """POST: logical query with multi-hop and predicate logic support."""
         try:
             query, app_id, limit, max_hops, predicate_filter, output_format = self._get_params(request)
             if not query:
-                return resp_err(
-                    "query is required (use query or q in body)",
-                    code=RET_MISSING_PARAM,
-                    status=http_status.HTTP_200_OK,
-                )
+                return resp_err(code=RET_MISSING_PARAM, message="query is required (use query or q in body)")
             service = LogicalQueryService()
             out = service.query(
                 query=query,
@@ -159,13 +147,9 @@ class LogicalQueryView(APIView):
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[LogicalQueryView.post] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except ParseError as e:
-            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_JSON_PARSE_ERROR, message=str(e))
         except Exception as e:
             logger.exception("[LogicalQueryView.post] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)

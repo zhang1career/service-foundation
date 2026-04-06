@@ -3,7 +3,6 @@ Add text view: accept raw text, create batch, split into sentences, save to know
 """
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.consts import SOURCE_TYPE_INSTANT
@@ -29,12 +28,11 @@ class AddTextKnowledgeView(APIView):
             data = getattr(request, "data", None) or request.POST or {}
             content = (data.get("content") or "").strip()
             if not content:
-                return resp_err("content is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="content is required")
             if len(content) > MAX_CONTENT_LEN:
                 return resp_err(
-                    f"content too long (max {MAX_CONTENT_LEN // 1024}KB)",
                     code=RET_INVALID_PARAM,
-                    status=http_status.HTTP_200_OK,
+                    message=f"content too long (max {MAX_CONTENT_LEN // 1024}KB)"
                 )
 
             title = (content[:80] + "...") if len(content) > 80 else content
@@ -56,7 +54,7 @@ class AddTextKnowledgeView(APIView):
             })
         except ValueError as e:
             logger.warning("[AddTextKnowledgeView] Validation error: %s", e)
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[AddTextKnowledgeView] Error: %s", e)
             return resp_exception(e)

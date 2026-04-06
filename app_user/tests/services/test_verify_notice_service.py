@@ -1,10 +1,10 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.test import SimpleTestCase, override_settings
 
 from app_user.enums import EventBizTypeEnum, EventStatusEnum
-from app_user.services import verify_notice_integration as vni
+from app_user.services import verify_notice_service as vni
 
 
 @override_settings(
@@ -36,8 +36,8 @@ class TestLoadVerifyNoticeKeysMissing(SimpleTestCase):
 
 
 class TestRequestVerifyCode(SimpleTestCase):
-    @patch("app_user.services.verify_notice_integration.update_event_status")
-    @patch("app_user.services.verify_notice_integration.post")
+    @patch("app_user.services.verify_notice_service.update_event_status")
+    @patch("app_user.services.verify_notice_service.post")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -55,8 +55,8 @@ class TestRequestVerifyCode(SimpleTestCase):
             )
         mock_st.assert_called_once()
 
-    @patch("app_user.services.verify_notice_integration.update_event_status")
-    @patch("app_user.services.verify_notice_integration.post")
+    @patch("app_user.services.verify_notice_service.update_event_status")
+    @patch("app_user.services.verify_notice_service.post")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -76,8 +76,8 @@ class TestRequestVerifyCode(SimpleTestCase):
         mock_st.assert_called_once()
         self.assertEqual(mock_st.call_args[0][0], 10)
 
-    @patch("app_user.services.verify_notice_integration.update_event_status")
-    @patch("app_user.services.verify_notice_integration.post")
+    @patch("app_user.services.verify_notice_service.update_event_status")
+    @patch("app_user.services.verify_notice_service.post")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -95,8 +95,8 @@ class TestRequestVerifyCode(SimpleTestCase):
             )
         self.assertEqual(mock_st.call_count, 1)
 
-    @patch("app_user.services.verify_notice_integration.update_event_after_code")
-    @patch("app_user.services.verify_notice_integration.post")
+    @patch("app_user.services.verify_notice_service.update_event_after_code")
+    @patch("app_user.services.verify_notice_service.post")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -119,8 +119,8 @@ class TestRequestVerifyCode(SimpleTestCase):
 
 
 class TestEnqueueNotice(SimpleTestCase):
-    @patch("app_user.services.verify_notice_integration.update_event_status")
-    @patch("app_user.services.verify_notice_integration.post")
+    @patch("app_user.services.verify_notice_service.update_event_status")
+    @patch("app_user.services.verify_notice_service.post")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -143,7 +143,7 @@ class TestEnqueueNotice(SimpleTestCase):
 
 
 class TestPostVerifyCheck(SimpleTestCase):
-    @patch("app_user.services.verify_notice_integration.post")
+    @patch("app_user.services.verify_notice_service.post")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -160,10 +160,10 @@ class TestPostVerifyCheck(SimpleTestCase):
 
 
 class TestVerifyPayloadCode(SimpleTestCase):
-    @patch("app_user.services.verify_notice_integration.update_event_status")
-    @patch("app_user.services.verify_notice_integration.post_verify_check")
-    @patch("app_user.services.verify_notice_integration.load_verify_notice_access_keys")
-    @patch("app_user.services.verify_notice_integration.get_event_by_id")
+    @patch("app_user.services.verify_notice_service.update_event_status")
+    @patch("app_user.services.verify_notice_service.post_verify_check")
+    @patch("app_user.services.verify_notice_service.load_verify_notice_access_keys")
+    @patch("app_user.services.verify_notice_service.get_event_by_id")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -172,7 +172,7 @@ class TestVerifyPayloadCode(SimpleTestCase):
         NOTICE_SERVICE_URL="http://x/n",
     )
     def test_missing_event_id_raises(
-        self, mock_ge, mock_keys, mock_check, mock_st,
+            self, mock_ge, mock_keys, mock_check, mock_st,
     ):
         with self.assertRaises(ValueError):
             vni.verify_payload_code_for_pending_event(
@@ -180,7 +180,7 @@ class TestVerifyPayloadCode(SimpleTestCase):
                 expected_biz_type=EventBizTypeEnum.REGISTER,
             )
 
-    @patch("app_user.services.verify_notice_integration.get_event_by_id")
+    @patch("app_user.services.verify_notice_service.get_event_by_id")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -200,10 +200,10 @@ class TestVerifyPayloadCode(SimpleTestCase):
             )
         self.assertIn("invalid", str(ctx.exception).lower())
 
-    @patch("app_user.services.verify_notice_integration.update_event_status")
-    @patch("app_user.services.verify_notice_integration.post_verify_check")
-    @patch("app_user.services.verify_notice_integration.load_verify_notice_access_keys")
-    @patch("app_user.services.verify_notice_integration.get_event_by_id")
+    @patch("app_user.services.verify_notice_service.update_event_status")
+    @patch("app_user.services.verify_notice_service.post_verify_check")
+    @patch("app_user.services.verify_notice_service.load_verify_notice_access_keys")
+    @patch("app_user.services.verify_notice_service.get_event_by_id")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -233,9 +233,9 @@ class TestVerifyPayloadCode(SimpleTestCase):
             message="waiting for verified",
         )
 
-    @patch("app_user.services.verify_notice_integration.post_verify_check")
-    @patch("app_user.services.verify_notice_integration.load_verify_notice_access_keys")
-    @patch("app_user.services.verify_notice_integration.get_event_by_id")
+    @patch("app_user.services.verify_notice_service.post_verify_check")
+    @patch("app_user.services.verify_notice_service.load_verify_notice_access_keys")
+    @patch("app_user.services.verify_notice_service.get_event_by_id")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -263,10 +263,10 @@ class TestVerifyPayloadCode(SimpleTestCase):
 
 
 class TestCreateVerifyEventAndSendNotice(SimpleTestCase):
-    @patch("app_user.services.verify_notice_integration.enqueue_notice_for_event")
-    @patch("app_user.services.verify_notice_integration.request_verify_code_for_event")
-    @patch("app_user.services.verify_notice_integration.load_verify_notice_access_keys")
-    @patch("app_user.services.verify_notice_integration.create_event")
+    @patch("app_user.services.verify_notice_service.enqueue_notice_for_event")
+    @patch("app_user.services.verify_notice_service.request_verify_code_for_event")
+    @patch("app_user.services.verify_notice_service.load_verify_notice_access_keys")
+    @patch("app_user.services.verify_notice_service.create_event")
     @override_settings(
         USER_VERIFY_ACCESS_KEY="v",
         USER_NOTICE_ACCESS_KEY="n",
@@ -275,7 +275,7 @@ class TestCreateVerifyEventAndSendNotice(SimpleTestCase):
         NOTICE_SERVICE_URL="http://x/n",
     )
     def test_flow_calls_notice_with_formatted_content(
-        self, mock_create, mock_keys, mock_req_code, mock_enqueue,
+            self, mock_create, mock_keys, mock_req_code, mock_enqueue,
     ):
         ev = SimpleNamespace(id=42)
         mock_create.return_value = ev

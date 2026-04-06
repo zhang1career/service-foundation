@@ -14,6 +14,7 @@ from app_user.views import (
     UserDetailView,
     UserConsoleListView,
     UserConsoleVerifyView,
+    UserConsoleDispositionRestoreView,
     UserConsoleDetailView,
     EventConsoleListView,
     EventConsoleDetailView,
@@ -34,6 +35,11 @@ urlpatterns = [
     path("users/<int:user_id>", UserDetailView.as_view(), name="user-detail"),
     # Console admin APIs
     path("console/users", UserConsoleListView.as_view(), name="console-user-create"),
+    path(
+        "console/users/<int:user_id>/disposition/restore",
+        UserConsoleDispositionRestoreView.as_view(),
+        name="console-user-disposition-restore",
+    ),
     path("console/users/<int:user_id>/verify", UserConsoleVerifyView.as_view(), name="console-user-verify"),
     path("console/users/<int:user_id>", UserConsoleDetailView.as_view(), name="console-user-update"),
     path("console/events", EventConsoleListView.as_view(), name="console-event-list"),

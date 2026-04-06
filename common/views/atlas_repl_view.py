@@ -5,7 +5,6 @@ Used by the knowledge detail page's terminal interaction box.
 import logging
 
 from pymongo import MongoClient
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from common.atlas_repl import repl_step, get_mongo_uri
@@ -38,9 +37,9 @@ class AtlasReplView(APIView):
                     client = MongoClient(uri, tls=True, serverSelectionTimeoutMS=10000)
                     client.admin.command("ping")
                 except ValueError as e:
-                    return resp_err(str(e), status=http_status.HTTP_200_OK)
+                    return resp_err(message=str(e))
                 except Exception as e:
-                    return resp_err("连接 Atlas 失败: " + str(e), status=http_status.HTTP_200_OK)
+                    return resp_err(message="连接 Atlas 失败: " + str(e))
                 return resp_ok({
                     "output": "已连接 Atlas，输入 help 查看命令",
                     "session": {},
@@ -49,7 +48,7 @@ class AtlasReplView(APIView):
             try:
                 uri = get_mongo_uri()
             except ValueError as e:
-                return resp_err(str(e), status=http_status.HTTP_200_OK)
+                return resp_err(message=str(e))
 
             client = MongoClient(uri, tls=True, serverSelectionTimeoutMS=10000)
             client.admin.command("ping")
@@ -66,6 +65,6 @@ class AtlasReplView(APIView):
             return resp_ok({"output": output, "session": session_out})
         except Exception as e:
             if "ping" in str(e).lower() or "connection" in str(e).lower():
-                return resp_err("连接 Atlas 失败: " + str(e), status=http_status.HTTP_200_OK)
+                return resp_err(message="连接 Atlas 失败: " + str(e))
             logger.exception("[AtlasReplView] Error: %s", e)
             return resp_exception(e)

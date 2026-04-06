@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
+"""Django's command-line utility for administrative task."""
 import os
 import sys
 from pathlib import Path
 
 
 def main():
-    """Run administrative tasks."""
+    """Run administrative task."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "service_foundation.settings")
 
     # Load .env (and .env.prod etc.) before runserver so HOST/PORT take effect

@@ -20,13 +20,13 @@ class WebPageContentCrawler:
         return getattr(self, func_name)(url)
 
     def _crawl_semiengineering_com(self, url: str):
-        from common.services.http import HttpCallError, request_sync
+        from common.services.http import HttpCallError, HttpClientPool, request_sync
 
         try:
             response = request_sync(
                 method="GET",
                 url=url,
-                pool_name="thirdparty_pool",
+                pool_name=HttpClientPool.THIRD_PARTY,
                 timeout_sec=30,
             )
         except HttpCallError:

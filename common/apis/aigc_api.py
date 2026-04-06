@@ -6,13 +6,12 @@ from typing import Any
 
 from common.components.singleton import Singleton
 from common.enums.aigc_invoke_op_enum import AigcInvokeOp
-from common.services.http import HttpCallError, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_sync
 from common.utils.django_util import effective_setting_str
 from common.utils.http_util import http_origin_url, normalize_http_path, parse_http_target
 
 logger = logging.getLogger(__name__)
 
-_AIGC_HTTP_POOL = "aigc_upstream_pool"
 _AIGC_TIMEOUT_SEC = 120.0
 
 
@@ -142,7 +141,7 @@ class AigcAPI(Singleton):
             res = request_sync(
                 method=(method or "").strip().upper(),
                 url=url,
-                pool_name=_AIGC_HTTP_POOL,
+                pool_name=HttpClientPool.THIRD_PARTY,
                 headers=headers,
                 data=payload,
                 timeout_sec=_AIGC_TIMEOUT_SEC,

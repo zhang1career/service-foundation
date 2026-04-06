@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from common.consts import response_const as rc
 from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_MISSING_PARAM, RET_OK
 
@@ -37,12 +39,14 @@ class CheckedException(Exception):
             *,
             ret_code: int = rc.RET_INVALID_PARAM,
             message: str | None = None,
+            data: Any | None = None,
             http_status: int | None = None,
     ):
         super().__init__(detail)
         self.detail = detail
         self.ret_code = ret_code
         self.message = message if message is not None else generic_message_for_ret(ret_code)
+        self.data = data
         self.http_status = http_status if http_status is not None else http_status_for_ret(ret_code)
 
 
@@ -79,6 +83,7 @@ _GENERIC_MESSAGES: dict[int, str] = {
     rc.RET_TOKEN_INVALID: "令牌无效",
     rc.RET_TOKEN_EXPIRED: "令牌已过期",
     rc.RET_TOKEN_REVOKED: "令牌已失效",
+    rc.RET_ACCOUNT_RESTRICTED: "账户受限",
     rc.RET_BUSINESS_ERROR: "业务处理失败",
     rc.RET_RESOURCE_NOT_FOUND: "资源不存在",
     rc.RET_RESOURCE_EXISTS: "资源已存在",
@@ -126,5 +131,6 @@ _RET_TO_HTTP: dict[int, int] = {
     rc.RET_TOKEN_INVALID: 401,
     rc.RET_TOKEN_EXPIRED: 401,
     rc.RET_TOKEN_REVOKED: 401,
+    rc.RET_ACCOUNT_RESTRICTED: 403,
     rc.RET_RESOURCE_NOT_FOUND: 404,
 }

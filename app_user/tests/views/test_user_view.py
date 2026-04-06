@@ -9,11 +9,12 @@ from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
 from app_user.enums import UserStatusEnum
-from app_user.services.jwt_util import create_access_token
+from app_user.utils.jwt_util import create_access_token
 from app_user.views.user_view import (
     EventConsoleDetailView,
     EventConsoleListView,
     UserConsoleDetailView,
+    UserConsoleDispositionRestoreView,
     UserConsoleListView,
     UserConsoleVerifyView,
     UserDetailView,
@@ -41,6 +42,12 @@ class UserViewsTest(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.access_token = create_access_token(user_id=7, username="me")
+        patcher = patch(
+            "app_user.utils.auth_context.access_token_in_use",
+            return_value=True,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_me_get_login_required(self):
         request = self.factory.get("/api/user/me")
@@ -282,3 +289,29 @@ class UserViewsTest(SimpleTestCase):
         self.assertEqual(body["errorCode"], RET_OK)
         self.assertTrue(body["data"]["deleted"])
         mock_del.assert_called_once_with(event_id=9)
+
+    @patch("app_user.views.user_view.UserService.console_clear_disposition")
+    def test_console_disposition_restore_success(self, mock_clear):
+        mock_clear.return_value = {"id": 4, "ctrl_status": 0}
+        request = self.factory.post(
+            "/api/user/console/users/4/disposition/restore",
+            data={},
+            format="json",
+        )
+        response = UserConsoleDispositionRestoreView.as_view()(request, user_id=4)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_OK)
+        self.assertEqual(body["data"]["ctrl_status"], 0)
+        mock_clear.assert_called_once_with(user_id=4)
+
+    @patch("app_user.views.user_view.UserService.console_clear_disposition")
+    def test_console_disposition_restore_not_found(self, mock_clear):
+        mock_clear.return_value = None
+        request = self.factory.post(
+            "/api/user/console/users/404/disposition/restore",
+            data={},
+            format="json",
+        )
+        response = UserConsoleDispositionRestoreView.as_view()(request, user_id=404)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_RESOURCE_NOT_FOUND)

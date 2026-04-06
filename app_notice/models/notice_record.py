@@ -9,6 +9,7 @@ class NoticeRecord(models.Model):
     target = models.CharField(max_length=255, db_index=True)
     subject = models.CharField(max_length=255, default="", blank=True)
     content = models.TextField(default="", blank=True)
+    broker = models.IntegerField(default=0)
     status = models.SmallIntegerField(default=0, db_index=True)  # 1 success, 0 failed
     provider = models.CharField(max_length=64, default="", blank=True)
     message = models.CharField(max_length=255, default="", blank=True)

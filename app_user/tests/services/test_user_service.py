@@ -116,7 +116,7 @@ class TestUserServiceUpdateMeVerify(SimpleTestCase):
     @patch("app_user.services.user_service.verify_payload_code_for_pending_event")
     @patch("app_user.services.user_service.user_to_public_dict")
     def test_update_me_verify_success(
-        self, mock_pub, mock_verify, mock_prof, mock_ev,
+            self, mock_pub, mock_verify, mock_prof, mock_ev,
     ):
         ev = SimpleNamespace(id=3)
         mock_verify.return_value = (ev, {"email": "e@e.com", "phone": None, "avatar": None, "ext": None})
@@ -126,6 +126,17 @@ class TestUserServiceUpdateMeVerify(SimpleTestCase):
         out = UserService.update_me_verify_by_payload(1, {"event_id": 3, "code": "x"})
         self.assertEqual(out["email"], "e@e.com")
         mock_ev.assert_called_once()
+
+
+class TestUserServiceConsoleDisposition(SimpleTestCase):
+    @patch("app_user.services.user_service.user_to_console_dict")
+    @patch("app_user.services.user_service.clear_user_disposition")
+    def test_console_clear_disposition_returns_public_user(self, mock_clear, mock_pub):
+        mock_clear.return_value = MagicMock()
+        mock_pub.return_value = {"id": 3, "ctrl_status": 0}
+        out = UserService.console_clear_disposition(3)
+        self.assertEqual(out["ctrl_status"], 0)
+        mock_clear.assert_called_once_with(3)
 
 
 class TestUserServiceListUsers(SimpleTestCase):
@@ -139,7 +150,7 @@ class TestUserServiceListUsers(SimpleTestCase):
 
 
 class TestUserServiceConsoleVerify(SimpleTestCase):
-    @patch("app_user.services.user_service.user_to_public_dict")
+    @patch("app_user.services.user_service.user_to_console_dict")
     @patch("app_user.services.user_service.update_event_status")
     @patch("app_user.services.user_service.update_user_auth_status")
     @patch("app_user.services.user_service.post_verify_check")
@@ -147,7 +158,7 @@ class TestUserServiceConsoleVerify(SimpleTestCase):
     @patch("app_user.services.user_service.UserService._find_latest_pending_user_auth_event")
     @patch("app_user.services.user_service.get_user_by_id")
     def test_console_verify_success(
-        self, mock_gu, mock_find, mock_keys, mock_post, mock_auth, mock_ev, mock_pub,
+            self, mock_gu, mock_find, mock_keys, mock_post, mock_auth, mock_ev, mock_pub,
     ):
         user = MagicMock()
         user.id = 5
@@ -186,7 +197,7 @@ class TestUserServiceConsoleVerify(SimpleTestCase):
     @patch("app_user.services.user_service.UserService._find_latest_pending_user_auth_event")
     @patch("app_user.services.user_service.get_user_by_id")
     def test_console_verify_bad_code(
-        self, mock_gu, mock_find, mock_keys, mock_post, mock_ev,
+            self, mock_gu, mock_find, mock_keys, mock_post, mock_ev,
     ):
         mock_gu.return_value = MagicMock(id=1, auth_status=0)
         mock_find.return_value = SimpleNamespace(id=2, verify_code_id=1)
@@ -198,7 +209,7 @@ class TestUserServiceConsoleVerify(SimpleTestCase):
 
 
 class TestUserServiceConsoleUpdate(SimpleTestCase):
-    @patch("app_user.services.user_service.user_to_public_dict")
+    @patch("app_user.services.user_service.user_to_console_dict")
     @patch("app_user.services.user_service.update_user_profile")
     def test_console_update_profile_only(self, mock_prof, mock_pub):
         u = MagicMock()
@@ -207,7 +218,7 @@ class TestUserServiceConsoleUpdate(SimpleTestCase):
         out = UserService.console_update_user_by_payload(3, {"email": "a@b.c"})
         self.assertEqual(out["id"], 3)
 
-    @patch("app_user.services.user_service.user_to_public_dict")
+    @patch("app_user.services.user_service.user_to_console_dict")
     @patch("app_user.services.user_service.update_user_status")
     @patch("app_user.services.user_service.update_user_profile")
     def test_console_update_status_branch(self, mock_prof, mock_st, mock_pub):
@@ -218,7 +229,7 @@ class TestUserServiceConsoleUpdate(SimpleTestCase):
         mock_st.assert_called_once_with(user_id=1, status=2)
 
     @patch("app_user.services.user_service.upload_avatar")
-    @patch("app_user.services.user_service.user_to_public_dict")
+    @patch("app_user.services.user_service.user_to_console_dict")
     @patch("app_user.services.user_service.update_user_profile")
     def test_console_update_avatar_upload(self, mock_prof, mock_pub, mock_up):
         mock_up.return_value = "/p.png"
@@ -227,7 +238,7 @@ class TestUserServiceConsoleUpdate(SimpleTestCase):
         UserService.console_update_user_by_payload(1, {"avatar": "raw"})
         mock_up.assert_called_once_with("raw")
 
-    @patch("app_user.services.user_service.user_to_public_dict")
+    @patch("app_user.services.user_service.user_to_console_dict")
     @patch("app_user.services.user_service.update_user_profile")
     def test_console_update_clear_avatar_empty_string(self, mock_prof, mock_pub):
         mock_prof.return_value = MagicMock()

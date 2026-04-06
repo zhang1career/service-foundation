@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
 from typing import Any, Optional
 
 from common.consts.string_const import EMPTY_STRING
@@ -295,6 +298,32 @@ def nest_clip(given_dict, given_key_list: list[str]) -> dict:
         return ret
     # end
     return {current_key: given_dict[current_key]}
+
+
+def map_dict_values_by_shared_keys(
+    left: Mapping[str, Any],
+    right: Mapping[str, Any],
+    on_duplicate: Callable[[Any, Any, str], Any] | None = None,
+) -> dict[Any, Any]:
+    """
+    For each key *k* in ``left.keys() & right.keys()``, set ``out[left[k]] = right[k]``.
+
+    Keys are processed in **sorted** order so behavior is deterministic. If ``left[k]``
+    collides with an existing key in *out*:
+    - *on_duplicate* is ``None``: the new ``right[k]`` overwrites (later key in sort order wins).
+    - otherwise: ``out[left[k]] = on_duplicate(previous, right[k], k)``.
+    """
+    out: dict[Any, Any] = {}
+    for k in sorted(left.keys() & right.keys()):
+        lk = left[k]
+        rk = right[k]
+        if lk not in out:
+            out[lk] = rk
+        elif on_duplicate is None:
+            out[lk] = rk
+        else:
+            out[lk] = on_duplicate(out[lk], rk, k)
+    return out
 
 
 def sort_and_hash(param_dict: dict) -> tuple[dict, str]:

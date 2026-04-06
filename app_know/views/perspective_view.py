@@ -18,4 +18,4 @@ class PerspectiveListView(APIView):
         })
 
     def post(self, request):
-        return resp_err("视角类型为代码常量，不支持创建", code=RET_INVALID_PARAM, status=200)
+        return resp_err(code=RET_INVALID_PARAM, message="视角类型为代码常量，不支持创建")

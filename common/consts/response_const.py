@@ -35,6 +35,7 @@ RET_TOKEN_MISSING = 210         # token missing
 RET_TOKEN_INVALID = 211         # token invalid
 RET_TOKEN_EXPIRED = 212         # token expired
 RET_TOKEN_REVOKED = 213         # token revoked
+RET_ACCOUNT_RESTRICTED = 220    # account restricted (e.g. security lock)
 
 
 # =========================
@@ -114,3 +115,7 @@ RET_DEPLOYMENT_ERROR = 803        # deployment error
 RET_MAINTENANCE_MODE = 804        # maintenance mode active
 
 # =========================
+# Applications (1000-)
+# =========================
+# snowflake
+RET_SNOWFLAKE_CLOCK_BACKWARD = 1001

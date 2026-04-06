@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import random
 
+from django.conf import settings
+
 from app_verify.enums import RegStatusEnum, VerifyLevelEnum, VerifyLogActionEnum
 from app_verify.repos import (
     create_verify_code,
@@ -15,8 +17,6 @@ from common.utils.date_util import get_now_timestamp_ms
 
 
 class VerifyService:
-    DEFAULT_TTL_MS = 10 * 60 * 1000
-
     @staticmethod
     def _as_int(value, field_name: str) -> int:
         try:
@@ -67,7 +67,7 @@ class VerifyService:
     @staticmethod
     def _create_code_for_reg(reg, level: int, ref_id: int) -> dict:
         code = f"{random.randint(0, 999999):06d}"
-        expires_at = get_now_timestamp_ms() + VerifyService.DEFAULT_TTL_MS
+        expires_at = get_now_timestamp_ms() + int(settings.VERIFY_CODE_TTL_SECONDS) * 1000
         code_obj = create_verify_code(
             level=level,
             reg_id=reg.id,

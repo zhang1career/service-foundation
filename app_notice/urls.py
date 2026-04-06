@@ -1,7 +1,7 @@
 from django.urls import path
 
 from common.views.dict_codes_view import DictCodesView
-from app_notice.views import NoticeSendView, RegListCreateView, RegDetailView
+from app_notice.views import NoticeRecordResendView, NoticeSendView, RegListCreateView, RegDetailView
 
 
 urlpatterns = [
@@ -9,4 +9,9 @@ urlpatterns = [
     path("regs", RegListCreateView.as_view(), name="notice-reg-list-create"),
     path("regs/<int:reg_id>", RegDetailView.as_view(), name="notice-reg-detail"),
     path("send", NoticeSendView.as_view(), name="notice-send"),
+    path(
+        "records/<int:notice_id>/send",
+        NoticeRecordResendView.as_view(),
+        name="notice-record-send",
+    ),
 ]

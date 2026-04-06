@@ -10,11 +10,11 @@ from rest_framework import status as http_status
 from rest_framework.response import Response as DRFResponse
 from rest_framework.views import exception_handler as drf_exception_handler
 
-from common.consts.response_const import RET_INVALID_PARAM, RET_OK, RET_UNKNOWN
+from common.consts.response_const import RET_INVALID_PARAM, RET_OK, RET_UNKNOWN, RET_ERR
 from common.exceptions.base_exception import CheckedException, UncheckedException, generic_message_for_ret
 from common.exceptions.checked.upstream_http_error import UpstreamHttpError
 from common.pojo.response import Response
-from common.services.http import HttpCallError, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_sync
 from common.utils.date_util import get_date_str_of_datetime
 from common.utils.url_util import url_decode
 
@@ -151,19 +151,19 @@ def resp_ok(data=None, status=http_status.HTTP_200_OK):
     return response
 
 
-def resp_warn(message):
-    response_obj = Response(
-        errorCode=RET_OK,
-        data=None,
-        message=message,
-    )
-    return DRFResponse(response_as_dict(response_obj), status=http_status.HTTP_200_OK)
-
-
-def resp_err(message, code=-1, status=http_status.HTTP_200_OK, detail="", req_id=""):
+def resp_warn(data=None, code=RET_OK, message="", status=http_status.HTTP_200_OK):
     response_obj = Response(
         errorCode=code,
-        data=None,
+        data=data,
+        message=message,
+    )
+    return DRFResponse(response_as_dict(response_obj), status=status)
+
+
+def resp_err(data=None, code=RET_ERR, message="", detail="", req_id="", status=http_status.HTTP_200_OK):
+    response_obj = Response(
+        errorCode=code,
+        data=data,
         message=message,
         detail=detail or "",
         _req_id=req_id or "",
@@ -173,7 +173,7 @@ def resp_err(message, code=-1, status=http_status.HTTP_200_OK, detail="", req_id
     return response
 
 
-def resp_exception(e: Exception, code=-1, status=http_status.HTTP_200_OK, detail="", req_id=""):
+def resp_exception(e: Exception, code=-1, detail="", req_id="", status=http_status.HTTP_200_OK):
     if settings.DEBUG:
         message = repr(e)
     else:
@@ -196,11 +196,12 @@ def drf_unified_exception_handler(exc, context):
 
     if isinstance(exc, CheckedException):
         r = resp_err(
-            exc.message,
+            data=exc.data,
             code=exc.ret_code,
-            status=exc.http_status,
+            message=exc.message,
             detail=exc.detail,
             req_id=request_id,
+            status=exc.http_status,
         )
         return r
 
@@ -213,20 +214,20 @@ def drf_unified_exception_handler(exc, context):
             extra={"request_id": request_id},
         )
         return resp_err(
-            generic_message_for_ret(exc.ret_code),
             code=exc.ret_code,
-            status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=generic_message_for_ret(exc.ret_code),
             detail=detail_out,
             req_id=request_id,
+            status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
     if isinstance(exc, ValueError):
         return resp_err(
-            generic_message_for_ret(RET_INVALID_PARAM),
             code=RET_INVALID_PARAM,
-            status=http_status.HTTP_400_BAD_REQUEST,
+            message=generic_message_for_ret(RET_INVALID_PARAM),
             detail=str(exc),
             req_id=request_id,
+            status=http_status.HTTP_400_BAD_REQUEST,
         )
 
     response = drf_exception_handler(exc, context)
@@ -242,11 +243,11 @@ def drf_unified_exception_handler(exc, context):
     )
     detail_out = repr(exc) if settings.DEBUG else ""
     return resp_err(
-        generic_message_for_ret(RET_UNKNOWN),
         code=RET_UNKNOWN,
-        status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+        message=generic_message_for_ret(RET_UNKNOWN),
         detail=detail_out,
         req_id=request_id,
+        status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
     )
 
 
@@ -284,11 +285,12 @@ class UnifiedExceptionMiddleware:
             return self._respond(
                 request,
                 resp_err(
-                    exception.message,
+                    data=exception.data,
                     code=exception.ret_code,
-                    status=exception.http_status,
+                    message=exception.message,
                     detail=exception.detail,
                     req_id=request_id,
+                    status=exception.http_status,
                 ),
                 request_id,
             )
@@ -309,11 +311,11 @@ class UnifiedExceptionMiddleware:
             return self._respond(
                 request,
                 resp_err(
-                    generic_message_for_ret(exception.ret_code),
                     code=exception.ret_code,
-                    status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    message=generic_message_for_ret(exception.ret_code),
                     detail=detail_out,
                     req_id=request_id,
+                    status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
                 ),
                 request_id,
             )
@@ -329,11 +331,11 @@ class UnifiedExceptionMiddleware:
         return self._respond(
             request,
             resp_err(
-                generic_message_for_ret(RET_UNKNOWN),
                 code=RET_UNKNOWN,
-                status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=generic_message_for_ret(RET_UNKNOWN),
                 detail=detail_out,
                 req_id=request_id,
+                status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             ),
             request_id,
         )
@@ -374,7 +376,7 @@ def get(url):
     logger.debug("[get] url=%s", url)
 
     try:
-        response = request_sync(method="GET", url=url, pool_name="thirdparty_pool")
+        response = request_sync(method="GET", url=url, pool_name=HttpClientPool.THIRD_PARTY)
     except HttpCallError as exc:
         raise UpstreamHttpError(f"request error: {exc}") from exc
     if response.status_code != 200:
@@ -412,7 +414,7 @@ def post(url, data, auth_token=None):
         response = request_sync(
             method="POST",
             url=url,
-            pool_name="thirdparty_pool",
+            pool_name=HttpClientPool.THIRD_PARTY,
             json_body=data,
             headers=headers,
         )

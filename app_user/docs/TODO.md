@@ -67,6 +67,15 @@
 
 ---
 
+## 定时任务：过期未核销验证码与 event 对齐
+
+- [ ] **背景**：`app_verify` 中校验码过期且未核销后，`sf_user.event` 上仍可能长期保持 `INIT` / `PENDING_VERIFY`，与真实可验证状态不一致，也不利于排查与统计。
+- [ ] **方向**：增加定时任务（如 `django_crontab` 或与现有调度一致）：依据 `verify_code` 的 `expires_at` / `used_at`（及与 `event.verify_code_id` 的关联），将**已不可能再成功核销**且仍为待验证流程的 `event` 行 **`status` 置为 `9`（`FAILED`）**，`message` 可区分如 `expired` / `verify code expired`。
+- [ ] **可选**：在同一或独立任务中对 `app_verify` 侧过期码做归档/删除策略（与留存、审计要求对齐后再定）。
+- [ ] **注意**：任务应幂等、批量限流；避免误伤刚创建、尚未写入 `verify_code_id` 的极短窗口（若有则仅处理 `PENDING_VERIFY` 且 `verify_code_id > 0` 等条件）。
+
+---
+
 ## 说明
 
 - 当前 `app_user` 更贴近：**带验证码能力的账号与资料服务 + Bearer JWT**，与完整 Identity SaaS 不在同一产品层级属预期时无需全部跟进。

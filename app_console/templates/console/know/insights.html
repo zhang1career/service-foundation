@@ -25,7 +25,7 @@
             <button type="button" id="btn-approximate-query" class="btn btn-primary btn-sm">近似查询</button>
         </div>
         <div id="approximate-result-table-wrap" class="overflow-x-auto">
-            <div id="approximate-result-placeholder" class="p-4 text-center text-gray-500 text-sm">点击「近似查询」后显示 Mongo _id 与 knowledge 映射表格</div>
+            <div id="approximate-result-placeholder" class="console-readonly-block rounded-lg p-4 text-center text-gray-500 text-sm">点击「近似查询」后显示 Mongo _id 与 knowledge 映射表格</div>
             <table id="approximate-result-table" class="data-table hidden"><thead><tr><th>Mongo _id</th><th>知识 ID</th><th>g_brief</th><th>content</th></tr></thead><tbody></tbody></table>
         </div>
     </div>
@@ -55,7 +55,7 @@
     <div class="card-body">
         <textarea id="path-expressions-input" class="form-input w-full font-mono text-sm mb-3" rows="4" placeholder="路径表达式（每行一个，与 g_brief 一致；导出模式下在图中选择点/边后生成）"></textarea>
         <button type="button" id="btn-query-knowledge" class="btn btn-primary btn-sm mb-3">查询知识</button>
-        <div id="viewpoint-display" class="whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg min-h-[80px] text-gray-600 text-sm">点击「查询知识」后，结果将填充到下方「观点」JSON 编辑器中</div>
+        <div id="viewpoint-display" class="console-readonly-block rounded-lg p-4 min-h-[80px] text-sm whitespace-pre-wrap break-words">点击「查询知识」后，结果将填充到下方「观点」JSON 编辑器中</div>
     </div>
 </div>
 
@@ -68,7 +68,7 @@
         <p class="text-sm text-gray-500 mb-1">JSON 列表，每项含 content、classification（枚举名称）。可由「查询知识」填充，也可手动编辑。</p>
         <textarea id="viewpoint-json-editor" class="form-input w-full font-mono text-sm mb-3" rows="12" placeholder='[{"content":"...","classification":"fact"},...]'></textarea>
         <button type="button" id="btn-integrate-viewpoint" class="btn btn-primary btn-sm mb-3">合成观点</button>
-        <div id="viewpoint-result" class="whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg min-h-[120px] text-gray-600">点击「合成观点」后，AI 整合结果将展示于此</div>
+        <div id="viewpoint-result" class="console-readonly-block rounded-lg p-4 min-h-[120px] whitespace-pre-wrap break-words">点击「合成观点」后，AI 整合结果将展示于此</div>
     </div>
 </div>
 {% endblock %}

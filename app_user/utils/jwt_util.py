@@ -37,3 +37,10 @@ def create_refresh_token(user_id: int, username: str) -> str:
 
 def decode_token(token: str) -> Optional[dict]:
     return decode_hs256_token(token, _secret())
+
+
+def access_expires_at_ms_from_token(access_token: str) -> int:
+    payload = decode_token(access_token)
+    if not payload or "exp" not in payload:
+        raise ValueError("access token missing exp")
+    return int(payload["exp"]) * 1000

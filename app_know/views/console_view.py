@@ -4,7 +4,6 @@ Console-level APIs for the 观点 (insights) page: approximate query, g_brief to
 import json
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from common.consts.response_const import RET_INVALID_PARAM
@@ -48,10 +47,9 @@ class ApproximateQueryView(APIView):
             text = (data.get("text") or "").strip()
             relation_type = (data.get("relation_type") or "active").strip().lower()
             if not text:
-                return resp_err("text 必填", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="text 必填")
             if relation_type not in ("active", "passive"):
-                return resp_err("relation_type 须为 active 或 passive", code=RET_INVALID_PARAM,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="relation_type 须为 active 或 passive")
 
             coll_name = COLLECTION_SUB_DECO if relation_type == "active" else COLLECTION_OBJ_DECO
             field_name = "vec_sub_deco_id" if relation_type == "active" else "vec_obj_deco_id"
@@ -88,8 +86,7 @@ class GBriefToCypherView(APIView):
                 g_brief_list = [g_brief_list] if g_brief_list else []
             cypher = build_cypher_union_from_g_brief_list(g_brief_list)
             if not cypher:
-                return resp_err("无法从 g_brief 解析出有效三元组", code=RET_INVALID_PARAM,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="无法从 g_brief 解析出有效三元组")
             return resp_ok({"cypher": cypher})
         except Exception as e:
             logger.exception("[GBriefToCypherView] %s", e)
@@ -112,7 +109,7 @@ class KnowledgeByBriefView(APIView):
             lines = [lines] if lines else []
         lines = [str(x).strip() for x in lines if x and str(x).strip()]
         if not lines:
-            return resp_err("lines 必填且非空", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message="lines 必填且非空")
 
         integrate_ai = data.get("integrate_ai", False)
         result = query_knowledge_by_path_expressions(lines, integrate_ai=integrate_ai)

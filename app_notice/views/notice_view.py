@@ -11,4 +11,4 @@ class NoticeSendView(APIView):
         try:
             return resp_ok(enqueue_notice_by_payload(data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))

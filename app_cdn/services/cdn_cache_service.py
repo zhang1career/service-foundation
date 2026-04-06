@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from app_cdn.config import get_app_config
-from common.services.http import HttpCallError, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ def fetch_from_origin(
         resp = request_sync(
             method="GET",
             url=url,
-            pool_name="thirdparty_pool",
+            pool_name=HttpClientPool.THIRD_PARTY,
             timeout_sec=30,
         )
         if resp.status_code != 200:

@@ -3,11 +3,9 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
+from app_user.services import avatar_storage_service as av
 from common.exceptions import InvalidArgumentError, ObjectStorageError
 from common.services.http import HttpCallError
-
-from app_user.services import avatar_storage_service as av
-
 
 # Minimal valid 1×1 PNG (bytes)
 _TINY_PNG = (

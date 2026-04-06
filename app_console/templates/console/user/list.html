@@ -29,6 +29,7 @@
                         <th>邮箱</th>
                         <th>手机号</th>
                         <th>状态</th>
+                        <th>处置状态</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -52,6 +53,13 @@
                                 </label>
                             </div>
                         </td>
+                        <td class="text-sm">
+                            {% if user.ctrl_status == 1 %}
+                                <span class="badge badge-warning">禁止登录</span>
+                            {% else %}
+                                <span class="text-gray-400">—</span>
+                            {% endif %}
+                        </td>
                         <td>
                             <div class="flex gap-1 items-center flex-wrap">
                                 {% url 'console:user-edit' user.id as user_edit_url %}
@@ -61,7 +69,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="empty-state py-8 text-center text-gray-500">暂无数据</td>
+                        <td colspan="7" class="empty-state py-8 text-center text-gray-500">暂无数据</td>
                     </tr>
                     {% endfor %}
                 </tbody>

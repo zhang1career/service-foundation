@@ -24,8 +24,8 @@ class TestNoticeService(SimpleTestCase):
         self.assertTrue(SmsNoticeService.send(phone="13912345678", content="code:123456"))
 
     @patch("app_notice.services.notice_service.create_notice_record")
-    @patch("app_notice.services.sms_notice_service.requests.post")
+    @patch("app_notice.services.sms_notice_service.request_sync")
     @override_settings(SMS_PROVIDER="http", SMS_HTTP_ENDPOINT="https://example.com/sms", SMS_HTTP_API_KEY="abc")
-    def test_sms_notice_http_provider(self, mock_post, mock_create_record):
-        mock_post.return_value = Mock(status_code=200)
+    def test_sms_notice_http_provider(self, mock_request_sync, mock_create_record):
+        mock_request_sync.return_value = Mock(status_code=200)
         self.assertTrue(SmsNoticeService.send(phone="13912345678", content="code:123456"))

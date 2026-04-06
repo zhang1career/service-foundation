@@ -1,4 +1,5 @@
 from app_user.repos.user_repo import (
+    clear_user_disposition,
     get_user_by_id,
     get_user_by_username,
     get_user_by_email,
@@ -16,6 +17,7 @@ from app_user.repos.event_repo import (
     create_event,
     get_event_by_id,
     get_latest_pending_event_by_notice,
+    get_latest_incomplete_event_by_notice,
     update_event_after_code,
     update_event_status,
     list_events,
@@ -24,6 +26,7 @@ from app_user.repos.event_repo import (
 )
 
 __all__ = [
+    "clear_user_disposition",
     "get_user_by_id",
     "get_user_by_username",
     "get_user_by_email",
@@ -39,6 +42,7 @@ __all__ = [
     "create_event",
     "get_event_by_id",
     "get_latest_pending_event_by_notice",
+    "get_latest_incomplete_event_by_notice",
     "update_event_after_code",
     "update_event_status",
     "list_events",

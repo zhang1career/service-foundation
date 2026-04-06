@@ -9,7 +9,7 @@ from django.conf import settings
 from typing import Any
 from urllib.parse import quote
 
-from common.services.http import HttpCallError, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def put_object_http(object_key: str, body: bytes, content_type: str) -> str:
         resp = request_sync(
             method="PUT",
             url=url,
-            pool_name="avatar_http_pool",
+            pool_name=HttpClientPool.THIRD_PARTY,
             data=body,
             headers={"Content-Type": content_type},
             timeout_sec=_PUT_TIMEOUT_SEC,

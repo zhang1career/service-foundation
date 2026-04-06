@@ -15,7 +15,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from common.services.http.pools import HttpClientPool
 from common.utils.env_util import load_env
+from common.utils.redis_url_util import redis_location_with_db
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -337,6 +339,31 @@ if APP_USER_ENABLED:
 if APP_VERIFY_ENABLED:
     DATABASE_ROUTERS.append("app_verify.db_routers.ReadWriteRouter")
 
+# Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
+REDIS_CACHE_URL = env("REDIS_CACHE_URL", default="redis://127.0.0.1:6379")
+CACHE_GLOBAL_KEY_PREFIX = env("CACHE_GLOBAL_KEY_PREFIX", default="sf")
+USER_CACHE_REDIS_DB = env.int("USER_CACHE_REDIS_DB", default=1)
+USER_CACHE_REDIS_KEY_PREFIX = env("USER_CACHE_REDIS_KEY_PREFIX", default="user")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": redis_location_with_db(REDIS_CACHE_URL, USER_CACHE_REDIS_DB),
+        "KEY_PREFIX": f"{CACHE_GLOBAL_KEY_PREFIX}:{USER_CACHE_REDIS_KEY_PREFIX}",
+    }
+}
+
+# app_user: login brute-force counters (separate limits for login key vs client IP).
+USER_LOGIN_FAIL_MAX_ATTEMPTS_LOGIN_KEY = env.int("USER_LOGIN_FAIL_MAX_ATTEMPTS_LOGIN_KEY", default=5)
+USER_LOGIN_FAIL_MAX_ATTEMPTS_IP = env.int("USER_LOGIN_FAIL_MAX_ATTEMPTS_IP", default=20)
+USER_LOGIN_FAIL_WINDOW_SECONDS = env.int("USER_LOGIN_FAIL_WINDOW_SECONDS", default=900)
+# Password OK but disposition blocks login: throttle per (login_key, client_ip), separate from wrong-password counters.
+USER_DISPOSITION_AUTH_THROTTLE_WINDOW_SECONDS = env.int(
+    "USER_DISPOSITION_AUTH_THROTTLE_WINDOW_SECONDS",
+    default=300,
+)
+USER_DISPOSITION_AUTH_THROTTLE_MAX = env.int("USER_DISPOSITION_AUTH_THROTTLE_MAX", default=30)
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -528,9 +555,18 @@ PROMPT_TEMPLATE_ID_SUMMARY = env.int("PROMPT_TEMPLATE_ID_SUMMARY", default=0)
 PROMPT_TEMPLATE_ID_RELATION_EXTRACT = env.int("PROMPT_TEMPLATE_ID_RELATION_EXTRACT", default=0)
 
 NOTICE_SERVICE_URL = env("NOTICE_SERVICE_URL", default="http://127.0.0.1:8000/api/notice/send")
+# 控制台「手动发送」默认写入 notice 记录的 event_id（可改为业务侧约定值）
+NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", default=1)
+# Fire-and-forget notice delivery after enqueue (ThreadPoolExecutor cap per worker process)
+NOTICE_SEND_THREAD_POOL_MAX_WORKERS = env.int("NOTICE_SEND_THREAD_POOL_MAX_WORKERS", default=8)
+
+# wecom 酱 (Server酱 Turbo): SendKey in API path {base}/{SendKey}.send
+NOTICE_BROKER_JIANG_URL = env("NOTICE_BROKER_JIANG_URL", default="https://sctapi.ftqq.com")
+NOTICE_BROKER_JIANG_SEND_KEY = (env("NOTICE_BROKER_JIANG_SEND_KEY", default="") or "").strip()
 
 VERIFY_REQUEST_URL = env("VERIFY_REQUEST_URL", default="http://127.0.0.1:8000/api/verify/request")
 VERIFY_CHECK_URL = env("VERIFY_CHECK_URL", default="http://127.0.0.1:8000/api/verify/check")
+VERIFY_CODE_TTL_SECONDS = env.int("VERIFY_CODE_TTL_SECONDS", default=300)
 
 KNOW_AIBROKER_ACCESS_KEY = env("KNOW_AIBROKER_ACCESS_KEY", default="")
 KNOW_SIMILARITY_REUSE_THRESHOLD = env.float("KNOW_SIMILARITY_REUSE_THRESHOLD", default=0.99)
@@ -553,10 +589,18 @@ HTTPX_DEFAULT_MAX_KEEPALIVE = env.int("HTTPX_DEFAULT_MAX_KEEPALIVE", default=20)
 HTTPX_DEFAULT_KEEPALIVE_EXPIRY = env.float("HTTPX_DEFAULT_KEEPALIVE_EXPIRY", default=30.0)
 HTTPX_DEFAULT_TIMEOUT = env.float("HTTPX_DEFAULT_TIMEOUT", default=30.0)
 
-HTTPX_AVATAR_MAX_CONNECTIONS = env.int("HTTPX_AVATAR_MAX_CONNECTIONS", default=32)
 HTTPX_WEBHOOK_MAX_CONNECTIONS = env.int("HTTPX_WEBHOOK_MAX_CONNECTIONS", default=64)
-HTTPX_THIRDPARTY_MAX_CONNECTIONS = env.int("HTTPX_THIRDPARTY_MAX_CONNECTIONS", default=64)
-HTTPX_AIGC_MAX_CONNECTIONS = env.int("HTTPX_AIGC_MAX_CONNECTIONS", default=32)
+HTTPX_THIRD_PARTY_MAX_CONNECTIONS = env.int("HTTPX_THIRD_PARTY_MAX_CONNECTIONS", default=64)
+
+HTTPX_POOL_MAX_CONNECTIONS = {
+    HttpClientPool.WEBHOOK.value: HTTPX_WEBHOOK_MAX_CONNECTIONS,
+    HttpClientPool.THIRD_PARTY.value: HTTPX_THIRD_PARTY_MAX_CONNECTIONS,
+}
+
+HTTPX_POOL_CELERY_QUEUE = {
+    HttpClientPool.WEBHOOK.value: "webhook",
+    HttpClientPool.THIRD_PARTY.value: "3rd_party",
+}
 
 # Search recommendation baseline config
 SEARCHREC_INDEX_BACKEND = env("SEARCHREC_INDEX_BACKEND", default="memory")
@@ -578,6 +622,9 @@ SEARCHREC_FEAST_API_KEY = env("SEARCHREC_FEAST_API_KEY", default="")
 
 # Celery + Redis
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "global_keyprefix": CACHE_GLOBAL_KEY_PREFIX,
+}
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_SERIALIZER = "json"
@@ -587,7 +634,7 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_TASK_DEFAULT_QUEUE = env("CELERY_TASK_DEFAULT_QUEUE", default="default")
 CELERY_TASK_ROUTES = {
-    "common.tasks.http_tasks.execute_http_request_task": {"queue": "thirdparty"},
+    "common.services.task.distributed_tasks.sync_call_task": {"queue": "thirdparty"},
 }
 
 # MongoDB Atlas configuration (for app_know)

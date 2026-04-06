@@ -3,7 +3,6 @@ Knowledge (batch) REST API: list batches, get/delete batch. entity_id = batch_id
 """
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.repos.batch_repo import delete_batch
@@ -87,8 +86,7 @@ class KnowledgeListView(APIView):
 
     def post(self, request, *args, **kwargs):
         """Create batch: POST to upload endpoint instead. Stub returns error."""
-        return resp_err("Use POST /api/know/knowledge/upload to create", code=RET_INVALID_PARAM,
-                        status=http_status.HTTP_200_OK)
+        return resp_err(code=RET_INVALID_PARAM, message="Use POST /api/know/knowledge/upload to create")
 
 
 class KnowledgeListItemsView(APIView):
@@ -137,8 +135,8 @@ class KnowledgePointDetailView(APIView):
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
-                return resp_err(msg, code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
-            return resp_err(msg, code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=msg)
+            return resp_err(code=RET_INVALID_PARAM, message=msg)
         except Exception as e:
             logger.exception("[KnowledgePointDetailView.get] Error: %s", e)
             return resp_exception(e)
@@ -180,14 +178,14 @@ class KnowledgePointDetailView(APIView):
                 return resp_ok(knowledge_point_to_dict(k))
             ok = update_knowledge_point(kid, **updates)
             if not ok:
-                return resp_err("Update failed", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="Update failed")
             k = get_by_id(kid)
             return resp_ok(knowledge_point_to_dict(k))
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
-                return resp_err(msg, code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
-            return resp_err(msg, code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=msg)
+            return resp_err(code=RET_INVALID_PARAM, message=msg)
         except Exception as e:
             logger.exception("[KnowledgePointDetailView.put] Error: %s", e)
             return resp_exception(e)
@@ -204,13 +202,13 @@ class KnowledgePointDetailView(APIView):
                 logger.warning("[KnowledgePointDetailView.delete] delete_by_sentence_ids failed: %s", e)
             deleted = delete_knowledge_point_by_id(kid)
             if not deleted:
-                return resp_err("Delete failed", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="Delete failed")
             return resp_ok({"deleted": 1})
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
-                return resp_err(msg, code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
-            return resp_err(msg, code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=msg)
+            return resp_err(code=RET_INVALID_PARAM, message=msg)
         except Exception as e:
             logger.exception("[KnowledgePointDetailView.delete] Error: %s", e)
             return resp_exception(e)
@@ -247,16 +245,15 @@ class KnowledgeDetailView(APIView):
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
-                return resp_err(msg, code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
-            return resp_err(msg, code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=msg)
+            return resp_err(code=RET_INVALID_PARAM, message=msg)
         except Exception as e:
             logger.exception("[KnowledgeDetailView.get] Error: %s", e)
             return resp_exception(e)
 
     def put(self, request, entity_id, *args, **kwargs):
         """Batch update: use parse with content to replace."""
-        return resp_err("Use POST .../parse with content to update batch", code=RET_INVALID_PARAM,
-                        status=http_status.HTTP_200_OK)
+        return resp_err(code=RET_INVALID_PARAM, message="Use POST .../parse with content to update batch")
 
     def delete(self, request, entity_id, *args, **kwargs):
         """Delete batch (all knowledge points + batch record)."""
@@ -270,8 +267,8 @@ class KnowledgeDetailView(APIView):
         except ValueError as e:
             msg = str(e)
             if "not found" in msg.lower():
-                return resp_err(msg, code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
-            return resp_err(msg, code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=msg)
+            return resp_err(code=RET_INVALID_PARAM, message=msg)
         except Exception as e:
             logger.exception("[KnowledgeDetailView.delete] Error: %s", e)
             return resp_exception(e)

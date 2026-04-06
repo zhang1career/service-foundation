@@ -51,6 +51,19 @@ def get_latest_pending_event_by_notice(biz_type: int, notice_channel: int, notic
     )
 
 
+def get_latest_incomplete_event_by_notice(biz_type: int, notice_target: str):
+    return (
+        Event.objects.using("user_rw")
+        .filter(
+            biz_type=int(biz_type),
+            status__in=(EventStatusEnum.INIT.value, EventStatusEnum.PENDING_VERIFY.value),
+            notice_target=notice_target or "",
+        )
+        .order_by("-ct")
+        .first()
+    )
+
+
 def update_event_after_code(event_id: int, verify_code_id: int, verify_ref_id: int) -> bool:
     event = get_event_by_id(event_id)
     if not event:

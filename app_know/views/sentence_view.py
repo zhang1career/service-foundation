@@ -3,7 +3,6 @@ Sentence view: list sentences for a knowledge document.
 """
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.repos import knowledge_point_repo
@@ -55,8 +54,7 @@ class SentenceListView(APIView):
         """List sentences. Query: offset, limit, stage, status."""
         try:
             if entity_id is None or not isinstance(entity_id, int) or entity_id <= 0:
-                return resp_err("entity_id must be a positive integer", code=RET_INVALID_PARAM,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="entity_id must be a positive integer")
 
             offset = int(request.GET.get("offset") or 0)
             limit = int(request.GET.get("limit") or 100)
@@ -89,7 +87,7 @@ class SentenceListView(APIView):
             })
         except ValueError as e:
             logger.warning("[SentenceListView] Validation error: %s", e)
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[SentenceListView] Error: %s", e)
             return resp_exception(e)

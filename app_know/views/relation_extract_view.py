@@ -5,7 +5,6 @@ Uses app_aibroker (HTTP) to extract predicate logic and stores in Atlas + Neo4j.
 import json
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.consts import validate_app_id as _validate_app_id
@@ -47,11 +46,7 @@ class RelationExtractView(APIView):
     """POST: extract relations - DISABLED (schema refactor removed summary/component_mapping)."""
 
     def post(self, request, entity_id, *args, **kwargs):
-        return resp_err(
-            "提取关系功能暂不可用（依赖已删除的 summary/x、component_mapping/y 表）",
-            code=RET_INVALID_PARAM,
-            status=http_status.HTTP_200_OK,
-        )
+        return resp_err(code=RET_INVALID_PARAM, message="提取关系功能暂不可用（依赖已删除的 summary/x、component_mapping/y 表）")
 
 
 class RelationSaveView(APIView):
@@ -85,11 +80,11 @@ class RelationSaveView(APIView):
             obj = (data.get("object") or "").strip()
 
             if not subject:
-                return resp_err("subject is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="subject is required")
             if not predicate:
-                return resp_err("predicate is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="predicate is required")
             if not obj:
-                return resp_err("object is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="object is required")
 
             relation = ExtractedRelation(subject=subject, predicate=predicate, obj=obj)
             stored = store_relation_in_graph(relation, app_id=app_id, knowledge_id=entity_id)
@@ -105,14 +100,10 @@ class RelationSaveView(APIView):
             })
         except ValueError as e:
             logger.warning("[RelationSaveView.post] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except Exception as e:
             logger.exception("[RelationSaveView.post] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
 
 class RelationGraphView(APIView):
@@ -135,14 +126,10 @@ class RelationGraphView(APIView):
             return resp_ok(graph_data)
         except ValueError as e:
             logger.warning("[RelationGraphView.get] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except Exception as e:
             logger.exception("[RelationGraphView.get] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
 
 class RelationGraphNodeUpdateView(APIView):
@@ -168,21 +155,16 @@ class RelationGraphNodeUpdateView(APIView):
             name = (data.get("name") or "").strip()
             app_id = _validate_app_id(data.get("app_id", 0))
             if not cid:
-                return resp_err("cid is required", code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="cid is required")
             ok = update_graph_node_name(cid=cid, name=name or cid, app_id=app_id)
             if not ok:
-                return resp_err("Node not found or update failed", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Node not found or update failed")
             return resp_ok({"cid": cid, "name": name or cid})
         except ValueError as e:
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except Exception as e:
             logger.exception("[RelationGraphNodeUpdateView.patch] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
 
 class RelationGraphEdgeUpdateView(APIView):
@@ -210,24 +192,17 @@ class RelationGraphEdgeUpdateView(APIView):
             new_type = (data.get("new_type") or "").strip()
             app_id = _validate_app_id(data.get("app_id", 0))
             if not from_cid or not to_cid:
-                return resp_err("from_cid and to_cid are required", code=RET_MISSING_PARAM,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="from_cid and to_cid are required")
             if not old_type or not new_type:
-                return resp_err("old_type and new_type are required", code=RET_MISSING_PARAM,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message="old_type and new_type are required")
             ok = update_graph_relationship_type(
                 from_cid=from_cid, to_cid=to_cid, old_type=old_type, new_type=new_type, app_id=app_id
             )
             if not ok:
-                return resp_err("Relationship not found or update failed", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Relationship not found or update failed")
             return resp_ok({"from": from_cid, "to": to_cid, "type": new_type})
         except ValueError as e:
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except Exception as e:
             logger.exception("[RelationGraphEdgeUpdateView.patch] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)

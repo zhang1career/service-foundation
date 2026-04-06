@@ -17,7 +17,7 @@ class ProviderListCreateView(APIView):
         try:
             return resp_ok(ProviderService.create_by_payload(data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class ProviderDetailView(APIView):
@@ -28,21 +28,21 @@ class ProviderDetailView(APIView):
         try:
             return resp_ok(ProviderService.get_one(with_type(provider_id)))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def patch(self, request, provider_id, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
         try:
             return resp_ok(ProviderService.update_by_payload(with_type(provider_id), data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def delete(self, request, provider_id, *args, **kwargs):
         try:
             ProviderService.delete(with_type(provider_id))
             return resp_ok({"deleted": True})
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class ModelListCreateView(APIView):
@@ -53,7 +53,7 @@ class ModelListCreateView(APIView):
         try:
             return resp_ok({"data": ModelService.list_for_provider(with_type(provider_id))})
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def post(self, request, provider_id, *args, **kwargs):
         data = dict(request.data) if hasattr(request, "data") else {}
@@ -61,7 +61,7 @@ class ModelListCreateView(APIView):
         try:
             return resp_ok(ModelService.create_by_payload(data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class ModelDetailView(APIView):
@@ -73,11 +73,11 @@ class ModelDetailView(APIView):
         try:
             return resp_ok(ModelService.update(with_type(model_id), data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def delete(self, request, provider_id, model_id, *args, **kwargs):
         try:
             ModelService.delete(with_type(model_id))
             return resp_ok({"deleted": True})
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))

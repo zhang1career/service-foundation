@@ -1,7 +1,7 @@
 import json
 from typing import Optional
 
-from app_user.enums import UserStatusEnum
+from app_user.enums import UserDispositionEnum, UserStatusEnum
 from app_user.models import User
 from common.utils.date_util import get_now_timestamp_ms
 
@@ -114,4 +114,37 @@ def update_user_auth_status(user_id: int, auth_status: int) -> Optional[User]:
     user.auth_status = int(auth_status or 0)
     user.ut = get_now_timestamp_ms()
     user.save(using="user_rw", update_fields=["auth_status", "ut"])
+    return user
+
+
+def update_user_disposition(
+        user_id: int,
+        *,
+        ctrl_status: int,
+        ctrl_reason: str,
+) -> Optional[User]:
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+    user.ctrl_status = int(ctrl_status)
+    user.ctrl_reason = ctrl_reason or ""
+    user.ut = get_now_timestamp_ms()
+    user.save(
+        using="user_rw",
+        update_fields=["ctrl_status", "ctrl_reason", "ut"],
+    )
+    return user
+
+
+def clear_user_disposition(user_id: int) -> Optional[User]:
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+    user.ctrl_status = UserDispositionEnum.NONE.value
+    user.ctrl_reason = ""
+    user.ut = get_now_timestamp_ms()
+    user.save(
+        using="user_rw",
+        update_fields=["ctrl_status", "ctrl_reason", "ut"],
+    )
     return user

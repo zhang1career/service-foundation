@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 from django.conf import settings
 
 from common.consts.response_const import RET_OK
-from common.services.http import request_sync
+from common.services.http import HttpClientPool, request_sync
 
 TEXT_GENERATE_PATH = "/v1/text/generate"
 EMBEDDINGS_PATH = "/v1/embeddings"
@@ -46,7 +46,7 @@ def _post_to_path(
     resp = request_sync(
         method="POST",
         url=url,
-        pool_name="thirdparty_pool",
+        pool_name=HttpClientPool.THIRD_PARTY,
         json_body=body,
         headers=headers,
         timeout_sec=DEFAULT_TIMEOUT_SEC,

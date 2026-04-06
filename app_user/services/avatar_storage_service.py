@@ -10,7 +10,7 @@ from urllib.parse import quote
 from django.conf import settings
 
 from common.exceptions import InvalidArgumentError, ObjectStorageError
-from common.services.http import HttpCallError, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def _download_remote(url: str) -> Tuple[bytes, str, str]:
         resp = request_sync(
             method="GET",
             url=url,
-            pool_name="avatar_http_pool",
+            pool_name=HttpClientPool.THIRD_PARTY,
             timeout_sec=10,
         )
     except HttpCallError as e:
@@ -73,7 +73,7 @@ def _http_put_object(*, url: str, data: bytes, content_type: str, timeout: int):
     return request_sync(
         method="PUT",
         url=url,
-        pool_name="avatar_http_pool",
+        pool_name=HttpClientPool.THIRD_PARTY,
         data=data,
         headers=headers,
         timeout_sec=timeout,

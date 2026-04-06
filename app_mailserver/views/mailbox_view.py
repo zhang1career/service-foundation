@@ -6,11 +6,10 @@ Views are responsible for HTTP request/response handling only.
 Business logic is handled by MailboxService.
 """
 import logging
-from rest_framework import status as http_status
+
 from rest_framework.views import APIView
 
 from app_mailserver.services.mailbox_service import MailboxService
-from common.consts.query_const import LIMIT_PAGE
 from common.consts.response_const import (
     RET_RESOURCE_NOT_FOUND,
     RET_MISSING_PARAM,
@@ -57,8 +56,8 @@ class MailboxListView(APIView):
             logger.warning(f"[MailboxListView.get] Validation error: {e}")
             error_message = str(e)
             if 'not found' in error_message.lower():
-                return resp_err(error_message, code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
-            return resp_err(error_message, code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=error_message)
+            return resp_err(code=RET_MISSING_PARAM, message=error_message)
         except Exception as e:
             logger.exception(f"[MailboxListView.get] Error listing mailboxes: {e}")
             return resp_exception(e)
@@ -105,12 +104,12 @@ class MailboxListView(APIView):
             logger.warning(f"[MailboxListView.post] Validation error: {e}")
             error_message = str(e)
             if 'required' in error_message.lower() or 'cannot be empty' in error_message.lower():
-                return resp_err(error_message, code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message=error_message)
             elif 'already exists' in error_message.lower():
-                return resp_err(error_message, code=RET_RESOURCE_EXISTS, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_EXISTS, message=error_message)
             elif 'not found' in error_message.lower():
-                return resp_err(error_message, code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
-            return resp_err(error_message, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=error_message)
+            return resp_err(code=RET_DB_ERROR, message=error_message)
         except Exception as e:
             logger.exception(f"[MailboxListView.post] Error creating mailbox: {e}")
             return resp_exception(e)
@@ -134,8 +133,7 @@ class MailboxDetailView(APIView):
             mailbox_data = service.get_mailbox(mailbox_id)
             
             if not mailbox_data:
-                return resp_err("Mailbox not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Mailbox not found")
             
             return resp_ok(mailbox_data)
             
@@ -181,8 +179,7 @@ class MailboxDetailView(APIView):
             )
             
             if not mailbox_data:
-                return resp_err("Mailbox not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Mailbox not found")
             
             return resp_ok(mailbox_data)
             
@@ -190,10 +187,10 @@ class MailboxDetailView(APIView):
             logger.warning(f"[MailboxDetailView.put] Validation error: {e}")
             error_message = str(e)
             if 'cannot be empty' in error_message.lower() or 'cannot be negative' in error_message.lower():
-                return resp_err(error_message, code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message=error_message)
             elif 'already exists' in error_message.lower():
-                return resp_err(error_message, code=RET_RESOURCE_EXISTS, status=http_status.HTTP_200_OK)
-            return resp_err(error_message, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_EXISTS, message=error_message)
+            return resp_err(code=RET_DB_ERROR, message=error_message)
         except Exception as e:
             logger.exception(f"[MailboxDetailView.put] Error updating mailbox: {e}")
             return resp_exception(e)
@@ -219,8 +216,7 @@ class MailboxDetailView(APIView):
             success = service.delete_mailbox(mailbox_id)
             
             if not success:
-                return resp_err("Mailbox not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Mailbox not found")
             
             return resp_ok({"message": "Mailbox deleted successfully"})
             

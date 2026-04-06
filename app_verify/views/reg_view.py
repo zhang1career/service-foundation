@@ -14,7 +14,7 @@ class RegListCreateView(APIView):
         try:
             return resp_ok(RegService.create_by_payload(data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class RegDetailView(APIView):
@@ -22,18 +22,18 @@ class RegDetailView(APIView):
         try:
             return resp_ok(RegService.get_one(reg_id=with_type(reg_id)))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def patch(self, request, reg_id, *args, **kwargs):
         data = post_payload(request)
         try:
             return resp_ok(RegService.update_by_payload(reg_id=with_type(reg_id), payload=data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
     def delete(self, request, reg_id, *args, **kwargs):
         try:
             RegService.delete(reg_id=with_type(reg_id))
             return resp_ok({"deleted": True})
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))

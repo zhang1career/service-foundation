@@ -3,7 +3,6 @@ Insight REST API: CRUD + generate insights.
 """
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.repos import insight_repo
@@ -69,7 +68,7 @@ class InsightListView(APIView):
                 "next_offset": offset + len(items) if (offset + len(items)) < total else None,
             })
         except ValueError as e:
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[InsightListView] Error: %s", e)
             return resp_exception(e)
@@ -109,7 +108,7 @@ class InsightListView(APIView):
             )
             return resp_ok(_to_dict(i))
         except ValueError as e:
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[InsightListView.post] Error: %s", e)
             return resp_exception(e)
@@ -123,10 +122,10 @@ class InsightDetailView(APIView):
             iid = int(insight_id)
             i = insight_repo.get_insight_by_id(iid)
             if not i:
-                return resp_err("Insight not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Insight not found")
             return resp_ok(_to_dict(i))
         except (TypeError, ValueError):
-            return resp_err("Invalid insight_id", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message="Invalid insight_id")
         except Exception as e:
             logger.exception("[InsightDetailView] Error: %s", e)
             return resp_exception(e)
@@ -162,15 +161,15 @@ class InsightDetailView(APIView):
             if not updates:
                 i = insight_repo.get_insight_by_id(iid)
                 if not i:
-                    return resp_err("Insight not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                    return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Insight not found")
                 return resp_ok(_to_dict(i))
             ok = insight_repo.update_insight(iid, **updates)
             if not ok:
-                return resp_err("Insight not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Insight not found")
             i = insight_repo.get_insight_by_id(iid)
             return resp_ok(_to_dict(i))
         except (TypeError, ValueError) as e:
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[InsightDetailView.put] Error: %s", e)
             return resp_exception(e)
@@ -180,10 +179,10 @@ class InsightDetailView(APIView):
             iid = int(insight_id)
             ok = insight_repo.delete_insight(iid)
             if not ok:
-                return resp_err("Insight not found", code=RET_RESOURCE_NOT_FOUND, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Insight not found")
             return resp_ok({"deleted": True})
         except (TypeError, ValueError):
-            return resp_err("Invalid insight_id", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message="Invalid insight_id")
         except Exception as e:
             logger.exception("[InsightDetailView.delete] Error: %s", e)
             return resp_exception(e)
@@ -197,7 +196,7 @@ class InsightGenerateView(APIView):
             data = getattr(request, "data", None) or request.POST or {}
             kid = data.get("kid") or data.get("batch_id")
             if not kid:
-                return resp_err("kid is required", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="kid is required")
             kid = int(kid)
             perspective = data.get("perspective") or data.get("pid") or data.get("perspective_id")
             if perspective is not None and perspective != "":
@@ -215,7 +214,7 @@ class InsightGenerateView(APIView):
             results = generate_insights_and_store(batch_id=kid, perspective=perspective, types=types)
             return resp_ok({"kid": kid, "generated": len(results), "insights": results})
         except ValueError as e:
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[InsightGenerateView] Error: %s", e)
             return resp_exception(e)

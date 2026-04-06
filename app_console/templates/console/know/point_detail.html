@@ -57,12 +57,12 @@
         </div>
         <div>
             <p class="text-sm text-gray-500 mb-1">内容</p>
-            <div class="whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.content|default:"-" }}</div>
+            <div class="console-readonly-block rounded-lg p-4 whitespace-pre-wrap break-words">{{ point_data.content|default:"-" }}</div>
         </div>
         <div>
             <p class="text-sm text-gray-500 mb-1">摘要</p>
             <div class="flex items-center gap-2">
-                <div id="brief-display" class="flex-1 whitespace-pre-wrap break-words bg-gray-50 p-4 rounded-lg">{{ point_data.brief|default:"-" }}</div>
+                <div id="brief-display" class="console-readonly-block flex-1 rounded-lg p-4 whitespace-pre-wrap break-words">{{ point_data.brief|default:"-" }}</div>
                 <div class="flex gap-2 shrink-0">
                     <button type="button" id="btn-extract-brief" class="btn btn-primary btn-sm">摘要</button>
                     {% if point_data.status == 2 %}

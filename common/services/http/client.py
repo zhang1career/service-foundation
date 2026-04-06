@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import atexit
 import logging
 import threading
@@ -6,25 +8,38 @@ from typing import Dict
 import httpx
 from django.conf import settings
 
+from common.services.http.pools import HttpClientPool, pool_id
+
 logger = logging.getLogger(__name__)
 
 _CLIENTS: Dict[str, httpx.Client] = {}
 _LOCK = threading.Lock()
 
 
-def _resolve_limits(pool_name: str) -> httpx.Limits:
+def get_http_client(
+        pool_name: HttpClientPool | str | None = None,
+        timeout_sec: float | None = None,
+) -> httpx.Client:
+    pool_key = pool_id(pool_name)
+
+    with _LOCK:
+        client = _CLIENTS.get(pool_key)
+        if client is None:
+            # Client default timeout from settings only; per-request timeouts pass through
+            # request_sync(..., timeout_sec=...) without mutating this shared instance.
+            client = httpx.Client(limits=_resolve_limits(pool_key), timeout=_resolve_timeout(timeout_sec))
+            _CLIENTS[pool_key] = client
+            logger.info("[httpx] initialized pool=%s", pool_key)
+            return client
+
+    return client
+
+
+def _resolve_limits(pool_key: str) -> httpx.Limits:
     default_max_connections = int(getattr(settings, "HTTPX_DEFAULT_MAX_CONNECTIONS", 100))
     default_max_keepalive = int(getattr(settings, "HTTPX_DEFAULT_MAX_KEEPALIVE", 20))
-    max_connections = default_max_connections
-
-    if pool_name == "avatar_http_pool":
-        max_connections = int(getattr(settings, "HTTPX_AVATAR_MAX_CONNECTIONS", 32))
-    elif pool_name == "webhook_pool":
-        max_connections = int(getattr(settings, "HTTPX_WEBHOOK_MAX_CONNECTIONS", 64))
-    elif pool_name == "thirdparty_pool":
-        max_connections = int(getattr(settings, "HTTPX_THIRDPARTY_MAX_CONNECTIONS", 64))
-    elif pool_name == "aigc_upstream_pool":
-        max_connections = int(getattr(settings, "HTTPX_AIGC_MAX_CONNECTIONS", 32))
+    pool_limits = getattr(settings, "HTTPX_POOL_MAX_CONNECTIONS", None) or {}
+    max_connections = int(pool_limits.get(pool_key, default_max_connections))
 
     return httpx.Limits(
         max_connections=max_connections,
@@ -36,23 +51,6 @@ def _resolve_limits(pool_name: str) -> httpx.Limits:
 def _resolve_timeout(timeout_sec: float | None) -> httpx.Timeout:
     timeout_value = float(timeout_sec or getattr(settings, "HTTPX_DEFAULT_TIMEOUT", 30.0))
     return httpx.Timeout(timeout_value)
-
-
-def get_http_client(pool_name: str, timeout_sec: float | None = None) -> httpx.Client:
-    if not pool_name:
-        pool_name = "thirdparty_pool"
-
-    with _LOCK:
-        client = _CLIENTS.get(pool_name)
-        if client is None:
-            # Client default timeout from settings only; per-request timeouts pass through
-            # request_sync(..., timeout_sec=...) without mutating this shared instance.
-            client = httpx.Client(limits=_resolve_limits(pool_name), timeout=_resolve_timeout(None))
-            _CLIENTS[pool_name] = client
-            logger.info("[httpx] initialized pool=%s", pool_name)
-            return client
-
-    return client
 
 
 def close_all_http_clients() -> None:

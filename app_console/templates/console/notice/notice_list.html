@@ -1,0 +1,98 @@
+{% extends 'console/base.html' %}
+
+{% block title %}通知中心-通知管理{% endblock %}
+{% block page_title %}通知中心{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/notice_subnav.html' with active='notices' %}
+</div>
+
+<div class="card">
+    <div class="card-header flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-lg font-semibold">通知列表</h2>
+        {% if total_pages > 1 %}
+        <div class="flex items-center gap-2 text-sm text-gray-600">
+            {% if has_prev %}
+            <a href="?page={{ page|add:'-1' }}" class="text-blue-600 hover:underline">上一页</a>
+            {% else %}
+            <span class="text-gray-400">上一页</span>
+            {% endif %}
+            <span>第 {{ page }} / {{ total_pages }} 页</span>
+            {% if has_next %}
+            <a href="?page={{ page|add:'1' }}" class="text-blue-600 hover:underline">下一页</a>
+            {% else %}
+            <span class="text-gray-400">下一页</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>调用方</th>
+                        <th>event_id</th>
+                        <th>渠道</th>
+                        <th>broker</th>
+                        <th>状态</th>
+                        <th>target</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in notices %}
+                    <tr>
+                        <td class="font-mono text-sm">
+                            <a class="text-blue-600 hover:underline" href="{% url 'console:notice-record-detail' row.id %}">{{ row.id }}</a>
+                        </td>
+                        <td class="text-sm max-w-xs break-words" title="{{ row.reg_label|escape }}">{{ row.reg_label }}</td>
+                        <td class="font-mono text-sm">{{ row.event_id }}</td>
+                        <td class="text-sm">{{ row.channel_label }}</td>
+                        <td class="text-sm">{% if row.broker != 0 %}{{ row.broker_label }}（{{ row.broker }}）{% else %}—{% endif %}</td>
+                        <td>
+                            {% if row.status == 1 %}
+                            <span class="badge badge-success">{{ row.status_label }}</span>
+                            {% else %}
+                            <span class="badge badge-warning">{{ row.status_label }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm max-w-xs break-words" title="{{ row.target_short|escape }}">{{ row.target_short|default:"—" }}</td>
+                        <td class="text-sm whitespace-nowrap">{{ row.ct_fmt }}</td>
+                        <td>
+                            <button type="button" class="btn btn-danger btn-icon" title="删除" onclick="submitNoticeRecordDelete({{ row.id }})">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="9" class="empty-state py-8 text-center text-gray-500">暂无数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for row in notices %}
+<form id="notice-record-del-{{ row.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="notice_id" value="{{ row.id }}">
+    <input type="hidden" name="page" value="{{ page }}">
+</form>
+{% endfor %}
+
+<script>
+(function () {
+    window.submitNoticeRecordDelete = function (id) {
+        if (!confirm('确认删除该条通知记录？')) return;
+        var f = document.getElementById('notice-record-del-' + id);
+        if (f) f.submit();
+    };
+})();
+</script>
+{% endblock %}

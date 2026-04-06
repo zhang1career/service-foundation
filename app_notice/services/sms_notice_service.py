@@ -1,9 +1,8 @@
 import logging
-from typing import Optional
 
 from django.conf import settings
 
-from common.services.http import HttpCallError, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class SmsNoticeService:
                 response = request_sync(
                     method="POST",
                     url=endpoint,
-                    pool_name="thirdparty_pool",
+                    pool_name=HttpClientPool.THIRD_PARTY,
                     json_body=payload,
                     headers=headers,
                     timeout_sec=5,

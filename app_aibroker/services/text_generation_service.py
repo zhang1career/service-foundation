@@ -26,7 +26,7 @@ from app_aibroker.services.template_render_service import (
     validate_output,
 )
 from common.enums.nested_type_enum import NestedParamType
-from common.services.http import HttpCallError, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_sync
 from common.utils.dict_util import get_at_path, set_at_path
 from common.utils.nested_typed_tree_util import (
     apply_field_coercion,
@@ -273,7 +273,7 @@ def _download_base64_from_url(url: str) -> tuple[Optional[str], Optional[str]]:
         resp = request_sync(
             method="GET",
             url=url,
-            pool_name="aigc_upstream_pool",
+            pool_name=HttpClientPool.THIRD_PARTY,
             timeout_sec=30.0,
         )
     except HttpCallError as exc:

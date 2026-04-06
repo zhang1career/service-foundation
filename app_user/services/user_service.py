@@ -3,6 +3,7 @@ from typing import Optional
 
 from app_user.enums import EventBizTypeEnum, EventStatusEnum
 from app_user.repos import (
+    clear_user_disposition,
     get_user_by_id,
     list_users,
     update_event_status,
@@ -11,8 +12,8 @@ from app_user.repos import (
     update_user_status,
 )
 from app_user.services.avatar_storage_service import upload_avatar
-from app_user.services.user_serialization import user_to_public_dict
-from app_user.services.verify_notice_integration import (
+from app_user.utils.user_serialization import user_to_console_dict, user_to_public_dict
+from app_user.services.verify_notice_service import (
     create_verify_event_and_send_notice,
     load_verify_notice_access_keys,
     post_verify_check,
@@ -120,6 +121,16 @@ class UserService:
         )
 
     @staticmethod
+    def console_get_user(user_id: int) -> Optional[dict]:
+        user = get_user_by_id(user_id)
+        return user_to_console_dict(user) if user else None
+
+    @staticmethod
+    def console_clear_disposition(user_id: int) -> Optional[dict]:
+        user = clear_user_disposition(user_id)
+        return user_to_console_dict(user) if user else None
+
+    @staticmethod
     def console_verify_user_by_code(user_id: int, code: str) -> dict:
         code = (code or "").strip()
         if not code:
@@ -147,7 +158,7 @@ class UserService:
         new_mask = (getattr(user, "auth_status", 0) or 0) | AUTH_BIT_VERIFY_CODE
         updated = update_user_auth_status(user_id=user.id, auth_status=new_mask)
         update_event_status(event.id, status=EventStatusEnum.COMPLETED.value, message="completed")
-        return {"user": user_to_public_dict(updated or user), "auth_status": new_mask}
+        return {"user": user_to_console_dict(updated or user), "auth_status": new_mask}
 
     @staticmethod
     def console_update_user_by_payload(user_id: int, payload: dict) -> Optional[dict]:
@@ -169,4 +180,4 @@ class UserService:
         user = update_user_profile(user_id=user_id, email=email, phone=phone, avatar=avatar, ext=ext)
         if status is not None:
             user = update_user_status(user_id=user_id, status=status)
-        return user_to_public_dict(user) if user else None
+        return user_to_console_dict(user) if user else None

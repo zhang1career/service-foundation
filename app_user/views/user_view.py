@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 
 from app_user.enums import UserStatusEnum
 from app_user.services import AuthService, EventService, UserService
-from app_user.views.auth_context import bearer_user_id_from_request
+from app_user.utils.auth_context import bearer_user_id_from_request
 from common.consts.query_const import LIMIT_PAGE
 from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, with_type
@@ -12,16 +12,16 @@ class UserMeView(APIView):
     def get(self, request, *args, **kwargs):
         user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
-            return resp_err(message, code=code)
+            return resp_err(code=code, message=message)
         user = UserService.get_me(user_id=user_id)
         if not user:
-            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)
 
     def patch(self, request, *args, **kwargs):
         user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
-            return resp_err(message, code=code)
+            return resp_err(code=code, message=message)
         data = request.data if hasattr(request, "data") else request.POST
         avatar = data.get("avatar") if "avatar" in data else None
         if hasattr(request, "FILES") and request.FILES.get("avatar"):
@@ -34,7 +34,7 @@ class UserMeView(APIView):
             ext=data.get("ext") if "ext" in data else None,
         )
         if not user:
-            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)
 
 
@@ -42,26 +42,26 @@ class UserMeUpdateRequestView(APIView):
     def post(self, request, *args, **kwargs):
         user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
-            return resp_err(message, code=code)
+            return resp_err(code=code, message=message)
         data = request.data if hasattr(request, "data") else request.POST
         try:
             return resp_ok(UserService.update_me_request_by_payload(user_id=user_id, payload=data))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class UserMeUpdateVerifyView(APIView):
     def post(self, request, *args, **kwargs):
         user_id, code, message = bearer_user_id_from_request(request)
         if not user_id:
-            return resp_err(message, code=code)
+            return resp_err(code=code, message=message)
         data = request.data if hasattr(request, "data") else request.POST
         try:
             user = UserService.update_me_verify_by_payload(user_id=user_id, payload=data)
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
         if not user:
-            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)
 
 
@@ -77,22 +77,19 @@ class UserDetailView(APIView):
     def get(self, request, user_id, *args, **kwargs):
         user = UserService.get_me(user_id=with_type(user_id))
         if not user:
-            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)
 
     def patch(self, request, user_id, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
         if "status" not in data:
-            return resp_err("status is required", code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message="status is required")
         status = with_type(data.get("status"))
         if status not in UserStatusEnum.values():
-            return resp_err(
-                f"status must be one of {UserStatusEnum.values()}",
-                code=RET_INVALID_PARAM,
-            )
+            return resp_err(code=RET_INVALID_PARAM, message=f"status must be one of {UserStatusEnum.values()}")
         user = UserService.set_status(user_id=with_type(user_id), status=status)
         if not user:
-            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)
 
 
@@ -122,7 +119,7 @@ class UserConsoleListView(APIView):
         try:
             return resp_ok(AuthService.register_request_by_payload(payload))
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
 
 class UserConsoleVerifyView(APIView):
@@ -136,12 +133,28 @@ class UserConsoleVerifyView(APIView):
                 code=data.get("code"),
             )
         except ValueError as exc:
-            return resp_err(str(exc), code=RET_INVALID_PARAM)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
         return resp_ok(result)
 
 
+class UserConsoleDispositionRestoreView(APIView):
+    """控制台：清除安全处置状态（不恢复已废止的 token）。"""
+
+    def post(self, request, user_id, *args, **kwargs):
+        user = UserService.console_clear_disposition(user_id=with_type(user_id))
+        if not user:
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
+        return resp_ok(user)
+
+
 class UserConsoleDetailView(APIView):
-    """控制台用户编辑：不支持认证状态修改。"""
+    """控制台用户：GET 含完整 ctrl_reason；PATCH 编辑（不支持认证状态修改）。"""
+
+    def get(self, request, user_id, *args, **kwargs):
+        user = UserService.console_get_user(user_id=with_type(user_id))
+        if not user:
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
+        return resp_ok(user)
 
     def patch(self, request, user_id, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
@@ -150,7 +163,7 @@ class UserConsoleDetailView(APIView):
             payload["avatar"] = request.FILES.get("avatar")
         user = UserService.console_update_user_by_payload(user_id=with_type(user_id), payload=payload)
         if not user:
-            return resp_err("user not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)
 
 
@@ -177,18 +190,18 @@ class EventConsoleDetailView(APIView):
     def get(self, request, event_id, *args, **kwargs):
         event = EventService.get_event(event_id=with_type(event_id))
         if not event:
-            return resp_err("event not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="event not found")
         return resp_ok(event)
 
     def patch(self, request, event_id, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
         event = EventService.update_event_by_payload(event_id=with_type(event_id), payload=dict(data))
         if not event:
-            return resp_err("event not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="event not found")
         return resp_ok(event)
 
     def delete(self, request, event_id, *args, **kwargs):
         ok = EventService.delete_event(event_id=with_type(event_id))
         if not ok:
-            return resp_err("event not found", code=RET_RESOURCE_NOT_FOUND)
+            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="event not found")
         return resp_ok({"deleted": True, "id": with_type(event_id)})

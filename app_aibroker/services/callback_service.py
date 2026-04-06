@@ -4,7 +4,7 @@ import time
 from typing import Any, Dict, Tuple, Union
 
 from app_aibroker.utils.callback_sign import callback_headers
-from common.services.http import HttpCallError, request_async, request_sync
+from common.services.http import HttpCallError, HttpClientPool, request_async, request_sync
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def deliver_callback(
         return request_async(
             method="POST",
             url=callback_url,
-            pool_name="webhook_pool",
+            pool_name=HttpClientPool.WEBHOOK,
             queue_name="webhook",
             headers=headers,
             data=raw,
@@ -44,7 +44,7 @@ def deliver_callback(
             resp = request_sync(
                 method="POST",
                 url=callback_url,
-                pool_name="webhook_pool",
+                pool_name=HttpClientPool.WEBHOOK,
                 headers=headers,
                 data=raw,
                 timeout_sec=30,

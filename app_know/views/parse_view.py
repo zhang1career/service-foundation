@@ -3,7 +3,6 @@ Parse view: delegates to batch_service.analyze_batch. Kept for backward compat (
 """
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.views import APIView
 
 from app_know.repos.batch_repo import get_by_id
@@ -21,16 +20,14 @@ class KnowledgeParseView(APIView):
         try:
             batch_id = entity_id
             if batch_id is None or not isinstance(batch_id, int) or batch_id <= 0:
-                return resp_err("entity_id (batch_id) must be a positive integer", code=RET_INVALID_PARAM,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="entity_id (batch_id) must be a positive integer")
             if not get_by_id(batch_id):
-                return resp_err(f"Batch {batch_id} not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=f"Batch {batch_id} not found")
 
             data = getattr(request, "data", None) or {}
             content = (data.get("content") or "").strip()
             if not content:
-                return resp_err("content is required in body", code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_INVALID_PARAM, message="content is required in body")
 
             use_ai_classify = data.get("use_ai_classify", True)
             write_sentence_raw = data.get("write_sentence_raw", True)
@@ -44,7 +41,7 @@ class KnowledgeParseView(APIView):
             return resp_ok(result)
         except ValueError as e:
             logger.warning("[KnowledgeParseView] Validation error: %s", e)
-            return resp_err(str(e), code=RET_INVALID_PARAM, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception("[KnowledgeParseView] Error: %s", e)
             return resp_exception(e)

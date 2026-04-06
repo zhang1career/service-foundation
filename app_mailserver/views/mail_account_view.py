@@ -6,7 +6,7 @@ Views are responsible for HTTP request/response handling only.
 Business logic is handled by MailAccountService.
 """
 import logging
-from rest_framework import status as http_status
+
 from rest_framework.views import APIView
 
 from app_mailserver.services.mail_account_service import MailAccountService
@@ -102,10 +102,10 @@ class MailAccountListView(APIView):
             logger.warning(f"[MailAccountListView.post] Validation error: {e}")
             error_message = str(e)
             if 'required' in error_message.lower():
-                return resp_err(error_message, code=RET_MISSING_PARAM, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_MISSING_PARAM, message=error_message)
             elif 'already exists' in error_message.lower():
-                return resp_err(error_message, code=RET_RESOURCE_EXISTS, status=http_status.HTTP_200_OK)
-            return resp_err(error_message, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_EXISTS, message=error_message)
+            return resp_err(code=RET_DB_ERROR, message=error_message)
         except Exception as e:
             logger.exception(f"[MailAccountListView.post] Error creating account: {e}")
             return resp_exception(e)
@@ -129,8 +129,7 @@ class MailAccountDetailView(APIView):
             account_data = service.get_account(account_id)
 
             if not account_data:
-                return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Account not found")
 
             return resp_ok(account_data)
 
@@ -176,8 +175,7 @@ class MailAccountDetailView(APIView):
             )
 
             if not account_data:
-                return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Account not found")
 
             return resp_ok(account_data)
 
@@ -185,8 +183,8 @@ class MailAccountDetailView(APIView):
             logger.warning(f"[MailAccountDetailView.put] Validation error: {e}")
             error_message = str(e)
             if 'already exists' in error_message.lower():
-                return resp_err(error_message, code=RET_RESOURCE_EXISTS, status=http_status.HTTP_200_OK)
-            return resp_err(error_message, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_EXISTS, message=error_message)
+            return resp_err(code=RET_DB_ERROR, message=error_message)
         except Exception as e:
             logger.exception(f"[MailAccountDetailView.put] Error updating account: {e}")
             return resp_exception(e)
@@ -212,8 +210,7 @@ class MailAccountDetailView(APIView):
             success = service.delete_account(account_id)
 
             if not success:
-                return resp_err("Account not found", code=RET_RESOURCE_NOT_FOUND,
-                                status=http_status.HTTP_200_OK)
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message="Account not found")
 
             return resp_ok({"message": "Account deleted successfully"})
 

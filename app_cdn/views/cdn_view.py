@@ -45,13 +45,13 @@ class DistributionListView(APIView):
         try:
             data = request.data if hasattr(request, "data") else {}
             if not data:
-                return resp_err("Request body required", status=http_status.HTTP_400_BAD_REQUEST)
+                return resp_err(message="Request body required", status=http_status.HTTP_400_BAD_REQUEST)
 
             service = CdnService()
             result = service.create_distribution(data)
             return resp_ok(result, status=http_status.HTTP_201_CREATED)
         except ValueError as e:
-            return resp_err(str(e), status=http_status.HTTP_400_BAD_REQUEST)
+            return resp_err(message=str(e), status=http_status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.exception("[DistributionListView.post] %s", e)
             return resp_exception(e)
@@ -67,7 +67,7 @@ class DistributionDetailView(APIView):
             result = service.get_distribution(distribution_id)
             if not result:
                 return resp_err(
-                    "NoSuchDistribution",
+                    message="NoSuchDistribution",
                     status=http_status.HTTP_404_NOT_FOUND,
                 )
             return resp_ok({"Distribution": result})
@@ -83,14 +83,14 @@ class DistributionDetailView(APIView):
             success = service.delete_distribution(distribution_id, if_match=if_match)
             if not success:
                 return resp_err(
-                    "NoSuchDistribution",
+                    message="NoSuchDistribution",
                     status=http_status.HTTP_404_NOT_FOUND,
                 )
             return resp_ok({"message": "Distribution deleted"})
         except ValueError as e:
             if "PreconditionFailed" in str(e):
-                return resp_err(str(e), status=http_status.HTTP_412_PRECONDITION_FAILED)
-            return resp_err(str(e), status=http_status.HTTP_400_BAD_REQUEST)
+                return resp_err(message=str(e), status=http_status.HTTP_412_PRECONDITION_FAILED)
+            return resp_err(message=str(e), status=http_status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.exception("[DistributionDetailView.delete] %s", e)
             return resp_exception(e)
@@ -106,7 +106,7 @@ class DistributionConfigView(APIView):
             result = service.get_distribution_config(distribution_id)
             if not result:
                 return resp_err(
-                    "NoSuchDistribution",
+                    message="NoSuchDistribution",
                     status=http_status.HTTP_404_NOT_FOUND,
                 )
             return resp_ok({"DistributionConfig": result})
@@ -119,7 +119,7 @@ class DistributionConfigView(APIView):
         try:
             data = request.data if hasattr(request, "data") else {}
             if not data:
-                return resp_err("Request body required", status=http_status.HTTP_400_BAD_REQUEST)
+                return resp_err(message="Request body required", status=http_status.HTTP_400_BAD_REQUEST)
 
             if_match = request.headers.get("If-Match")
             service = CdnService()
@@ -128,14 +128,14 @@ class DistributionConfigView(APIView):
             )
             if not result:
                 return resp_err(
-                    "NoSuchDistribution",
+                    message="NoSuchDistribution",
                     status=http_status.HTTP_404_NOT_FOUND,
                 )
             return resp_ok(result)
         except ValueError as e:
             if "PreconditionFailed" in str(e):
-                return resp_err(str(e), status=http_status.HTTP_412_PRECONDITION_FAILED)
-            return resp_err(str(e), status=http_status.HTTP_400_BAD_REQUEST)
+                return resp_err(message=str(e), status=http_status.HTTP_412_PRECONDITION_FAILED)
+            return resp_err(message=str(e), status=http_status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.exception("[DistributionConfigView.put] %s", e)
             return resp_exception(e)
@@ -158,7 +158,7 @@ class InvalidationListView(APIView):
             return resp_ok(result)
         except DistributionNotFoundException:
             return resp_err(
-                "NoSuchDistribution",
+                message="NoSuchDistribution",
                 status=http_status.HTTP_404_NOT_FOUND,
             )
         except Exception as e:
@@ -170,7 +170,7 @@ class InvalidationListView(APIView):
         try:
             data = request.data if hasattr(request, "data") else {}
             if not data:
-                return resp_err("Request body required", status=http_status.HTTP_400_BAD_REQUEST)
+                return resp_err(message="Request body required", status=http_status.HTTP_400_BAD_REQUEST)
 
             batch = data.get("InvalidationBatch", data)
             caller_ref = batch.get("CallerReference", "")
@@ -180,7 +180,7 @@ class InvalidationListView(APIView):
                 paths = ["/*"]
 
             if not caller_ref:
-                return resp_err("CallerReference is required", status=http_status.HTTP_400_BAD_REQUEST)
+                return resp_err(message="CallerReference is required", status=http_status.HTTP_400_BAD_REQUEST)
 
             service = CdnService()
             result = service.create_invalidation(
@@ -189,7 +189,7 @@ class InvalidationListView(APIView):
             return resp_ok(result, status=http_status.HTTP_201_CREATED)
         except DistributionNotFoundException:
             return resp_err(
-                "NoSuchDistribution",
+                message="NoSuchDistribution",
                 status=http_status.HTTP_404_NOT_FOUND,
             )
         except Exception as e:
@@ -207,7 +207,7 @@ class InvalidationDetailView(APIView):
             result = service.get_invalidation(distribution_id, invalidation_id)
             if not result:
                 return resp_err(
-                    "NoSuchInvalidation",
+                    message="NoSuchInvalidation",
                     status=http_status.HTTP_404_NOT_FOUND,
                 )
             return resp_ok(result)

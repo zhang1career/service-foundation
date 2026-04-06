@@ -4,7 +4,6 @@ REST API views for knowledge summaries: trigger generation, get, list. Generated
 import json
 import logging
 
-from rest_framework import status as http_status
 from rest_framework.exceptions import ParseError
 from rest_framework.views import APIView
 
@@ -49,22 +48,14 @@ class KnowledgeSummaryView(APIView):
             service = SummaryService()
             out = service.get_summary(knowledge_id=entity_id, app_id=app_id)
             if out is None:
-                return resp_err(
-                    f"Summary for knowledge id {entity_id} not found",
-                    code=RET_RESOURCE_NOT_FOUND,
-                    status=http_status.HTTP_200_OK,
-                )
+                return resp_err(code=RET_RESOURCE_NOT_FOUND, message=f"Summary for knowledge id {entity_id} not found")
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[KnowledgeSummaryView.get] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except Exception as e:
             logger.exception("[KnowledgeSummaryView.get] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
     def post(self, request, entity_id, *args, **kwargs):
         """Generate and persist summary for knowledge <entity_id>. Body: app_id, use_ai (optional)."""
@@ -84,17 +75,13 @@ class KnowledgeSummaryView(APIView):
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[KnowledgeSummaryView.post] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except ParseError as e:
             logger.warning("[KnowledgeSummaryView.post] Parse error: %s", e)
-            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_JSON_PARSE_ERROR, message=str(e))
         except Exception as e:
             logger.exception("[KnowledgeSummaryView.post] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
     def put(self, request, entity_id, *args, **kwargs):
         """Update summary for knowledge <entity_id>. Body: app_id (required), summary."""
@@ -118,17 +105,13 @@ class KnowledgeSummaryView(APIView):
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[KnowledgeSummaryView.put] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except ParseError as e:
             logger.warning("[KnowledgeSummaryView.put] Parse error: %s", e)
-            return resp_err(str(e), code=RET_JSON_PARSE_ERROR, status=http_status.HTTP_200_OK)
+            return resp_err(code=RET_JSON_PARSE_ERROR, message=str(e))
         except Exception as e:
             logger.exception("[KnowledgeSummaryView.put] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
     def delete(self, request, entity_id, *args, **kwargs):
         """Delete summary for knowledge <entity_id>. Query param: app_id (optional, default 0)."""
@@ -140,14 +123,10 @@ class KnowledgeSummaryView(APIView):
             return resp_ok(None)
         except ValueError as e:
             logger.warning("[KnowledgeSummaryView.delete] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except Exception as e:
             logger.exception("[KnowledgeSummaryView.delete] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
 
 
 class KnowledgeSummaryListView(APIView):
@@ -185,11 +164,7 @@ class KnowledgeSummaryListView(APIView):
             return resp_ok(out)
         except ValueError as e:
             logger.warning("[KnowledgeSummaryListView.get] Validation error: %s", e)
-            return resp_err(
-                str(e),
-                code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0],
-                status=http_status.HTTP_200_OK,
-            )
+            return resp_err(code=generic_code_for_ret(str(e), RET_INVALID_PARAM)[0], message=str(e))
         except Exception as e:
             logger.exception("[KnowledgeSummaryListView.get] Error: %s", e)
-            return resp_exception(e, code=RET_DB_ERROR, status=http_status.HTTP_200_OK)
+            return resp_exception(e, code=RET_DB_ERROR)
