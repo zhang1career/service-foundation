@@ -71,3 +71,8 @@ if settings.APP_USER_ENABLED:
 if settings.APP_VERIFY_ENABLED:
     from app_verify import urls as app_verify_urls
     urlpatterns.append(path('api/verify/', include(app_verify_urls)))
+
+if getattr(settings, 'APP_CMS_ENABLED', False):
+    from app_cms import urls as app_cms_urls
+
+    urlpatterns.append(path('api/cms/', include(app_cms_urls)))

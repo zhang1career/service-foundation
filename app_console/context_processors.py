@@ -78,5 +78,23 @@ def console_context(request):
                 'description': '搜索、推荐、重排基础能力调试',
                 'icon': 'search',
             },
-        }
+            'cms': {
+                'name': 'CMS',
+                'enabled': getattr(settings, 'APP_CMS_ENABLED', False),
+                'description': '内容类型注册与内容行管理',
+                'icon': 'collection',
+            },
+        },
+        'cms_content_metas': _cms_content_metas_for_sidebar(),
     }
+
+
+def _cms_content_metas_for_sidebar():
+    if not getattr(settings, "APP_CMS_ENABLED", False):
+        return []
+    try:
+        from app_cms.models.content_meta import CmsContentMeta
+
+        return list(CmsContentMeta.objects.order_by("name"))
+    except Exception:
+        return []

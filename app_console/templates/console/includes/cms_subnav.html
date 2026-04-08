@@ -1,0 +1,27 @@
+{% comment %}
+CMS 模块子导航
+
+参数:
+  active - 当前激活项: dashboard | content-meta | content
+  size   - large(默认): 大按钮 px-4 py-2; small: 小链接 px-3 py-1.5 text-sm
+  mb     - 外边距: mb-6(默认) | mb-4
+{% endcomment %}
+{% with size=size|default:'large' mb=mb|default:'mb-6' %}
+{% if size == 'small' %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-100 text-gray-700 rounded hover:bg-gray-200' base_cls='px-3 py-1.5 text-sm' %}
+<nav class="flex flex-wrap gap-x-4 gap-y-2 {{ mb }}">
+    <a href="{% url 'console:cms-dashboard' %}" class="{{ base_cls }} {% if active == 'dashboard' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">CMS 概览</a>
+    <a href="{% url 'console:cms-content-meta-index' %}" class="{{ base_cls }} {% if active == 'content-meta' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">内容类型</a>
+    <a href="{% url 'console:cms-dashboard' %}?tab=content#cms-type-rows" class="{{ base_cls }} {% if active == 'content' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">内容数据</a>
+</nav>
+{% endwith %}
+{% else %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex flex-wrap gap-x-4 gap-y-2 {{ mb }}">
+    <a href="{% url 'console:cms-dashboard' %}" class="{{ base_cls }} {% if active == 'dashboard' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">CMS 概览</a>
+    <a href="{% url 'console:cms-content-meta-index' %}" class="{{ base_cls }} {% if active == 'content-meta' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">内容类型</a>
+    <a href="{% url 'console:cms-dashboard' %}?tab=content#cms-type-rows" class="{{ base_cls }} {% if active == 'content' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">内容数据</a>
+</nav>
+{% endwith %}
+{% endif %}
+{% endwith %}

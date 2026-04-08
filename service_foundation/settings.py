@@ -66,17 +66,18 @@ GMT = env("GMT", default="+00:00")
 # App enable switches (controlled via environment variables).
 # APP_AIBROKER_ENABLED gates HTTP/console integration only; app_aibroker stays in
 # INSTALLED_APPS so imports (views → services → models) do not depend on argv/IDE.
+APP_AIBROKER_ENABLED = env.bool("APP_AIBROKER_ENABLED", default=True)
+APP_CDN_ENABLED = env.bool("APP_CDN_ENABLED", default=True)
+APP_CMS_ENABLED = env.bool("APP_CMS_ENABLED", default=True)
 APP_CONSOLE_ENABLED = env.bool("APP_CONSOLE_ENABLED", default=True)
-APP_AIBROKER_ENABLED = env.bool("APP_AIBROKER_ENABLED", default=False)
-APP_CDN_ENABLED = env.bool("APP_CDN_ENABLED", default=False)
-APP_KNOW_ENABLED = env.bool("APP_KNOW_ENABLED", default=False)
+APP_KNOW_ENABLED = env.bool("APP_KNOW_ENABLED", default=True)
 APP_MAILSERVER_ENABLED = env.bool("APP_MAILSERVER_ENABLED", default=False)
-APP_NOTICE_ENABLED = env.bool("APP_NOTICE_ENABLED", default=False)
-APP_OSS_ENABLED = env.bool("APP_OSS_ENABLED", default=False)
-APP_SEARCHREC_ENABLED = env.bool("APP_SEARCHREC_ENABLED", default=False)
-APP_SNOWFLAKE_ENABLED = env.bool("APP_SNOWFLAKE_ENABLED", default=False)
-APP_USER_ENABLED = env.bool("APP_USER_ENABLED", default=False)
-APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=False)
+APP_NOTICE_ENABLED = env.bool("APP_NOTICE_ENABLED", default=True)
+APP_OSS_ENABLED = env.bool("APP_OSS_ENABLED", default=True)
+APP_SEARCHREC_ENABLED = env.bool("APP_SEARCHREC_ENABLED", default=True)
+APP_SNOWFLAKE_ENABLED = env.bool("APP_SNOWFLAKE_ENABLED", default=True)
+APP_USER_ENABLED = env.bool("APP_USER_ENABLED", default=True)
+APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=True)
 
 # Application definition
 INSTALLED_APPS = [
@@ -92,11 +93,14 @@ INSTALLED_APPS = [
 ]
 
 # Dynamically add enabled apps
-if APP_CONSOLE_ENABLED:
-    INSTALLED_APPS.append("app_console")
-INSTALLED_APPS.append("app_aibroker.apps.AibrokerConfig")
+if APP_AIBROKER_ENABLED:
+    INSTALLED_APPS.append("app_aibroker.apps.AibrokerConfig")
 if APP_CDN_ENABLED:
     INSTALLED_APPS.append("app_cdn.apps.CdnConfig")
+if APP_CMS_ENABLED:
+    INSTALLED_APPS.append("app_cms.apps.CmsConfig")
+if APP_CONSOLE_ENABLED:
+    INSTALLED_APPS.append("app_console")
 if APP_KNOW_ENABLED:
     INSTALLED_APPS.append("app_know.apps.KnowConfig")
 if APP_MAILSERVER_ENABLED:
@@ -160,7 +164,6 @@ WSGI_APPLICATION = "service_foundation.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 # Database configuration is now loaded from environment variables (.env, .env.test, .env.prod)
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
@@ -202,6 +205,20 @@ DATABASES = {
         },
         "TEST": {
             "NAME": env("DB_CDN_TEST_NAME", default="sf_cdn_test"),
+        },
+    },
+    "cms_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_CMS_NAME", default="sf_cms"),
+        "USER": env("DB_CMS_USER", default="zhang"),
+        "PASSWORD": env("DB_CMS_PASS", default=""),
+        "HOST": env("DB_CMS_HOST", default="127.0.0.1"),
+        "PORT": env("DB_CMS_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_CMS_TEST_NAME", default="sf_cms_test"),
         },
     },
     "know_rw": {
@@ -324,6 +341,8 @@ if APP_AIBROKER_ENABLED:
     DATABASE_ROUTERS.append("app_aibroker.db_routers.ReadWriteRouter")
 if APP_CDN_ENABLED:
     DATABASE_ROUTERS.append("app_cdn.db_routers.ReadWriteRouter")
+if APP_CMS_ENABLED:
+    DATABASE_ROUTERS.append("app_cms.db_routers.ReadWriteRouter")
 if APP_KNOW_ENABLED:
     DATABASE_ROUTERS.append("app_know.db_routers.ReadWriteRouter")
 if APP_NOTICE_ENABLED:
@@ -339,19 +358,28 @@ if APP_USER_ENABLED:
 if APP_VERIFY_ENABLED:
     DATABASE_ROUTERS.append("app_verify.db_routers.ReadWriteRouter")
 
+
 # Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
-REDIS_CACHE_URL = env("REDIS_CACHE_URL", default="redis://127.0.0.1:6379")
-CACHE_GLOBAL_KEY_PREFIX = env("CACHE_GLOBAL_KEY_PREFIX", default="sf")
+CACHE_REDIS_URL = env("CACHE_REDIS_URL", default="redis://127.0.0.1:6379")
+GLOBAL_CACHE_REDIS_KEY_PREFIX = env("GLOBAL_CACHE_REDIS_KEY_PREFIX", default="sf")
+# User
 USER_CACHE_REDIS_DB = env.int("USER_CACHE_REDIS_DB", default=1)
 USER_CACHE_REDIS_KEY_PREFIX = env("USER_CACHE_REDIS_KEY_PREFIX", default="user")
 
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": redis_location_with_db(REDIS_CACHE_URL, USER_CACHE_REDIS_DB),
-        "KEY_PREFIX": f"{CACHE_GLOBAL_KEY_PREFIX}:{USER_CACHE_REDIS_KEY_PREFIX}",
+        "LOCATION": redis_location_with_db(CACHE_REDIS_URL, USER_CACHE_REDIS_DB),
+        "KEY_PREFIX": f"{GLOBAL_CACHE_REDIS_KEY_PREFIX}:{USER_CACHE_REDIS_KEY_PREFIX}",
     }
 }
+
+
+# app_cms
+CMS_PROFILE = env("CMS_PROFILE", default="commerce")
+CMS_LIST_PER_PAGE = env.int("CMS_LIST_PER_PAGE", default=15)
+CMS_LIST_PER_PAGE_MAX = env.int("CMS_LIST_PER_PAGE_MAX", default=50)
+CMS_EXPOSE_META = env.bool("CMS_EXPOSE_META", default=True)
 
 # app_user: login brute-force counters (separate limits for login key vs client IP).
 USER_LOGIN_FAIL_MAX_ATTEMPTS_LOGIN_KEY = env.int("USER_LOGIN_FAIL_MAX_ATTEMPTS_LOGIN_KEY", default=5)
@@ -486,16 +514,24 @@ LOGGING = {
             "level": env("LOG_LEVEL_DJANGO_DB", default="INFO"),
             "handlers": [_log_handler],
         },
-        "app_console": {
-            "level": env("LOG_LEVEL_APP_CONSOLE", default="INFO"),
-            "handlers": [_log_handler],
-        },
         "service_foundation": {
             "level": env("LOG_LEVEL_APP_SERV_FD", default="INFO"),
             "handlers": [_log_handler],
         },
+        "app_aibroker": {
+            "level": env("LOG_LEVEL_APP_AIBROKER", default="INFO"),
+            "handlers": [_log_handler],
+        },
         "app_cdn": {
             "level": env("LOG_LEVEL_APP_CDN", default="INFO"),
+            "handlers": [_log_handler],
+        },
+        "app_cms": {
+            "level": env("LOG_LEVEL_APP_CMS", default="INFO"),
+            "handlers": [_log_handler],
+        },
+        "app_console": {
+            "level": env("LOG_LEVEL_APP_CONSOLE", default="INFO"),
             "handlers": [_log_handler],
         },
         "app_know": {
@@ -514,6 +550,10 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_OSS", default="INFO"),
             "handlers": [_log_handler],
         },
+        "app_searchrec": {
+            "level": env("LOG_LEVEL_APP_SEARCHREC", default="INFO"),
+            "handlers": [_log_handler],
+        },
         "app_snowflake": {
             "level": env("LOG_LEVEL_APP_SNOWFLAKE", default="INFO"),
             "handlers": [_log_handler],
@@ -524,14 +564,6 @@ LOGGING = {
         },
         "app_verify": {
             "level": env("LOG_LEVEL_APP_VERIFY", default="INFO"),
-            "handlers": [_log_handler],
-        },
-        "app_aibroker": {
-            "level": env("LOG_LEVEL_APP_AIBROKER", default="INFO"),
-            "handlers": [_log_handler],
-        },
-        "app_searchrec": {
-            "level": env("LOG_LEVEL_APP_SEARCHREC", default="INFO"),
             "handlers": [_log_handler],
         },
         "common": {
@@ -623,7 +655,7 @@ SEARCHREC_FEAST_API_KEY = env("SEARCHREC_FEAST_API_KEY", default="")
 # Celery + Redis
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
 CELERY_BROKER_TRANSPORT_OPTIONS = {
-    "global_keyprefix": CACHE_GLOBAL_KEY_PREFIX,
+    "global_keyprefix": GLOBAL_CACHE_REDIS_KEY_PREFIX,
 }
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
 CELERY_TASK_TRACK_STARTED = True
@@ -637,14 +669,14 @@ CELERY_TASK_ROUTES = {
     "common.services.task.distributed_tasks.sync_call_task": {"queue": "thirdparty"},
 }
 
-# MongoDB Atlas configuration (for app_know)
+# MongoDB Atlas configuration
 MONGO_ATLAS_USER = env("MONGO_ATLAS_USER", default="")
 MONGO_ATLAS_PASS = env("MONGO_ATLAS_PASS", default="")
 MONGO_ATLAS_HOST = env("MONGO_ATLAS_HOST", default="cluster.mongodb.net")
 MONGO_ATLAS_CLUSTER = env("MONGO_ATLAS_CLUSTER", default="cluster0")
 MONGO_ATLAS_DB = env("MONGO_ATLAS_DB", default="know")
 
-# Neo4j configuration (for app_know)
+# Neo4j configuration
 NEO4J_URI = env("NEO4J_URI", default="bolt://localhost:7687")
 NEO4J_USER = env("NEO4J_USER", default="neo4j")
 NEO4J_PASS = env("NEO4J_PASS", default="")

@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.urls import path
+from django.urls import path, re_path
 
 from app_console.views import (
     DashboardView,
@@ -85,6 +85,53 @@ urlpatterns = [
     path('verify/history/<int:log_id>/', VerifyLogDetailConsoleView.as_view(), name='verify-history-detail'),
     path('searchrec/', SearchRecConsoleView.as_view(), name='searchrec-console'),
 ]
+
+if getattr(settings, 'APP_CMS_ENABLED', False):
+    from app_console.views.cms_view import (
+        CmsContentItemCreateView,
+        CmsContentItemDeleteView,
+        CmsContentItemEditView,
+        CmsContentItemListView,
+        CmsContentMetaCreateView,
+        CmsContentMetaDeleteView,
+        CmsContentMetaEditView,
+        CmsContentMetaIndexView,
+        CmsDashboardView,
+    )
+
+    urlpatterns.extend(
+        [
+            path('cms/', CmsDashboardView.as_view(), name='cms-dashboard'),
+            path('cms/content-meta/create/', CmsContentMetaCreateView.as_view(), name='cms-content-meta-create'),
+            path(
+                'cms/content-meta/<int:pk>/delete/',
+                CmsContentMetaDeleteView.as_view(),
+                name='cms-content-meta-delete',
+            ),
+            path('cms/content-meta/<int:pk>/edit/', CmsContentMetaEditView.as_view(), name='cms-content-meta-edit'),
+            path('cms/content-meta/', CmsContentMetaIndexView.as_view(), name='cms-content-meta-index'),
+            re_path(
+                r'^cms/content/(?P<content_route>[a-z0-9][a-z0-9_-]*)/create/$',
+                CmsContentItemCreateView.as_view(),
+                name='cms-content-create',
+            ),
+            re_path(
+                r'^cms/content/(?P<content_route>[a-z0-9][a-z0-9_-]*)/(?P<record_id>[0-9]+)/delete/$',
+                CmsContentItemDeleteView.as_view(),
+                name='cms-content-delete',
+            ),
+            re_path(
+                r'^cms/content/(?P<content_route>[a-z0-9][a-z0-9_-]*)/(?P<record_id>[0-9]+)/edit/$',
+                CmsContentItemEditView.as_view(),
+                name='cms-content-edit',
+            ),
+            re_path(
+                r'^cms/content/(?P<content_route>[a-z0-9][a-z0-9_-]*)/$',
+                CmsContentItemListView.as_view(),
+                name='cms-content-index',
+            ),
+        ]
+    )
 
 if getattr(settings, "APP_AIBROKER_ENABLED", False):
     from app_console.views.aibroker_view import (

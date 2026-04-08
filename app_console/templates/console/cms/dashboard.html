@@ -1,0 +1,52 @@
+{% extends 'console/base.html' %}
+
+{% block title %}CMS 概览{% endblock %}
+{% block page_title %}CMS 管理{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for message in messages %}
+    <div class="rounded border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-green-200 bg-green-50 text-green-800{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="mb-6">
+    {% include 'console/includes/cms_subnav.html' with active=cms_subnav_active %}
+</div>
+
+<p class="text-gray-600 mb-4">已注册内容类型与行数。</p>
+<div id="cms-type-rows" class="card">
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>名称</th>
+                        <th>路径</th>
+                        <th>计数</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in type_stats %}
+                    <tr>
+                        <td>{{ row.meta.name }}</td>
+                        <td><code class="text-xs">/api/cms/{{ row.meta.route_segment }}/</code></td>
+                        <td>{{ row.count }}</td>
+                        <td>
+                            <a class="btn btn-secondary btn-sm" href="{% url 'console:cms-content-index' content_route=row.meta.route_segment %}?from=dashboard">数据</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-gray-500">暂无内容类型，请在「内容类型」中注册。</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

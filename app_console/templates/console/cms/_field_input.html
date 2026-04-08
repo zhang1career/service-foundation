@@ -1,0 +1,45 @@
+{% comment %}field_def: field definition dict; value: current value{% endcomment %}
+{% with fname=field_def.name ftype=field_def.type required=field_def.required %}
+<div class="mb-4">
+    <label class="block text-sm font-medium text-gray-700 mb-1" for="field-{{ fname }}">{{ fname }}{% if required %}<span class="text-red-600">*</span>{% endif %}
+        <span class="text-gray-500">({{ ftype }})</span>
+    </label>
+    {% if ftype == 'string' %}
+    <input id="field-{{ fname }}" type="text" name="{{ fname }}" class="form-input w-full max-w-xl"
+           value="{{ value|default_if_none:'' }}"
+           {% if required %}required{% endif %}
+           {% if field_def.max %}maxlength="{{ field_def.max }}"{% endif %}
+           {% if field_def.size %}maxlength="{{ field_def.size }}"{% endif %}>
+    {% elif ftype == 'text' %}
+    <textarea id="field-{{ fname }}" name="{{ fname }}" rows="6" class="form-textarea w-full max-w-xl"
+              {% if required %}required{% endif %}>{{ value|default_if_none:'' }}</textarea>
+    {% elif ftype == 'integer' %}
+    <input id="field-{{ fname }}" type="number" name="{{ fname }}" class="form-input w-full max-w-md"
+           value="{{ value|default_if_none:'' }}"
+           {% if required %}required{% endif %}
+           {% if field_def.min is not None %}min="{{ field_def.min }}"{% endif %}
+           {% if field_def.max is not None %}max="{{ field_def.max }}"{% endif %} step="1">
+    {% elif ftype == 'date' %}
+    <input id="field-{{ fname }}" type="datetime-local" name="{{ fname }}" class="form-input w-full max-w-md"
+           value="{{ value|default_if_none:'' }}"
+           {% if required %}required{% endif %}>
+    {% elif ftype == 'json' %}
+    <textarea id="field-{{ fname }}" name="{{ fname }}" rows="10" class="form-textarea w-full max-w-2xl font-mono text-xs"
+              {% if required %}required{% endif %}>{{ value|default_if_none:'' }}</textarea>
+    {% elif ftype == 'foreign_id' %}
+    <input id="field-{{ fname }}" type="number" name="{{ fname }}" class="form-input w-full max-w-md"
+           value="{{ value|default_if_none:'' }}"
+           {% if required %}required{% endif %} min="0" step="1">
+    {% else %}
+    <input id="field-{{ fname }}" type="text" name="{{ fname }}" class="form-input w-full max-w-xl" value="{{ value|default_if_none:'' }}">
+    {% endif %}
+    {% if field_def.max or field_def.min or field_def.size or field_def.exists %}
+    <p class="text-xs text-gray-500 mt-1">
+        {% if field_def.max %}max {{ field_def.max }}{% endif %}
+        {% if field_def.min %} · min {{ field_def.min }}{% endif %}
+        {% if field_def.size %} · size {{ field_def.size }}{% endif %}
+        {% if ftype == 'foreign_id' and field_def.exists %} · exists {{ field_def.exists }}{% endif %}
+    </p>
+    {% endif %}
+</div>
+{% endwith %}

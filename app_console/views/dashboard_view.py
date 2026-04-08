@@ -68,5 +68,11 @@ class DashboardView(TemplateView):
                 'description': '搜索、推荐、重排基础能力调试',
                 'icon': 'search',
             },
+            'cms': {
+                'name': 'CMS',
+                'enabled': getattr(settings, 'APP_CMS_ENABLED', False),
+                'description': '内容类型注册与内容行管理',
+                'icon': 'collection',
+            },
         }
         return context

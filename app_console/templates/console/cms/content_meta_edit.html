@@ -1,0 +1,194 @@
+{% extends 'console/base.html' %}
+{% load cms_console_tags %}
+
+{% block title %}{% if meta %}编辑内容类型 - {{ meta.name }}{% else %}新建内容类型{% endif %}{% endblock %}
+{% block page_title %}{% if meta %}编辑内容类型{% else %}新建内容类型{% endif %}{% endblock %}
+
+{% block extra_head %}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+    function mapColumnIndex(c) {
+        if (c.index === 'key' || c.index === 'unique' || c.index === 'none') {
+            return c.index;
+        }
+        if (c.unique === true) {
+            return 'unique';
+        }
+        return 'none';
+    }
+    function defaultRow() {
+        return {
+            name: '',
+            physical: 'varchar(512)',
+            comment: '',
+            nullable: true,
+            index: 'none',
+            validation: { type: 'string', required: false },
+        };
+    }
+    function mapServerColumn(c) {
+        return {
+            name: c.name ?? '',
+            physical: c.physical ?? 'varchar(512)',
+            comment: c.comment != null && c.comment !== undefined ? String(c.comment) : '',
+            nullable: Boolean(c.nullable),
+            index: mapColumnIndex(c),
+            validation: {
+                type: (c.validation && c.validation.type) ? c.validation.type : 'string',
+                required: Boolean(c.validation && c.validation.required),
+            },
+        };
+    }
+    Alpine.data('columnDefBuilder', (initial) => {
+        let rows = [];
+        if (initial && Array.isArray(initial.columns) && initial.columns.length > 0) {
+            rows = initial.columns.map(mapServerColumn);
+        } else {
+            rows = [defaultRow()];
+        }
+        return {
+            rows,
+            addRow() {
+                this.rows.push(defaultRow());
+            },
+            removeRow(i) {
+                this.rows.splice(i, 1);
+                if (this.rows.length === 0) {
+                    this.addRow();
+                }
+            },
+        };
+    });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for message in messages %}
+    <div class="rounded border px-3 py-2 text-sm border-red-200 bg-red-50 text-red-800">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% include 'console/includes/cms_subnav.html' with active='content-meta' size='small' mb='mb-4' %}
+
+{% url 'console:cms-content-meta-index' as meta_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=meta_list_url back_label="返回内容类型" %}
+
+{% if not meta %}
+<div class="mb-6">
+    <p class="text-gray-600"><strong>元名称</strong> 决定 API 路径 <code class="text-xs">/api/cms/{元名称}/</code> 与物理表 <code class="text-xs">c_{元名称}</code>。表内会<strong>自动包含</strong>保留列 <code class="text-xs">id</code>、<code class="text-xs">ct</code>、<code class="text-xs">ut</code>（毫秒时间戳），无需在下列定义。单条资源路径为 <code class="text-xs">/api/cms/{元名称}/{id}/</code>（整数主键）。<strong>校验类型</strong>表示写入/更新 API 时对该列的取值校验（string / integer / date 等）。</p>
+</div>
+{% else %}
+{{ columns_json|json_script:"cms-columns-data" }}
+{% endif %}
+
+<div class="card max-w-5xl">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">{% if meta %}编辑 {{ meta.name }}{% else %}新建内容类型{% endif %}</h2>
+    </div>
+    <div class="card-body">
+        <form method="post" action="{% if meta %}{% url 'console:cms-content-meta-edit' pk=meta.pk %}{% else %}{% url 'console:cms-content-meta-index' %}{% endif %}" class="space-y-4">
+            {% csrf_token %}
+            {% if not meta %}
+            <div class="form-group">
+                <label class="form-label" for="id_name">元名称</label>
+                <input id="id_name" name="name" type="text" class="form-input w-56 max-w-full h-10" required
+                       pattern="[a-z][a-z0-9_]{0,62}" title="小写字母开头，后跟字母、数字、下划线"
+                       value="{{ request.POST.name|default:'' }}" autocomplete="off">
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500 mb-2">创建后 <strong>元名称</strong> 不可修改。当前：<code class="text-xs">{{ meta.name }}</code>。</p>
+            {% endif %}
+
+            <div class="border-t border-gray-200 pt-6">
+                <p class="text-sm font-medium text-gray-700 mb-1">列定义</p>
+                <p class="text-xs text-gray-500 mb-3">用户列的 MySQL 类型与 API 校验规则。</p>
+
+            <div x-data="columnDefBuilder({% if meta %}JSON.parse(document.getElementById('cms-columns-data').textContent){% else %}{}{% endif %})" class="space-y-2">
+                <div class="hidden sm:grid sm:grid-cols-12 gap-2 items-center text-xs text-gray-500 font-medium px-2 pb-1 border-b border-gray-200">
+                    <div class="col-span-2">列名</div>
+                    <div class="col-span-2">类型</div>
+                    <div class="col-span-2">注释</div>
+                    <div class="col-span-1 text-center">nullable</div>
+                    <div class="col-span-1 text-center">索引</div>
+                    <div class="col-span-2">校验类型</div>
+                    <div class="col-span-1 text-center">required</div>
+                    <div class="col-span-1 text-center">操作</div>
+                </div>
+                <template x-for="(row, index) in rows" :key="index">
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center px-2 py-1.5 border border-gray-200 rounded-lg min-h-[2.75rem]">
+                        <div class="col-span-2">
+                            <label class="sm:hidden text-xs text-gray-500">列名</label>
+                            <input type="text" class="form-input w-full h-10 text-sm box-border" :name="'fields[columns][' + index + '][name]'" x-model="row.name" required pattern="[a-z][a-z0-9_]{0,62}">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="sm:hidden text-xs text-gray-500">类型</label>
+                            <select class="form-select w-full h-10 text-sm box-border" :name="'fields[columns][' + index + '][physical]'" x-model="row.physical">
+                                <option value="char(36)">char(36)</option>
+                                <option value="varchar(512)">varchar(512)</option>
+                                <option value="text">text</option>
+                                <option value="longtext">longtext</option>
+                                <option value="bigint unsigned">bigint unsigned</option>
+                                <option value="int unsigned">int unsigned</option>
+                                <option value="tinyint unsigned">tinyint unsigned</option>
+                                <option value="datetime(6)">datetime(6)</option>
+                                <option value="json">json</option>
+                            </select>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="sm:hidden text-xs text-gray-500">注释</label>
+                            <input type="text" class="form-input w-full h-10 text-sm box-border" maxlength="1024"
+                                   :name="'fields[columns][' + index + '][comment]'" x-model="row.comment"
+                                   autocomplete="off">
+                        </div>
+                        <div class="col-span-1 flex justify-center items-center h-10">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300"
+                                   :name="'fields[columns][' + index + '][nullable]'" value="1"
+                                   x-model="row.nullable" title="nullable">
+                        </div>
+                        <div class="col-span-1 flex justify-center items-center h-10">
+                            <label class="sm:hidden text-xs text-gray-500">索引</label>
+                            <select class="form-select w-full min-w-0 h-10 text-xs box-border" :name="'fields[columns][' + index + '][index]'" x-model="row.index" title="索引">
+                                <option value="none">无</option>
+                                <option value="key">key</option>
+                                <option value="unique">unique</option>
+                            </select>
+                        </div>
+                        <div class="col-span-2">
+                            <label class="sm:hidden text-xs text-gray-500">校验类型</label>
+                            <select class="form-select w-full h-10 text-sm box-border" :name="'fields[columns][' + index + '][validation][type]'" x-model="row.validation.type">
+                                <option value="string">string</option>
+                                <option value="text">text</option>
+                                <option value="integer">integer</option>
+                                <option value="date">date</option>
+                                <option value="json">json</option>
+                            </select>
+                        </div>
+                        <div class="col-span-1 flex justify-center items-center h-10">
+                            <input type="checkbox" class="h-4 w-4 rounded border-gray-300"
+                                   :name="'fields[columns][' + index + '][validation][required]'" value="1"
+                                   x-model="row.validation.required" title="required">
+                        </div>
+                        <div class="col-span-1 flex justify-center items-center h-10">
+                            <button type="button" class="btn btn-danger p-2 rounded-md inline-flex items-center justify-center min-w-[2.5rem] h-10" @click="removeRow(index)" title="删除本行" aria-label="删除">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+                <button type="button" class="btn btn-secondary btn-sm" @click="addRow">Add column</button>
+            </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 pt-2">
+                <button type="submit" class="btn btn-primary">{% if meta %}保存{% else %}创建{% endif %}</button>
+                <a href="{{ meta_list_url }}" onclick="return returnToList('{{ meta_list_url|escapejs }}')" class="btn btn-outline">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

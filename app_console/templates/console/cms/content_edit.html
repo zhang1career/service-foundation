@@ -1,0 +1,41 @@
+{% extends 'console/base.html' %}
+{% load cms_console_tags %}
+
+{% block title %}{% if model %}编辑{% else %}新建{% endif %} · {{ meta.route_segment }}{% endblock %}
+{% block page_title %}{% if model %}编辑{% else %}新建{% endif %} · {{ meta.route_segment }}{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for message in messages %}
+    <div class="rounded border px-3 py-2 text-sm border-red-200 bg-red-50 text-red-800">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% include 'console/includes/cms_subnav.html' with active='content' size='small' mb='mb-4' %}
+
+<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h2 class="text-lg font-semibold">{% if model %}Edit{% else %}New{% endif %} {{ meta.route_segment }}</h2>
+    <a class="btn btn-secondary btn-sm" href="{% url 'console:cms-content-index' content_route=meta.route_segment %}">返回</a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" action="{% if model %}{% url 'console:cms-content-edit' content_route=meta.route_segment record_id=model.pk %}{% else %}{% url 'console:cms-content-index' content_route=meta.route_segment %}{% endif %}">
+            {% csrf_token %}
+            {% for def in meta.field_definition_items %}
+                {% if model %}
+                {% cms_field_value model def as fv %}
+                {% include 'console/cms/_field_input.html' with field_def=def value=fv %}
+                {% else %}
+                {% include 'console/cms/_field_input.html' with field_def=def value=request.POST|post_get:def.name %}
+                {% endif %}
+            {% empty %}
+            <p class="text-gray-500">No field definitions.</p>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary">{% if model %}Save{% else %}Create{% endif %}</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

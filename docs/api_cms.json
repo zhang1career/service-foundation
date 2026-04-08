@@ -1,0 +1,362 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "CMS 内容 API (app_cms)",
+    "description": "基于动态内容类型（`CmsContentMeta`）的 REST API。路径段 `content_route` 对应已注册类型的路由名；每条记录的字段由该类型的 `fields.columns` 定义，列表/详情响应中除固定字段外包含各业务列。成功与参数错误均可能返回 HTTP 200，业务结果以响应体 `errorCode`（0 成功，100 为参数校验失败等）为准；未注册类型或记录不存在时返回 HTTP 404。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/cms",
+      "description": "Django 挂载前缀（见 service_foundation.urls，需 `APP_CMS_ENABLED`）"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Content",
+      "description": "按内容类型路由的动态行数据：列表、创建、查询、更新、删除"
+    }
+  ],
+  "paths": {
+    "/{content_route}/": {
+      "parameters": [
+        {
+          "name": "content_route",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "example": "articles"
+          },
+          "description": "内容类型路由段（与控制台/API 中注册的 `route_segment` 一致）"
+        }
+      ],
+      "get": {
+        "tags": ["Content"],
+        "summary": "分页列表",
+        "description": "返回该类型下已发布/全部行（按 `ContentReadService.paginate_published`：优先 `-published_at`，否则 `-id`）。",
+        "operationId": "cmsContentList",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 },
+            "description": "页码，从 1 开始"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "default": 15 },
+            "description": "每页条数；默认取自设置 `CMS_LIST_PER_PAGE`，上限 `CMS_LIST_PER_PAGE_MAX`（默认 50）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功：`errorCode` 为 0，`data` 含 `items` 与 `pagination`。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CmsListEnvelope" },
+                "examples": {
+                  "ok": {
+                    "summary": "列表示例",
+                    "value": {
+                      "errorCode": 0,
+                      "message": "",
+                      "data": {
+                        "items": [
+                          {
+                            "id": 1,
+                            "content_type": "articles",
+                            "title": "Hello",
+                            "ct": "2026-01-01T12:00:00+00:00",
+                            "ut": "2026-01-02T12:00:00+00:00"
+                          }
+                        ],
+                        "pagination": {
+                          "total": 1,
+                          "per_page": 15,
+                          "current_page": 1,
+                          "last_page": 1
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在该 `content_route` 对应的内容类型。",
+            "content": {
+              "text/html": {
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Content"],
+        "summary": "新建记录",
+        "description": "请求体为 JSON 对象，键名与类型的 `fields.columns[].name` 一致；校验规则见 `validate_item_payload`（全量，非 partial）。成功时 HTTP 201。",
+        "operationId": "cmsContentCreate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CmsContentWriteBody" },
+              "example": { "title": "New post", "body": "..." }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "创建成功：`errorCode` 为 0，`data` 为单条记录（与 GET 详情同形）。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CmsItemEnvelope" }
+              }
+            }
+          },
+          "200": {
+            "description": "参数校验失败：`errorCode` 为 100（`RET_INVALID_PARAM`），`data` 可为字段级错误字典。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CmsErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在该内容类型。"
+          }
+        }
+      }
+    },
+    "/{content_route}/{record_id}/": {
+      "parameters": [
+        {
+          "name": "content_route",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "description": "内容类型路由段"
+        },
+        {
+          "name": "record_id",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^[0-9]+$", "example": "1" },
+          "description": "记录主键 `id`（十进制整数）"
+        }
+      ],
+      "get": {
+        "tags": ["Content"],
+        "summary": "单条详情",
+        "operationId": "cmsContentDetail",
+        "responses": {
+          "200": {
+            "description": "成功。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CmsItemEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "内容类型不存在，或该 `record_id` 无记录。"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Content"],
+        "summary": "更新记录",
+        "description": "请求体为部分字段即可（`partial=True`）；仅提交的字段参与校验与更新。",
+        "operationId": "cmsContentUpdate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CmsContentWriteBody" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode`=0）或参数校验失败（`errorCode`=100，与 POST 相同）。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/CmsItemEnvelope" },
+                    { "$ref": "#/components/schemas/CmsErrorEnvelope" }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "类型或记录不存在。"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Content"],
+        "summary": "删除记录",
+        "operationId": "cmsContentDelete",
+        "responses": {
+          "200": {
+            "description": "删除成功：`data` 为空字符串。",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CmsEmptyStringEnvelope" },
+                "example": {
+                  "errorCode": 0,
+                  "message": "",
+                  "data": ""
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "类型或记录不存在。"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "StdResponse": {
+        "type": "object",
+        "required": ["errorCode"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "0 成功；非 0 为错误码（见 common.consts.response_const）"
+          },
+          "data": {
+            "description": "成功时载荷；失败时可为字段错误或 null"
+          },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "CmsPagination": {
+        "type": "object",
+        "required": ["total", "per_page", "current_page", "last_page"],
+        "properties": {
+          "total": { "type": "integer", "description": "总条数" },
+          "per_page": { "type": "integer" },
+          "current_page": { "type": "integer" },
+          "last_page": { "type": "integer", "description": "总页数" }
+        }
+      },
+      "CmsContentItem": {
+        "type": "object",
+        "description": "单条记录；除下列固定/常见字段外，包含该类型在 `fields.columns` 中定义的业务列。",
+        "required": ["id", "content_type"],
+        "properties": {
+          "id": { "type": "integer" },
+          "content_type": {
+            "type": "string",
+            "description": "内容类型显示名（`CmsContentMeta.name`）"
+          },
+          "ct": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "创建时间（若表含 `ct` 列，ISO8601 字符串）"
+          },
+          "ut": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "更新时间（若表含 `ut` 列，ISO8601 字符串）"
+          },
+          "meta": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "description": "扩展 JSON（若表含 `meta` 列且 `CMS_EXPOSE_META` 为 true，默认 true）"
+          }
+        },
+        "additionalProperties": true
+      },
+      "CmsListData": {
+        "type": "object",
+        "required": ["items", "pagination"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CmsContentItem" }
+          },
+          "pagination": { "$ref": "#/components/schemas/CmsPagination" }
+        }
+      },
+      "CmsListEnvelope": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StdResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "errorCode": { "type": "integer", "enum": [0] },
+              "data": { "$ref": "#/components/schemas/CmsListData" }
+            }
+          }
+        ]
+      },
+      "CmsItemEnvelope": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StdResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "errorCode": { "type": "integer", "enum": [0] },
+              "data": { "$ref": "#/components/schemas/CmsContentItem" }
+            }
+          }
+        ]
+      },
+      "CmsEmptyStringEnvelope": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StdResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "errorCode": { "type": "integer", "enum": [0] },
+              "data": { "type": "string", "enum": [""] }
+            }
+          }
+        ]
+      },
+      "CmsErrorEnvelope": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StdResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "errorCode": { "type": "integer", "enum": [100] },
+              "message": { "type": "string" },
+              "data": {
+                "type": "object",
+                "additionalProperties": { "type": "string" },
+                "description": "字段名 -> 错误说明（ValidationError.message_dict）"
+              }
+            }
+          }
+        ]
+      },
+      "CmsContentWriteBody": {
+        "type": "object",
+        "description": "动态字段：键为列名，类型需与该列 `validation.type`（string/text/integer/date/json）一致。",
+        "additionalProperties": true,
+        "example": { "title": "x", "count": 1 }
+      }
+    }
+  }
+}

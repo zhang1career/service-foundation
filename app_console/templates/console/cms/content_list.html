@@ -1,0 +1,79 @@
+{% extends 'console/base.html' %}
+{% load cms_console_tags %}
+
+{% block title %}{{ meta.route_segment }}{% endblock %}
+{% block page_title %}{{ meta.route_segment }}{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for message in messages %}
+    <div class="rounded border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-green-200 bg-green-50 text-green-800{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% include 'console/includes/cms_subnav.html' with active='content' size='small' mb='mb-4' %}
+
+{% include 'console/includes/detail_back_link.html' with back_url=cms_back_url back_label=cms_back_label %}
+
+<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h2 class="text-lg font-semibold">{{ meta.route_segment }}</h2>
+    <a class="btn btn-primary btn-sm" href="{% url 'console:cms-content-create' content_route=meta.route_segment %}">新建记录</a>
+</div>
+<p class="text-gray-600 text-sm mb-4">Model: <code>{{ meta.name }}</code> · Table: <code>{{ meta.physical_table_name }}</code></p>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>id</th>
+                        {% for col in meta.column_definitions %}
+                        <th>{{ col.name }}</th>
+                        {% endfor %}
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in items %}
+                    <tr>
+                        <td class="font-mono text-xs">{{ row.id }}</td>
+                        {% for col in meta.column_definitions %}
+                        <td>{{ row|dict_get:col.name|default:"—" }}</td>
+                        {% endfor %}
+                        <td class="flex flex-wrap gap-2">
+                            <a class="btn btn-secondary btn-sm" href="{% url 'console:cms-content-edit' content_route=meta.route_segment record_id=row.id %}">Edit</a>
+                            <form method="post" action="{% url 'console:cms-content-delete' content_route=meta.route_segment record_id=row.id %}" onsubmit="return confirm('Delete this record?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{{ meta.column_definitions|length|add:2 }}" class="text-gray-500">暂无数据。</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="card-footer flex flex-wrap items-center gap-3 text-sm text-gray-600">
+        {% if page_obj.has_previous %}
+        <a class="text-blue-600 hover:underline" href="?from={{ cms_back_from }}&page={{ page_obj.previous_page_number }}">上一页</a>
+        {% else %}
+        <span class="text-gray-400">上一页</span>
+        {% endif %}
+        <span>第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页</span>
+        {% if page_obj.has_next %}
+        <a class="text-blue-600 hover:underline" href="?from={{ cms_back_from }}&page={{ page_obj.next_page_number }}">下一页</a>
+        {% else %}
+        <span class="text-gray-400">下一页</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
