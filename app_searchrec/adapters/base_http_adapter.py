@@ -1,6 +1,7 @@
 from django.conf import settings
 
 from common.services.http import HttpCallError, request_sync
+from common.utils.http_auth_util import build_auth_headers
 
 
 class BaseHttpAdapter:
@@ -14,15 +15,7 @@ class BaseHttpAdapter:
             raise ValueError(f"{self.adapter_name} base url is required")
 
     def _headers(self):
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        if self._api_key:
-            if self._auth_mode == "api-key":
-                headers["api-key"] = self._api_key
-            elif self._auth_mode == "opensearch":
-                headers["Authorization"] = f"ApiKey {self._api_key}"
-            else:
-                headers["Authorization"] = f"Bearer {self._api_key}"
-        return headers
+        return build_auth_headers(api_key=self._api_key, auth_mode=self._auth_mode)
 
     def _request_raw(self, *, method, path, json_body=None, data=None):
         url = f"{self._base_url}{path}"

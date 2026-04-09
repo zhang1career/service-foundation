@@ -3,15 +3,19 @@ title Use Case D - Candidate Rank Flow
 skinparam shadowing false
 
 start
-:BusinessSystem\ncall rank with candidates;
-if (strategy?) then (hybrid)
-  :Compute hybrid score;
-elseif (ctr_first)
-  :Compute ctr_first score;
-else (fresh_first)
-  :Compute fresh_first score;
+:BusinessSystem\ncall POST rank\n(candidates + optional strategy);
+note right
+  **No** Index / Vector / Feature\nadapter calls — pure scoring.
+end note
+if (strategy == ctr_first?) then (yes)
+  :final = 0.2*base + 0.7*ctr + 0.1*fresh;
+elseif (strategy == fresh_first?) then (yes)
+  :final = 0.2*base + 0.2*ctr + 0.6*fresh;
+else (hybrid or other)
+  :final = 0.5*base + 0.3*ctr + 0.2*fresh;
 endif
+:Attach final_score per item\nfrom base_score, ctr_score,\nfreshness_score;
 :Sort by final_score;
-:Return ranked candidates;
+:Return items, count, strategy;
 stop
 @enduml

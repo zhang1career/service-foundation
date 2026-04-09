@@ -1,4 +1,5 @@
 import json
+from django.conf import settings
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 from unittest.mock import patch
@@ -24,6 +25,21 @@ class SearchRecViewsFunctionalTest(TestCase):
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_OK)
         self.assertEqual(payload["data"]["status"], "ok")
+
+    def test_health_response_includes_request_id_header(self):
+        header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+        request = self.factory.get("/api/searchrec/health")
+        response = SearchRecHealthView.as_view()(request)
+        response.render()
+        self.assertIn(header_name, response)
+        self.assertEqual(len(response[header_name]), 16)
+
+    def test_health_echoes_client_x_request_id(self):
+        header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+        request = self.factory.get("/api/searchrec/health", HTTP_X_REQUEST_ID="client-rid-9")
+        response = SearchRecHealthView.as_view()(request)
+        response.render()
+        self.assertEqual(response[header_name], "client-rid-9")
 
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
     def test_index_upsert_success(self, service_cls):
@@ -98,11 +114,18 @@ class SearchRecViewsFunctionalTest(TestCase):
         service_cls.rank.assert_called_once_with(candidates=[], strategy="hybrid")
 
     def test_index_upsert_empty_documents_returns_invalid_param(self):
-        request = self.factory.post("/api/searchrec/index/upsert", data={"documents": []}, format="json")
+        header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+        request = self.factory.post(
+            "/api/searchrec/index/upsert",
+            data={"documents": []},
+            format="json",
+            HTTP_X_REQUEST_ID="err-rid-1",
+        )
         response = SearchRecIndexUpsertView.as_view()(request)
         response.render()
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
+        self.assertEqual(response[header_name], "err-rid-1")
 
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
     def test_search_value_error_returns_invalid_param(self, service_cls):

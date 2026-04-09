@@ -3,11 +3,13 @@ title Use Case C - Personalized Recommend Flow
 skinparam shadowing false
 
 start
-:BusinessSystem\ncall recommend;
-:FeatureStoreAdapter\nget user features;
-:SearchRecService\nbuild query from profile;
-:SearchRecService\nrun search flow;
-:Apply affinity_boost;
+:BusinessSystem\ncall POST recommend;
+:SearchRecAPI\nuser_profile, top_k;
+:FeatureStoreAdapter\nget_user_features(user_profile);
+:Build search query:\njoin recent_queries;\nelse join preferred_tags;\nelse sentinel *;
+:SearchRecService.search\n(same pipeline as Use Case B)\nwith preferred_tags;
+:Multiply scores by\naffinity_boost;
+:Re-sort by score;
 :Return recommendation list;
 stop
 @enduml

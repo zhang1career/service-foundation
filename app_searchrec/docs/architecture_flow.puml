@@ -4,15 +4,14 @@ left to right direction
 skinparam shadowing false
 
 rectangle "BusinessSystem" as BusinessSystem
-rectangle "app_searchrec.views" as SearchRecAPI
-rectangle "SearchRecService" as SearchRecService
-rectangle "RankingLogic" as RankEngine
+rectangle "app_searchrec.views\n(SearchRec*View)" as SearchRecAPI
+rectangle "SearchRecService\n(search / recommend / rank)" as SearchRecService
 
 package "Adapters" as adapters {
   rectangle "IndexAdapter" as IndexAdapter
   rectangle "VectorAdapter" as VectorAdapter
   rectangle "FeatureStoreAdapter" as FeatureAdapter
-  rectangle "EmbeddingProvider" as EmbedProvider
+  rectangle "EmbeddingProvider\n(SimpleTextEmbeddingProvider)" as EmbedProvider
 }
 
 package "Backends" as backends {
@@ -28,12 +27,18 @@ package "Backends" as backends {
 BusinessSystem --> SearchRecAPI : HTTP API
 SearchRecAPI --> SearchRecService
 
-SearchRecService --> IndexAdapter
-SearchRecService --> VectorAdapter
-SearchRecService --> FeatureAdapter
-SearchRecService --> RankEngine
+SearchRecService --> IndexAdapter : search, upsert,\nget_document
+SearchRecService --> VectorAdapter : search, upsert
+SearchRecService --> FeatureAdapter : upsert,\nget_doc_features,\nget_user_features
 
-VectorAdapter --> EmbedProvider
+note bottom of SearchRecService
+  **Fusion scoring** (lexical + vector + tags + popularity + score_boost)
+  is implemented inside **SearchRecService.search**.
+  **rank** recomputes **final_score** from caller-supplied
+  base_score / ctr_score / freshness_score only — **no adapter I/O**.
+end note
+
+VectorAdapter ..> EmbedProvider : <<optional>>\nQdrantVectorAdapter only\n(encode query & documents)
 
 IndexAdapter --> MemoryIndex
 IndexAdapter --> OpenSearch

@@ -3,11 +3,15 @@ title Use Case A - Content Upsert Flow
 skinparam shadowing false
 
 start
-:BusinessSystem\ncall index/upsert;
-:SearchRecAPI\nvalidate payload;
-:SearchRecService\nupsert to IndexAdapter;
-:SearchRecService\nupsert to VectorAdapter;
-:SearchRecService\nupsert to FeatureAdapter;
-:Return success;
+:BusinessSystem\ncall POST index/upsert;
+:SearchRecAPI\nparse body, validate\ndocuments non-empty;
+:SearchRecService.upsert_documents;
+:IndexAdapter\nupsert_documents;
+note right
+  Return value propagates\nas API payload base
+end note
+:VectorAdapter\nupsert_documents;
+:FeatureStoreAdapter\nupsert_documents;
+:Return success\n(index adapter result);
 stop
 @enduml

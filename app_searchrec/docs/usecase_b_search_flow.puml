@@ -3,14 +3,19 @@ title Use Case B - Keyword Search Flow
 skinparam shadowing false
 
 start
-:BusinessSystem\ncall search;
-fork
-  :IndexAdapter\nlexical recall;
-  :FeatureStoreAdapter\nload doc features;
-fork again
-  :VectorAdapter\nvector recall;
-end fork
-:SearchRecService\nmerge + score;
-:Return ranked items;
+:BusinessSystem\ncall POST search;
+:SearchRecAPI\nquery, top_k, preferred_tags;
+:Clamp top_k and compute\ncandidate budget\n(top_k * SEARCHREC_SEARCH_CANDIDATE_MULTIPLIER);
+:IndexAdapter\nlexical recall (budget);
+:VectorAdapter\nvector recall (budget);
+if (SEARCHREC_MERGE_VECTOR_CANDIDATES?) then (yes)
+  :For vector hits not in lexical set:\nIndexAdapter.get_document\nand append rows\n(lexical_score = 0);
+else (no)
+  :Use lexical rows only;
+endif
+:For each candidate row:\nFeatureStoreAdapter\nget_doc_features(doc_id);
+:SearchRecService\nweighted fusion + sort\n(lexical, vector blend,\ntags, popularity, score_boost);
+:Truncate to top_k;
+:Return items + total_hits;
 stop
 @enduml
