@@ -25,7 +25,7 @@ class MemoryVectorAdapter:
     def reset(self):
         self._vectors = {}
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         for payload in docs:
             doc_id = str(payload.get("id", "")).strip()
             if not doc_id:
@@ -33,17 +33,20 @@ class MemoryVectorAdapter:
             tags = [str(t).strip().lower() for t in (payload.get("tags") or []) if str(t).strip()]
             title = str(payload.get("title", "")).lower()
             content = str(payload.get("content", "")).lower()
-            self._vectors[doc_id] = {
+            self._vectors[(int(rid), doc_id)] = {
                 "id": doc_id,
+                "rid": int(rid),
                 "profile_terms": set(tags + title.split() + content.split()),
             }
 
-    def search(self, query, top_k):
+    def search(self, rid: int, query, top_k):
         terms = set(str(query or "").lower().split())
         if not terms:
             return []
         items = []
-        for item in self._vectors.values():
+        for (stored_rid, _), item in self._vectors.items():
+            if stored_rid != int(rid):
+                continue
             overlap = len(terms & item["profile_terms"])
             if overlap <= 0:
                 continue
@@ -66,20 +69,25 @@ class MilvusVectorAdapter(BaseHttpAdapter):
     def reset(self):
         return
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         self._request(
             method="POST",
             path="/v1/vector/upsert",
-            json_body={"collection": self._collection, "documents": docs},
+            json_body={"collection": self._collection, "rid": int(rid), "documents": docs},
         )
 
-    def search(self, query, top_k):
+    def search(self, rid: int, query, top_k):
         if not query or query == "*":
             return []
         response = self._request(
             method="POST",
             path="/v1/vector/search",
-            json_body={"collection": self._collection, "query": query, "top_k": int(top_k)},
+            json_body={
+                "collection": self._collection,
+                "rid": int(rid),
+                "query": query,
+                "top_k": int(top_k),
+            },
         )
         body = response.json()
         raw_items = body.get("items") if isinstance(body, dict) else None
@@ -109,7 +117,7 @@ class QdrantVectorAdapter(BaseHttpAdapter):
     def reset(self):
         return
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         points = []
         for payload in docs:
             doc_id = str(payload.get("id", "")).strip()
@@ -120,7 +128,7 @@ class QdrantVectorAdapter(BaseHttpAdapter):
                 {
                     "id": doc_id,
                     "vector": self._embedding.encode(text),
-                    "payload": {"id": doc_id},
+                    "payload": {"id": doc_id, "rid": int(rid)},
                 }
             )
         if points:
@@ -130,14 +138,21 @@ class QdrantVectorAdapter(BaseHttpAdapter):
                 json_body={"points": points},
             )
 
-    def search(self, query, top_k):
+    def search(self, rid: int, query, top_k):
         if not query or query == "*":
             return []
         query_vector = self._embedding.encode(query)
         response = self._request(
             method="POST",
             path=f"/collections/{self._collection}/points/search",
-            json_body={"vector": query_vector, "limit": int(top_k), "with_payload": True},
+            json_body={
+                "vector": query_vector,
+                "limit": int(top_k),
+                "with_payload": True,
+                "filter": {
+                    "must": [{"key": "rid", "match": {"value": int(rid)}}],
+                },
+            },
         )
         body = response.json()
         raw_result = body.get("result") if isinstance(body, dict) else None
@@ -145,6 +160,9 @@ class QdrantVectorAdapter(BaseHttpAdapter):
         remote = []
         for item in items:
             payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+            pr = payload.get("rid")
+            if pr is not None and int(pr) != int(rid):
+                continue
             doc_id = _qdrant_doc_id(payload, item)
             if not doc_id:
                 continue

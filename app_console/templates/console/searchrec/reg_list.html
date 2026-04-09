@@ -1,0 +1,12 @@
+{% extends 'console/base.html' %}
+
+{% block title %}搜索推荐-使用方{% endblock %}
+{% block page_title %}搜索推荐{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/searchrec_subnav.html' with active='parties' %}
+</div>
+
+{% include 'console/includes/caller_reg_console.html' with lead_text='管理搜索推荐使用方：名称、Access Key 与启用状态。' table_title='使用方列表' %}
+{% endblock %}

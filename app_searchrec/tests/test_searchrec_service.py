@@ -33,6 +33,7 @@ class TestSearchRecService(_PatchLexicalIndexMixin, SimpleTestCase):
     def setUp(self):
         super().setUp()
         SearchRecService.upsert_documents(
+            1,
             [
                 {
                     "id": "doc_python",
@@ -54,12 +55,13 @@ class TestSearchRecService(_PatchLexicalIndexMixin, SimpleTestCase):
         )
 
     def test_search(self):
-        result = SearchRecService.search("search service", top_k=5, preferred_tags=["search"])
+        result = SearchRecService.search(1, "search service", top_k=5, preferred_tags=["search"])
         self.assertGreaterEqual(result["total_hits"], 1)
         self.assertEqual(result["items"][0]["id"], "doc_python")
 
     def test_recommend(self):
         result = SearchRecService.recommend(
+            1,
             user_profile={
                 "preferred_tags": ["recommend"],
                 "recent_queries": ["ranking engine"],
@@ -87,6 +89,7 @@ class TestSearchRecService(_PatchLexicalIndexMixin, SimpleTestCase):
     def test_merge_vector_candidates_adds_vector_only_hits(self):
         SearchRecService.reset()
         SearchRecService.upsert_documents(
+            1,
             [
                 {
                     "id": "lex_only",
@@ -104,11 +107,11 @@ class TestSearchRecService(_PatchLexicalIndexMixin, SimpleTestCase):
                     "score_boost": 1.0,
                     "popularity_score": 0.0,
                 },
-            ]
+            ],
         )
         SearchRecService._ensure_adapters()
 
-        def fake_lexical(query, top_k):
+        def fake_lexical(rid, query, top_k):
             return [
                 {
                     "id": "lex_only",
@@ -119,12 +122,12 @@ class TestSearchRecService(_PatchLexicalIndexMixin, SimpleTestCase):
                 }
             ]
 
-        def fake_vector(query, top_k):
+        def fake_vector(rid, query, top_k):
             return [{"id": "vec_only", "vector_score": 10.0}, {"id": "lex_only", "vector_score": 1.0}]
 
         with patch.object(SearchRecService._index_adapter, "search", side_effect=fake_lexical):
             with patch.object(SearchRecService._vector_adapter, "search", side_effect=fake_vector):
-                result = SearchRecService.search("ignored", top_k=5)
+                result = SearchRecService.search(1, "ignored", top_k=5)
         ids = [x["id"] for x in result["items"]]
         self.assertIn("vec_only", ids)
         self.assertIn("lex_only", ids)
@@ -171,11 +174,11 @@ class TestSearchRecServiceValidation(SimpleTestCase):
 
     def test_upsert_rejects_non_list(self):
         with self.assertRaisesMessage(ValueError, "field `documents` must be a non-empty list"):
-            SearchRecService.upsert_documents("bad")
+            SearchRecService.upsert_documents(1, "bad")
 
     def test_upsert_rejects_empty_list(self):
         with self.assertRaisesMessage(ValueError, "field `documents` must be a non-empty list"):
-            SearchRecService.upsert_documents([])
+            SearchRecService.upsert_documents(1, [])
 
     def test_rank_rejects_non_list_candidates(self):
         with self.assertRaisesMessage(ValueError, "field `candidates` must be list"):
@@ -206,6 +209,7 @@ class TestSearchRecServiceRecommend(_PatchLexicalIndexMixin, SimpleTestCase):
     def setUp(self):
         super().setUp()
         SearchRecService.upsert_documents(
+            1,
             [
                 {
                     "id": "doc_only_tags",
@@ -215,11 +219,12 @@ class TestSearchRecServiceRecommend(_PatchLexicalIndexMixin, SimpleTestCase):
                     "score_boost": 1.0,
                     "popularity_score": 0.1,
                 },
-            ]
+            ],
         )
 
     def test_recommend_falls_back_to_preferred_tags_when_queries_empty(self):
         result = SearchRecService.recommend(
+            1,
             user_profile={"preferred_tags": ["alpha"], "recent_queries": []},
             top_k=5,
         )
@@ -231,6 +236,7 @@ class TestSearchWithoutMerge(_PatchLexicalIndexMixin, SimpleTestCase):
     def test_merge_disabled_uses_lexical_only(self):
         SearchRecService.reset()
         SearchRecService.upsert_documents(
+            1,
             [
                 {
                     "id": "only",
@@ -240,9 +246,9 @@ class TestSearchWithoutMerge(_PatchLexicalIndexMixin, SimpleTestCase):
                     "score_boost": 1.0,
                     "popularity_score": 0.5,
                 },
-            ]
+            ],
         )
-        result = SearchRecService.search("uniqueword", top_k=5)
+        result = SearchRecService.search(1, "uniqueword", top_k=5)
         self.assertEqual(len(result["items"]), 1)
         self.assertEqual(result["items"][0]["id"], "only")
 
@@ -251,6 +257,7 @@ class TestSearchNonListTags(_PatchLexicalIndexMixin, SimpleTestCase):
     def setUp(self):
         super().setUp()
         SearchRecService.upsert_documents(
+            1,
             [
                 {
                     "id": "doc_tags",
@@ -260,14 +267,14 @@ class TestSearchNonListTags(_PatchLexicalIndexMixin, SimpleTestCase):
                     "score_boost": 1.0,
                     "popularity_score": 0.5,
                 },
-            ]
+            ],
         )
         SearchRecService._ensure_adapters()
 
     def test_non_list_tags_treated_as_empty_for_overlap(self):
         with patch.object(SearchRecService._index_adapter, "search", return_value=[{"id": "doc_tags", "tags": "bad", "lexical_score": 0.9, "score_boost": 1.0, "title": ""}]):
             with patch.object(SearchRecService._vector_adapter, "search", return_value=[]):
-                result = SearchRecService.search("hello", top_k=5, preferred_tags=["t1"])
+                result = SearchRecService.search(1, "hello", top_k=5, preferred_tags=["t1"])
         row = result["items"][0]
         self.assertEqual(row["features"]["tag_score"], 0.0)
 
@@ -280,6 +287,7 @@ class TestSearchMergeSkipsMissingDocument(_PatchLexicalIndexMixin, SimpleTestCas
     def test_vector_only_id_skipped_when_get_document_returns_none(self):
         SearchRecService.reset()
         SearchRecService.upsert_documents(
+            1,
             [
                 {
                     "id": "lex_only",
@@ -289,11 +297,11 @@ class TestSearchMergeSkipsMissingDocument(_PatchLexicalIndexMixin, SimpleTestCas
                     "score_boost": 1.0,
                     "popularity_score": 0.0,
                 },
-            ]
+            ],
         )
         SearchRecService._ensure_adapters()
 
-        def fake_lexical(query, top_k):
+        def fake_lexical(rid, query, top_k):
             return [
                 {
                     "id": "lex_only",
@@ -304,13 +312,13 @@ class TestSearchMergeSkipsMissingDocument(_PatchLexicalIndexMixin, SimpleTestCas
                 }
             ]
 
-        def fake_vector(query, top_k):
+        def fake_vector(rid, query, top_k):
             return [{"id": "ghost", "vector_score": 10.0}]
 
         with patch.object(SearchRecService._index_adapter, "search", side_effect=fake_lexical):
             with patch.object(SearchRecService._vector_adapter, "search", side_effect=fake_vector):
                 with patch.object(SearchRecService._index_adapter, "get_document", return_value=None):
-                    result = SearchRecService.search("ignored", top_k=5)
+                    result = SearchRecService.search(1, "ignored", top_k=5)
         ids = [x["id"] for x in result["items"]]
         self.assertNotIn("ghost", ids)
         self.assertIn("lex_only", ids)
@@ -320,6 +328,7 @@ class TestSearchFiltersNonPositiveScore(_PatchLexicalIndexMixin, SimpleTestCase)
     def setUp(self):
         super().setUp()
         SearchRecService.upsert_documents(
+            1,
             [
                 {
                     "id": "doc_z",
@@ -329,7 +338,7 @@ class TestSearchFiltersNonPositiveScore(_PatchLexicalIndexMixin, SimpleTestCase)
                     "score_boost": 1.0,
                     "popularity_score": 0.0,
                 },
-            ]
+            ],
         )
         SearchRecService._ensure_adapters()
 
@@ -341,11 +350,11 @@ class TestSearchFiltersNonPositiveScore(_PatchLexicalIndexMixin, SimpleTestCase)
                     "get_doc_features",
                     return_value={"score_boost": 0.0, "popularity_score": 0.0, "freshness_score": 0.0},
                 ):
-                    result = SearchRecService.search("q", top_k=5)
+                    result = SearchRecService.search(1, "q", top_k=5)
         self.assertEqual(result["total_hits"], 0)
 
 
 class TestRecommendStarQuery(_PatchLexicalIndexMixin, SimpleTestCase):
     def test_empty_profile_uses_star_query(self):
-        result = SearchRecService.recommend(user_profile={}, top_k=3)
+        result = SearchRecService.recommend(1, user_profile={}, top_k=3)
         self.assertIn("items", result)

@@ -3,6 +3,10 @@ from django.conf import settings
 from app_searchrec.adapters.base_http_adapter import BaseHttpAdapter
 
 
+def _scoped_doc_key(rid: int, doc_id: str) -> tuple[int, str]:
+    return (int(rid), doc_id)
+
+
 class MemoryFeatureStoreAdapter:
     def __init__(self):
         self._doc_features = {}
@@ -10,20 +14,22 @@ class MemoryFeatureStoreAdapter:
     def reset(self):
         self._doc_features = {}
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         for payload in docs:
             doc_id = str(payload.get("id", "")).strip()
             if not doc_id:
                 continue
-            self._doc_features[doc_id] = {
+            key = _scoped_doc_key(rid, doc_id)
+            self._doc_features[key] = {
                 "score_boost": float(payload.get("score_boost", 1.0)),
                 "popularity_score": float(payload.get("popularity_score", 0.0)),
                 "freshness_score": float(payload.get("freshness_score", 0.0)),
             }
 
-    def get_doc_features(self, doc_id):
+    def get_doc_features(self, rid: int, doc_id):
+        key = _scoped_doc_key(rid, str(doc_id or "").strip())
         return self._doc_features.get(
-            doc_id,
+            key,
             {"score_boost": 1.0, "popularity_score": 0.0, "freshness_score": 0.0},
         )
 
@@ -56,10 +62,17 @@ class FeastFeatureStoreAdapter(BaseHttpAdapter):
     def reset(self):
         return
 
-    def get_doc_features(self, doc_id):
+    def upsert_documents(self, rid: int, docs):
+        """Online features are read from Feast; local upsert does not push to Feast in this adapter."""
+
+    def get_doc_features(self, rid: int, doc_id):
         if not doc_id:
             return {"score_boost": 1.0, "popularity_score": 0.0, "freshness_score": 0.0}
-        raw = self._request(method="POST", path="/doc_features", json_body={"doc_id": str(doc_id)}).json()
+        raw = self._request(
+            method="POST",
+            path="/doc_features",
+            json_body={"rid": int(rid), "doc_id": str(doc_id)},
+        ).json()
         data = raw if isinstance(raw, dict) else {}
         return {
             "score_boost": float(data.get("score_boost", 1.0)),

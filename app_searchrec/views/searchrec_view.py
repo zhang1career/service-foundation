@@ -29,6 +29,21 @@ def _strategy_param(raw):
     return str(raw)
 
 
+def _parse_rid(data) -> int:
+    if not isinstance(data, dict):
+        raise ValueError("field `rid` is required")
+    raw = data.get("rid")
+    if raw is None:
+        raise ValueError("field `rid` is required")
+    try:
+        rid = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("field `rid` must be a positive integer") from exc
+    if rid <= 0:
+        raise ValueError("field `rid` must be a positive integer")
+    return rid
+
+
 def _with_request_id(request, response, request_id=None):
     rid = request_id if request_id is not None else resolve_request_id(request)
     attach_request_id_header(response, rid)
@@ -43,56 +58,65 @@ class SearchRecHealthView(APIView):
 class SearchRecIndexUpsertView(APIView):
     def post(self, request, *args, **kwargs):
         data = post_payload(request)
-        rid = resolve_request_id(request)
+        req_id = resolve_request_id(request)
         try:
-            return _with_request_id(request, resp_ok(SearchRecService.upsert_documents(data.get("documents"))), rid)
+            reg_id = _parse_rid(data)
+            return _with_request_id(
+                request,
+                resp_ok(SearchRecService.upsert_documents(reg_id, data.get("documents"))),
+                req_id,
+            )
         except ValueError as exc:
-            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=rid)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=req_id)
 
 
 class SearchRecSearchView(APIView):
     def post(self, request, *args, **kwargs):
         data = post_payload(request)
-        rid = resolve_request_id(request)
+        req_id = resolve_request_id(request)
         try:
+            reg_id = _parse_rid(data)
             return _with_request_id(
                 request,
                 resp_ok(
                     SearchRecService.search(
+                        reg_id,
                         query=str(data.get("query", "")),
                         top_k=data.get("top_k", 10),
                         preferred_tags=_optional_list(data.get("preferred_tags")),
                     )
                 ),
-                rid,
+                req_id,
             )
         except ValueError as exc:
-            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=rid)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=req_id)
 
 
 class SearchRecRecommendView(APIView):
     def post(self, request, *args, **kwargs):
         data = post_payload(request)
-        rid = resolve_request_id(request)
+        req_id = resolve_request_id(request)
         try:
+            reg_id = _parse_rid(data)
             return _with_request_id(
                 request,
                 resp_ok(
                     SearchRecService.recommend(
+                        reg_id,
                         user_profile=_optional_dict(data.get("user_profile")),
                         top_k=data.get("top_k", 10),
                     )
                 ),
-                rid,
+                req_id,
             )
         except ValueError as exc:
-            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=rid)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=req_id)
 
 
 class SearchRecRankView(APIView):
     def post(self, request, *args, **kwargs):
         data = post_payload(request)
-        rid = resolve_request_id(request)
+        req_id = resolve_request_id(request)
         try:
             return _with_request_id(
                 request,
@@ -102,7 +126,7 @@ class SearchRecRankView(APIView):
                         strategy=_strategy_param(data.get("strategy")),
                     )
                 ),
-                rid,
+                req_id,
             )
         except ValueError as exc:
-            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=rid)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=req_id)

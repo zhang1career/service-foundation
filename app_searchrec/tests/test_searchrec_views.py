@@ -1,6 +1,6 @@
 import json
 from django.conf import settings
-from django.test import TestCase
+from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 from unittest.mock import patch
 
@@ -14,7 +14,7 @@ from app_searchrec.views.searchrec_view import (
 from common.consts.response_const import RET_INVALID_PARAM, RET_OK
 
 
-class SearchRecViewsFunctionalTest(TestCase):
+class SearchRecViewsFunctionalTest(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
 
@@ -46,7 +46,7 @@ class SearchRecViewsFunctionalTest(TestCase):
         service_cls.upsert_documents.return_value = {"upserted": 2}
         request = self.factory.post(
             "/api/searchrec/index/upsert",
-            data={"documents": [{"id": "1"}, {"id": "2"}]},
+            data={"rid": 1, "documents": [{"id": "1"}, {"id": "2"}]},
             format="json",
         )
         response = SearchRecIndexUpsertView.as_view()(request)
@@ -58,7 +58,11 @@ class SearchRecViewsFunctionalTest(TestCase):
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
     def test_search_invalid_payload(self, service_cls):
         service_cls.search.side_effect = ValueError("query is required")
-        request = self.factory.post("/api/searchrec/search", data={"query": ""}, format="json")
+        request = self.factory.post(
+            "/api/searchrec/search",
+            data={"rid": 1, "query": ""},
+            format="json",
+        )
         response = SearchRecSearchView.as_view()(request)
         response.render()
         payload = json.loads(response.content)
@@ -69,7 +73,7 @@ class SearchRecViewsFunctionalTest(TestCase):
         service_cls.recommend.return_value = {"total_hits": 1, "items": [{"id": "doc1"}]}
         request = self.factory.post(
             "/api/searchrec/recommend",
-            data={"user_profile": {"preferred_tags": ["x"]}},
+            data={"rid": 1, "user_profile": {"preferred_tags": ["x"]}},
             format="json",
         )
         response = SearchRecRecommendView.as_view()(request)
@@ -96,11 +100,11 @@ class SearchRecViewsFunctionalTest(TestCase):
         service_cls.search.return_value = {"items": [], "total_hits": 0}
         request = self.factory.post(
             "/api/searchrec/search",
-            data={"query": "q", "preferred_tags": None},
+            data={"rid": 1, "query": "q", "preferred_tags": None},
             format="json",
         )
         SearchRecSearchView.as_view()(request)
-        service_cls.search.assert_called_once_with(query="q", top_k=10, preferred_tags=[])
+        service_cls.search.assert_called_once_with(1, query="q", top_k=10, preferred_tags=[])
 
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
     def test_rank_null_strategy_uses_hybrid(self, service_cls):
@@ -117,7 +121,7 @@ class SearchRecViewsFunctionalTest(TestCase):
         header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
         request = self.factory.post(
             "/api/searchrec/index/upsert",
-            data={"documents": []},
+            data={"rid": 1, "documents": []},
             format="json",
             HTTP_X_REQUEST_ID="err-rid-1",
         )
@@ -130,7 +134,11 @@ class SearchRecViewsFunctionalTest(TestCase):
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
     def test_search_value_error_returns_invalid_param(self, service_cls):
         service_cls.search.side_effect = ValueError("bad query")
-        request = self.factory.post("/api/searchrec/search", data={"query": "x"}, format="json")
+        request = self.factory.post(
+            "/api/searchrec/search",
+            data={"rid": 1, "query": "x"},
+            format="json",
+        )
         response = SearchRecSearchView.as_view()(request)
         response.render()
         payload = json.loads(response.content)
@@ -140,7 +148,11 @@ class SearchRecViewsFunctionalTest(TestCase):
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
     def test_recommend_value_error_returns_invalid_param(self, service_cls):
         service_cls.recommend.side_effect = ValueError("bad profile")
-        request = self.factory.post("/api/searchrec/recommend", data={}, format="json")
+        request = self.factory.post(
+            "/api/searchrec/recommend",
+            data={"rid": 1},
+            format="json",
+        )
         response = SearchRecRecommendView.as_view()(request)
         response.render()
         payload = json.loads(response.content)

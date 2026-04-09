@@ -1,0 +1,14 @@
+{% comment %}
+搜索推荐子导航（与 notice_subnav.html 一致）
+
+参数:
+  active — parties | api
+{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex space-x-4 mb-6" aria-label="搜索推荐导航">
+    <a href="{% url 'console:searchrec-console' %}"
+       class="{{ base_cls }} {% if active == 'parties' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">使用方</a>
+    <a href="{% url 'console:searchrec-api' %}"
+       class="{{ base_cls }} {% if active == 'api' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">API 调试</a>
+</nav>
+{% endwith %}

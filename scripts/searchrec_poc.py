@@ -23,7 +23,9 @@ def post(path, payload):
 
 
 def main():
+    rid = 1
     docs = {
+        "rid": rid,
         "documents": [
             {
                 "id": "news_1",
@@ -46,13 +48,19 @@ def main():
 
     search_resp, search_ms = post(
         "/search",
-        {"query": "hybrid search ranking", "top_k": 5, "preferred_tags": ["search"]},
+        {
+            "rid": rid,
+            "query": "hybrid search ranking",
+            "top_k": 5,
+            "preferred_tags": ["search"],
+        },
     )
     print(f"search {search_ms:.2f}ms => {json.dumps(search_resp, ensure_ascii=False)}")
 
     rec_resp, rec_ms = post(
         "/recommend",
         {
+            "rid": rid,
             "user_profile": {
                 "preferred_tags": ["recommend"],
                 "recent_queries": ["ctr ranking"],

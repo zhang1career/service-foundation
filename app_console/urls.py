@@ -28,6 +28,7 @@ from app_console.views import (
     NoticeManualSendConsoleView,
     NoticeRegConsoleView,
     SearchRecConsoleView,
+    SearchRecRegConsoleView,
     VerifyCallerConsoleView,
     VerifyCodeDetailConsoleView,
     VerifyCodeListConsoleView,
@@ -83,7 +84,8 @@ urlpatterns = [
     path('verify/codes/<int:code_id>/', VerifyCodeDetailConsoleView.as_view(), name='verify-code-detail'),
     path('verify/history/', VerifyLogListConsoleView.as_view(), name='verify-history-list'),
     path('verify/history/<int:log_id>/', VerifyLogDetailConsoleView.as_view(), name='verify-history-detail'),
-    path('searchrec/', SearchRecConsoleView.as_view(), name='searchrec-console'),
+    path('searchrec/', SearchRecRegConsoleView.as_view(), name='searchrec-console'),
+    path('searchrec/api/', SearchRecConsoleView.as_view(), name='searchrec-api'),
 ]
 
 if getattr(settings, 'APP_CMS_ENABLED', False):

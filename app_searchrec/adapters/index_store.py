@@ -52,7 +52,7 @@ class DbIndexAdapter:
         SearchRecDocTerm.objects.all().delete()
         SearchRecDocument.objects.all().delete()
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         written = 0
         for payload in docs:
             doc_key = str(payload.get("id", "")).strip()
@@ -72,8 +72,9 @@ class DbIndexAdapter:
             norm_sq = sum(c * c for c in tf.values())
 
             with transaction.atomic():
-                SearchRecDocTerm.objects.filter(doc_key=doc_key).delete()
+                SearchRecDocTerm.objects.filter(rid_id=rid, doc_key=doc_key).delete()
                 SearchRecDocument.objects.update_or_create(
+                    rid_id=rid,
                     doc_key=doc_key,
                     defaults={
                         "title": title[:512],
@@ -86,15 +87,15 @@ class DbIndexAdapter:
                 if tf:
                     SearchRecDocTerm.objects.bulk_create(
                         [
-                            SearchRecDocTerm(doc_key=doc_key, term=t, tf=c)
+                            SearchRecDocTerm(rid_id=rid, doc_key=doc_key, term=t, tf=c)
                             for t, c in tf.items()
                         ],
                         batch_size=500,
                     )
             written += 1
-        return {"upserted": written, "total": SearchRecDocument.objects.count()}
+        return {"upserted": written, "total": SearchRecDocument.objects.filter(rid_id=rid).count()}
 
-    def search(self, query, top_k):
+    def search(self, rid: int, query, top_k):
         if not query or query == "*":
             return []
         query_tokens = _tokenize(query)
@@ -106,7 +107,7 @@ class DbIndexAdapter:
             return []
 
         rows = (
-            SearchRecDocTerm.objects.filter(term__in=terms)
+            SearchRecDocTerm.objects.filter(rid_id=rid, term__in=terms)
             .values("doc_key", "term", "tf")
             .iterator(chunk_size=2000)
         )
@@ -120,7 +121,7 @@ class DbIndexAdapter:
 
         meta = {
             d.doc_key: d
-            for d in SearchRecDocument.objects.filter(doc_key__in=doc_keys).only(
+            for d in SearchRecDocument.objects.filter(rid_id=rid, doc_key__in=doc_keys).only(
                 "doc_key", "title", "tags", "score_boost", "lexical_norm_sq"
             )
         }
@@ -150,11 +151,11 @@ class DbIndexAdapter:
         items.sort(key=lambda x: x["lexical_score"], reverse=True)
         return items[:top_k]
 
-    def get_document(self, doc_id):
+    def get_document(self, rid: int, doc_id):
         doc_id = str(doc_id or "").strip()
         if not doc_id:
             return None
-        doc = SearchRecDocument.objects.filter(doc_key=doc_id).only(
+        doc = SearchRecDocument.objects.filter(rid_id=rid, doc_key=doc_id).only(
             "doc_key", "title", "tags", "score_boost"
         ).first()
         if not doc:
@@ -181,7 +182,7 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
     def reset(self):
         return
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         written = 0
         lines = []
         for payload in docs:
@@ -191,6 +192,7 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             lines.append({"index": {"_index": self._index_name, "_id": doc_id}})
             lines.append(
                 {
+                    "rid": int(rid),
                     "id": doc_id,
                     "title": str(payload.get("title", "")),
                     "content": str(payload.get("content", "")),
@@ -204,7 +206,7 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
         self._request(method="POST", path="/_bulk", data=bulk_payload.encode("utf-8"))
         return {"upserted": written, "total": written}
 
-    def search(self, query, top_k):
+    def search(self, rid: int, query, top_k):
         if not query or query == "*":
             return []
         response = self._request(
@@ -213,9 +215,16 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             json_body={
                 "size": int(top_k),
                 "query": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": ["title^3", "content", "tags^2"],
+                    "bool": {
+                        "filter": [{"term": {"rid": int(rid)}}],
+                        "must": [
+                            {
+                                "multi_match": {
+                                    "query": query,
+                                    "fields": ["title^3", "content", "tags^2"],
+                                }
+                            }
+                        ],
                     }
                 },
             },
@@ -232,6 +241,9 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             if not isinstance(hit_tags, list):
                 hit_tags = []
             raw_score = hit.get("_score")
+            src_rid = src.get("rid")
+            if src_rid is not None and int(src_rid) != int(rid):
+                continue
             remote_items.append(
                 {
                     "id": doc_id,
@@ -243,7 +255,7 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             )
         return remote_items[:top_k]
 
-    def get_document(self, doc_id):
+    def get_document(self, rid: int, doc_id):
         doc_id = str(doc_id or "").strip()
         if not doc_id:
             return None
@@ -255,6 +267,9 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             raise RuntimeError(f"{self.adapter_name} status={response.status_code}, body={response.text}")
         data = response.json()
         src = data.get("_source") if isinstance(data.get("_source"), dict) else {}
+        src_rid = src.get("rid")
+        if src_rid is not None and int(src_rid) != int(rid):
+            return None
         raw_id = src.get("id")
         resolved_id = str(raw_id).strip() if raw_id is not None else doc_id
         tags = src.get("tags")

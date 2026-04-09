@@ -4,6 +4,10 @@
 {% block page_title %}搜索推荐控制台{% endblock %}
 
 {% block content %}
+<div class="mb-6">
+    {% include 'console/includes/searchrec_subnav.html' with active='api' %}
+</div>
+
 <div class="space-y-4">
     <div class="card">
         <div class="card-body">
@@ -20,7 +24,7 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="font-semibold mb-2">index/upsert</h3>
-                <textarea id="payload-upsert" class="w-full h-44 p-2 border rounded font-mono text-xs">{"documents":[{"id":"doc_1","title":"Hello Search","content":"search and recommend","tags":["search"],"score_boost":1.0}]}</textarea>
+                <textarea id="payload-upsert" class="w-full h-44 p-2 border rounded font-mono text-xs">{"rid":1,"documents":[{"id":"doc_1","title":"Hello Search","content":"search and recommend","tags":["search"],"score_boost":1.0}]}</textarea>
                 <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/index/upsert','payload-upsert','resp-upsert')">发送</button>
                 <pre id="resp-upsert" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
             </div>
@@ -29,7 +33,7 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="font-semibold mb-2">search</h3>
-                <textarea id="payload-search" class="w-full h-44 p-2 border rounded font-mono text-xs">{"query":"search recommend","top_k":10,"preferred_tags":["search"]}</textarea>
+                <textarea id="payload-search" class="w-full h-44 p-2 border rounded font-mono text-xs">{"rid":1,"query":"search recommend","top_k":10,"preferred_tags":["search"]}</textarea>
                 <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/search','payload-search','resp-search')">发送</button>
                 <pre id="resp-search" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
             </div>
@@ -38,7 +42,7 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="font-semibold mb-2">recommend</h3>
-                <textarea id="payload-recommend" class="w-full h-44 p-2 border rounded font-mono text-xs">{"user_profile":{"preferred_tags":["search"],"recent_queries":["hybrid search"],"affinity_boost":1.1},"top_k":10}</textarea>
+                <textarea id="payload-recommend" class="w-full h-44 p-2 border rounded font-mono text-xs">{"rid":1,"user_profile":{"preferred_tags":["search"],"recent_queries":["hybrid search"],"affinity_boost":1.1},"top_k":10}</textarea>
                 <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/recommend','payload-recommend','resp-recommend')">发送</button>
                 <pre id="resp-recommend" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
             </div>

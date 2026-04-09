@@ -70,13 +70,14 @@ class TestFakeLexicalIndexAdapter(SimpleTestCase):
         adapter = FakeLexicalIndexAdapter()
         with self.assertRaisesMessage(ValueError, "field `tags` must be list"):
             adapter.upsert_documents(
-                [{"id": "a", "title": "t", "content": "c", "tags": "not-a-list"}]
+                1,
+                [{"id": "a", "title": "t", "content": "c", "tags": "not-a-list"}],
             )
 
     def test_search_star_returns_empty(self):
         adapter = FakeLexicalIndexAdapter()
-        adapter.upsert_documents([{"id": "a", "title": "hello world", "content": "c", "tags": ["t"]}])
-        self.assertEqual(adapter.search("*", top_k=10), [])
+        adapter.upsert_documents(1, [{"id": "a", "title": "hello world", "content": "c", "tags": ["t"]}])
+        self.assertEqual(adapter.search(1, "*", top_k=10), [])
 
 
 class TestMemoryVectorAdapter(SimpleTestCase):
@@ -84,17 +85,17 @@ class TestMemoryVectorAdapter(SimpleTestCase):
         self.adapter = MemoryVectorAdapter()
 
     def test_reset_clears_state(self):
-        self.adapter.upsert_documents([{"id": "a", "title": "t", "content": "c", "tags": []}])
+        self.adapter.upsert_documents(1, [{"id": "a", "title": "t", "content": "c", "tags": []}])
         self.assertEqual(len(self.adapter._vectors), 1)
         self.adapter.reset()
         self.assertEqual(len(self.adapter._vectors), 0)
 
     def test_search_star_returns_empty(self):
-        self.adapter.upsert_documents([{"id": "a", "title": "hello", "content": "x", "tags": []}])
-        self.assertEqual(self.adapter.search("*", top_k=10), [])
+        self.adapter.upsert_documents(1, [{"id": "a", "title": "hello", "content": "x", "tags": []}])
+        self.assertEqual(self.adapter.search(1, "*", top_k=10), [])
 
     def test_upsert_skips_blank_id(self):
-        self.adapter.upsert_documents([{"id": "", "title": "x", "content": "y", "tags": []}])
+        self.adapter.upsert_documents(1, [{"id": "", "title": "x", "content": "y", "tags": []}])
         self.assertEqual(len(self.adapter._vectors), 0)
 
 

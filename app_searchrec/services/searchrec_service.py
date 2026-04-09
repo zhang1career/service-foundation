@@ -58,25 +58,25 @@ class SearchRecService:
             setattr(cls, attr, None)
 
     @classmethod
-    def upsert_documents(cls, docs):
+    def upsert_documents(cls, rid: int, docs):
         if not isinstance(docs, list) or not docs:
             raise ValueError("field `documents` must be a non-empty list")
         cls._ensure_adapters()
-        index_result = cls._index_adapter.upsert_documents(docs)
-        cls._vector_adapter.upsert_documents(docs)
-        cls._feature_store_adapter.upsert_documents(docs)
+        index_result = cls._index_adapter.upsert_documents(rid, docs)
+        cls._vector_adapter.upsert_documents(rid, docs)
+        cls._feature_store_adapter.upsert_documents(rid, docs)
         return index_result
 
     @classmethod
-    def search(cls, query, top_k=10, preferred_tags=None):
+    def search(cls, rid: int, query, top_k=10, preferred_tags=None):
         cls._ensure_adapters()
         default_top_k = int(settings.SEARCHREC_DEFAULT_TOP_K)
         top_k = _clamp_top_k(top_k, default_top_k)
         preferred_tags = [str(t).lower() for t in (preferred_tags or [])]
 
         budget = cls._search_candidate_budget(top_k)
-        lexical_items = cls._index_adapter.search(query=query, top_k=budget)
-        vector_items = cls._vector_adapter.search(query=query, top_k=budget)
+        lexical_items = cls._index_adapter.search(rid=rid, query=query, top_k=budget)
+        vector_items = cls._vector_adapter.search(rid=rid, query=query, top_k=budget)
         vector_score_by_id = {item["id"]: item["vector_score"] for item in vector_items}
 
         merge_vector = settings.SEARCHREC_MERGE_VECTOR_CANDIDATES
@@ -88,7 +88,7 @@ class SearchRecService:
                 if doc_id in seen:
                     continue
                 seen.add(doc_id)
-                meta = cls._index_adapter.get_document(doc_id)
+                meta = cls._index_adapter.get_document(rid, doc_id)
                 if not meta:
                     continue
                 candidate_rows.append(
@@ -105,7 +105,7 @@ class SearchRecService:
 
         items = []
         for item in candidate_rows:
-            doc_features = cls._feature_store_adapter.get_doc_features(item["id"])
+            doc_features = cls._feature_store_adapter.get_doc_features(rid, item["id"])
             item_tags = item.get("tags")
             if not isinstance(item_tags, list):
                 item_tags = []
@@ -138,7 +138,7 @@ class SearchRecService:
         return {"items": items[:top_k], "total_hits": len(items)}
 
     @classmethod
-    def recommend(cls, user_profile, top_k=10):
+    def recommend(cls, rid: int, user_profile, top_k=10):
         cls._ensure_adapters()
         user_features = cls._feature_store_adapter.get_user_features(user_profile)
         preferred_tags = user_features["preferred_tags"]
@@ -148,7 +148,7 @@ class SearchRecService:
             query = " ".join(preferred_tags)
         if not query:
             query = "*"
-        result = cls.search(query=query, top_k=top_k, preferred_tags=preferred_tags)
+        result = cls.search(rid=rid, query=query, top_k=top_k, preferred_tags=preferred_tags)
         affinity_boost = float(user_features.get("affinity_boost", 1.0))
         for item in result["items"]:
             item["score"] = round(item["score"] * affinity_boost, 6)
