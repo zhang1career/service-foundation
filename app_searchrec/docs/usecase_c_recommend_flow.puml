@@ -5,11 +5,12 @@ skinparam shadowing false
 start
 :BusinessSystem\ncall POST recommend;
 :SearchRecAPI\nuser_profile, top_k;
-:FeatureStoreAdapter\nget_user_features(user_profile);
-:Build search query:\njoin recent_queries;\nelse join preferred_tags;\nelse sentinel *;
-:SearchRecService.search\n(same pipeline as Use Case B)\nwith preferred_tags;
-:Multiply scores by\naffinity_boost;
-:Re-sort by score;
+:FeatureStoreAdapter\nget_user_features(user_profile)\n(preferred_tags, recent_queries,\naffinity_boost, …);
+:Build **query** string:\njoin **recent_queries**;\nelse join **preferred_tags**;\nelse **"*"** (sentinel);
+:SearchRecService.search(\nquery, top_k,\npreferred_tags from user features)\n**same pipeline as Use Case B**;
+:Multiply each item **score**\nby **affinity_boost**;
+:Re-sort by score descending;
+:Expose **affinity_boost**\nin item.features;
 :Return recommendation list;
 stop
 @enduml

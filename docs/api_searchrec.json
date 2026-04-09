@@ -1,0 +1,476 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SearchRec API",
+    "description": "app_searchrec 对外 HTTP 接口。响应包络为 `{ errorCode, data, message, ... }`：`errorCode === 0` 表示成功。挂载路径前缀：`/api/searchrec/`（见 `service_foundation/urls.py`）。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "相对当前站点根路径"
+    }
+  ],
+  "tags": [
+    {
+      "name": "SearchRec",
+      "description": "检索 / 推荐 / 排序"
+    },
+    {
+      "name": "Dictionary",
+      "description": "枚举字典（与 app_searchrec 同 urlconf 挂载）"
+    }
+  ],
+  "paths": {
+    "/api/searchrec/health": {
+      "get": {
+        "tags": ["SearchRec"],
+        "summary": "健康检查",
+        "operationId": "searchrecHealth",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/EnvelopeOk" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "status": { "type": "string", "example": "ok" },
+                            "service": { "type": "string", "example": "searchrec" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" },
+              "Expires": { "schema": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/searchrec/index/upsert": {
+      "post": {
+        "tags": ["SearchRec"],
+        "summary": "索引写入（文档 upsert）",
+        "description": "写入索引、向量侧与特征侧适配器。`documents` 为非空数组；单条须含 `id`（业务文档键，与 DB `doc_key` 对应，长度受配置限制）。返回值为索引适配器结果（如 upserted / total）。",
+        "operationId": "searchrecIndexUpsert",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpsertRequest" },
+              "examples": {
+                "sample": {
+                  "value": {
+                    "documents": [
+                      {
+                        "id": "doc_001",
+                        "title": "标题",
+                        "content": "正文",
+                        "tags": ["tag1", "tag2"],
+                        "score_boost": 1.0,
+                        "popularity_score": 0.0,
+                        "freshness_score": 0.0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数错误（errorCode≠0 时 HTTP 仍为 200，见包络）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/UpsertResult" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" }
+            }
+          }
+        }
+      }
+    },
+    "/api/searchrec/search": {
+      "post": {
+        "tags": ["SearchRec"],
+        "summary": "关键词搜索",
+        "description": "融合 lexical、向量召回、标签与 popularity，再乘 score_boost。`top_k` 会被限制在 [1, 100]。",
+        "operationId": "searchrecSearch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SearchRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/SearchResult" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" }
+            }
+          }
+        }
+      }
+    },
+    "/api/searchrec/recommend": {
+      "post": {
+        "tags": ["SearchRec"],
+        "summary": "个性化推荐",
+        "description": "根据 `user_profile` 取用户特征，构造 query 后调用与 search 相同的融合逻辑，再对分数乘以 `affinity_boost`。",
+        "operationId": "searchrecRecommend",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RecommendRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/SearchResult" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" }
+            }
+          }
+        }
+      }
+    },
+    "/api/searchrec/rank": {
+      "post": {
+        "tags": ["SearchRec"],
+        "summary": "候选重排序",
+        "description": "不访问索引/向量/特征适配器，仅根据 `base_score`、`ctr_score`、`freshness_score` 与 `strategy` 计算 `final_score` 并排序。未识别的 strategy 名按 hybrid 混合权重处理。",
+        "operationId": "searchrecRank",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RankRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/RankResult" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" }
+            }
+          }
+        }
+      }
+    },
+    "/api/searchrec/dict": {
+      "get": {
+        "tags": ["Dictionary"],
+        "summary": "按 codes 查询字典项",
+        "description": "公共字典接口，需 `codes` 查询参数（逗号分隔）。",
+        "operationId": "searchrecDict",
+        "parameters": [
+          {
+            "name": "codes",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "逗号分隔的 code 列表",
+            "example": "SomeType,OtherType"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功或错误（codes 缺失等）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": true
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "XRequestId": {
+        "description": "请求关联 ID；客户端可传 `X-Request-Id`，响应会回显（错误响应等场景）。",
+        "schema": { "type": "string" }
+      }
+    },
+    "schemas": {
+      "EnvelopeOk": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": { "type": "integer", "enum": [0], "description": "成功为 0" },
+          "data": { "description": "业务数据" },
+          "message": { "type": "string", "description": "成功时通常为空串" }
+        }
+      },
+      "EnvelopeError": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": { "type": "integer", "description": "非 0；参数错误常见为 100（RET_INVALID_PARAM）" },
+          "data": { "nullable": true },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "UpsertRequest": {
+        "type": "object",
+        "required": ["documents"],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/UpsertDocument" }
+          }
+        }
+      },
+      "UpsertDocument": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "业务文档 id（与 `doc_key` 一致）；索引适配器要求非空"
+          },
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "缺省按空列表处理；若提供则须为数组，否则索引层抛出参数错误"
+          },
+          "score_boost": { "type": "number", "format": "float", "default": 1.0 },
+          "popularity_score": { "type": "number", "format": "float", "default": 0.0 },
+          "freshness_score": { "type": "number", "format": "float", "default": 0.0 }
+        }
+      },
+      "UpsertResult": {
+        "type": "object",
+        "description": "来自索引适配器，字段因后端而异",
+        "properties": {
+          "upserted": { "type": "integer" },
+          "total": { "type": "integer" }
+        },
+        "additionalProperties": true
+      },
+      "SearchRequest": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "查询串，空字符串允许" },
+          "top_k": { "type": "integer", "default": 10, "minimum": 1, "maximum": 100 },
+          "preferred_tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "非 list 会被视为空列表"
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "required": ["items", "total_hits"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SearchHit" }
+          },
+          "total_hits": { "type": "integer" }
+        }
+      },
+      "SearchHit": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "score": { "type": "number" },
+          "features": {
+            "type": "object",
+            "properties": {
+              "lexical_score": { "type": "number" },
+              "vector_score": { "type": "number" },
+              "tag_score": { "type": "number" },
+              "popularity_score": { "type": "number" },
+              "score_boost": { "type": "number" },
+              "affinity_boost": { "type": "number", "description": "仅 recommend 路径可能写入" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "RecommendRequest": {
+        "type": "object",
+        "properties": {
+          "user_profile": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "非 object 会被视为 {}。常见键：`preferred_tags`（list）、`recent_queries`（list）、`affinity_boost`（number）。由特征适配器解释。"
+          },
+          "top_k": { "type": "integer", "default": 10, "minimum": 1, "maximum": 100 }
+        }
+      },
+      "RankRequest": {
+        "type": "object",
+        "required": ["candidates"],
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/RankCandidate" }
+          },
+          "strategy": {
+            "type": "string",
+            "description": "空或缺省为 hybrid；`ctr_first` | `fresh_first` | 其他均走 hybrid 权重",
+            "default": "hybrid"
+          }
+        }
+      },
+      "RankCandidate": {
+        "type": "object",
+        "properties": {
+          "id": { "description": "业务透传 id" },
+          "base_score": { "type": "number", "default": 0 },
+          "ctr_score": { "type": "number", "default": 0 },
+          "freshness_score": { "type": "number", "default": 0 }
+        },
+        "additionalProperties": true
+      },
+      "RankResult": {
+        "type": "object",
+        "required": ["items", "count", "strategy"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "final_score": { "type": "number" }
+              },
+              "additionalProperties": true
+            }
+          },
+          "count": { "type": "integer" },
+          "strategy": { "type": "string" }
+        }
+      }
+    }
+  }
+}

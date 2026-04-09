@@ -1,4 +1,4 @@
-"""Unit tests for app_searchrec adapters (memory backends and pure helpers)."""
+"""Unit tests for app_searchrec adapters (memory vector/feature backends and pure helpers)."""
 
 from django.test import SimpleTestCase, override_settings
 
@@ -8,7 +8,7 @@ from app_searchrec.adapters.feature_store import (
     build_feature_store_adapter,
 )
 from app_searchrec.adapters.index_store import (
-    MemoryIndexAdapter,
+    DbIndexAdapter,
     OpenSearchIndexAdapter,
     _hit_doc_id,
     _search_response_hits,
@@ -23,6 +23,7 @@ from app_searchrec.adapters.vector_store import (
     _qdrant_doc_id,
     build_vector_adapter,
 )
+from app_searchrec.tests.fake_lexical_index import FakeLexicalIndexAdapter
 
 
 class TestIndexStoreHelpers(SimpleTestCase):
@@ -62,6 +63,22 @@ class TestVectorStoreHelpers(SimpleTestCase):
         self.assertEqual(_qdrant_doc_id({}, {"id": "outer"}), "outer")
 
 
+class TestFakeLexicalIndexAdapter(SimpleTestCase):
+    """Same validation rules as DbIndexAdapter for tags / id (test double for CI without MySQL)."""
+
+    def test_upsert_requires_tags_list(self):
+        adapter = FakeLexicalIndexAdapter()
+        with self.assertRaisesMessage(ValueError, "field `tags` must be list"):
+            adapter.upsert_documents(
+                [{"id": "a", "title": "t", "content": "c", "tags": "not-a-list"}]
+            )
+
+    def test_search_star_returns_empty(self):
+        adapter = FakeLexicalIndexAdapter()
+        adapter.upsert_documents([{"id": "a", "title": "hello world", "content": "c", "tags": ["t"]}])
+        self.assertEqual(adapter.search("*", top_k=10), [])
+
+
 class TestMemoryVectorAdapter(SimpleTestCase):
     def setUp(self):
         self.adapter = MemoryVectorAdapter()
@@ -79,27 +96,6 @@ class TestMemoryVectorAdapter(SimpleTestCase):
     def test_upsert_skips_blank_id(self):
         self.adapter.upsert_documents([{"id": "", "title": "x", "content": "y", "tags": []}])
         self.assertEqual(len(self.adapter._vectors), 0)
-
-
-class TestMemoryIndexAdapter(SimpleTestCase):
-    def setUp(self):
-        self.adapter = MemoryIndexAdapter()
-
-    def test_upsert_requires_tags_list(self):
-        with self.assertRaisesMessage(ValueError, "field `tags` must be list"):
-            self.adapter.upsert_documents(
-                [{"id": "a", "title": "t", "content": "c", "tags": "not-a-list"}]
-            )
-
-    def test_get_document_empty_id_returns_none(self):
-        self.assertIsNone(self.adapter.get_document(None))
-        self.assertIsNone(self.adapter.get_document(""))
-
-    def test_search_star_returns_empty(self):
-        self.adapter.upsert_documents(
-            [{"id": "a", "title": "hello world", "content": "c", "tags": ["t"]}]
-        )
-        self.assertEqual(self.adapter.search("*", top_k=10), [])
 
 
 class TestMemoryFeatureStoreAdapter(SimpleTestCase):
@@ -127,8 +123,8 @@ class TestBuildAdapters(SimpleTestCase):
         self.assertIsInstance(build_index_adapter(), OpenSearchIndexAdapter)
 
     @override_settings(SEARCHREC_OPENSEARCH_ENABLED=False)
-    def test_build_index_memory_when_opensearch_disabled(self):
-        self.assertIsInstance(build_index_adapter(), MemoryIndexAdapter)
+    def test_build_index_db_when_opensearch_disabled(self):
+        self.assertIsInstance(build_index_adapter(), DbIndexAdapter)
 
     @override_settings(
         SEARCHREC_MILVUS_ENABLED=True,

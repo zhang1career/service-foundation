@@ -51,15 +51,17 @@ class SearchRecService:
 
     @classmethod
     def reset(cls):
-        cls._index_adapter = None
-        cls._vector_adapter = None
-        cls._feature_store_adapter = None
+        for attr in ("_index_adapter", "_vector_adapter", "_feature_store_adapter"):
+            adapter = getattr(cls, attr, None)
+            if adapter is not None and hasattr(adapter, "reset"):
+                adapter.reset()
+            setattr(cls, attr, None)
 
     @classmethod
     def upsert_documents(cls, docs):
-        cls._ensure_adapters()
         if not isinstance(docs, list) or not docs:
             raise ValueError("field `documents` must be a non-empty list")
+        cls._ensure_adapters()
         index_result = cls._index_adapter.upsert_documents(docs)
         cls._vector_adapter.upsert_documents(docs)
         cls._feature_store_adapter.upsert_documents(docs)

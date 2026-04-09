@@ -8,20 +8,26 @@ rectangle "app_searchrec.views\n(SearchRec*View)" as SearchRecAPI
 rectangle "SearchRecService\n(search / recommend / rank)" as SearchRecService
 
 package "Adapters" as adapters {
-  rectangle "IndexAdapter" as IndexAdapter
-  rectangle "VectorAdapter" as VectorAdapter
-  rectangle "FeatureStoreAdapter" as FeatureAdapter
+  rectangle "IndexAdapter\n(build_index_adapter)" as IndexAdapter
+  rectangle "VectorAdapter\n(build_vector_adapter)" as VectorAdapter
+  rectangle "FeatureStoreAdapter\n(build_feature_store_adapter)" as FeatureAdapter
   rectangle "EmbeddingProvider\n(SimpleTextEmbeddingProvider)" as EmbedProvider
 }
 
-package "Backends" as backends {
-  rectangle "MemoryIndex" as MemoryIndex
-  rectangle "OpenSearch" as OpenSearch
-  rectangle "MemoryVector" as MemoryVector
-  rectangle "Qdrant" as Qdrant
-  rectangle "Milvus" as Milvus
-  rectangle "MemoryFeatureStore" as MemoryFeature
-  rectangle "FeastOnlineStore" as Feast
+package "Index backends\n(mutually exclusive)" as idx_back {
+  rectangle "OpenSearchIndexAdapter" as OpenSearch
+  rectangle "DbIndexAdapter\n(MySQL doc + doc_term)" as DbIndex
+}
+
+package "Vector backends\n(at most one remote)" as vec_back {
+  rectangle "MemoryVectorAdapter" as MemoryVector
+  rectangle "MilvusVectorAdapter" as Milvus
+  rectangle "QdrantVectorAdapter" as Qdrant
+}
+
+package "Feature backends" as feat_back {
+  rectangle "MemoryFeatureStoreAdapter" as MemoryFeature
+  rectangle "FeastFeatureStoreAdapter" as Feast
 }
 
 BusinessSystem --> SearchRecAPI : HTTP API
@@ -32,19 +38,26 @@ SearchRecService --> VectorAdapter : search, upsert
 SearchRecService --> FeatureAdapter : upsert,\nget_doc_features,\nget_user_features
 
 note bottom of SearchRecService
-  **Fusion scoring** (lexical + vector + tags + popularity + score_boost)
+  **Fusion scoring** (lexical + vector blend + tags + popularity)
+  × **score_boost** (Feast / memory features first, else index row)
   is implemented inside **SearchRecService.search**.
   **rank** recomputes **final_score** from caller-supplied
   base_score / ctr_score / freshness_score only — **no adapter I/O**.
 end note
 
-VectorAdapter ..> EmbedProvider : <<optional>>\nQdrantVectorAdapter only\n(encode query & documents)
+IndexAdapter --> OpenSearch : SEARCHREC_OPENSEARCH_ENABLED
+IndexAdapter --> DbIndex : else (default)
 
-IndexAdapter --> MemoryIndex
-IndexAdapter --> OpenSearch
-VectorAdapter --> MemoryVector
-VectorAdapter --> Qdrant
-VectorAdapter --> Milvus
-FeatureAdapter --> MemoryFeature
-FeatureAdapter --> Feast
+VectorAdapter --> Milvus : SEARCHREC_MILVUS_ENABLED
+VectorAdapter --> Qdrant : else if SEARCHREC_QDRANT_ENABLED
+VectorAdapter --> MemoryVector : else (default)
+
+FeatureAdapter --> Feast : SEARCHREC_FEAST_ENABLED
+FeatureAdapter --> MemoryFeature : else (default)
+
+Qdrant ..> EmbedProvider : upsert & search:\nencode text → vector
+note bottom of Milvus
+  Remote service receives query/documents;\nno local embedding in this app.
+end note
+
 @enduml

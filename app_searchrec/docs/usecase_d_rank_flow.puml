@@ -7,15 +7,15 @@ start
 note right
   **No** Index / Vector / Feature\nadapter calls — pure scoring.
 end note
-if (strategy == ctr_first?) then (yes)
-  :final = 0.2*base + 0.7*ctr + 0.1*fresh;
-elseif (strategy == fresh_first?) then (yes)
-  :final = 0.2*base + 0.2*ctr + 0.6*fresh;
-else (hybrid or other)
-  :final = 0.5*base + 0.3*ctr + 0.2*fresh;
+if (strategy == **ctr_first** ?) then (yes)
+  :final_score = 0.2×base_score\n+ 0.7×ctr_score\n+ 0.1×freshness_score;
+elseif (strategy == **fresh_first** ?) then (yes)
+  :final_score = 0.2×base_score\n+ 0.2×ctr_score\n+ 0.6×freshness_score;
+else (**hybrid** or any other name)
+  :final_score = 0.5×base_score\n+ 0.3×ctr_score\n+ 0.2×freshness_score;
 endif
-:Attach final_score per item\nfrom base_score, ctr_score,\nfreshness_score;
-:Sort by final_score;
-:Return items, count, strategy;
+:Attach **final_score** per item\n(read base_score, ctr_score,\nfreshness_score; default 0);
+:Sort by final_score descending;
+:Return **items**, **count**, **strategy**;
 stop
 @enduml
