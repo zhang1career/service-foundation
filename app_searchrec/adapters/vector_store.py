@@ -4,6 +4,20 @@ from app_searchrec.adapters.base_http_adapter import BaseHttpAdapter
 from app_searchrec.adapters.embedding_provider import SimpleTextEmbeddingProvider
 
 
+def _milvus_vector_score(item):
+    if "score" in item:
+        return float(item["score"])
+    return float(item.get("vector_score", 0.0))
+
+
+def _qdrant_doc_id(payload, item):
+    raw = payload.get("id")
+    if raw is not None and str(raw).strip():
+        return str(raw).strip()
+    raw = item.get("id")
+    return str(raw).strip() if raw is not None else ""
+
+
 class MemoryVectorAdapter:
     def __init__(self):
         self._vectors = {}
@@ -42,10 +56,10 @@ class MilvusVectorAdapter(BaseHttpAdapter):
     adapter_name = "milvus"
 
     def __init__(self):
-        self._collection = str(getattr(settings, "SEARCHREC_MILVUS_COLLECTION", "searchrec_vectors")).strip()
+        self._collection = str(settings.SEARCHREC_MILVUS_COLLECTION).strip()
         super().__init__(
-            base_url=getattr(settings, "SEARCHREC_MILVUS_ENDPOINT", ""),
-            api_key=getattr(settings, "SEARCHREC_MILVUS_API_KEY", ""),
+            base_url=settings.SEARCHREC_MILVUS_ENDPOINT,
+            api_key=settings.SEARCHREC_MILVUS_API_KEY,
             auth_mode="bearer",
         )
 
@@ -67,13 +81,16 @@ class MilvusVectorAdapter(BaseHttpAdapter):
             path="/v1/vector/search",
             json_body={"collection": self._collection, "query": query, "top_k": int(top_k)},
         )
-        items = (response.json() or {}).get("items") or []
+        body = response.json()
+        raw_items = body.get("items") if isinstance(body, dict) else None
+        items = raw_items if isinstance(raw_items, list) else []
         remote = []
         for item in items:
-            doc_id = str(item.get("id") or "")
+            raw_id = item.get("id")
+            doc_id = str(raw_id).strip() if raw_id is not None else ""
             if not doc_id:
                 continue
-            remote.append({"id": doc_id, "vector_score": float(item.get("score", item.get("vector_score", 0.0)))})
+            remote.append({"id": doc_id, "vector_score": _milvus_vector_score(item)})
         return remote[:top_k]
 
 
@@ -81,11 +98,11 @@ class QdrantVectorAdapter(BaseHttpAdapter):
     adapter_name = "qdrant"
 
     def __init__(self):
-        self._collection = str(getattr(settings, "SEARCHREC_QDRANT_COLLECTION", "searchrec_vectors")).strip()
+        self._collection = str(settings.SEARCHREC_QDRANT_COLLECTION).strip()
         self._embedding = SimpleTextEmbeddingProvider()
         super().__init__(
-            base_url=getattr(settings, "SEARCHREC_QDRANT_URL", ""),
-            api_key=getattr(settings, "SEARCHREC_QDRANT_API_KEY", ""),
+            base_url=settings.SEARCHREC_QDRANT_URL,
+            api_key=settings.SEARCHREC_QDRANT_API_KEY,
             auth_mode="api-key",
         )
 
@@ -122,21 +139,29 @@ class QdrantVectorAdapter(BaseHttpAdapter):
             path=f"/collections/{self._collection}/points/search",
             json_body={"vector": query_vector, "limit": int(top_k), "with_payload": True},
         )
-        items = (response.json() or {}).get("result") or []
+        body = response.json()
+        raw_result = body.get("result") if isinstance(body, dict) else None
+        items = raw_result if isinstance(raw_result, list) else []
         remote = []
         for item in items:
-            payload = item.get("payload") or {}
-            doc_id = str(payload.get("id") or item.get("id") or "")
+            payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+            doc_id = _qdrant_doc_id(payload, item)
             if not doc_id:
                 continue
             remote.append({"id": doc_id, "vector_score": float(item.get("score", 0.0))})
         return remote[:top_k]
 
 
-def build_vector_adapter(backend):
-    backend = (backend or "memory").strip().lower()
-    if backend == "milvus":
+def build_vector_adapter():
+    milvus_on = settings.SEARCHREC_MILVUS_ENABLED
+    qdrant_on = settings.SEARCHREC_QDRANT_ENABLED
+    if milvus_on and qdrant_on:
+        raise ValueError(
+            "SEARCHREC_MILVUS_ENABLED and SEARCHREC_QDRANT_ENABLED cannot both be true; "
+            "enable at most one remote vector backend"
+        )
+    if milvus_on:
         return MilvusVectorAdapter()
-    if backend == "qdrant":
+    if qdrant_on:
         return QdrantVectorAdapter()
     return MemoryVectorAdapter()

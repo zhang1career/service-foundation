@@ -3,6 +3,7 @@ import json
 import re
 import time
 from collections import Counter
+from urllib.parse import quote
 
 from django.conf import settings
 
@@ -22,6 +23,14 @@ def _search_response_hits(data):
         return []
     inner = hits_outer.get("hits")
     return inner if isinstance(inner, list) else []
+
+
+def _hit_doc_id(src, hit):
+    raw = src.get("id")
+    if raw is not None and str(raw).strip():
+        return str(raw).strip()
+    raw = hit.get("_id")
+    return str(raw).strip() if raw is not None else ""
 
 
 class MemoryIndexAdapter:
@@ -84,15 +93,29 @@ class MemoryIndexAdapter:
         items.sort(key=lambda x: x["lexical_score"], reverse=True)
         return items[:top_k]
 
+    def get_document(self, doc_id):
+        doc_id = str(doc_id or "").strip()
+        if not doc_id:
+            return None
+        doc = self._docs.get(doc_id)
+        if not doc:
+            return None
+        return {
+            "id": doc["id"],
+            "title": doc["title"],
+            "tags": doc["tags"],
+            "score_boost": doc["score_boost"],
+        }
+
 
 class OpenSearchIndexAdapter(BaseHttpAdapter):
     adapter_name = "opensearch"
 
     def __init__(self):
-        self._index_name = str(getattr(settings, "SEARCHREC_OPENSEARCH_INDEX", "searchrec_docs")).strip()
+        self._index_name = str(settings.SEARCHREC_OPENSEARCH_INDEX).strip()
         super().__init__(
-            base_url=getattr(settings, "SEARCHREC_OPENSEARCH_URL", ""),
-            api_key=getattr(settings, "SEARCHREC_OPENSEARCH_API_KEY", ""),
+            base_url=settings.SEARCHREC_OPENSEARCH_URL,
+            api_key=settings.SEARCHREC_OPENSEARCH_API_KEY,
             auth_mode="opensearch",
         )
 
@@ -142,24 +165,51 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
         hits = _search_response_hits(data)
         remote_items = []
         for hit in hits:
-            src = hit.get("_source") or {}
-            doc_id = str(src.get("id") or hit.get("_id") or "")
+            src = hit.get("_source") if isinstance(hit.get("_source"), dict) else {}
+            doc_id = _hit_doc_id(src, hit)
             if not doc_id:
                 continue
+            hit_tags = src.get("tags")
+            if not isinstance(hit_tags, list):
+                hit_tags = []
+            raw_score = hit.get("_score")
             remote_items.append(
                 {
                     "id": doc_id,
                     "title": str(src.get("title") or ""),
-                    "tags": src.get("tags") or [],
-                    "lexical_score": float(hit.get("_score") or 0.0),
+                    "tags": hit_tags,
+                    "lexical_score": float(raw_score if raw_score is not None else 0.0),
                     "score_boost": float(src.get("score_boost", 1.0)),
                 }
             )
         return remote_items[:top_k]
 
+    def get_document(self, doc_id):
+        doc_id = str(doc_id or "").strip()
+        if not doc_id:
+            return None
+        safe_id = quote(doc_id, safe="")
+        response = self._request_raw(method="GET", path=f"/{self._index_name}/_doc/{safe_id}")
+        if response.status_code == 404:
+            return None
+        if response.status_code >= 300:
+            raise RuntimeError(f"{self.adapter_name} status={response.status_code}, body={response.text}")
+        data = response.json()
+        src = data.get("_source") if isinstance(data.get("_source"), dict) else {}
+        raw_id = src.get("id")
+        resolved_id = str(raw_id).strip() if raw_id is not None else doc_id
+        tags = src.get("tags")
+        if not isinstance(tags, list):
+            tags = []
+        return {
+            "id": resolved_id,
+            "title": str(src.get("title") or ""),
+            "tags": tags,
+            "score_boost": float(src.get("score_boost", 1.0)),
+        }
 
-def build_index_adapter(backend):
-    backend = (backend or "memory").strip().lower()
-    if backend in ("opensearch", "elasticsearch"):
+
+def build_index_adapter():
+    if settings.SEARCHREC_OPENSEARCH_ENABLED:
         return OpenSearchIndexAdapter()
     return MemoryIndexAdapter()

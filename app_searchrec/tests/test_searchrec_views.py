@@ -74,3 +74,60 @@ class SearchRecViewsFunctionalTest(TestCase):
         response.render()
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_OK)
+
+    @patch("app_searchrec.views.searchrec_view.SearchRecService")
+    def test_search_null_preferred_tags_becomes_empty_list(self, service_cls):
+        service_cls.search.return_value = {"items": [], "total_hits": 0}
+        request = self.factory.post(
+            "/api/searchrec/search",
+            data={"query": "q", "preferred_tags": None},
+            format="json",
+        )
+        SearchRecSearchView.as_view()(request)
+        service_cls.search.assert_called_once_with(query="q", top_k=10, preferred_tags=[])
+
+    @patch("app_searchrec.views.searchrec_view.SearchRecService")
+    def test_rank_null_strategy_uses_hybrid(self, service_cls):
+        service_cls.rank.return_value = {"items": []}
+        request = self.factory.post(
+            "/api/searchrec/rank",
+            data={"candidates": [], "strategy": None},
+            format="json",
+        )
+        SearchRecRankView.as_view()(request)
+        service_cls.rank.assert_called_once_with(candidates=[], strategy="hybrid")
+
+    def test_index_upsert_empty_documents_returns_invalid_param(self):
+        request = self.factory.post("/api/searchrec/index/upsert", data={"documents": []}, format="json")
+        response = SearchRecIndexUpsertView.as_view()(request)
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
+
+    @patch("app_searchrec.views.searchrec_view.SearchRecService")
+    def test_search_value_error_returns_invalid_param(self, service_cls):
+        service_cls.search.side_effect = ValueError("bad query")
+        request = self.factory.post("/api/searchrec/search", data={"query": "x"}, format="json")
+        response = SearchRecSearchView.as_view()(request)
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
+        self.assertIn("bad query", payload["message"])
+
+    @patch("app_searchrec.views.searchrec_view.SearchRecService")
+    def test_recommend_value_error_returns_invalid_param(self, service_cls):
+        service_cls.recommend.side_effect = ValueError("bad profile")
+        request = self.factory.post("/api/searchrec/recommend", data={}, format="json")
+        response = SearchRecRecommendView.as_view()(request)
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
+
+    @patch("app_searchrec.views.searchrec_view.SearchRecService")
+    def test_rank_value_error_returns_invalid_param(self, service_cls):
+        service_cls.rank.side_effect = ValueError("bad candidates")
+        request = self.factory.post("/api/searchrec/rank", data={"candidates": []}, format="json")
+        response = SearchRecRankView.as_view()(request)
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)

@@ -24,19 +24,22 @@ class BaseHttpAdapter:
                 headers["Authorization"] = f"Bearer {self._api_key}"
         return headers
 
-    def _request(self, *, method, path, json_body=None, data=None):
+    def _request_raw(self, *, method, path, json_body=None, data=None):
         url = f"{self._base_url}{path}"
         try:
-            response = request_sync(
+            return request_sync(
                 method=method,
                 url=url,
                 headers=self._headers(),
                 json_body=json_body,
                 data=data,
-                timeout_sec=float(getattr(settings, "SEARCHREC_HTTP_TIMEOUT", 3.0)),
+                timeout_sec=float(settings.SEARCHREC_HTTP_TIMEOUT),
             )
         except HttpCallError as exc:
             raise RuntimeError(f"{self.adapter_name} request failed: {exc}") from exc
+
+    def _request(self, *, method, path, json_body=None, data=None):
+        response = self._request_raw(method=method, path=path, json_body=json_body, data=data)
         if response.status_code >= 300:
             raise RuntimeError(f"{self.adapter_name} status={response.status_code}, body={response.text}")
         return response
