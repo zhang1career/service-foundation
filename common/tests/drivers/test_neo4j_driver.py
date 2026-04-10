@@ -5,7 +5,7 @@ from common.drivers.neo4j_driver import Neo4jDriver
 
 class TestNeo4jDriver(TestCase):
     def setUp(self):
-        self.dut = Neo4jDriver('bolt://34.203.240.142:7474', 'neo4j', '9TRagjq8SGPDvhV')
+        self.dut = Neo4jDriver('bolt://127.0.0.1:7687', 'neo4j', '9TRagjq8SGPDvhV')
 
     def test_run(self):
         # 测试连接

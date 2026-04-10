@@ -17,18 +17,22 @@ def _get_generator():
     return _generator
 
 
-def generate_id(business_id: int = 0) -> dict:
+def generate_id(rid: int) -> dict:
     """
-    Generate a single Snowflake ID
+    Generate a single Snowflake ID for a caller registration id (rid).
+
+    The generator encodes a 3-bit segment derived from ``rid`` (masked); see
+    ``SnowflakeGenerator.generate`` and ``MASK_BUSINESS_ID``.
 
     Returns:
-        Response containing ID and detailed information
+        Response containing ID, ``rid``, and parsed segment fields.
     """
     generator = _get_generator()
-    id_value = generator.generate(business_id)
+    id_value = generator.generate(rid)
     parsed = generator.parse_id(id_value)
     return {
         "id": str(id_value),
+        "rid": rid,
         "datacenter_id": parsed["datacenter_id"],
         "machine_id": parsed["machine_id"],
         "recount": parsed["recount"],

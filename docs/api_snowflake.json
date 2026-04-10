@@ -1,0 +1,296 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Snowflake ID 服务 API (app_snowflake)",
+    "description": "基于 Snowflake 算法的分布式唯一 ID 生成服务。HTTP 挂载前缀：`/api/snowflake/`（见 `service_foundation/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期，用于短缓存提示）。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "相对当前站点根路径"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Snowflake",
+      "description": "Snowflake ID 生成"
+    },
+    {
+      "name": "Dictionary",
+      "description": "枚举字典（与 app_snowflake 同 urlconf 挂载）"
+    }
+  ],
+  "paths": {
+    "/api/snowflake/id": {
+      "post": {
+        "tags": ["Snowflake"],
+        "summary": "生成单个 Snowflake ID",
+        "description": "请求体提供 `access_key`。服务端在 `sf_snowflake.reg` 表中按 `access_key` 与 **status=1（启用）** 查询得到主键 `id`，作为 **rid** 参与 Snowflake 段编码（与生成器内 `MASK_BUSINESS_ID` 掩码一致）。\n\n**参数错误**：缺少/非法 `access_key` 或未匹配启用注册时 `errorCode = 100`（`RET_INVALID_PARAM`）。\n\n**时钟回拨**：超过容忍阈值时 `errorCode = 1001`（`RET_SNOWFLAKE_CLOCK_BACKWARD`）。\n\n**其它异常**：未捕获异常走 `resp_exception`，`errorCode` 为 `-1`。",
+        "operationId": "snowflakeGenerateId",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["access_key"],
+                "properties": {
+                  "access_key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "调用方在 `reg` 表中的 access_key（须 status=启用）"
+                  }
+                }
+              },
+              "example": { "access_key": "YOUR_ACCESS_KEY" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode=0`）或业务/逻辑错误（`errorCode≠0`，HTTP 仍为 200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/SnowflakeIdPayload" }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/EnvelopeError"
+                    }
+                  ]
+                },
+                "examples": {
+                  "success": {
+                    "summary": "成功",
+                    "value": {
+                      "errorCode": 0,
+                      "message": "",
+                      "data": {
+                        "id": "1234567890123456789",
+                        "rid": 1,
+                        "datacenter_id": 0,
+                        "machine_id": 0,
+                        "recount": 0,
+                        "business_id": 0,
+                        "timestamp": 1712736000000,
+                        "sequence": 0
+                      }
+                    }
+                  },
+                  "invalidAccessKey": {
+                    "summary": "access_key 无效或未启用",
+                    "value": {
+                      "errorCode": 100,
+                      "message": "invalid or inactive access_key",
+                      "data": null
+                    }
+                  },
+                  "clockBackward": {
+                    "summary": "时钟回拨",
+                    "value": {
+                      "errorCode": 1001,
+                      "message": "Clock backward detected",
+                      "data": null
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置；RFC 1123 日期时间",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/snowflake/dict": {
+      "get": {
+        "tags": ["Dictionary"],
+        "summary": "按枚举代码查询字典项",
+        "description": "查询参数 `codes` 为逗号分隔的注册字典代码。返回值为 **map**：键为代码名，值为 `{ \"k\": 展示名, \"v\": 存储值字符串 }` 的数组。\n\n本应用注册的字典代码见 `app_snowflake/dict_registration.py`（如 `snowflake_event_type`），对应 `EventTypeEnum`。\n\n**未知代码**：静默忽略，不出现在结果中。",
+        "operationId": "snowflakeDictByCodes",
+        "parameters": [
+          {
+            "name": "codes",
+            "in": "query",
+            "required": true,
+            "description": "逗号分隔的字典代码，例如 `snowflake_event_type` 或 `code1,code2`。不能为空或仅空白。",
+            "schema": {
+              "type": "string",
+              "pattern": "\\S",
+              "example": "snowflake_event_type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode=0`）或参数错误（如缺少 `codes`，`errorCode=101` `RET_MISSING_PARAM`）或其它错误（`errorCode=1` `RET_ERR`）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/DictCodesMap" }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/EnvelopeError"
+                    }
+                  ]
+                },
+                "examples": {
+                  "success": {
+                    "summary": "成功",
+                    "value": {
+                      "errorCode": 0,
+                      "message": "",
+                      "data": {
+                        "snowflake_event_type": [
+                          { "k": "服务启动", "v": "0" },
+                          { "k": "服务停止", "v": "1" }
+                        ]
+                      }
+                    }
+                  },
+                  "missingCodes": {
+                    "summary": "缺少 codes",
+                    "value": {
+                      "errorCode": 101,
+                      "message": "codes is required",
+                      "data": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EnvelopeOk": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "enum": [0],
+            "description": "成功为 0（RET_OK）"
+          },
+          "data": { "description": "业务数据" },
+          "message": { "type": "string", "description": "成功时通常为空串" }
+        }
+      },
+      "EnvelopeError": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "非 0。常见：`100`（RET_INVALID_PARAM）—`access_key` 缺失或无效；`101`（RET_MISSING_PARAM）—缺少必填参数；`1001`（RET_SNOWFLAKE_CLOCK_BACKWARD）— Snowflake 时钟回拨；`1`（RET_ERR）—通用错误；`-1`—未处理异常（resp_exception）"
+          },
+          "data": { "nullable": true },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "SnowflakeIdPayload": {
+        "type": "object",
+        "required": [
+          "id",
+          "rid",
+          "datacenter_id",
+          "machine_id",
+          "recount",
+          "business_id",
+          "timestamp",
+          "sequence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "生成的 64 位 ID 的十进制字符串表示"
+          },
+          "rid": {
+            "type": "integer",
+            "format": "int64",
+            "description": "调用方在 `reg` 表中的主键 id（启用状态下查询得到）"
+          },
+          "datacenter_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "数据中心段（位宽见生成器实现）"
+          },
+          "machine_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7,
+            "description": "机器段"
+          },
+          "recount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "重启/时钟回拨相关计数段（recount）"
+          },
+          "business_id": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7,
+            "description": "ID 内解码的 3 位业务段（由 `rid` 经 `MASK_BUSINESS_ID` 掩码参与编码）"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ID 内时间戳对应的**毫秒**时间（UTC 纪元），已加生成器配置的 `start_timestamp` 基准"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "毫秒内序列号（0–4095）"
+          }
+        }
+      },
+      "DictEntry": {
+        "type": "object",
+        "required": ["k", "v"],
+        "properties": {
+          "k": { "type": "string", "description": "展示标签" },
+          "v": { "type": "string", "description": "提交/存储用的枚举值（字符串形式）" }
+        }
+      },
+      "DictCodesMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/DictEntry" }
+        },
+        "description": "字典代码 → 条目列表"
+      }
+    }
+  }
+}
