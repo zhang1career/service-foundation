@@ -7,3 +7,7 @@ class AppVerifyConfig(AppConfig):
 
     def ready(self) -> None:
         import app_verify.dict_registration  # noqa: F401
+
+        from common.dict_catalog import prime_http_dict_cache
+
+        prime_http_dict_cache()

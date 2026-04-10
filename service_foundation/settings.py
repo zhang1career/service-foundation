@@ -374,6 +374,9 @@ CACHES = {
     }
 }
 
+# Prime ``get_dict_by_codes`` LRU at startup (comma-separated); matches perf/locust smoke default.
+DICT_HTTP_PRIME_CODES = env("DICT_HTTP_PRIME_CODES", default="aibroker_nested_param_type")
+
 
 # app_cms
 CMS_PROFILE = env("CMS_PROFILE", default="commerce")
@@ -693,3 +696,8 @@ NEO4J_URI = env("NEO4J_URI", default="bolt://localhost:7687")
 NEO4J_USER = env("NEO4J_USER", default="neo4j")
 NEO4J_PASS = env("NEO4J_PASS", default="")
 NEO4J_DATABASE = env("NEO4J_DATABASE", default="neo4j")
+
+# Warm bundled dict catalog at import (reduces first-request latency on /api/*/dict).
+from common.dict_catalog.registry import warm_dict_catalog_bundled
+
+warm_dict_catalog_bundled()

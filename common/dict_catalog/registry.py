@@ -5,8 +5,9 @@ Python uses decorators (similar in role to Java annotations) to register provide
 """
 from __future__ import annotations
 
+import functools
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Type
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +52,8 @@ def _ensure_bundled_common() -> None:
     _BUNDLED_LOADED = True
 
 
-def get_dict_by_codes(codes: str) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Return { code: [ {"k", "v"}, ... ], ... } for known codes; omit unknown codes.
-    """
+def _compute_dict_by_codes(codes: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Build dict response for one ``codes`` string (uncached)."""
     _ensure_bundled_common()
     if not codes or not isinstance(codes, str):
         return {}
@@ -75,6 +74,22 @@ def get_dict_by_codes(codes: str) -> Dict[str, List[Dict[str, Any]]]:
             continue
         out[c] = items
     return out
+
+
+@functools.lru_cache(maxsize=256)
+def get_dict_by_codes(codes: str) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Return { code: [ {"k", "v"}, ... ], ... } for known codes; omit unknown codes.
+
+    Results are memoized per exact ``codes`` string (process-local). Call
+    ``clear_dict_registry_for_tests`` in tests when the registry is reset.
+    """
+    return _compute_dict_by_codes(codes)
+
+
+def warm_dict_catalog_bundled() -> None:
+    """Import bundled dict registrations early to reduce first-request latency."""
+    _ensure_bundled_common()
 
 
 def dict_value_to_label(code: str, raw: Any) -> str:
@@ -104,5 +119,6 @@ def dict_value_to_label(code: str, raw: Any) -> str:
 def clear_dict_registry_for_tests() -> None:
     """Test helper: drop all registrations (including bundled)."""
     global _BUNDLED_LOADED
+    get_dict_by_codes.cache_clear()
     _REGISTRY.clear()
     _BUNDLED_LOADED = False
