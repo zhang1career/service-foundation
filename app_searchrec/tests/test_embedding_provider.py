@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 
-from providers.embedding_provider import SimpleTextEmbeddingProvider
+from app_searchrec.providers.embedding_provider import SimpleTextEmbeddingProvider
 
 
 class TestSimpleTextEmbeddingProvider(SimpleTestCase):
