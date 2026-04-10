@@ -766,6 +766,12 @@ body {
     color: #1e40af;
 }
 
+/* 未启用 / 中性状态（与 badge-success 成对使用） */
+.badge-neutral {
+    background-color: #e5e7eb;
+    color: #4b5563;
+}
+
 /* Empty state */
 .empty-state {
     text-align: center;

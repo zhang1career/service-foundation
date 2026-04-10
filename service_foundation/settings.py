@@ -591,6 +591,13 @@ NOTICE_SERVICE_URL = env("NOTICE_SERVICE_URL", default="http://127.0.0.1:8000/ap
 NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", default=1)
 # Console SearchRec「API 调试」页示例 JSON 中的 access_key；未设置环境变量时为空字符串
 CONSOLE_SEARCHREC_ACCESS_KEY = env("CONSOLE_SEARCHREC_ACCESS_KEY", default="")
+# 运行监控页服务端拉取 AIBroker 汇总指标（仅服务端使用，勿下发到前端脚本）
+CONSOLE_AIBROKER_ACCESS_KEY = env("CONSOLE_AIBROKER_ACCESS_KEY", default="")
+CONSOLE_AIBROKER_METRICS_WINDOW_MS = env.int("CONSOLE_AIBROKER_METRICS_WINDOW_MS", default=86400000)
+# 可选：携带 ?token= 或请求头 X-Console-Monitoring-Token 访问 /console/api/monitoring.json
+CONSOLE_MONITORING_JSON_TOKEN = env("CONSOLE_MONITORING_JSON_TOKEN", default="")
+# 运行监控页自动刷新间隔（毫秒）；0 表示不自动刷新
+CONSOLE_MONITORING_REFRESH_MS = env.int("CONSOLE_MONITORING_REFRESH_MS", default=60000)
 # Fire-and-forget notice delivery after enqueue (ThreadPoolExecutor cap per worker process)
 NOTICE_SEND_THREAD_POOL_MAX_WORKERS = env.int("NOTICE_SEND_THREAD_POOL_MAX_WORKERS", default=8)
 

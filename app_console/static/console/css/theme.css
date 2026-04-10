@@ -113,3 +113,63 @@ html.theme-dark .spinner { border-color: #374151; border-top-color: #60a5fa; }
 html.theme-dark .pagination-btn { background: #374151; border-color: #4b5563; color: #e5e7eb; }
 html.theme-dark .pagination-btn:hover { background: #4b5563; }
 html.theme-dark .pagination-btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+
+/* 运行监控页：子导航（与 AI Broker subnav 一致，暗色下调整灰底按钮） */
+.monitoring-subnav-btn.is-active {
+    background-color: #2563eb;
+    color: #fff;
+}
+.monitoring-subnav-btn.is-inactive {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+.monitoring-subnav-btn.is-inactive:hover {
+    background-color: #d1d5db;
+}
+html.theme-dark .monitoring-subnav-btn.is-inactive {
+    background-color: #374151;
+    color: #e5e7eb;
+}
+html.theme-dark .monitoring-subnav-btn.is-inactive:hover {
+    background-color: #4b5563;
+}
+html.theme-dark .monitoring-subnav-btn.is-active {
+    background-color: #2563eb;
+    color: #fff;
+}
+
+.monitoring-inline-code,
+html.theme-dark .monitoring-inline-code {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-family: ui-monospace, monospace;
+}
+.monitoring-inline-code {
+    background: #f3f4f6;
+    color: #1f2937;
+}
+html.theme-dark .monitoring-inline-code {
+    background: #374151;
+    color: #e5e7eb;
+}
+
+html.theme-dark .monitoring-cell-detail,
+html.theme-dark .monitoring-mono {
+    color: #d1d5db;
+}
+
+html.theme-dark .monitoring-pre {
+    background: #374151 !important;
+    color: #e5e7eb !important;
+    border: 1px solid #4b5563;
+}
+
+html.theme-dark .badge-neutral {
+    background: #374151;
+    color: #d1d5db;
+}
+
+html.theme-dark .text-green-600 { color: #34d399; }
+html.theme-dark .text-green-700 { color: #6ee7b7; }
+html.theme-dark .text-red-600 { color: #f87171; }

@@ -1,0 +1,9 @@
+{% comment %}
+运行监控子导航（与 includes/aibroker_subnav.html 同款：激活项蓝底白字，未激活灰底）
+默认「应用管理」为激活项；切换由 console/js/monitoring.js 负责。
+{% endcomment %}
+<nav class="flex flex-wrap gap-4 mb-4" aria-label="运行监控分区">
+    <button type="button" class="px-4 py-2 rounded-lg monitoring-subnav-btn is-active" data-monitoring-tab="apps">应用管理</button>
+    <button type="button" class="px-4 py-2 rounded-lg monitoring-subnav-btn is-inactive" data-monitoring-tab="infra">基础设施</button>
+    <button type="button" class="px-4 py-2 rounded-lg monitoring-subnav-btn is-inactive" data-monitoring-tab="other">其他</button>
+</nav>
