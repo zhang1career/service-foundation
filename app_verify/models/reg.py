@@ -1,6 +1,6 @@
 from django.db import models
 
-from app_verify.enums import RegStatusEnum
+from common.enums.service_reg_status_enum import ServiceRegStatus
 
 
 class Reg(models.Model):
@@ -8,8 +8,8 @@ class Reg(models.Model):
     name = models.CharField(max_length=128)
     access_key = models.CharField(max_length=64)
     status = models.SmallIntegerField(
-        choices=[(item.value, item.name) for item in RegStatusEnum],
-        default=RegStatusEnum.DISABLED.value,
+        choices=[(item.value, item.name) for item in ServiceRegStatus],
+        default=ServiceRegStatus.DISABLED.value,
     )
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)

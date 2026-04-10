@@ -4,7 +4,8 @@ import random
 
 from django.conf import settings
 
-from app_verify.enums import RegStatusEnum, VerifyLevelEnum, VerifyLogActionEnum
+from app_verify.enums import VerifyLevelEnum, VerifyLogActionEnum
+from common.enums.service_reg_status_enum import ServiceRegStatus
 from app_verify.repos import (
     create_verify_code,
     create_verify_log,
@@ -111,7 +112,7 @@ class VerifyService:
             )
             raise ValueError("access_key is required")
         reg = get_reg_by_access_key(access_key)
-        if not reg or int(reg.status) != RegStatusEnum.ENABLED:
+        if not reg or int(reg.status) != ServiceRegStatus.ENABLED:
             VerifyService._log_request(
                 reg_id=int(reg.id) if reg else 0,
                 ref_id=ref_id,
@@ -129,7 +130,7 @@ class VerifyService:
         if level not in VerifyLevelEnum.values():
             raise ValueError(f"level must be one of {VerifyLevelEnum.values()}")
         reg = get_reg_by_id(int(reg_id))
-        if reg is None or int(reg.status) != RegStatusEnum.ENABLED:
+        if reg is None or int(reg.status) != ServiceRegStatus.ENABLED:
             raise ValueError("invalid or disabled reg")
         return VerifyService._create_code_for_reg(reg, level, int(ref_id))
 
@@ -157,7 +158,7 @@ class VerifyService:
             )
             raise ValueError("code is required")
         reg = get_reg_by_access_key(access_key)
-        if not reg or int(reg.status) != RegStatusEnum.ENABLED:
+        if not reg or int(reg.status) != ServiceRegStatus.ENABLED:
             VerifyService._log_check(
                 reg_id=int(reg.id) if reg else 0,
                 ref_id=0,

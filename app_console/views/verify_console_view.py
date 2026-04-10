@@ -4,7 +4,8 @@ from django.http import Http404, HttpResponseRedirect
 from django.urls import reverse
 from django.views.generic import TemplateView
 
-from app_verify.enums import RegStatusEnum, VerifyLevelEnum, VerifyLogActionEnum
+from app_verify.enums import VerifyLevelEnum, VerifyLogActionEnum
+from common.enums.service_reg_status_enum import ServiceRegStatus
 from app_verify.repos import (
     delete_verify_code_by_id,
     delete_verify_codes_by_ids,
@@ -68,7 +69,7 @@ def _verify_regs_enabled_for_select() -> list[dict]:
     rows: list[dict] = []
     try:
         for r in VerifyRegService.list_all():
-            if int(r.get("status", RegStatusEnum.DISABLED)) != RegStatusEnum.ENABLED:
+            if int(r.get("status", ServiceRegStatus.DISABLED)) != ServiceRegStatus.ENABLED:
                 continue
             rid = int(r["id"])
             name = (r.get("name") or "").strip()

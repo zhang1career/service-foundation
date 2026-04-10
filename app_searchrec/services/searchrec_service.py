@@ -5,6 +5,7 @@ from app_searchrec.adapters import (
     build_index_adapter,
     build_vector_adapter,
 )
+from app_searchrec.validation import normalize_upsert_document_payload
 
 
 def _clamp_top_k(requested, configured_default):
@@ -61,10 +62,15 @@ class SearchRecService:
     def upsert_documents(cls, rid: int, docs):
         if not isinstance(docs, list) or not docs:
             raise ValueError("field `documents` must be a non-empty list")
+        normalized = []
+        for item in docs:
+            if not isinstance(item, dict):
+                raise ValueError("each document must be an object")
+            normalized.append(normalize_upsert_document_payload(item))
         cls._ensure_adapters()
-        index_result = cls._index_adapter.upsert_documents(rid, docs)
-        cls._vector_adapter.upsert_documents(rid, docs)
-        cls._feature_store_adapter.upsert_documents(rid, docs)
+        index_result = cls._index_adapter.upsert_documents(rid, normalized)
+        cls._vector_adapter.upsert_documents(rid, normalized)
+        cls._feature_store_adapter.upsert_documents(rid, normalized)
         return index_result
 
     @classmethod

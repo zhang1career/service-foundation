@@ -14,6 +14,7 @@
             <h2 class="text-lg font-semibold text-gray-800">SearchRec API 调试</h2>
             <p class="text-sm text-gray-600 mt-1">最小可用控制台：支持 index/upsert、search、recommend、rank 四个接口。</p>
             <p class="text-xs text-gray-500 mt-1">API Base: <code>{{ searchrec_api_base }}</code></p>
+            <p class="text-xs text-gray-500 mt-1">请求体 <code>access_key</code> 默认取自环境变量 <code>CONSOLE_SEARCHREC_ACCESS_KEY</code>；可直接在下方 JSON 中修改。</p>
             {% if not searchrec_enabled %}
             <p class="text-sm text-red-600 mt-2">当前 APP_SEARCHREC_ENABLED=false，接口可能不可用。</p>
             {% endif %}
@@ -24,8 +25,8 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="font-semibold mb-2">index/upsert</h3>
-                <textarea id="payload-upsert" class="w-full h-44 p-2 border rounded font-mono text-xs">{"rid":1,"documents":[{"id":"doc_1","title":"Hello Search","content":"search and recommend","tags":["search"],"score_boost":1.0}]}</textarea>
-                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/index/upsert','payload-upsert','resp-upsert')">发送</button>
+                <textarea id="payload-upsert" class="w-full h-44 p-2 border rounded font-mono text-xs">{{ searchrec_examples.upsert }}</textarea>
+                <button type="button" class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/index/upsert','payload-upsert','resp-upsert')">发送</button>
                 <pre id="resp-upsert" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
             </div>
         </div>
@@ -33,8 +34,8 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="font-semibold mb-2">search</h3>
-                <textarea id="payload-search" class="w-full h-44 p-2 border rounded font-mono text-xs">{"rid":1,"query":"search recommend","top_k":10,"preferred_tags":["search"]}</textarea>
-                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/search','payload-search','resp-search')">发送</button>
+                <textarea id="payload-search" class="w-full h-44 p-2 border rounded font-mono text-xs">{{ searchrec_examples.search }}</textarea>
+                <button type="button" class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/search','payload-search','resp-search')">发送</button>
                 <pre id="resp-search" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
             </div>
         </div>
@@ -42,8 +43,8 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="font-semibold mb-2">recommend</h3>
-                <textarea id="payload-recommend" class="w-full h-44 p-2 border rounded font-mono text-xs">{"rid":1,"user_profile":{"preferred_tags":["search"],"recent_queries":["hybrid search"],"affinity_boost":1.1},"top_k":10}</textarea>
-                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/recommend','payload-recommend','resp-recommend')">发送</button>
+                <textarea id="payload-recommend" class="w-full h-44 p-2 border rounded font-mono text-xs">{{ searchrec_examples.recommend }}</textarea>
+                <button type="button" class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/recommend','payload-recommend','resp-recommend')">发送</button>
                 <pre id="resp-recommend" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
             </div>
         </div>
@@ -51,8 +52,8 @@
         <div class="card">
             <div class="card-body">
                 <h3 class="font-semibold mb-2">rank</h3>
-                <textarea id="payload-rank" class="w-full h-44 p-2 border rounded font-mono text-xs">{"strategy":"hybrid","candidates":[{"id":"a","base_score":0.8,"ctr_score":0.2,"freshness_score":0.3},{"id":"b","base_score":0.6,"ctr_score":0.7,"freshness_score":0.1}]}</textarea>
-                <button class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/rank','payload-rank','resp-rank')">发送</button>
+                <textarea id="payload-rank" class="w-full h-44 p-2 border rounded font-mono text-xs">{{ searchrec_examples.rank }}</textarea>
+                <button type="button" class="btn btn-primary btn-sm mt-2" onclick="callSearchRec('/rank','payload-rank','resp-rank')">发送</button>
                 <pre id="resp-rank" class="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto"></pre>
             </div>
         </div>

@@ -4,11 +4,15 @@ from django.test import SimpleTestCase, override_settings
 
 from app_searchrec.services import SearchRecService
 from app_searchrec.services.searchrec_service import _clamp_top_k, _score_boost_for_item
-from app_searchrec.tests.fake_lexical_index import FakeLexicalIndexAdapter
+from app_searchrec.tests.fake_lexical_index import (
+    FakeFeatureStoreAdapter,
+    FakeLexicalIndexAdapter,
+    FakeVectorAdapter,
+)
 
 
 class _PatchLexicalIndexMixin:
-    """Avoid requiring MySQL searchrec_rw in unit tests; production uses DbIndexAdapter."""
+    """Avoid requiring MySQL searchrec_rw in unit tests; production uses DB-backed adapters."""
 
     def setUp(self):
         # Drop cached adapters before patching: otherwise reset() would call
@@ -16,12 +20,23 @@ class _PatchLexicalIndexMixin:
         SearchRecService._index_adapter = None
         SearchRecService._vector_adapter = None
         SearchRecService._feature_store_adapter = None
-        self._patcher = patch(
-            "app_searchrec.services.searchrec_service.build_index_adapter",
-            return_value=FakeLexicalIndexAdapter(),
+        self._patchers = (
+            patch(
+                "app_searchrec.services.searchrec_service.build_index_adapter",
+                return_value=FakeLexicalIndexAdapter(),
+            ),
+            patch(
+                "app_searchrec.services.searchrec_service.build_vector_adapter",
+                return_value=FakeVectorAdapter(),
+            ),
+            patch(
+                "app_searchrec.services.searchrec_service.build_feature_store_adapter",
+                return_value=FakeFeatureStoreAdapter(),
+            ),
         )
-        self._patcher.start()
-        self.addCleanup(self._patcher.stop)
+        for p in self._patchers:
+            p.start()
+            self.addCleanup(p.stop)
         SearchRecService.reset()
 
     def tearDown(self):
@@ -168,9 +183,9 @@ class TestScoreBoostForItem(SimpleTestCase):
         self.assertEqual(_score_boost_for_item({"score_boost": None}, {"score_boost": 0.5}), 0.5)
 
 
-class TestSearchRecServiceValidation(SimpleTestCase):
-    def tearDown(self):
-        SearchRecService.reset()
+class TestSearchRecServiceValidation(_PatchLexicalIndexMixin, SimpleTestCase):
+    def setUp(self):
+        super().setUp()
 
     def test_upsert_rejects_non_list(self):
         with self.assertRaisesMessage(ValueError, "field `documents` must be a non-empty list"):
@@ -179,6 +194,55 @@ class TestSearchRecServiceValidation(SimpleTestCase):
     def test_upsert_rejects_empty_list(self):
         with self.assertRaisesMessage(ValueError, "field `documents` must be a non-empty list"):
             SearchRecService.upsert_documents(1, [])
+
+    def test_upsert_rejects_non_object_document(self):
+        with self.assertRaisesMessage(ValueError, "each document must be an object"):
+            SearchRecService.upsert_documents(1, ["not-a-dict"])
+
+    def test_upsert_rejects_popularity_above_one(self):
+        with self.assertRaisesMessage(ValueError, "field `popularity_score` must be normalized"):
+            SearchRecService.upsert_documents(
+                1,
+                [
+                    {
+                        "id": "x",
+                        "title": "t",
+                        "content": "c",
+                        "tags": [],
+                        "popularity_score": 1.0001,
+                    },
+                ],
+            )
+
+    def test_upsert_rejects_freshness_negative(self):
+        with self.assertRaisesMessage(ValueError, "field `freshness_score` must be normalized"):
+            SearchRecService.upsert_documents(
+                1,
+                [
+                    {
+                        "id": "x",
+                        "title": "t",
+                        "content": "c",
+                        "tags": [],
+                        "freshness_score": -0.01,
+                    },
+                ],
+            )
+
+    def test_upsert_accepts_unit_interval_boundaries(self):
+        SearchRecService.upsert_documents(
+            1,
+            [
+                {
+                    "id": "edge",
+                    "title": "t",
+                    "content": "c",
+                    "tags": [],
+                    "popularity_score": 0.0,
+                    "freshness_score": 1.0,
+                },
+            ],
+        )
 
     def test_rank_rejects_non_list_candidates(self):
         with self.assertRaisesMessage(ValueError, "field `candidates` must be list"):

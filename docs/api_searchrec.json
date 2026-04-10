@@ -63,7 +63,7 @@
       "post": {
         "tags": ["SearchRec"],
         "summary": "索引写入（文档 upsert）",
-        "description": "写入索引、向量侧与特征侧适配器。`documents` 为非空数组；单条须含 `id`（业务文档键，与 DB `doc_key` 对应，长度受配置限制）。返回值为索引适配器结果（如 upserted / total）。",
+        "description": "写入索引、向量侧与特征侧适配器。请求体须含 `access_key`：服务端在 `reg` 表中按 `access_key` 与 **status=1（启用）** 查询得到主键 `id`，作为内部 `rid` 写入 `doc` / `doc_term` 等。`documents` 为非空数组；单条须含 `id`（业务文档键，与 DB `doc_key` 对应，长度受配置限制）。**`popularity_score` 与 `freshness_score` 为归一化分值**：须在闭区间 **[0, 1]** 内（含端点）；缺省或 JSON `null` 按 **0** 处理；非法值返回参数错误。DB 层对 `doc` 表两列有 CHECK 约束与之一致。返回值为索引适配器结果（如 upserted / total）。",
         "operationId": "searchrecIndexUpsert",
         "requestBody": {
           "required": true,
@@ -73,6 +73,7 @@
               "examples": {
                 "sample": {
                   "value": {
+                    "access_key": "YOUR_ACCESS_KEY",
                     "documents": [
                       {
                         "id": "doc_001",
@@ -124,7 +125,7 @@
       "post": {
         "tags": ["SearchRec"],
         "summary": "关键词搜索",
-        "description": "融合 lexical、向量召回、标签与 popularity，再乘 score_boost。`top_k` 会被限制在 [1, 100]。",
+        "description": "融合 lexical、向量召回、标签与 popularity，再乘 score_boost。须传 `access_key`，解析方式同 index/upsert。`top_k` 会被限制在 [1, 100]。",
         "operationId": "searchrecSearch",
         "requestBody": {
           "required": true,
@@ -168,7 +169,7 @@
       "post": {
         "tags": ["SearchRec"],
         "summary": "个性化推荐",
-        "description": "根据 `user_profile` 取用户特征，构造 query 后调用与 search 相同的融合逻辑，再对分数乘以 `affinity_boost`。",
+        "description": "根据 `user_profile` 取用户特征，构造 query 后调用与 search 相同的融合逻辑，再对分数乘以 `affinity_boost`。须传 `access_key`，解析方式同 index/upsert。",
         "operationId": "searchrecRecommend",
         "requestBody": {
           "required": true,
@@ -212,7 +213,7 @@
       "post": {
         "tags": ["SearchRec"],
         "summary": "候选重排序",
-        "description": "不访问索引/向量/特征适配器，仅根据 `base_score`、`ctr_score`、`freshness_score` 与 `strategy` 计算 `final_score` 并排序。未识别的 strategy 名按 hybrid 混合权重处理。",
+        "description": "须传 `access_key`：服务端校验 reg 表中存在启用（status=1）的对应记录后，再执行排序逻辑。不访问索引/向量/特征适配器，仅根据 `base_score`、`ctr_score`、`freshness_score` 与 `strategy` 计算 `final_score` 并排序。未识别的 strategy 名按 hybrid 混合权重处理。",
         "operationId": "searchrecRank",
         "requestBody": {
           "required": true,
@@ -333,10 +334,16 @@
           "_req_id": { "type": "string" }
         }
       },
+      "AccessKey": {
+        "type": "string",
+        "minLength": 1,
+        "description": "使用方 Access Key。服务端在 `reg` 表中按 `access_key` 与 **status=1（启用）** 查询，得到主键 `id` 作为内部租户标识 `rid`；未匹配或非启用则返回参数错误。"
+      },
       "UpsertRequest": {
         "type": "object",
-        "required": ["documents"],
+        "required": ["access_key", "documents"],
         "properties": {
+          "access_key": { "$ref": "#/components/schemas/AccessKey" },
           "documents": {
             "type": "array",
             "minItems": 1,
@@ -360,8 +367,20 @@
             "description": "缺省按空列表处理；若提供则须为数组，否则索引层抛出参数错误"
           },
           "score_boost": { "type": "number", "format": "float", "default": 1.0 },
-          "popularity_score": { "type": "number", "format": "float", "default": 0.0 },
-          "freshness_score": { "type": "number", "format": "float", "default": 0.0 }
+          "popularity_score": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "归一化热度，闭区间 [0, 1]；缺省为 0"
+          },
+          "freshness_score": {
+            "type": "number",
+            "format": "float",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "归一化新鲜度，闭区间 [0, 1]；缺省为 0"
+          }
         }
       },
       "UpsertResult": {
@@ -375,7 +394,9 @@
       },
       "SearchRequest": {
         "type": "object",
+        "required": ["access_key"],
         "properties": {
+          "access_key": { "$ref": "#/components/schemas/AccessKey" },
           "query": { "type": "string", "description": "查询串，空字符串允许" },
           "top_k": { "type": "integer", "default": 10, "minimum": 1, "maximum": 100 },
           "preferred_tags": {
@@ -419,7 +440,9 @@
       },
       "RecommendRequest": {
         "type": "object",
+        "required": ["access_key"],
         "properties": {
+          "access_key": { "$ref": "#/components/schemas/AccessKey" },
           "user_profile": {
             "type": "object",
             "additionalProperties": true,
@@ -430,8 +453,9 @@
       },
       "RankRequest": {
         "type": "object",
-        "required": ["candidates"],
+        "required": ["access_key", "candidates"],
         "properties": {
+          "access_key": { "$ref": "#/components/schemas/AccessKey" },
           "candidates": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/RankCandidate" }

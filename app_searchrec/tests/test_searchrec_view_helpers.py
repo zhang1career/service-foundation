@@ -1,34 +1,33 @@
 """Tests for searchrec view request parsing helpers."""
 
+from unittest.mock import MagicMock, patch
+
 from django.test import SimpleTestCase
 
 from app_searchrec.views.searchrec_view import (
-    _optional_dict,
-    _optional_list,
-    _parse_rid,
+    _resolve_reg_id_from_payload,
     _strategy_param,
 )
+from common.enums.service_reg_status_enum import ServiceRegStatus
 
 
 class TestViewHelpers(SimpleTestCase):
-    def test_optional_list(self):
-        self.assertEqual(_optional_list(None), [])
-        self.assertEqual(_optional_list("x"), [])
-        self.assertEqual(_optional_list([1, 2]), [1, 2])
-
-    def test_optional_dict(self):
-        self.assertEqual(_optional_dict(None), {})
-        self.assertEqual(_optional_dict([]), {})
-        self.assertEqual(_optional_dict({"a": 1}), {"a": 1})
-
     def test_strategy_param(self):
         self.assertEqual(_strategy_param(None), "hybrid")
         self.assertEqual(_strategy_param(""), "hybrid")
         self.assertEqual(_strategy_param("ctr_first"), "ctr_first")
 
-    def test_parse_rid(self):
-        self.assertEqual(_parse_rid({"rid": 1}), 1)
-        with self.assertRaisesMessage(ValueError, "field `rid` is required"):
-            _parse_rid({})
-        with self.assertRaisesMessage(ValueError, "field `rid` must be a positive integer"):
-            _parse_rid({"rid": 0})
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
+    def test_resolve_reg_id_ok(self, get_reg):
+        get_reg.return_value = MagicMock(id=42)
+        self.assertEqual(_resolve_reg_id_from_payload({"access_key": "  abc  "}), 42)
+        get_reg.assert_called_once_with("abc", ServiceRegStatus.ENABLED)
+
+    def test_resolve_reg_id_missing_access_key(self):
+        with self.assertRaisesMessage(ValueError, "field `access_key` is required"):
+            _resolve_reg_id_from_payload({})
+
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status", return_value=None)
+    def test_resolve_reg_id_not_found(self, _get):
+        with self.assertRaisesMessage(ValueError, "invalid or inactive access_key"):
+            _resolve_reg_id_from_payload({"access_key": "nope"})

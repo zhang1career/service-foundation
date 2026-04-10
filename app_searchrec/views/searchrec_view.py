@@ -1,7 +1,9 @@
 from rest_framework.views import APIView
 
+from app_searchrec.repos.reg_repo import get_reg_by_access_key_and_status
 from app_searchrec.services import SearchRecService
 from common.consts.response_const import RET_INVALID_PARAM
+from common.enums.service_reg_status_enum import ServiceRegStatus
 from common.utils.http_util import (
     attach_request_id_header,
     post_payload,
@@ -9,18 +11,7 @@ from common.utils.http_util import (
     resp_err,
     resp_ok,
 )
-
-
-def _optional_list(value):
-    if value is None or not isinstance(value, list):
-        return []
-    return value
-
-
-def _optional_dict(value):
-    if value is None or not isinstance(value, dict):
-        return {}
-    return value
+from common.utils.type_util import as_dict, as_list
 
 
 def _strategy_param(raw):
@@ -29,19 +20,16 @@ def _strategy_param(raw):
     return str(raw)
 
 
-def _parse_rid(data) -> int:
+def _resolve_reg_id_from_payload(data) -> int:
     if not isinstance(data, dict):
-        raise ValueError("field `rid` is required")
-    raw = data.get("rid")
-    if raw is None:
-        raise ValueError("field `rid` is required")
-    try:
-        rid = int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("field `rid` must be a positive integer") from exc
-    if rid <= 0:
-        raise ValueError("field `rid` must be a positive integer")
-    return rid
+        raise ValueError("field `access_key` is required")
+    access_key = (data.get("access_key") or "").strip()
+    if not access_key:
+        raise ValueError("field `access_key` is required")
+    reg = get_reg_by_access_key_and_status(access_key, ServiceRegStatus.ENABLED)
+    if not reg:
+        raise ValueError("invalid or inactive access_key")
+    return reg.id
 
 
 def _with_request_id(request, response, request_id=None):
@@ -60,7 +48,7 @@ class SearchRecIndexUpsertView(APIView):
         data = post_payload(request)
         req_id = resolve_request_id(request)
         try:
-            reg_id = _parse_rid(data)
+            reg_id = _resolve_reg_id_from_payload(data)
             return _with_request_id(
                 request,
                 resp_ok(SearchRecService.upsert_documents(reg_id, data.get("documents"))),
@@ -75,7 +63,7 @@ class SearchRecSearchView(APIView):
         data = post_payload(request)
         req_id = resolve_request_id(request)
         try:
-            reg_id = _parse_rid(data)
+            reg_id = _resolve_reg_id_from_payload(data)
             return _with_request_id(
                 request,
                 resp_ok(
@@ -83,7 +71,7 @@ class SearchRecSearchView(APIView):
                         reg_id,
                         query=str(data.get("query", "")),
                         top_k=data.get("top_k", 10),
-                        preferred_tags=_optional_list(data.get("preferred_tags")),
+                        preferred_tags=as_list(data.get("preferred_tags")),
                     )
                 ),
                 req_id,
@@ -97,13 +85,13 @@ class SearchRecRecommendView(APIView):
         data = post_payload(request)
         req_id = resolve_request_id(request)
         try:
-            reg_id = _parse_rid(data)
+            reg_id = _resolve_reg_id_from_payload(data)
             return _with_request_id(
                 request,
                 resp_ok(
                     SearchRecService.recommend(
                         reg_id,
-                        user_profile=_optional_dict(data.get("user_profile")),
+                        user_profile=as_dict(data.get("user_profile")),
                         top_k=data.get("top_k", 10),
                     )
                 ),
@@ -118,11 +106,12 @@ class SearchRecRankView(APIView):
         data = post_payload(request)
         req_id = resolve_request_id(request)
         try:
+            _resolve_reg_id_from_payload(data)
             return _with_request_id(
                 request,
                 resp_ok(
                     SearchRecService.rank(
-                        candidates=_optional_list(data.get("candidates")),
+                        candidates=as_list(data.get("candidates")),
                         strategy=_strategy_param(data.get("strategy")),
                     )
                 ),

@@ -1,7 +1,11 @@
+from collections import defaultdict
+
 from django.conf import settings
 
 from app_searchrec.adapters.base_http_adapter import BaseHttpAdapter
 from app_searchrec.adapters.embedding_provider import SimpleTextEmbeddingProvider
+from app_searchrec.adapters.index_store import _norm_term, _tokenize
+from app_searchrec.models import SearchRecDocTerm
 
 
 def _milvus_vector_score(item):
@@ -18,41 +22,34 @@ def _qdrant_doc_id(payload, item):
     return str(raw).strip() if raw is not None else ""
 
 
-class MemoryVectorAdapter:
-    def __init__(self):
-        self._vectors = {}
+class DbVectorAdapter:
+    """Lexical overlap score from `doc_term` rows; tokenization matches `DbIndexAdapter`."""
 
     def reset(self):
-        self._vectors = {}
+        return
 
     def upsert_documents(self, rid: int, docs):
-        for payload in docs:
-            doc_id = str(payload.get("id", "")).strip()
-            if not doc_id:
-                continue
-            tags = [str(t).strip().lower() for t in (payload.get("tags") or []) if str(t).strip()]
-            title = str(payload.get("title", "")).lower()
-            content = str(payload.get("content", "")).lower()
-            self._vectors[(int(rid), doc_id)] = {
-                "id": doc_id,
-                "rid": int(rid),
-                "profile_terms": set(tags + title.split() + content.split()),
-            }
+        return
 
     def search(self, rid: int, query, top_k):
-        terms = set(str(query or "").lower().split())
-        if not terms:
+        q_terms = {_norm_term(t) for t in _tokenize(query)}
+        if not q_terms:
             return []
+        rows = (
+            SearchRecDocTerm.objects.filter(rid_id=int(rid), term__in=q_terms)
+            .values("doc_key", "term")
+            .iterator(chunk_size=2000)
+        )
+        by_doc: dict[str, set[str]] = defaultdict(set)
+        for r in rows:
+            by_doc[r["doc_key"]].add(r["term"])
         items = []
-        for (stored_rid, _), item in self._vectors.items():
-            if stored_rid != int(rid):
-                continue
-            overlap = len(terms & item["profile_terms"])
-            if overlap <= 0:
-                continue
-            items.append({"id": item["id"], "vector_score": float(overlap)})
+        for doc_key, doc_terms in by_doc.items():
+            overlap = len(q_terms & doc_terms)
+            if overlap > 0:
+                items.append({"id": doc_key, "vector_score": float(overlap)})
         items.sort(key=lambda x: x["vector_score"], reverse=True)
-        return items[:top_k]
+        return items[: int(top_k)]
 
 
 class MilvusVectorAdapter(BaseHttpAdapter):
@@ -182,4 +179,4 @@ def build_vector_adapter():
         return MilvusVectorAdapter()
     if qdrant_on:
         return QdrantVectorAdapter()
-    return MemoryVectorAdapter()
+    return DbVectorAdapter()

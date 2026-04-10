@@ -1,8 +1,9 @@
 import json
+from unittest.mock import MagicMock, patch
+
 from django.conf import settings
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
-from unittest.mock import patch
 
 from app_searchrec.views.searchrec_view import (
     SearchRecHealthView,
@@ -12,6 +13,12 @@ from app_searchrec.views.searchrec_view import (
     SearchRecSearchView,
 )
 from common.consts.response_const import RET_INVALID_PARAM, RET_OK
+
+
+def _active_reg_mock():
+    r = MagicMock()
+    r.id = 1
+    return r
 
 
 class SearchRecViewsFunctionalTest(SimpleTestCase):
@@ -41,12 +48,14 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         response.render()
         self.assertEqual(response[header_name], "client-rid-9")
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_index_upsert_success(self, service_cls):
+    def test_index_upsert_success(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.upsert_documents.return_value = {"upserted": 2}
         request = self.factory.post(
             "/api/searchrec/index/upsert",
-            data={"rid": 1, "documents": [{"id": "1"}, {"id": "2"}]},
+            data={"access_key": "k", "documents": [{"id": "1"}, {"id": "2"}]},
             format="json",
         )
         response = SearchRecIndexUpsertView.as_view()(request)
@@ -55,12 +64,14 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         self.assertEqual(payload["errorCode"], RET_OK)
         self.assertEqual(payload["data"]["upserted"], 2)
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_search_invalid_payload(self, service_cls):
+    def test_search_invalid_payload(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.search.side_effect = ValueError("query is required")
         request = self.factory.post(
             "/api/searchrec/search",
-            data={"rid": 1, "query": ""},
+            data={"access_key": "k", "query": ""},
             format="json",
         )
         response = SearchRecSearchView.as_view()(request)
@@ -68,12 +79,14 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_recommend_success(self, service_cls):
+    def test_recommend_success(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.recommend.return_value = {"total_hits": 1, "items": [{"id": "doc1"}]}
         request = self.factory.post(
             "/api/searchrec/recommend",
-            data={"rid": 1, "user_profile": {"preferred_tags": ["x"]}},
+            data={"access_key": "k", "user_profile": {"preferred_tags": ["x"]}},
             format="json",
         )
         response = SearchRecRecommendView.as_view()(request)
@@ -82,12 +95,18 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         self.assertEqual(payload["errorCode"], RET_OK)
         self.assertEqual(payload["data"]["items"][0]["id"], "doc1")
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_rank_success(self, service_cls):
+    def test_rank_success(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.rank.return_value = {"items": [{"id": "A"}]}
         request = self.factory.post(
             "/api/searchrec/rank",
-            data={"candidates": [{"id": "A", "base_score": 1}], "strategy": "hybrid"},
+            data={
+                "access_key": "k",
+                "candidates": [{"id": "A", "base_score": 1}],
+                "strategy": "hybrid",
+            },
             format="json",
         )
         response = SearchRecRankView.as_view()(request)
@@ -95,33 +114,39 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_OK)
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_search_null_preferred_tags_becomes_empty_list(self, service_cls):
+    def test_search_null_preferred_tags_becomes_empty_list(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.search.return_value = {"items": [], "total_hits": 0}
         request = self.factory.post(
             "/api/searchrec/search",
-            data={"rid": 1, "query": "q", "preferred_tags": None},
+            data={"access_key": "k", "query": "q", "preferred_tags": None},
             format="json",
         )
         SearchRecSearchView.as_view()(request)
         service_cls.search.assert_called_once_with(1, query="q", top_k=10, preferred_tags=[])
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_rank_null_strategy_uses_hybrid(self, service_cls):
+    def test_rank_null_strategy_uses_hybrid(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.rank.return_value = {"items": []}
         request = self.factory.post(
             "/api/searchrec/rank",
-            data={"candidates": [], "strategy": None},
+            data={"access_key": "k", "candidates": [], "strategy": None},
             format="json",
         )
         SearchRecRankView.as_view()(request)
         service_cls.rank.assert_called_once_with(candidates=[], strategy="hybrid")
 
-    def test_index_upsert_empty_documents_returns_invalid_param(self):
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
+    def test_index_upsert_empty_documents_returns_invalid_param(self, get_reg):
+        get_reg.return_value = _active_reg_mock()
         header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
         request = self.factory.post(
             "/api/searchrec/index/upsert",
-            data={"rid": 1, "documents": []},
+            data={"access_key": "k", "documents": []},
             format="json",
             HTTP_X_REQUEST_ID="err-rid-1",
         )
@@ -131,12 +156,14 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
         self.assertEqual(response[header_name], "err-rid-1")
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_search_value_error_returns_invalid_param(self, service_cls):
+    def test_search_value_error_returns_invalid_param(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.search.side_effect = ValueError("bad query")
         request = self.factory.post(
             "/api/searchrec/search",
-            data={"rid": 1, "query": "x"},
+            data={"access_key": "k", "query": "x"},
             format="json",
         )
         response = SearchRecSearchView.as_view()(request)
@@ -145,12 +172,14 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
         self.assertIn("bad query", payload["message"])
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_recommend_value_error_returns_invalid_param(self, service_cls):
+    def test_recommend_value_error_returns_invalid_param(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.recommend.side_effect = ValueError("bad profile")
         request = self.factory.post(
             "/api/searchrec/recommend",
-            data={"rid": 1},
+            data={"access_key": "k"},
             format="json",
         )
         response = SearchRecRecommendView.as_view()(request)
@@ -158,10 +187,16 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
 
+    @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     @patch("app_searchrec.views.searchrec_view.SearchRecService")
-    def test_rank_value_error_returns_invalid_param(self, service_cls):
+    def test_rank_value_error_returns_invalid_param(self, service_cls, get_reg):
+        get_reg.return_value = _active_reg_mock()
         service_cls.rank.side_effect = ValueError("bad candidates")
-        request = self.factory.post("/api/searchrec/rank", data={"candidates": []}, format="json")
+        request = self.factory.post(
+            "/api/searchrec/rank",
+            data={"access_key": "k", "candidates": []},
+            format="json",
+        )
         response = SearchRecRankView.as_view()(request)
         response.render()
         payload = json.loads(response.content)

@@ -589,6 +589,8 @@ PROMPT_TEMPLATE_ID_RELATION_EXTRACT = env.int("PROMPT_TEMPLATE_ID_RELATION_EXTRA
 NOTICE_SERVICE_URL = env("NOTICE_SERVICE_URL", default="http://127.0.0.1:8000/api/notice/send")
 # 控制台「手动发送」默认写入 notice 记录的 event_id（可改为业务侧约定值）
 NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", default=1)
+# Console SearchRec「API 调试」页示例 JSON 中的 access_key；未设置环境变量时为空字符串
+CONSOLE_SEARCHREC_ACCESS_KEY = env("CONSOLE_SEARCHREC_ACCESS_KEY", default="")
 # Fire-and-forget notice delivery after enqueue (ThreadPoolExecutor cap per worker process)
 NOTICE_SEND_THREAD_POOL_MAX_WORKERS = env.int("NOTICE_SEND_THREAD_POOL_MAX_WORKERS", default=8)
 

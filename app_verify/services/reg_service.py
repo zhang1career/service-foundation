@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app_verify.enums import RegStatusEnum
+from common.enums.service_reg_status_enum import ServiceRegStatus
 from app_verify.models import Reg
 from app_verify.repos import (
     create_reg,
@@ -15,9 +15,9 @@ from app_verify.repos import (
 
 def _parse_reg_status(raw) -> int:
     try:
-        return int(RegStatusEnum(int(raw)))
+        return int(ServiceRegStatus(int(raw)))
     except ValueError:
-        raise ValueError(f"status must be one of {RegStatusEnum.values()}") from None
+        raise ValueError(f"status must be one of {ServiceRegStatus.values()}") from None
 
 
 def _to_dict(reg: Reg) -> dict[str, Any]:
@@ -35,7 +35,7 @@ class RegService:
     @staticmethod
     def create_by_payload(payload: dict) -> dict[str, Any]:
         name = (payload.get("name") or "").strip()
-        status = _parse_reg_status(payload.get("status", RegStatusEnum.DISABLED.value))
+        status = _parse_reg_status(payload.get("status", ServiceRegStatus.DISABLED.value))
         if not name:
             raise ValueError("name is required")
         reg = create_reg(name=name, status=status)

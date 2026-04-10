@@ -16,6 +16,7 @@ from app_notice.services.channel_broker_map import channel_to_broker_channel_ids
 from app_notice.services.email_notice_service import EmailNoticeService
 from app_notice.services.sms_notice_service import SmsNoticeService
 from common.consts.string_const import EMPTY_STRING
+from common.enums.service_reg_status_enum import ServiceRegStatus
 from common.services.thread.thread_pool import get_thread_pool_executor
 from common.utils.type_util import parse_int_or_default
 
@@ -52,7 +53,7 @@ def enqueue_notice_by_payload(payload: dict) -> dict:
         BrokerEnum.to_broker(broker)
 
     reg = get_reg_by_access_key(access_key)
-    if not reg or reg.status != 1:
+    if not reg or reg.status != ServiceRegStatus.ENABLED:
         raise ValueError("invalid access_key")
 
     record = create_notice_record(

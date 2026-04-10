@@ -24,6 +24,14 @@ def get_reg_by_id(reg_id: int) -> Optional[SearchRecReg]:
     return SearchRecReg.objects.using("searchrec_rw").filter(id=reg_id).first()
 
 
+def get_reg_by_access_key_and_status(access_key: str, status: int) -> Optional[SearchRecReg]:
+    return (
+        SearchRecReg.objects.using("searchrec_rw")
+        .filter(access_key=access_key, status=status)
+        .first()
+    )
+
+
 def update_reg(reg_id: int, name: str = None, status: int = None) -> Optional[SearchRecReg]:
     reg = get_reg_by_id(reg_id)
     if not reg:

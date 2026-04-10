@@ -1,10 +1,12 @@
-"""Unit tests for app_searchrec adapters (memory vector/feature backends and pure helpers)."""
+"""Unit tests for app_searchrec adapters (DB / remote backends and pure helpers)."""
+
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
 from app_searchrec.adapters.feature_store import (
+    DbFeatureStoreAdapter,
     FeastFeatureStoreAdapter,
-    MemoryFeatureStoreAdapter,
     build_feature_store_adapter,
 )
 from app_searchrec.adapters.index_store import (
@@ -16,14 +18,15 @@ from app_searchrec.adapters.index_store import (
     build_index_adapter,
 )
 from app_searchrec.adapters.vector_store import (
-    MemoryVectorAdapter,
+    DbVectorAdapter,
     MilvusVectorAdapter,
     QdrantVectorAdapter,
     _milvus_vector_score,
     _qdrant_doc_id,
     build_vector_adapter,
 )
-from app_searchrec.tests.fake_lexical_index import FakeLexicalIndexAdapter
+from app_searchrec.models import SearchRecDocTerm
+from app_searchrec.tests.fake_lexical_index import FakeLexicalIndexAdapter, FakeVectorAdapter
 
 
 class TestIndexStoreHelpers(SimpleTestCase):
@@ -80,15 +83,15 @@ class TestFakeLexicalIndexAdapter(SimpleTestCase):
         self.assertEqual(adapter.search(1, "*", top_k=10), [])
 
 
-class TestMemoryVectorAdapter(SimpleTestCase):
+class TestFakeVectorAdapter(SimpleTestCase):
     def setUp(self):
-        self.adapter = MemoryVectorAdapter()
+        self.adapter = FakeVectorAdapter()
 
     def test_reset_clears_state(self):
         self.adapter.upsert_documents(1, [{"id": "a", "title": "t", "content": "c", "tags": []}])
-        self.assertEqual(len(self.adapter._vectors), 1)
+        self.assertEqual(len(self.adapter._by_doc), 1)
         self.adapter.reset()
-        self.assertEqual(len(self.adapter._vectors), 0)
+        self.assertEqual(len(self.adapter._by_doc), 0)
 
     def test_search_star_returns_empty(self):
         self.adapter.upsert_documents(1, [{"id": "a", "title": "hello", "content": "x", "tags": []}])
@@ -96,21 +99,43 @@ class TestMemoryVectorAdapter(SimpleTestCase):
 
     def test_upsert_skips_blank_id(self):
         self.adapter.upsert_documents(1, [{"id": "", "title": "x", "content": "y", "tags": []}])
-        self.assertEqual(len(self.adapter._vectors), 0)
+        self.assertEqual(len(self.adapter._by_doc), 0)
 
 
-class TestMemoryFeatureStoreAdapter(SimpleTestCase):
-    def setUp(self):
-        self.adapter = MemoryFeatureStoreAdapter()
+class TestDbVectorAdapter(SimpleTestCase):
+    def test_search_groups_by_doc_and_scores_overlap(self):
+        rows = [
+            {"doc_key": "a", "term": "hello"},
+            {"doc_key": "a", "term": "world"},
+            {"doc_key": "b", "term": "hello"},
+        ]
+        mock_qs = MagicMock()
+        chain = mock_qs.filter.return_value.values.return_value
+        chain.iterator.return_value = iter(rows)
 
+        with patch("app_searchrec.adapters.vector_store.SearchRecDocTerm.objects", mock_qs):
+            out = DbVectorAdapter().search(1, "hello world", 10)
+
+        self.assertEqual({x["id"]: x["vector_score"] for x in out}, {"a": 2.0, "b": 1.0})
+        mock_qs.filter.assert_called_once()
+        call_kw = mock_qs.filter.call_args[1]
+        self.assertEqual(call_kw["rid_id"], 1)
+        self.assertEqual(set(call_kw["term__in"]), {"hello", "world"})
+
+
+class TestFakeFeatureStoreAdapter(SimpleTestCase):
     def test_get_user_features_none_profile(self):
-        out = self.adapter.get_user_features(None)
+        from app_searchrec.tests.fake_lexical_index import FakeFeatureStoreAdapter
+
+        out = FakeFeatureStoreAdapter().get_user_features(None)
         self.assertEqual(out["preferred_tags"], [])
         self.assertEqual(out["recent_queries"], [])
         self.assertEqual(out["affinity_boost"], 1.0)
 
     def test_get_user_features_non_list_tags_coerced(self):
-        out = self.adapter.get_user_features({"preferred_tags": "x", "recent_queries": 1})
+        from app_searchrec.tests.fake_lexical_index import FakeFeatureStoreAdapter
+
+        out = FakeFeatureStoreAdapter().get_user_features({"preferred_tags": "x", "recent_queries": 1})
         self.assertEqual(out["preferred_tags"], [])
         self.assertEqual(out["recent_queries"], [])
 
@@ -144,8 +169,8 @@ class TestBuildAdapters(SimpleTestCase):
         self.assertIsInstance(build_vector_adapter(), QdrantVectorAdapter)
 
     @override_settings(SEARCHREC_MILVUS_ENABLED=False, SEARCHREC_QDRANT_ENABLED=False)
-    def test_build_vector_memory_when_no_remote(self):
-        self.assertIsInstance(build_vector_adapter(), MemoryVectorAdapter)
+    def test_build_vector_db_when_no_remote(self):
+        self.assertIsInstance(build_vector_adapter(), DbVectorAdapter)
 
     @override_settings(SEARCHREC_MILVUS_ENABLED=True, SEARCHREC_QDRANT_ENABLED=True)
     def test_build_vector_raises_when_milvus_and_qdrant_both_enabled(self):
@@ -163,5 +188,5 @@ class TestBuildAdapters(SimpleTestCase):
         self.assertIsInstance(build_feature_store_adapter(), FeastFeatureStoreAdapter)
 
     @override_settings(SEARCHREC_FEAST_ENABLED=False)
-    def test_build_feature_memory_when_feast_disabled(self):
-        self.assertIsInstance(build_feature_store_adapter(), MemoryFeatureStoreAdapter)
+    def test_build_feature_db_when_feast_disabled(self):
+        self.assertIsInstance(build_feature_store_adapter(), DbFeatureStoreAdapter)

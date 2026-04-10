@@ -20,13 +20,13 @@ package "Index backends\n(mutually exclusive)" as idx_back {
 }
 
 package "Vector backends\n(at most one remote)" as vec_back {
-  rectangle "MemoryVectorAdapter" as MemoryVector
+  rectangle "DbVectorAdapter" as DbVector
   rectangle "MilvusVectorAdapter" as Milvus
   rectangle "QdrantVectorAdapter" as Qdrant
 }
 
 package "Feature backends" as feat_back {
-  rectangle "MemoryFeatureStoreAdapter" as MemoryFeature
+  rectangle "DbFeatureStoreAdapter" as DbFeature
   rectangle "FeastFeatureStoreAdapter" as Feast
 }
 
@@ -50,10 +50,10 @@ IndexAdapter --> DbIndex : else (default)
 
 VectorAdapter --> Milvus : SEARCHREC_MILVUS_ENABLED
 VectorAdapter --> Qdrant : else if SEARCHREC_QDRANT_ENABLED
-VectorAdapter --> MemoryVector : else (default)
+VectorAdapter --> DbVector : else (default)
 
 FeatureAdapter --> Feast : SEARCHREC_FEAST_ENABLED
-FeatureAdapter --> MemoryFeature : else (default)
+FeatureAdapter --> DbFeature : else (default)
 
 Qdrant ..> EmbedProvider : upsert & search:\nencode text → vector
 note bottom of Milvus

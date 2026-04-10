@@ -48,6 +48,8 @@ class SearchRecDocument(models.Model):
     score_boost = models.DecimalField(
         max_digits=4, decimal_places=2, default=Decimal("1.00")
     )
+    popularity_score = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0"))
+    freshness_score = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0"))
     ct = models.BigIntegerField()
     ut = models.BigIntegerField()
 
@@ -56,6 +58,14 @@ class SearchRecDocument(models.Model):
         db_table = "doc"
         constraints = [
             models.UniqueConstraint(fields=["rid", "doc_key"], name="uniq_searchrec_doc_rid_key"),
+            models.CheckConstraint(
+                check=models.Q(popularity_score__gte=0) & models.Q(popularity_score__lte=1),
+                name="searchrec_doc_popularity_unit",
+            ),
+            models.CheckConstraint(
+                check=models.Q(freshness_score__gte=0) & models.Q(freshness_score__lte=1),
+                name="searchrec_doc_freshness_unit",
+            ),
         ]
         indexes = [
             models.Index(fields=["rid"], name="idx_searchrec_doc_rid"),

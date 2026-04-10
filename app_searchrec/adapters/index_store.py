@@ -66,6 +66,8 @@ class DbIndexAdapter:
             title = str(payload.get("title", "")).strip()
             content = str(payload.get("content", "")).strip()
             score_boost = float(payload.get("score_boost", 1.0))
+            popularity_score = float(payload.get("popularity_score", 0.0))
+            freshness_score = float(payload.get("freshness_score", 0.0))
             raw_text = " ".join([title, content, " ".join([str(t) for t in tags])])
             tokens = [_norm_term(t) for t in _tokenize(raw_text)]
             tf = Counter(tokens)
@@ -81,6 +83,8 @@ class DbIndexAdapter:
                         "content": content,
                         "tags": join_tags_csv([str(t) for t in tags]),
                         "score_boost": Decimal(str(score_boost)),
+                        "popularity_score": Decimal(str(popularity_score)),
+                        "freshness_score": Decimal(str(freshness_score)),
                         "lexical_norm_sq": norm_sq,
                     },
                 )

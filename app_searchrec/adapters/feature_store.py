@@ -1,37 +1,42 @@
+from decimal import Decimal
+
 from django.conf import settings
 
 from app_searchrec.adapters.base_http_adapter import BaseHttpAdapter
+from app_searchrec.models import SearchRecDocument
 
 
-def _scoped_doc_key(rid: int, doc_id: str) -> tuple[int, str]:
-    return (int(rid), doc_id)
-
-
-class MemoryFeatureStoreAdapter:
-    def __init__(self):
-        self._doc_features = {}
-
+class DbFeatureStoreAdapter:
     def reset(self):
-        self._doc_features = {}
+        return
 
     def upsert_documents(self, rid: int, docs):
-        for payload in docs:
-            doc_id = str(payload.get("id", "")).strip()
-            if not doc_id:
-                continue
-            key = _scoped_doc_key(rid, doc_id)
-            self._doc_features[key] = {
-                "score_boost": float(payload.get("score_boost", 1.0)),
-                "popularity_score": float(payload.get("popularity_score", 0.0)),
-                "freshness_score": float(payload.get("freshness_score", 0.0)),
-            }
+        return
 
     def get_doc_features(self, rid: int, doc_id):
-        key = _scoped_doc_key(rid, str(doc_id or "").strip())
-        return self._doc_features.get(
-            key,
-            {"score_boost": 1.0, "popularity_score": 0.0, "freshness_score": 0.0},
+        doc_id = str(doc_id or "").strip()
+        if not doc_id:
+            return {
+                "score_boost": 1.0,
+                "popularity_score": 0.0,
+                "freshness_score": 0.0,
+            }
+        doc = (
+            SearchRecDocument.objects.filter(rid_id=int(rid), doc_key=doc_id)
+            .only("score_boost", "popularity_score", "freshness_score")
+            .first()
         )
+        if not doc:
+            return {
+                "score_boost": 1.0,
+                "popularity_score": 0.0,
+                "freshness_score": 0.0,
+            }
+        return {
+            "score_boost": float(doc.score_boost),
+            "popularity_score": float(doc.popularity_score or Decimal("0")),
+            "freshness_score": float(doc.freshness_score or Decimal("0")),
+        }
 
     def get_user_features(self, user_profile):
         if user_profile is None:
@@ -102,4 +107,4 @@ class FeastFeatureStoreAdapter(BaseHttpAdapter):
 def build_feature_store_adapter():
     if settings.SEARCHREC_FEAST_ENABLED:
         return FeastFeatureStoreAdapter()
-    return MemoryFeatureStoreAdapter()
+    return DbFeatureStoreAdapter()
