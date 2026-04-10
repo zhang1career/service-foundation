@@ -50,12 +50,25 @@ class ConsoleViewsFunctionalTest(SimpleTestCase):
         detail_context = detail_view.get_context_data(distribution_id="dist-1")
         self.assertEqual(detail_context["distribution_id"], "dist-1")
 
-    @override_settings(APP_SEARCHREC_ENABLED=True)
+    @override_settings(APP_SEARCHREC_ENABLED=True, CONSOLE_SEARCHREC_ACCESS_KEY="")
     def test_searchrec_console_context(self):
         view = SearchRecConsoleView()
         context = view.get_context_data()
         self.assertTrue(context["searchrec_enabled"])
         self.assertEqual(context["searchrec_api_base"], "/api/searchrec")
+        self.assertEqual(
+            json.loads(context["searchrec_examples"]["upsert"])["access_key"],
+            "",
+        )
+
+    @override_settings(APP_SEARCHREC_ENABLED=True, CONSOLE_SEARCHREC_ACCESS_KEY="ak_test_1")
+    def test_searchrec_console_examples_follow_access_key_setting(self):
+        view = SearchRecConsoleView()
+        context = view.get_context_data()
+        self.assertEqual(
+            json.loads(context["searchrec_examples"]["upsert"])["access_key"],
+            "ak_test_1",
+        )
 
     def test_know_point_detail_invalid_id(self):
         request = self.factory.get("/console/know/points/0/")

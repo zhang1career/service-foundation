@@ -21,7 +21,7 @@ from .event_view import UserEventListConsoleView, UserEventDetailConsoleView, Us
 from .notice_console_view import NoticeDetailConsoleView, NoticeListConsoleView
 from .notice_manual_send_view import NoticeManualSendConsoleView
 from .reg_console_view import NoticeRegConsoleView, VerifyRegConsoleView
-from .searchrec_view import SearchRecConsoleView
+from .searchrec_view import SearchRecConsoleView, SearchRecRegConsoleView
 from .verify_console_view import (
     VerifyCallerConsoleView,
     VerifyCodeDetailConsoleView,
@@ -63,4 +63,5 @@ __all__ = [
     'VerifyLogListConsoleView',
     'VerifyRegConsoleView',
     'SearchRecConsoleView',
+    'SearchRecRegConsoleView',
 ]

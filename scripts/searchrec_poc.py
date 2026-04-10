@@ -23,7 +23,10 @@ def post(path, payload):
 
 
 def main():
+    # 将下方替换为控制台「使用方」列表中已启用（status=1）的 Access Key
+    access_key = "YOUR_ACCESS_KEY"
     docs = {
+        "access_key": access_key,
         "documents": [
             {
                 "id": "news_1",
@@ -46,13 +49,19 @@ def main():
 
     search_resp, search_ms = post(
         "/search",
-        {"query": "hybrid search ranking", "top_k": 5, "preferred_tags": ["search"]},
+        {
+            "access_key": access_key,
+            "query": "hybrid search ranking",
+            "top_k": 5,
+            "preferred_tags": ["search"],
+        },
     )
     print(f"search {search_ms:.2f}ms => {json.dumps(search_resp, ensure_ascii=False)}")
 
     rec_resp, rec_ms = post(
         "/recommend",
         {
+            "access_key": access_key,
             "user_profile": {
                 "preferred_tags": ["recommend"],
                 "recent_queries": ["ctr ranking"],
@@ -65,6 +74,7 @@ def main():
     rank_resp, rank_ms = post(
         "/rank",
         {
+            "access_key": access_key,
             "strategy": "hybrid",
             "candidates": [
                 {"id": "news_1", "base_score": 0.72, "ctr_score": 0.35, "freshness_score": 0.42},

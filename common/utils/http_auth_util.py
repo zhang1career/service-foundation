@@ -1,5 +1,28 @@
-"""HTTP Authorization header helpers (framework-agnostic string / request META)."""
+"""HTTP auth helpers: inbound header parsing and outbound JSON client request headers."""
 from __future__ import annotations
+
+
+def build_auth_headers(*, api_key: str = "", auth_mode: str = "bearer") -> dict[str, str]:
+    """
+    Build headers for outbound HTTP calls: ``application/json`` content type/accept plus optional auth.
+
+    ``auth_mode``: ``bearer`` (default), ``api-key`` (header ``api-key``), or
+    ``opensearch`` (``Authorization: ApiKey …``).
+    """
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    key = str(api_key or "").strip()
+    if not key:
+        return headers
+    if auth_mode == "api-key":
+        headers["api-key"] = key
+    elif auth_mode == "opensearch":
+        headers["Authorization"] = f"ApiKey {key}"
+    else:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
 
 
 def authorization_header_from_request(request) -> str:

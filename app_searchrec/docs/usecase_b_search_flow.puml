@@ -3,14 +3,26 @@ title Use Case B - Keyword Search Flow
 skinparam shadowing false
 
 start
-:BusinessSystem\ncall search;
-fork
-  :IndexAdapter\nlexical recall;
-  :FeatureStoreAdapter\nload doc features;
-fork again
-  :VectorAdapter\nvector recall;
-end fork
-:SearchRecService\nmerge + score;
-:Return ranked items;
+:BusinessSystem\ncall POST search;
+:SearchRecAPI\nquery, top_k, preferred_tags;
+:Clamp **top_k** to [1, 100]\n(default SEARCHREC_DEFAULT_TOP_K);
+:Candidate **budget** = top_k ×\nSEARCHREC_SEARCH_CANDIDATE_MULTIPLIER\n(clamped 1..20);
+:IndexAdapter.search(query, budget)\n**lexical recall**;
+note right
+  **Memory:** full scan + cosine on TF
+  **OpenSearch:** multi_match title/content/tags
+  **DbIndexAdapter:** query terms → **doc_term**\nunion → cosine vs doc.lexical_norm_sq
+end note
+:VectorAdapter.search(query, budget)\n**recall**;
+if (SEARCHREC_MERGE_VECTOR_CANDIDATES?) then (yes)
+  :For vector hits not in lexical set:\nIndexAdapter.get_document(id)\nappend row (lexical_score = 0);
+else (no)
+  :Use lexical rows only;
+endif
+:For each candidate row:\nFeatureStoreAdapter\nget_doc_features(doc_id);
+:Resolve **score_boost**:\nfeature store if present,\nelse index row **score_boost**;
+:SearchRecService fusion +\nsort:\n(0.65×lexical + 0.2×vector_blend\n+ tag_score + 0.05×popularity)\n× score_boost\n(vector_blend = min(1, vector_score/5));
+:Truncate to **top_k**;
+:Return **items** + **total_hits**;
 stop
 @enduml

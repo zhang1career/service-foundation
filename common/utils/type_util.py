@@ -17,3 +17,17 @@ def parse_int_or_default(raw: Any, default: int) -> int:
         return int(raw)
     except (TypeError, ValueError):
         raise ValueError("invalid integer")
+
+
+def as_list(value: Any) -> list[Any]:
+    """Return *value* if it is a ``list``; otherwise ``[]``."""
+    if value is None or not isinstance(value, list):
+        return []
+    return value
+
+
+def as_dict(value: Any) -> dict[Any, Any]:
+    """Return *value* if it is a ``dict``; otherwise ``{}``."""
+    if value is None or not isinstance(value, dict):
+        return {}
+    return value

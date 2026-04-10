@@ -13,3 +13,17 @@ class TestTypeUtil(TestCase):
         with self.assertRaises(ValueError) as ctx:
             parse_int_or_default("nope", 0)
         self.assertEqual(str(ctx.exception), "invalid integer")
+
+    def test_as_list(self):
+        from common.utils.type_util import as_list
+
+        self.assertEqual(as_list(None), [])
+        self.assertEqual(as_list("x"), [])
+        self.assertEqual(as_list([1, 2]), [1, 2])
+
+    def test_as_dict(self):
+        from common.utils.type_util import as_dict
+
+        self.assertEqual(as_dict(None), {})
+        self.assertEqual(as_dict([]), {})
+        self.assertEqual(as_dict({"a": 1}), {"a": 1})

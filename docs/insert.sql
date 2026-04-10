@@ -544,31 +544,43 @@ CREATE TABLE IF NOT EXISTS `m` (
 CREATE DATABASE IF NOT EXISTS `sf_searchrec` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
 USE `sf_searchrec`;
 
--- Dumping structure for table sf_searchrec.searchrec_document
-CREATE TABLE IF NOT EXISTS `searchrec_document` (
+-- Dumping structure for table sf_searchrec.doc
+CREATE TABLE IF NOT EXISTS `doc` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `biz_doc_id` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `doc_key` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'business document id',
   `title` varchar(512) COLLATE utf8mb4_unicode_ci NOT NULL,
   `content` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
-  `tags` json DEFAULT NULL,
-  `score_boost` decimal(8,4) NOT NULL DEFAULT '1.0000',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `tags` text COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'comma-separated tags',
+  `lexical_norm_sq` bigint(20) NOT NULL DEFAULT '0',
+  `score_boost` decimal(4,2) NOT NULL DEFAULT '1.00',
+  `ct` bigint(20) NOT NULL COMMENT 'created time, UNIX timestamp in ms',
+  `ut` bigint(20) NOT NULL COMMENT 'updated time, UNIX timestamp in ms',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `biz_doc_id` (`biz_doc_id`)
+  UNIQUE KEY `uni_doc_key` (`doc_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `doc_term` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `doc_key` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `term` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tf` int(10) unsigned NOT NULL DEFAULT '1',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uni_doc_term` (`doc_key`,`term`),
+  KEY `idx_doc_term_term` (`term`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 
--- Dumping structure for table sf_searchrec.searchrec_event_log
-CREATE TABLE IF NOT EXISTS `searchrec_event_log` (
+-- Dumping structure for table sf_searchrec.event
+CREATE TABLE IF NOT EXISTS `event` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `user_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `event_type` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `event_payload` json DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `uid` bigint(20) DEFAULT NULL COMMENT 'user id',
+  `did` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'device id',
+  `event_type` int NOT NULL COMMENT 'SearchRecEventType integer',
+  `payload` text COLLATE utf8mb4_unicode_ci COMMENT 'JSON-encoded object',
+  `ct` bigint(20) NOT NULL COMMENT 'created time, UNIX timestamp in ms',
   PRIMARY KEY (`id`),
-  KEY `idx_event_type_ct` (`event_type`,`created_at`)
+  KEY `idx_event_type_ct` (`event_type`,`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.

@@ -1,12 +1,25 @@
 import math
 import json
 import re
-import time
-from collections import Counter
+from collections import Counter, defaultdict
+from decimal import Decimal
+from urllib.parse import quote
 
 from django.conf import settings
+from django.db import transaction
 
 from app_searchrec.adapters.base_http_adapter import BaseHttpAdapter
+from app_searchrec.models import SearchRecDocument, SearchRecDocTerm
+from app_searchrec.tags_csv import join_tags_csv, parse_tags_csv
+
+
+_TERM_MAX_LEN = 191
+
+
+def _norm_term(token: str) -> str:
+    if len(token) <= _TERM_MAX_LEN:
+        return token
+    return token[:_TERM_MAX_LEN]
 
 
 def _tokenize(text):
@@ -24,82 +37,156 @@ def _search_response_hits(data):
     return inner if isinstance(inner, list) else []
 
 
-class MemoryIndexAdapter:
-    def __init__(self):
-        self._docs = {}
+def _hit_doc_id(src, hit):
+    raw = src.get("id")
+    if raw is not None and str(raw).strip():
+        return str(raw).strip()
+    raw = hit.get("_id")
+    return str(raw).strip() if raw is not None else ""
+
+
+class DbIndexAdapter:
+    """Lexical index in MySQL: `doc` row + `doc_term` inverted rows; query via term union."""
 
     def reset(self):
-        self._docs = {}
+        SearchRecDocTerm.objects.all().delete()
+        SearchRecDocument.objects.all().delete()
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         written = 0
         for payload in docs:
-            doc_id = str(payload.get("id", "")).strip()
-            if not doc_id:
+            doc_key = str(payload.get("id", "")).strip()
+            if not doc_key:
                 raise ValueError("field `id` is required")
+            if len(doc_key) > _TERM_MAX_LEN:
+                raise ValueError(f"field `id` exceeds max length {_TERM_MAX_LEN}")
             tags = payload.get("tags") or []
             if not isinstance(tags, list):
                 raise ValueError("field `tags` must be list")
             title = str(payload.get("title", "")).strip()
             content = str(payload.get("content", "")).strip()
             score_boost = float(payload.get("score_boost", 1.0))
-            tokens = _tokenize(" ".join([title, content, " ".join([str(t) for t in tags])]))
+            popularity_score = float(payload.get("popularity_score", 0.0))
+            freshness_score = float(payload.get("freshness_score", 0.0))
+            raw_text = " ".join([title, content, " ".join([str(t) for t in tags])])
+            tokens = [_norm_term(t) for t in _tokenize(raw_text)]
             tf = Counter(tokens)
-            norm = math.sqrt(sum(v * v for v in tf.values())) or 1.0
-            self._docs[doc_id] = {
-                "id": doc_id,
-                "title": title,
-                "content": content,
-                "tags": [str(t).strip().lower() for t in tags if str(t).strip()],
-                "score_boost": score_boost,
-                "tf": tf,
-                "norm": norm,
-                "updated_at": int(time.time()),
-            }
-            written += 1
-        return {"upserted": written, "total": len(self._docs)}
+            norm_sq = sum(c * c for c in tf.values())
 
-    def search(self, query, top_k):
+            with transaction.atomic():
+                SearchRecDocTerm.objects.filter(rid_id=rid, doc_key=doc_key).delete()
+                SearchRecDocument.objects.update_or_create(
+                    rid_id=rid,
+                    doc_key=doc_key,
+                    defaults={
+                        "title": title[:512],
+                        "content": content,
+                        "tags": join_tags_csv([str(t) for t in tags]),
+                        "score_boost": Decimal(str(score_boost)),
+                        "popularity_score": Decimal(str(popularity_score)),
+                        "freshness_score": Decimal(str(freshness_score)),
+                        "lexical_norm_sq": norm_sq,
+                    },
+                )
+                if tf:
+                    SearchRecDocTerm.objects.bulk_create(
+                        [
+                            SearchRecDocTerm(rid_id=rid, doc_key=doc_key, term=t, tf=c)
+                            for t, c in tf.items()
+                        ],
+                        batch_size=500,
+                    )
+            written += 1
+        return {"upserted": written, "total": SearchRecDocument.objects.filter(rid_id=rid).count()}
+
+    def search(self, rid: int, query, top_k):
+        if not query or query == "*":
+            return []
         query_tokens = _tokenize(query)
-        q_tf = Counter(query_tokens)
+        q_tf = Counter(_norm_term(t) for t in query_tokens)
         q_norm = math.sqrt(sum(v * v for v in q_tf.values())) or 1.0
 
+        terms = list(q_tf.keys())
+        if not terms:
+            return []
+
+        rows = (
+            SearchRecDocTerm.objects.filter(rid_id=rid, term__in=terms)
+            .values("doc_key", "term", "tf")
+            .iterator(chunk_size=2000)
+        )
+        by_doc: dict[str, dict[str, int]] = defaultdict(dict)
+        for r in rows:
+            by_doc[r["doc_key"]][r["term"]] = r["tf"]
+
+        doc_keys = list(by_doc.keys())
+        if not doc_keys:
+            return []
+
+        meta = {
+            d.doc_key: d
+            for d in SearchRecDocument.objects.filter(rid_id=rid, doc_key__in=doc_keys).only(
+                "doc_key", "title", "tags", "score_boost", "lexical_norm_sq"
+            )
+        }
+
         items = []
-        for doc in self._docs.values():
-            dot = 0
-            for token, count in q_tf.items():
-                dot += count * doc["tf"].get(token, 0)
-            lexical = 0.0 if not query_tokens else dot / (q_norm * doc["norm"])
+        for doc_key, term_tf in by_doc.items():
+            doc = meta.get(doc_key)
+            if not doc:
+                continue
+            dot = 0.0
+            for q_t, q_c in q_tf.items():
+                dot += q_c * float(term_tf.get(q_t, 0))
+            doc_norm_sq = int(doc.lexical_norm_sq or 0)
+            doc_norm = math.sqrt(max(doc_norm_sq, 0)) or 1.0
+            lexical = dot / (q_norm * doc_norm)
             if lexical <= 0:
                 continue
             items.append(
                 {
-                    "id": doc["id"],
-                    "title": doc["title"],
-                    "tags": doc["tags"],
+                    "id": doc_key,
+                    "title": doc.title or "",
+                    "tags": parse_tags_csv(doc.tags or ""),
                     "lexical_score": lexical,
-                    "score_boost": doc["score_boost"],
+                    "score_boost": float(doc.score_boost),
                 }
             )
         items.sort(key=lambda x: x["lexical_score"], reverse=True)
         return items[:top_k]
+
+    def get_document(self, rid: int, doc_id):
+        doc_id = str(doc_id or "").strip()
+        if not doc_id:
+            return None
+        doc = SearchRecDocument.objects.filter(rid_id=rid, doc_key=doc_id).only(
+            "doc_key", "title", "tags", "score_boost"
+        ).first()
+        if not doc:
+            return None
+        return {
+            "id": doc.doc_key,
+            "title": doc.title or "",
+            "tags": parse_tags_csv(doc.tags or ""),
+            "score_boost": float(doc.score_boost),
+        }
 
 
 class OpenSearchIndexAdapter(BaseHttpAdapter):
     adapter_name = "opensearch"
 
     def __init__(self):
-        self._index_name = str(getattr(settings, "SEARCHREC_OPENSEARCH_INDEX", "searchrec_docs")).strip()
+        self._index_name = str(settings.SEARCHREC_OPENSEARCH_INDEX).strip()
         super().__init__(
-            base_url=getattr(settings, "SEARCHREC_OPENSEARCH_URL", ""),
-            api_key=getattr(settings, "SEARCHREC_OPENSEARCH_API_KEY", ""),
+            base_url=settings.SEARCHREC_OPENSEARCH_URL,
+            api_key=settings.SEARCHREC_OPENSEARCH_API_KEY,
             auth_mode="opensearch",
         )
 
     def reset(self):
         return
 
-    def upsert_documents(self, docs):
+    def upsert_documents(self, rid: int, docs):
         written = 0
         lines = []
         for payload in docs:
@@ -109,6 +196,7 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             lines.append({"index": {"_index": self._index_name, "_id": doc_id}})
             lines.append(
                 {
+                    "rid": int(rid),
                     "id": doc_id,
                     "title": str(payload.get("title", "")),
                     "content": str(payload.get("content", "")),
@@ -122,7 +210,7 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
         self._request(method="POST", path="/_bulk", data=bulk_payload.encode("utf-8"))
         return {"upserted": written, "total": written}
 
-    def search(self, query, top_k):
+    def search(self, rid: int, query, top_k):
         if not query or query == "*":
             return []
         response = self._request(
@@ -131,9 +219,16 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
             json_body={
                 "size": int(top_k),
                 "query": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": ["title^3", "content", "tags^2"],
+                    "bool": {
+                        "filter": [{"term": {"rid": int(rid)}}],
+                        "must": [
+                            {
+                                "multi_match": {
+                                    "query": query,
+                                    "fields": ["title^3", "content", "tags^2"],
+                                }
+                            }
+                        ],
                     }
                 },
             },
@@ -142,24 +237,57 @@ class OpenSearchIndexAdapter(BaseHttpAdapter):
         hits = _search_response_hits(data)
         remote_items = []
         for hit in hits:
-            src = hit.get("_source") or {}
-            doc_id = str(src.get("id") or hit.get("_id") or "")
+            src = hit.get("_source") if isinstance(hit.get("_source"), dict) else {}
+            doc_id = _hit_doc_id(src, hit)
             if not doc_id:
+                continue
+            hit_tags = src.get("tags")
+            if not isinstance(hit_tags, list):
+                hit_tags = []
+            raw_score = hit.get("_score")
+            src_rid = src.get("rid")
+            if src_rid is not None and int(src_rid) != int(rid):
                 continue
             remote_items.append(
                 {
                     "id": doc_id,
                     "title": str(src.get("title") or ""),
-                    "tags": src.get("tags") or [],
-                    "lexical_score": float(hit.get("_score") or 0.0),
+                    "tags": hit_tags,
+                    "lexical_score": float(raw_score if raw_score is not None else 0.0),
                     "score_boost": float(src.get("score_boost", 1.0)),
                 }
             )
         return remote_items[:top_k]
 
+    def get_document(self, rid: int, doc_id):
+        doc_id = str(doc_id or "").strip()
+        if not doc_id:
+            return None
+        safe_id = quote(doc_id, safe="")
+        response = self._request_raw(method="GET", path=f"/{self._index_name}/_doc/{safe_id}")
+        if response.status_code == 404:
+            return None
+        if response.status_code >= 300:
+            raise RuntimeError(f"{self.adapter_name} status={response.status_code}, body={response.text}")
+        data = response.json()
+        src = data.get("_source") if isinstance(data.get("_source"), dict) else {}
+        src_rid = src.get("rid")
+        if src_rid is not None and int(src_rid) != int(rid):
+            return None
+        raw_id = src.get("id")
+        resolved_id = str(raw_id).strip() if raw_id is not None else doc_id
+        tags = src.get("tags")
+        if not isinstance(tags, list):
+            tags = []
+        return {
+            "id": resolved_id,
+            "title": str(src.get("title") or ""),
+            "tags": tags,
+            "score_boost": float(src.get("score_boost", 1.0)),
+        }
 
-def build_index_adapter(backend):
-    backend = (backend or "memory").strip().lower()
-    if backend in ("opensearch", "elasticsearch"):
+
+def build_index_adapter():
+    if settings.SEARCHREC_OPENSEARCH_ENABLED:
         return OpenSearchIndexAdapter()
-    return MemoryIndexAdapter()
+    return DbIndexAdapter()

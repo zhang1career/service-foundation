@@ -3,11 +3,27 @@ title Use Case A - Content Upsert Flow
 skinparam shadowing false
 
 start
-:BusinessSystem\ncall index/upsert;
-:SearchRecAPI\nvalidate payload;
-:SearchRecService\nupsert to IndexAdapter;
-:SearchRecService\nupsert to VectorAdapter;
-:SearchRecService\nupsert to FeatureAdapter;
-:Return success;
+:BusinessSystem\ncall POST index/upsert;
+:SearchRecAPI\nparse body, validate\n**documents** non-empty list;
+:SearchRecService.upsert_documents;
+:IndexAdapter.upsert_documents;
+note right
+  **OpenSearch:** NDJSON bulk index
+  **DbIndexAdapter (default when OpenSearch off):**
+  transactional write to **doc** and **doc_term**
+  (doc_key, lexical_norm_sq, …); delete old terms then insert
+end note
+:VectorAdapter.upsert_documents;
+note right
+  **Memory:** term sets from title/content/tags
+  **Milvus / Qdrant:** HTTP upsert to remote collection
+  **Qdrant:** local SimpleTextEmbeddingProvider\nencodes concatenated text → vector
+end note
+:FeatureStoreAdapter.upsert_documents;
+note right
+  **Memory:** doc_id → score_boost,\npopularity_score, freshness_score
+  **Feast:** HTTP (when enabled)
+end note
+:Return API payload from\n**index adapter** result\n(e.g. upserted / total);
 stop
 @enduml

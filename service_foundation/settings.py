@@ -589,6 +589,8 @@ PROMPT_TEMPLATE_ID_RELATION_EXTRACT = env.int("PROMPT_TEMPLATE_ID_RELATION_EXTRA
 NOTICE_SERVICE_URL = env("NOTICE_SERVICE_URL", default="http://127.0.0.1:8000/api/notice/send")
 # 控制台「手动发送」默认写入 notice 记录的 event_id（可改为业务侧约定值）
 NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", default=1)
+# Console SearchRec「API 调试」页示例 JSON 中的 access_key；未设置环境变量时为空字符串
+CONSOLE_SEARCHREC_ACCESS_KEY = env("CONSOLE_SEARCHREC_ACCESS_KEY", default="")
 # Fire-and-forget notice delivery after enqueue (ThreadPoolExecutor cap per worker process)
 NOTICE_SEND_THREAD_POOL_MAX_WORKERS = env.int("NOTICE_SEND_THREAD_POOL_MAX_WORKERS", default=8)
 
@@ -634,10 +636,13 @@ HTTPX_POOL_CELERY_QUEUE = {
     HttpClientPool.THIRD_PARTY.value: "3rd_party",
 }
 
-# Search recommendation baseline config
-SEARCHREC_INDEX_BACKEND = env("SEARCHREC_INDEX_BACKEND", default="memory")
-SEARCHREC_VECTOR_BACKEND = env("SEARCHREC_VECTOR_BACKEND", default="memory")
-SEARCHREC_FEATURE_STORE_BACKEND = env("SEARCHREC_FEATURE_STORE_BACKEND", default="memory")
+# Search recommendation baseline config (remote adapters off by default = in-memory PoC)
+SEARCHREC_OPENSEARCH_ENABLED = env.bool("SEARCHREC_OPENSEARCH_ENABLED", default=False)
+SEARCHREC_MILVUS_ENABLED = env.bool("SEARCHREC_MILVUS_ENABLED", default=False)
+SEARCHREC_QDRANT_ENABLED = env.bool("SEARCHREC_QDRANT_ENABLED", default=False)
+SEARCHREC_FEAST_ENABLED = env.bool("SEARCHREC_FEAST_ENABLED", default=False)
+SEARCHREC_MERGE_VECTOR_CANDIDATES = env.bool("SEARCHREC_MERGE_VECTOR_CANDIDATES", default=True)
+SEARCHREC_SEARCH_CANDIDATE_MULTIPLIER = env.int("SEARCHREC_SEARCH_CANDIDATE_MULTIPLIER", default=2)
 SEARCHREC_DEFAULT_TOP_K = env.int("SEARCHREC_DEFAULT_TOP_K", default=10)
 SEARCHREC_HTTP_TIMEOUT = env.float("SEARCHREC_HTTP_TIMEOUT", default=3.0)
 SEARCHREC_OPENSEARCH_URL = env("SEARCHREC_OPENSEARCH_URL", default="")
