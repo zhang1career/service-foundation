@@ -3,9 +3,9 @@ from collections import defaultdict
 from django.conf import settings
 
 from app_searchrec.adapters.base_http_adapter import BaseHttpAdapter
-from providers.embedding_provider import SimpleTextEmbeddingProvider
 from app_searchrec.adapters.index_store import _norm_term, _tokenize
 from app_searchrec.models import SearchRecDocTerm
+from app_searchrec.providers.embedding_provider import SimpleTextEmbeddingProvider
 
 
 def _milvus_vector_score(item):

@@ -35,12 +35,15 @@ from app_console.views import (
     VerifyLogDetailConsoleView,
     VerifyLogListConsoleView,
 )
+from app_console.views.monitoring_api_view import MonitoringJsonView, MonitoringSnapshotView
 
 app_name = 'console'
 
 urlpatterns = [
     # Dashboard
     path('', DashboardView.as_view(), name='dashboard'),
+    path("api/monitoring/snapshot/", MonitoringSnapshotView.as_view(), name="monitoring-snapshot"),
+    path("api/monitoring.json", MonitoringJsonView.as_view(), name="monitoring-json"),
 
     # Knowledge management
     path('know/', KnowListView.as_view(), name='know-list'),

@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from django.http import Http404
 from django.test import RequestFactory, SimpleTestCase, override_settings
@@ -6,6 +7,7 @@ from django.test import RequestFactory, SimpleTestCase, override_settings
 from app_console.utils import embed_dict_as_json_script_body
 from app_console.views.cdn_view import CdnDistributionDetailView, CdnDistributionListView
 from app_console.views.dashboard_view import DashboardView
+from app_console.views.monitoring_api_view import MonitoringJsonView, MonitoringSnapshotView
 from app_console.views.know_view import KnowPointDetailView
 from app_console.views.searchrec_view import SearchRecConsoleView
 
@@ -33,11 +35,15 @@ class ConsoleViewsFunctionalTest(SimpleTestCase):
         self.factory = RequestFactory()
 
     @override_settings(APP_CDN_ENABLED=True, APP_SEARCHREC_ENABLED=False)
-    def test_dashboard_context_contains_app_flags(self):
+    def test_dashboard_context_has_apps_config_json(self):
         view = DashboardView()
         context = view.get_context_data()
-        self.assertTrue(context["apps"]["cdn"]["enabled"])
-        self.assertFalse(context["apps"]["searchrec"]["enabled"])
+        cfg = json.loads(context["apps_config_json"])
+        cdn = next(x for x in cfg if x["key"] == "cdn")
+        self.assertTrue(cdn["enabled"])
+        sr = next(x for x in cfg if x["key"] == "searchrec")
+        self.assertFalse(sr["enabled"])
+        self.assertIn("monitoring_refresh_ms", context)
 
     @override_settings(APP_CDN_ENABLED=True)
     def test_cdn_console_context(self):
@@ -74,3 +80,43 @@ class ConsoleViewsFunctionalTest(SimpleTestCase):
         request = self.factory.get("/console/know/points/0/")
         with self.assertRaises(Http404):
             KnowPointDetailView.as_view()(request, point_id=0)
+
+    @override_settings(CONSOLE_MONITORING_JSON_TOKEN="")
+    def test_monitoring_json_forbidden_when_token_unconfigured(self):
+        request = self.factory.get("/console/api/monitoring.json")
+        response = MonitoringJsonView.as_view()(request)
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(CONSOLE_MONITORING_JSON_TOKEN="secret-token")
+    def test_monitoring_json_forbidden_when_token_wrong(self):
+        request = self.factory.get("/console/api/monitoring.json?token=bad")
+        response = MonitoringJsonView.as_view()(request)
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(CONSOLE_MONITORING_JSON_TOKEN="secret-token")
+    @patch("app_console.views.monitoring_api_view.get_snapshot_payload")
+    def test_monitoring_json_ok_with_query_token(self, snap_mock):
+        snap_mock.return_value = {"collected_at": "t"}
+        request = self.factory.get("/console/api/monitoring.json?token=secret-token")
+        response = MonitoringJsonView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.content.decode())["collected_at"], "t")
+
+    @override_settings(CONSOLE_MONITORING_JSON_TOKEN="secret-token")
+    @patch("app_console.views.monitoring_api_view.get_snapshot_payload")
+    def test_monitoring_json_ok_with_header_token(self, snap_mock):
+        snap_mock.return_value = {"ok": True}
+        request = self.factory.get(
+            "/console/api/monitoring.json",
+            HTTP_X_CONSOLE_MONITORING_TOKEN="secret-token",
+        )
+        response = MonitoringJsonView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+
+    @patch("app_console.views.monitoring_api_view.get_snapshot_payload")
+    def test_monitoring_snapshot_returns_json(self, snap_mock):
+        snap_mock.return_value = {"collected_at": "t0", "mysql": {}}
+        request = self.factory.get("/console/api/monitoring/snapshot/")
+        response = MonitoringSnapshotView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(json.loads(response.content.decode())["collected_at"], "t0")
