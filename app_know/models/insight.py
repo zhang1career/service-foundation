@@ -36,7 +36,6 @@ class Insight(models.Model):
         blank=True,
         help_text="视角类型 0=人物 1=概念 2=指标",
     )
-    kid = models.BigIntegerField(db_index=True, null=True, blank=True, help_text="关联 knowledge.id (知识点)")
     ct = models.BigIntegerField(default=0, db_index=True)
     ut = models.BigIntegerField(default=0, db_index=True)
 

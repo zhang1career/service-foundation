@@ -38,11 +38,14 @@ from app_console.views import (
     VerifyLogDetailConsoleView,
     VerifyLogListConsoleView,
 )
+from app_console.views.auth_view import ConsoleLoginView, ConsoleLogoutView
 from app_console.views.monitoring_api_view import MonitoringJsonView, MonitoringSnapshotView
 
 app_name = 'console'
 
 urlpatterns = [
+    path("login/", ConsoleLoginView.as_view(), name="login"),
+    path("logout/", ConsoleLogoutView.as_view(), name="logout"),
     # Dashboard
     path('', DashboardView.as_view(), name='dashboard'),
     path("api/monitoring/snapshot/", MonitoringSnapshotView.as_view(), name="monitoring-snapshot"),

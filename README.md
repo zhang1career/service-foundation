@@ -1,97 +1,34 @@
 # Service Foundation
 
-A Django-based service foundation project providing reusable microservices and common utilities.
+## 运行服务
 
-## Overview
+在项目根目录执行 `run.sh`（需 bash；若未标记可执行，可先 `chmod +x run.sh`）。脚本通过 `nohup python manage.py runserver` 后台启动，**HOST / PORT** 等仍由 `.env` 与 `manage.py` 读取。
 
-This project serves as a foundation for building scalable web services, offering a collection of reusable applications and shared components. It is built with Django 4.1 and follows best practices for modular architecture.
-
-## Applications
-
-### [app_oss](./app_oss/README.md) - Object Storage Service
-
-A local object storage service that provides AWS S3-compatible REST API endpoints. It stores objects on the local filesystem while maintaining full compatibility with S3 operations, making it ideal for development, testing, and scenarios where cloud storage is not required.
-
-**Key Features:**
-- Local filesystem storage with configurable base path
-- Full S3 API compatibility (PUT, GET, DELETE, HEAD, ListObjectsV2)
-- Object copying with metadata directives
-- Custom metadata support via `x-amz-meta-*` headers
-- Pagination support for object listing
-- Unified view routing for all S3 operations
-
-**API Endpoint:** `/api/oss/`
-
-For detailed documentation, see [app_oss/README.md](./app_oss/README.md).
-
-### app_snowflake - Snowflake ID Generator
-
-A distributed unique ID generator service based on the Snowflake algorithm. Provides high-performance ID generation for distributed systems.
-
-**API Endpoint:** `/api/snowflake/`
-
-### app_searchrec - Search/Recommend Foundation Service
-
-A reusable base capability service for search and recommendation scenarios. It provides index upsert, retrieval, recommendation, and ranking APIs for business systems to compose with their own domain logic.
-
-**API Endpoint:** `/api/searchrec/`
-
-## Common Module
-
-The `common` module provides shared utilities, services, and components used across applications:
-
-- **Utils**: Environment variable management, date/time helpers, text processing, etc.
-- **Services**: AI services, multimedia processing, email services, storage services
-- **Components**: Singleton pattern, middleware, exception handling
-- **Drivers**: Database and service drivers (MongoDB, Milvus, Neo4j)
-- **Constants**: Application-wide constants and enums
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.8+
-- Django 4.1+
-- See `requirements.txt` for full dependencies
-
-### Installation
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Build frontend assets (Tailwind CSS + Neo4j NVL):
-   ```bash
-   npm install && npm run build
-   ```
-4. Configure environment variables in `.env` file
-5. Run migrations:
-   ```bash
-   python manage.py migrate
-   ```
-6. Start the development server:
-   ```bash
-   python manage.py runserver
-   ```
-
-### Configuration
-
-Create a `.env` file in the project root with required configuration. See individual application READMEs for specific configuration requirements.
-
-## Project Structure
-
-```
-service_foundation/
-├── app_oss/              # Object Storage Service
-├── app_snowflake/        # Snowflake ID Generator
-├── common/               # Shared utilities and components
-├── service_foundation/   # Django project settings
-├── manage.py
-└── requirements.txt
+```bash
+./run.sh start    # 启动
+./run.sh stop     # 停止
+./run.sh restart  # 重启
+./run.sh status   # 查看是否在运行（未运行则退出码 1）
 ```
 
-## License
+**说明：**
 
-See [LICENSE](./LICENSE) for details.
+- 需在项目根目录存在 **`.env`**；可选配置 **`APP_NAME`**（默认 `service-foundation`，用于 PID 目录名）、**`LOG_FILE_PATH`**（默认 `log`，Django 输出写入 `$LOG_FILE_PATH/$APP_NAME/django.log`）。
+- PID 文件路径：`/var/run/<APP_NAME>/app.pid`；若目录不存在，启动时会尝试创建（可能需要 **`sudo`** 权限）。
 
+## 运维控制台账号
+
+控制台 `/console/` 使用 Django 自带的 `django.contrib.auth` 用户，且需要 **`is_staff`** 权限。首次部署或新环境请创建超级用户（默认具备 `is_staff`）：
+
+```bash
+python manage.py createsuperuser
+```
+
+按提示设置用户名与密码后，可用该账号登录 `/console/login/`。若使用已有账号，请在 Django Admin 或数据库中将其 **`is_staff`** 设为启用。
+
+部署前请完成依赖安装与迁移，例如：
+
+```bash
+pip install -r requirements.txt
+python manage.py migrate
+```

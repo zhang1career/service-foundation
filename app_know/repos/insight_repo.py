@@ -18,9 +18,8 @@ def create_insight(
         type: int = 1,  # INSIGHT_PATH_REASONING
         status: int = 0,
         perspective: Optional[int] = None,
-        kid: Optional[int] = None,
 ) -> Insight:
-    """Create an insight. kid = knowledge.id (知识点). Returns the created Insight."""
+    """Create an insight. Returns the created Insight."""
     content = (content or "").strip()
     if not content:
         raise ValueError("content is required and cannot be empty")
@@ -30,7 +29,6 @@ def create_insight(
         type=type if type is not None else 1,
         status=status,
         perspective=perspective,
-        kid=kid,
         ct=now_ms,
         ut=now_ms,
     )
@@ -50,7 +48,6 @@ def get_insight_by_id(iid: int) -> Optional[Insight]:
 
 
 def list_insights(
-        kid: Optional[int] = None,
         perspective: Optional[int] = None,
         type: Optional[int] = None,
         status: Optional[int] = None,
@@ -61,8 +58,6 @@ def list_insights(
     if limit <= 0 or limit > LIMIT_LIST:
         raise ValueError(f"limit must be in 1..{LIMIT_LIST}")
     qs = Insight.objects.using(_DB).all().order_by("-ut")
-    if kid is not None:
-        qs = qs.filter(kid=kid)
     if perspective is not None:
         qs = qs.filter(perspective=perspective)
     if type is not None:
@@ -78,7 +73,7 @@ def update_insight(iid: int, **kwargs) -> bool:
     """Update insight by id. Returns True if updated."""
     if iid is None or not isinstance(iid, int) or iid <= 0:
         return False
-    allowed = {"content", "type", "status", "perspective", "kid"}
+    allowed = {"content", "type", "status", "perspective"}
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return False

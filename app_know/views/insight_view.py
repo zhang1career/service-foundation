@@ -20,7 +20,6 @@ def _to_dict(i):
         "type": i.type,
         "status": i.status,
         "perspective": i.perspective,
-        "kid": i.kid,
         "ct": i.ct,
         "ut": i.ut,
     }
@@ -30,14 +29,8 @@ class InsightListView(APIView):
     """GET: list insights. POST: create insight."""
 
     def get(self, request):
-        """List insights. Query: kid, perspective, type, status, offset, limit."""
+        """List insights. Query: perspective, type, status, offset, limit."""
         try:
-            kid = request.GET.get("kid")
-            if kid is not None and kid != "":
-                try:
-                    kid = int(kid)
-                except (TypeError, ValueError):
-                    kid = None
             perspective = request.GET.get("perspective") or request.GET.get("pid")
             if perspective is not None and perspective != "":
                 try:
@@ -59,7 +52,7 @@ class InsightListView(APIView):
             offset = int(request.GET.get("offset") or 0)
             limit = int(request.GET.get("limit") or 100)
             items, total = insight_repo.list_insights(
-                kid=kid, perspective=perspective, type=itype, status=status,
+                perspective=perspective, type=itype, status=status,
                 offset=offset, limit=limit,
             )
             return resp_ok({
@@ -74,7 +67,7 @@ class InsightListView(APIView):
             return resp_exception(e)
 
     def post(self, request):
-        """Create insight. Body: content (required), type (int), status (int), perspective, kid."""
+        """Create insight. Body: content (required), type (int), status (int), perspective."""
         try:
             data = getattr(request, "data", None) or request.POST or {}
             content = (data.get("content") or "").strip()
@@ -93,18 +86,11 @@ class InsightListView(APIView):
                     perspective = int(perspective)
                 except (TypeError, ValueError):
                     perspective = None
-            kid = data.get("kid")
-            if kid is not None and kid != "":
-                try:
-                    kid = int(kid)
-                except (TypeError, ValueError):
-                    kid = None
             i = insight_repo.create_insight(
                 content=content,
                 type=itype,
                 status=status,
                 perspective=perspective,
-                kid=kid,
             )
             return resp_ok(_to_dict(i))
         except ValueError as e:
@@ -151,11 +137,6 @@ class InsightDetailView(APIView):
                 v = data.get("perspective") or data.get("pid") or data.get("perspective_id")
                 try:
                     updates["perspective"] = int(v) if v not in (None, "") else None
-                except (TypeError, ValueError):
-                    pass
-            if "kid" in data:
-                try:
-                    updates["kid"] = int(data["kid"]) if data["kid"] not in (None, "") else None
                 except (TypeError, ValueError):
                     pass
             if not updates:
