@@ -43,7 +43,18 @@ class ConsoleViewsFunctionalTest(SimpleTestCase):
         self.assertTrue(cdn["enabled"])
         sr = next(x for x in cfg if x["key"] == "searchrec")
         self.assertFalse(sr["enabled"])
+        kc = next(x for x in cfg if x["key"] == "keepcon")
+        self.assertFalse(kc["enabled"])
         self.assertIn("monitoring_refresh_ms", context)
+
+    @override_settings(APP_CDN_ENABLED=True, APP_KEEPCON_ENABLED=True)
+    def test_dashboard_includes_keepcon_when_enabled(self):
+        view = DashboardView()
+        context = view.get_context_data()
+        cfg = json.loads(context["apps_config_json"])
+        kc = next(x for x in cfg if x["key"] == "keepcon")
+        self.assertTrue(kc["enabled"])
+        self.assertEqual(kc["httpProbeKey"], "keepcon_health")
 
     @override_settings(APP_CDN_ENABLED=True)
     def test_cdn_console_context(self):

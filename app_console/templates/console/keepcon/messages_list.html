@@ -1,0 +1,60 @@
+{% extends 'console/base.html' %}
+
+{% block title %}长连接-消息{% endblock %}
+{% block page_title %}长连接{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/keepcon_subnav.html' with active='messages' %}
+</div>
+
+<div class="card mb-6">
+    <div class="card-body flex flex-wrap gap-3 items-center">
+        <form method="get" class="flex flex-wrap gap-2 items-center">
+            <label class="text-sm text-gray-600">按设备筛选</label>
+            <select name="device_id" class="border rounded px-2 py-1 text-sm" onchange="this.form.submit()">
+                <option value="">全部</option>
+                {% for d in devices %}
+                <option value="{{ d.id }}" {% if device_filter == d.id %}selected{% endif %}>{{ d.device_key }} · {{ d.device_type_label }} (id={{ d.id }})</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">最近消息</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>device</th>
+                        <th>seq</th>
+                        <th>status</th>
+                        <th>payload</th>
+                        <th>ct</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in messages %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ m.id }}</td>
+                        <td class="font-mono text-sm">{{ m.device_key }}</td>
+                        <td class="font-mono text-sm">{{ m.seq }}</td>
+                        <td>{{ m.status }}</td>
+                        <td class="text-xs max-w-md truncate font-mono" title="{{ m.payload }}">{{ m.payload }}</td>
+                        <td class="text-xs text-gray-600">{{ m.ct }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center text-gray-500 py-8">暂无消息</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

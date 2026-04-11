@@ -1,0 +1,16 @@
+{% comment %}
+配置中心子导航
+
+参数:
+  active — callers | entries | condition_fields
+{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex flex-wrap gap-2 mb-6" aria-label="配置中心导航">
+    <a href="{% url 'console:config-callers' %}"
+       class="{{ base_cls }} {% if active == 'callers' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
+    <a href="{% url 'console:config-entries' %}"
+       class="{{ base_cls }} {% if active == 'entries' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">配置项</a>
+    <a href="{% url 'console:config-condition-fields' %}"
+       class="{{ base_cls }} {% if active == 'condition_fields' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">条件字段</a>
+</nav>
+{% endwith %}

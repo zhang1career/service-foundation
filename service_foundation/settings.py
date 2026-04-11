@@ -78,6 +78,8 @@ APP_SEARCHREC_ENABLED = env.bool("APP_SEARCHREC_ENABLED", default=True)
 APP_SNOWFLAKE_ENABLED = env.bool("APP_SNOWFLAKE_ENABLED", default=True)
 APP_USER_ENABLED = env.bool("APP_USER_ENABLED", default=True)
 APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=True)
+APP_CONFIG_ENABLED = env.bool("APP_CONFIG_ENABLED", default=True)
+APP_KEEPCON_ENABLED = env.bool("APP_KEEPCON_ENABLED", default=False)
 
 # Application definition
 INSTALLED_APPS = [
@@ -118,6 +120,12 @@ if APP_USER_ENABLED:
     INSTALLED_APPS.append("app_user.apps.AppUserConfig")
 if APP_VERIFY_ENABLED:
     INSTALLED_APPS.append("app_verify.apps.AppVerifyConfig")
+if APP_CONFIG_ENABLED:
+    INSTALLED_APPS.append("app_config.apps.ConfigAppConfig")
+if APP_KEEPCON_ENABLED:
+    INSTALLED_APPS.insert(0, "daphne")
+    INSTALLED_APPS.append("channels")
+    INSTALLED_APPS.append("app_keepcon.apps.KeepconConfig")
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
@@ -341,6 +349,34 @@ DATABASES = {
             "NAME": env("DB_VERIFY_TEST_NAME", default="sf_verify_test"),
         },
     },
+    "config_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_CONFIG_NAME", default="sf_config"),
+        "USER": env("DB_CONFIG_USER", default="zhang"),
+        "PASSWORD": env("DB_CONFIG_PASS", default=""),
+        "HOST": env("DB_CONFIG_HOST", default="127.0.0.1"),
+        "PORT": env("DB_CONFIG_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_CONFIG_TEST_NAME", default="sf_config_test"),
+        },
+    },
+    "keepcon_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_KEEPCON_NAME", default="sf_keepcon"),
+        "USER": env("DB_KEEPCON_USER", default="zhang"),
+        "PASSWORD": env("DB_KEEPCON_PASS", default=""),
+        "HOST": env("DB_KEEPCON_HOST", default="127.0.0.1"),
+        "PORT": env("DB_KEEPCON_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_KEEPCON_TEST_NAME", default="sf_keepcon_test"),
+        },
+    },
 }
 
 # Dynamically configure database routers based on enabled apps
@@ -365,6 +401,10 @@ if APP_USER_ENABLED:
     DATABASE_ROUTERS.append("app_user.db_routers.ReadWriteRouter")
 if APP_VERIFY_ENABLED:
     DATABASE_ROUTERS.append("app_verify.db_routers.ReadWriteRouter")
+if APP_CONFIG_ENABLED:
+    DATABASE_ROUTERS.append("app_config.db_routers.ReadWriteRouter")
+if APP_KEEPCON_ENABLED:
+    DATABASE_ROUTERS.append("app_keepcon.db_routers.ReadWriteRouter")
 
 
 # Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
@@ -373,14 +413,47 @@ GLOBAL_CACHE_REDIS_KEY_PREFIX = env("GLOBAL_CACHE_REDIS_KEY_PREFIX", default="sf
 # User
 USER_CACHE_REDIS_DB = env.int("USER_CACHE_REDIS_DB", default=1)
 USER_CACHE_REDIS_KEY_PREFIX = env("USER_CACHE_REDIS_KEY_PREFIX", default="user")
+CONFIG_CACHE_REDIS_DB = env.int("CONFIG_CACHE_REDIS_DB", default=1)
+CONFIG_CACHE_REDIS_KEY_PREFIX = env("CONFIG_CACHE_REDIS_KEY_PREFIX", default="config")
+CONFIG_CACHE_TTL_SECONDS = env.int("CONFIG_CACHE_TTL_SECONDS", default=300)
+
+KEEPCON_CACHE_REDIS_DB = env.int("KEEPCON_CACHE_REDIS_DB", default=2)
+KEEPCON_CACHE_REDIS_KEY_PREFIX = env("KEEPCON_CACHE_REDIS_KEY_PREFIX", default="keepcon")
+# Redis keys for keepcon (Channels + ``CACHES['keepcon']``): ``{GLOBAL}:{KEEPCON_CACHE_REDIS_KEY_PREFIX}:…``
+KEEPCON_REDIS_KEY_NAMESPACE = f"{GLOBAL_CACHE_REDIS_KEY_PREFIX}:{KEEPCON_CACHE_REDIS_KEY_PREFIX}"
+
+if APP_KEEPCON_ENABLED:
+    ASGI_APPLICATION = "service_foundation.asgi.application"
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [
+                    redis_location_with_db(CACHE_REDIS_URL, KEEPCON_CACHE_REDIS_DB),
+                ],
+                "prefix": KEEPCON_REDIS_KEY_NAMESPACE,
+            },
+        },
+    }
 
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": redis_location_with_db(CACHE_REDIS_URL, USER_CACHE_REDIS_DB),
         "KEY_PREFIX": f"{GLOBAL_CACHE_REDIS_KEY_PREFIX}:{USER_CACHE_REDIS_KEY_PREFIX}",
-    }
+    },
+    "config": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": redis_location_with_db(CACHE_REDIS_URL, CONFIG_CACHE_REDIS_DB),
+        "KEY_PREFIX": f"{GLOBAL_CACHE_REDIS_KEY_PREFIX}:{CONFIG_CACHE_REDIS_KEY_PREFIX}",
+    },
 }
+if APP_KEEPCON_ENABLED:
+    CACHES["keepcon"] = {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": redis_location_with_db(CACHE_REDIS_URL, KEEPCON_CACHE_REDIS_DB),
+        "KEY_PREFIX": KEEPCON_REDIS_KEY_NAMESPACE,
+    }
 
 # Prime ``get_dict_by_codes`` LRU at startup (comma-separated); matches perf/locust smoke default.
 DICT_HTTP_PRIME_CODES = env("DICT_HTTP_PRIME_CODES", default="aibroker_nested_param_type")

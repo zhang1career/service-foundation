@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import uuid
 from dataclasses import asdict
@@ -5,7 +7,7 @@ from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseBase, JsonResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseBase, JsonResponse
 from rest_framework import status as http_status
 from rest_framework.response import Response as DRFResponse
 from rest_framework.views import exception_handler as drf_exception_handler
@@ -101,6 +103,17 @@ def attach_request_id_header(response: HttpResponseBase, request_id: str) -> Non
         return
     header = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
     response[header] = request_id
+
+
+def response_with_request_id(
+    request: HttpRequest,
+    response: HttpResponseBase,
+    request_id: str | None = None,
+) -> HttpResponseBase:
+    """Attach resolved request id to response; return response for chaining."""
+    rid = request_id if request_id is not None else resolve_request_id(request)
+    attach_request_id_header(response, rid)
+    return response
 
 
 def with_type(data):

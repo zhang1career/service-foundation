@@ -1,7 +1,13 @@
+from unittest.mock import MagicMock, patch
+
 from django.http import QueryDict
 from django.test import SimpleTestCase, override_settings
 
-from common.utils.django_util import effective_setting_str, post_like_mapping_to_dict
+from common.utils.django_util import (
+    effective_setting_str,
+    post_like_mapping_to_dict,
+    schedule_on_commit,
+)
 
 
 class EffectiveSettingStrTests(SimpleTestCase):
@@ -49,3 +55,14 @@ class PostLikeMappingToDictTests(SimpleTestCase):
                 return "v"
 
         self.assertEqual(post_like_mapping_to_dict(M()), {"a": "v"})
+
+
+class ScheduleOnCommitTests(SimpleTestCase):
+    @patch("common.utils.django_util.transaction.on_commit")
+    def test_passes_partial_with_positional_args(self, mock_on_commit):
+        fn = MagicMock()
+        schedule_on_commit(fn, 10, "x", flag=True)
+        mock_on_commit.assert_called_once()
+        callback = mock_on_commit.call_args[0][0]
+        callback()
+        fn.assert_called_once_with(10, "x", flag=True)

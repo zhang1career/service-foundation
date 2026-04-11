@@ -1,0 +1,96 @@
+{% extends 'console/base.html' %}
+
+{% block title %}配置中心-条件字段{% endblock %}
+{% block page_title %}配置中心{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/config_subnav.html' with active='condition_fields' %}
+</div>
+
+<p class="text-gray-600 text-sm mb-4">条件字段元信息仅用于控制台说明与约定展示；写入配置项时不强制校验键集合。</p>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">新增条件字段</h2>
+    </div>
+    <div class="card-body">
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="form-group">
+                <label class="form-label" for="cf-rid">调用方 *</label>
+                <select id="cf-rid" name="rid" class="form-input" required>
+                    <option value="">请选择</option>
+                    {% for r in regs %}
+                    <option value="{{ r.id }}">{{ r.id }} — {{ r.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="cf-key">field_key *</label>
+                <input type="text" id="cf-key" name="field_key" class="form-input" required maxlength="128" placeholder="例如 env">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="cf-desc">description</label>
+                <input type="text" id="cf-desc" name="description" class="form-input" maxlength="512" placeholder="说明">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">创建</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">条件字段列表</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>调用方</th>
+                        <th>field_key</th>
+                        <th>description</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in fields %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ f.id }}</td>
+                        <td>{{ f.reg_name }} <span class="text-gray-500 text-xs">#{{ f.rid }}</span></td>
+                        <td class="font-medium">{{ f.field_key }}</td>
+                        <td>{{ f.description|default:"-" }}</td>
+                        <td>
+                            <details class="text-sm">
+                                <summary class="cursor-pointer text-blue-600">编辑</summary>
+                                <form method="post" class="mt-2 p-2 bg-gray-50 rounded space-y-2">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="update">
+                                    <input type="hidden" name="field_id" value="{{ f.id }}">
+                                    <input type="text" name="field_key" value="{{ f.field_key }}" class="form-input text-sm" maxlength="128">
+                                    <input type="text" name="description" value="{{ f.description }}" class="form-input text-sm" maxlength="512">
+                                    <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                                </form>
+                            </details>
+                            <form method="post" class="inline" onsubmit="return confirm('确认删除？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="field_id" value="{{ f.id }}">
+                                <button type="submit" class="btn btn-danger btn-sm mt-1">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无记录</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
