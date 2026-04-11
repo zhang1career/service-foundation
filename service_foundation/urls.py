@@ -72,7 +72,17 @@ if settings.APP_VERIFY_ENABLED:
     from app_verify import urls as app_verify_urls
     urlpatterns.append(path('api/verify/', include(app_verify_urls)))
 
+if getattr(settings, "APP_CONFIG_ENABLED", False):
+    from app_config import urls as app_config_urls
+
+    urlpatterns.append(path("api/config/", include(app_config_urls)))
+
 if getattr(settings, 'APP_CMS_ENABLED', False):
     from app_cms import urls as app_cms_urls
 
     urlpatterns.append(path('api/cms/', include(app_cms_urls)))
+
+if getattr(settings, "APP_KEEPCON_ENABLED", False):
+    from app_keepcon import urls as app_keepcon_urls
+
+    urlpatterns.append(path("api/keepcon/", include(app_keepcon_urls)))

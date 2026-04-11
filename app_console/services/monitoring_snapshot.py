@@ -22,7 +22,8 @@ _APP_TO_DB_ALIAS: dict[str, str] = {
     "aibroker": "aibroker_rw",
     "cdn": "cdn_rw",
     "cms": "cms_rw",
-    "know": "know_rw",
+       "know": "know_rw",
+    "keepcon": "keepcon_rw",
     "mail": "mailserver_rw",
     "notice": "notice_rw",
     "oss": "oss_rw",
@@ -205,6 +206,11 @@ def collect_monitoring_snapshot() -> dict[str, Any]:
         from app_searchrec.views.searchrec_view import SearchRecHealthView
 
         out["http_probes"]["searchrec_health"] = _probe_drf_view(SearchRecHealthView, "/api/searchrec/health")
+
+    if getattr(settings, "APP_KEEPCON_ENABLED", False):
+        from app_keepcon.views.keepcon_api_view import KeepconHealthView
+
+        out["http_probes"]["keepcon_health"] = _probe_drf_view(KeepconHealthView, "/api/keepcon/health")
 
     out["aibroker_metrics"] = _aibroker_metrics_if_configured()
 

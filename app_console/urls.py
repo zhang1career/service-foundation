@@ -205,3 +205,37 @@ if getattr(settings, "APP_AIBROKER_ENABLED", False):
             path("aibroker/call-logs/", AibrokerCallLogConsoleView.as_view(), name="aibroker-call-logs"),
         ]
     )
+
+if getattr(settings, "APP_CONFIG_ENABLED", False):
+    from app_console.views.config_console_view import (
+        ConfigConditionFieldsConsoleView,
+        ConfigEntriesConsoleView,
+        ConfigRegConsoleView,
+    )
+
+    urlpatterns.extend(
+        [
+            path("config/callers/", ConfigRegConsoleView.as_view(), name="config-callers"),
+            path("config/entries/", ConfigEntriesConsoleView.as_view(), name="config-entries"),
+            path(
+                "config/condition-fields/",
+                ConfigConditionFieldsConsoleView.as_view(),
+                name="config-condition-fields",
+            ),
+        ]
+    )
+
+if getattr(settings, "APP_KEEPCON_ENABLED", False):
+    from app_console.views.keepcon_console_view import (
+        KeepconDevicesConsoleView,
+        KeepconMessagesConsoleView,
+        KeepconRegConsoleView,
+    )
+
+    urlpatterns.extend(
+        [
+            path("keepcon/callers/", KeepconRegConsoleView.as_view(), name="keepcon-callers"),
+            path("keepcon/devices/", KeepconDevicesConsoleView.as_view(), name="keepcon-devices"),
+            path("keepcon/messages/", KeepconMessagesConsoleView.as_view(), name="keepcon-messages"),
+        ]
+    )

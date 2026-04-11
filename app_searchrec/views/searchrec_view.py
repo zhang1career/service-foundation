@@ -5,11 +5,11 @@ from app_searchrec.services import SearchRecService
 from common.consts.response_const import RET_INVALID_PARAM
 from common.enums.service_reg_status_enum import ServiceRegStatus
 from common.utils.http_util import (
-    attach_request_id_header,
     post_payload,
     resolve_request_id,
     resp_err,
     resp_ok,
+    response_with_request_id,
 )
 from common.utils.type_util import as_dict, as_list
 
@@ -32,15 +32,9 @@ def _resolve_reg_id_from_payload(data) -> int:
     return reg.id
 
 
-def _with_request_id(request, response, request_id=None):
-    rid = request_id if request_id is not None else resolve_request_id(request)
-    attach_request_id_header(response, rid)
-    return response
-
-
 class SearchRecHealthView(APIView):
     def get(self, request, *args, **kwargs):
-        return _with_request_id(request, resp_ok({"status": "ok", "service": "searchrec"}))
+        return response_with_request_id(request, resp_ok({"status": "ok", "service": "searchrec"}))
 
 
 class SearchRecIndexUpsertView(APIView):
@@ -49,7 +43,7 @@ class SearchRecIndexUpsertView(APIView):
         req_id = resolve_request_id(request)
         try:
             reg_id = _resolve_reg_id_from_payload(data)
-            return _with_request_id(
+            return response_with_request_id(
                 request,
                 resp_ok(SearchRecService.upsert_documents(reg_id, data.get("documents"))),
                 req_id,
@@ -64,7 +58,7 @@ class SearchRecSearchView(APIView):
         req_id = resolve_request_id(request)
         try:
             reg_id = _resolve_reg_id_from_payload(data)
-            return _with_request_id(
+            return response_with_request_id(
                 request,
                 resp_ok(
                     SearchRecService.search(
@@ -86,7 +80,7 @@ class SearchRecRecommendView(APIView):
         req_id = resolve_request_id(request)
         try:
             reg_id = _resolve_reg_id_from_payload(data)
-            return _with_request_id(
+            return response_with_request_id(
                 request,
                 resp_ok(
                     SearchRecService.recommend(
@@ -107,7 +101,7 @@ class SearchRecRankView(APIView):
         req_id = resolve_request_id(request)
         try:
             _resolve_reg_id_from_payload(data)
-            return _with_request_id(
+            return response_with_request_id(
                 request,
                 resp_ok(
                     SearchRecService.rank(

@@ -85,6 +85,18 @@ def console_context(request):
                 'description': '内容类型注册与内容行管理',
                 'icon': 'collection',
             },
+            'config': {
+                'name': '配置中心',
+                'enabled': getattr(settings, 'APP_CONFIG_ENABLED', False),
+                'description': '条件化 KV 配置与调用方注册',
+                'icon': 'adjustments',
+            },
+            'keepcon': {
+                'name': '长连接',
+                'enabled': getattr(settings, 'APP_KEEPCON_ENABLED', False),
+                'description': 'WebSocket 推送与设备消息',
+                'icon': 'link',
+            },
         },
         'cms_content_metas': _cms_content_metas_for_sidebar(),
     }

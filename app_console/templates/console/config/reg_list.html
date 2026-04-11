@@ -1,0 +1,12 @@
+{% extends 'console/base.html' %}
+
+{% block title %}配置中心-调用方{% endblock %}
+{% block page_title %}配置中心{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/config_subnav.html' with active='callers' %}
+</div>
+
+{% include 'console/includes/caller_reg_console.html' with lead_text='管理配置中心调用方：名称、Access Key 与启用状态。查询 API 需使用已启用调用方的 access_key。' table_title='调用方列表' %}
+{% endblock %}

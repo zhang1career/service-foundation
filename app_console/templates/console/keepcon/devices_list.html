@@ -1,0 +1,91 @@
+{% extends 'console/base.html' %}
+
+{% block title %}长连接-设备{% endblock %}
+{% block page_title %}长连接{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/keepcon_subnav.html' with active='devices' %}
+</div>
+
+<p class="text-gray-600 mb-4">设备使用 <span class="font-mono">device_key</span> 与 <span class="font-mono">secret</span> 在 WebSocket 上发送 <span class="font-mono">hello</span> 完成鉴权。路径：<span class="font-mono">/ws/keepcon/</span></p>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">新建设备</h2>
+    </div>
+    <div class="card-body">
+        <form method="post" class="flex flex-wrap gap-3 items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">device_key</label>
+                <input type="text" name="device_key" class="border rounded px-2 py-1 w-48 font-mono text-sm" required
+                       pattern="[\w.-]{1,64}" placeholder="e.g. phone-001">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">类型</label>
+                <select name="device_type" class="border rounded px-2 py-1 text-sm">
+                    <option value="1">mobile (1)</option>
+                    <option value="2">web (2)</option>
+                    <option value="3">iot (3)</option>
+                </select>
+            </div>
+            <div class="flex-1 min-w-[12rem]">
+                <label class="block text-xs text-gray-500 mb-1">名称（可选）</label>
+                <input type="text" name="name" class="border rounded px-2 py-1 w-full text-sm" placeholder="备注名">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">创建</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">设备列表</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>device_key</th>
+                        <th>secret</th>
+                        <th>类型</th>
+                        <th>名称</th>
+                        <th>状态</th>
+                        <th>next_seq</th>
+                        <th>last_seen</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in devices %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ d.id }}</td>
+                        <td class="font-mono text-sm">{{ d.device_key }}</td>
+                        <td class="break-all text-xs font-mono max-w-xs">{{ d.secret }}</td>
+                        <td><span class="font-mono">{{ d.device_type }}</span> <span class="text-gray-500 text-xs">({{ d.device_type_label }})</span></td>
+                        <td>{{ d.name|default:"-" }}</td>
+                        <td>{{ d.status }}</td>
+                        <td class="font-mono text-sm">{{ d.next_seq }}</td>
+                        <td class="text-xs text-gray-600">{{ d.last_seen_at }}</td>
+                        <td>
+                            <form method="post" class="inline" onsubmit="return confirm('删除该设备及其消息？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="device_id" value="{{ d.id }}">
+                                <button type="submit" class="text-red-600 hover:underline text-sm">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="9" class="text-center text-gray-500 py-8">暂无设备</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

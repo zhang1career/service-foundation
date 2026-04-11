@@ -1,9 +1,16 @@
 from __future__ import annotations
 
-from typing import Any
+from functools import partial
+from typing import Any, Callable
 
 from django.conf import settings
+from django.db import transaction
 from django.http import QueryDict
+
+
+def schedule_on_commit(func: Callable[..., Any], /, *args, **kwargs) -> None:
+    """Run ``func(*args, **kwargs)`` after the current DB transaction commits successfully."""
+    transaction.on_commit(partial(func, *args, **kwargs))
 
 
 def post_like_mapping_to_dict(raw: Any) -> dict[str, Any]:

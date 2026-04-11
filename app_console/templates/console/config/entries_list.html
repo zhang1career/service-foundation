@@ -1,0 +1,110 @@
+{% extends 'console/base.html' %}
+
+{% block title %}配置中心-配置项{% endblock %}
+{% block page_title %}配置中心{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for message in messages %}
+    <div class="rounded border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-green-200 bg-green-50 text-green-800{% endif %}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+<div class="mb-6">
+    {% include 'console/includes/config_subnav.html' with active='entries' %}
+</div>
+
+<p class="text-gray-600 text-sm mb-4">同一调用方、同一 config_key 下可多行；按条件匹配后按更新时间升序浅合并 JSON 对象。<code>condition</code> 必须为 JSON 对象，且<strong>键必须是该调用方在「条件字段」里登记过的 <code>field_key</code> 的子集</strong>；空 <code>{}</code> 表示通配。<code>value</code> 为 JSON 编码字符串。</p>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">新增配置项</h2>
+    </div>
+    <div class="card-body">
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="form-group">
+                <label class="form-label" for="entry-rid">调用方 *</label>
+                <select id="entry-rid" name="rid" class="form-input" required>
+                    <option value="">请选择</option>
+                    {% for r in regs %}
+                    <option value="{{ r.id }}">{{ r.id }} — {{ r.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="entry-key">config_key *</label>
+                <input type="text" id="entry-key" name="config_key" class="form-input" required maxlength="191" placeholder="例如 app.feature.flags">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="entry-condition">condition（JSON 对象）</label>
+                <textarea id="entry-condition" name="condition" class="form-input font-mono text-sm" rows="3" placeholder="{}"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="entry-value">value（JSON 字符串）*</label>
+                <textarea id="entry-value" name="value" class="form-input font-mono text-sm" rows="4" required placeholder='{"enabled":true}'></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">创建</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">配置项列表</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>调用方</th>
+                        <th>config_key</th>
+                        <th>condition</th>
+                        <th>value</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ e.id }}</td>
+                        <td>{{ e.reg_name }} <span class="text-gray-500 text-xs">#{{ e.rid }}</span></td>
+                        <td class="font-medium">{{ e.config_key }}</td>
+                        <td class="text-xs font-mono max-w-xs truncate" title="{{ e.condition }}">{{ e.condition }}</td>
+                        <td class="text-xs font-mono max-w-xs truncate" title="{{ e.value }}">{{ e.value }}</td>
+                        <td>
+                            <details class="text-sm">
+                                <summary class="cursor-pointer text-blue-600">编辑</summary>
+                                <form method="post" class="mt-2 p-2 bg-gray-50 rounded space-y-2">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="update">
+                                    <input type="hidden" name="entry_id" value="{{ e.id }}">
+                                    <input type="text" name="config_key" value="{{ e.config_key }}" class="form-input text-sm" maxlength="191">
+                                    <textarea name="condition" class="form-input font-mono text-xs" rows="2">{{ e.condition }}</textarea>
+                                    <textarea name="value" class="form-input font-mono text-xs" rows="3">{{ e.value }}</textarea>
+                                    <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                                </form>
+                            </details>
+                            <form method="post" class="inline" onsubmit="return confirm('确认删除？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="entry_id" value="{{ e.id }}">
+                                <button type="submit" class="btn btn-danger btn-sm mt-1">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-state py-8 text-center text-gray-500">暂无配置项</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

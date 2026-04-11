@@ -1,0 +1,13 @@
+{% comment %}
+长连接子导航 — active: callers | devices | messages
+{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex flex-wrap gap-2 mb-6" aria-label="长连接导航">
+    <a href="{% url 'console:keepcon-callers' %}"
+       class="{{ base_cls }} {% if active == 'callers' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
+    <a href="{% url 'console:keepcon-devices' %}"
+       class="{{ base_cls }} {% if active == 'devices' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">设备</a>
+    <a href="{% url 'console:keepcon-messages' %}"
+       class="{{ base_cls }} {% if active == 'messages' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">消息</a>
+</nav>
+{% endwith %}
