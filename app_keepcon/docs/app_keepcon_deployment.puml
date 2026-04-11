@@ -1,18 +1,6 @@
-# app_keepcon 部署架构（PlantUML）
-
-**分阶段**：**首阶段仅 WebSocket 路径**（终端 → TLS 接入 → Channels Worker → Redis → MySQL）。图中 **MQTT Broker与网关为第二阶段**，与 WS 共用 Redis 信封与 `sf_keepcon`；实现首版时可忽略 MQTT 节点或视为规划态。
-
-下文为 PlantUML 源码。可：
-
-- 复制到独立文件 `deployment_architecture.puml` 后用 [PlantUML](https://plantuml.com/) CLI / IDE 插件渲染；
-- 或在本仓库用支持 `plantuml` 代码块的预览插件直接渲染本文件。
-
----
-
-## 主图：设备、服务、WebSocket与 MQTT 网关
-
-```plantuml
 @startuml app_keepcon_deployment
+/'分阶段：首阶段仅 WebSocket（终端 → TLS → Channels → Redis → MySQL）。
+   MQTT Broker / 网关为第二阶段；首版可忽略 MQTT 或视为规划态。 '/
 !theme plain
 title app_keepcon — 部署架构（设备、服务、WebSocket / MQTT 网关）
 
@@ -107,67 +95,3 @@ note bottom of mqtt_gw
 end note
 
 @enduml
-```
-
----
-
-## 网络分区与信任边界
-
-```plantuml
-@startuml app_keepcon_network_zones
-!theme plain
-title app_keepcon — 网络分区与信任边界（示意）
-
-skinparam rectangle {
-  roundCorner 8
-}
-
-rectangle "公网 / 设备网" as untrusted #FFE4E1
-rectangle "DMZ — 接入" as dmz #FFF8DC
-rectangle "应用网 — 服务" as appnet #E8F4E8
-rectangle "数据网" as datanet #E8EEF8
-
-untrusted -down-> dmz : **仅 TLS**\n443 / 8883(MQTT)
-dmz -down-> appnet : 内网 LB →\nWS / HTTP / MQTT 桥
-appnet -down-> datanet : MySQL / Redis\n凭证轮换、最小权限
-
-note right of dmz
-  • 边缘完成 TLS、证书、部分限流
-  • WebSocket 与 MQTT 监听可拆分不同 VIP
-end note
-
-note right of appnet
-  • Django / Channels / MQTT 网关同集群或分池部署
-  • Redis 仅内网；禁公网暴露
-end note
-
-@enduml
-```
-
----
-
-## 水平扩展要点
-
-```plantuml
-@startuml app_keepcon_scale_out
-!theme plain
-title app_keepcon — 水平扩展要点（多副本）
-
-collections "WS Worker\n实例 N个" as wsN
-collections "WS Worker\n实例 M个" as wsM
-queue "Redis" as r
-database "MySQL\nsf_keepcon" as db
-
-wsN -down-> r : 订阅 device:{id} /\n节点心跳
-wsM -down-> r
-wsN -down-> db
-wsM -down-> db
-
-note bottom of r
-  **禁止** 仅在单机内存维护「设备→连接」
-  全局路由需 Redis（或等价）+ TTL；
-  投递：写库后 Pub 到目标 device 或 node 分片
-end note
-
-@enduml
-```

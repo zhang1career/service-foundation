@@ -37,7 +37,10 @@ if settings.APP_AIBROKER_ENABLED:
 if settings.APP_CDN_ENABLED:
     from common.views.dict_codes_view import DictCodesView
     from app_cdn import urls as app_cdn_urls
+    from app_cdn.views.cdn_health_view import CdnHealthView
+
     urlpatterns.append(path("api/cdn/dict", DictCodesView.as_view(), name="cdn-dict"))
+    urlpatterns.append(path("api/cdn/health", CdnHealthView.as_view(), name="cdn-health"))
     urlpatterns.append(path("api/cdn/2020-05-31/", include(app_cdn_urls)))
 
 if settings.APP_KNOW_ENABLED:

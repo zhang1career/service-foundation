@@ -19,10 +19,12 @@ from app_user.views import (
     EventConsoleListView,
     EventConsoleDetailView,
 )
+from app_user.views.health_view import UserHealthView
 
 
 urlpatterns = [
     path("dict", DictCodesView.as_view(), name="user-dict"),
+    path("health", UserHealthView.as_view(), name="user-health"),
     path("register", RegisterView.as_view(), name="user-register"),
     path("register/verify", RegisterVerifyView.as_view(), name="user-register-verify"),
     path("login", LoginView.as_view(), name="user-login"),

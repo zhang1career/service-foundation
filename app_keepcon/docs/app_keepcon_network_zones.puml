@@ -1,0 +1,28 @@
+@startuml app_keepcon_network_zones
+!theme plain
+title app_keepcon — 网络分区与信任边界（示意）
+
+skinparam rectangle {
+  roundCorner 8
+}
+
+rectangle "公网 / 设备网" as untrusted #FFE4E1
+rectangle "DMZ — 接入" as dmz #FFF8DC
+rectangle "应用网 — 服务" as appnet #E8F4E8
+rectangle "数据网" as datanet #E8EEF8
+
+untrusted -down-> dmz : **仅 TLS**\n443 / 8883(MQTT)
+dmz -down-> appnet : 内网 LB →\nWS / HTTP / MQTT 桥
+appnet -down-> datanet : MySQL / Redis\n凭证轮换、最小权限
+
+note right of dmz
+  • 边缘完成 TLS、证书、部分限流
+  • WebSocket 与 MQTT 监听可拆分不同 VIP
+end note
+
+note right of appnet
+  • Django / Channels / MQTT 网关同集群或分池部署
+  • Redis 仅内网；禁公网暴露
+end note
+
+@enduml

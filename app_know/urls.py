@@ -53,9 +53,11 @@ from app_know.views.summary_view import (
     KnowledgeSummaryView,
     KnowledgeSummaryListView,
 )
+from app_know.views.health_view import KnowHealthView
 from common.views.atlas_repl_view import AtlasReplView
 
 urlpatterns = [
+    path("health", KnowHealthView.as_view(), name="know-health"),
     path("atlas_repl", AtlasReplView.as_view(), name="atlas-repl"),
     path("dict", DictView.as_view(), name="dict"),
     path("knowledge", KnowledgeListView.as_view(), name="knowledge-list"),

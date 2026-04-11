@@ -202,6 +202,51 @@ def collect_monitoring_snapshot() -> dict[str, Any]:
 
         out["http_probes"]["aibroker_v1_health"] = _probe_drf_view(HealthView, "/api/ai/v1/health")
 
+    if getattr(settings, "APP_CDN_ENABLED", False):
+        from app_cdn.views.cdn_health_view import CdnHealthView
+
+        out["http_probes"]["cdn_health"] = _probe_drf_view(CdnHealthView, "/api/cdn/health")
+
+    if getattr(settings, "APP_KNOW_ENABLED", False):
+        from app_know.views.health_view import KnowHealthView
+
+        out["http_probes"]["know_health"] = _probe_drf_view(KnowHealthView, "/api/know/health")
+
+    if getattr(settings, "APP_OSS_ENABLED", False):
+        from app_oss.views.oss_health_view import OssHealthView
+
+        out["http_probes"]["oss_health"] = _probe_drf_view(OssHealthView, "/api/oss/health")
+
+    if getattr(settings, "APP_SNOWFLAKE_ENABLED", False):
+        from app_snowflake.views.snowflake_health_view import SnowflakeHealthView
+
+        out["http_probes"]["snowflake_health"] = _probe_drf_view(SnowflakeHealthView, "/api/snowflake/health")
+
+    if getattr(settings, "APP_USER_ENABLED", False):
+        from app_user.views.health_view import UserHealthView
+
+        out["http_probes"]["user_health"] = _probe_drf_view(UserHealthView, "/api/user/health")
+
+    if getattr(settings, "APP_NOTICE_ENABLED", False):
+        from app_notice.views.health_view import NoticeHealthView
+
+        out["http_probes"]["notice_health"] = _probe_drf_view(NoticeHealthView, "/api/notice/health")
+
+    if getattr(settings, "APP_VERIFY_ENABLED", False):
+        from app_verify.views.health_view import VerifyHealthView
+
+        out["http_probes"]["verify_health"] = _probe_drf_view(VerifyHealthView, "/api/verify/health")
+
+    if getattr(settings, "APP_CMS_ENABLED", False):
+        from app_cms.views.cms_health_view import CmsHealthView
+
+        out["http_probes"]["cms_health"] = _probe_drf_view(CmsHealthView, "/api/cms/health")
+
+    if getattr(settings, "APP_CONFIG_ENABLED", False):
+        from app_config.views import ConfigHealthView
+
+        out["http_probes"]["config_health"] = _probe_drf_view(ConfigHealthView, "/api/config/health")
+
     if getattr(settings, "APP_SEARCHREC_ENABLED", False):
         from app_searchrec.views.searchrec_view import SearchRecHealthView
 

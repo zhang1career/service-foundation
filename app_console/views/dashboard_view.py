@@ -8,7 +8,16 @@ from django.views.generic import TemplateView
 # 与 monitoring_snapshot 中 http_probes 键一致（供前端合并 HTTP 状态）
 _HTTP_PROBE_KEY_BY_APP = {
     "aibroker": "aibroker_v1_health",
+    "cdn": "cdn_health",
+    "cms": "cms_health",
+    "config": "config_health",
+    "know": "know_health",
+    "notice": "notice_health",
+    "oss": "oss_health",
     "searchrec": "searchrec_health",
+    "snowflake": "snowflake_health",
+    "user": "user_health",
+    "verify": "verify_health",
     "keepcon": "keepcon_health",
 }
 
