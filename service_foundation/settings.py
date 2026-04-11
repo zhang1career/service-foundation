@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "simple_history",
     "django_crontab",
     "rest_framework",
     "corsheaders",
@@ -127,11 +128,17 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "simple_history.middleware.HistoryRequestMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "common.utils.http_util.UnifiedExceptionMiddleware",
 ]
+
+if APP_CONSOLE_ENABLED:
+    _msg_mw = "django.contrib.messages.middleware.MessageMiddleware"
+    _insert_at = MIDDLEWARE.index(_msg_mw)
+    MIDDLEWARE.insert(_insert_at, "app_console.middleware.ConsoleStaffRequiredMiddleware")
 
 REST_FRAMEWORK: dict[str, Any] = {
     "EXCEPTION_HANDLER": "common.utils.http_util.drf_unified_exception_handler",
@@ -414,6 +421,11 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+# Console uses django.contrib.auth sessions (staff users); separate from app_user API JWT.
+LOGIN_URL = "/console/login/"
+LOGIN_REDIRECT_URL = "/console/"
+LOGOUT_REDIRECT_URL = "/console/login/"
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/

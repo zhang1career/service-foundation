@@ -62,7 +62,6 @@ def generate_path_insights(batch_id: int) -> List[Dict[str, Any]]:
         insights.append({
             "content": content,
             "type": INSIGHT_PATH_REASONING,
-            "kid": None,  # optional: could link to specific knowledge point
         })
     return insights
 
@@ -74,7 +73,6 @@ def generate_insights_and_store(
 ) -> List[Dict[str, Any]]:
     """
     Generate insights for a batch and store in DB. batch_id groups knowledge points.
-    insight.kid = knowledge point id (optional, may be null for batch-level insights).
     """
     if not batch_id or not isinstance(batch_id, int) or batch_id <= 0:
         raise ValueError("batch_id must be a positive integer")
@@ -88,7 +86,6 @@ def generate_insights_and_store(
                     type=INSIGHT_PATH_REASONING,
                     status=0,
                     perspective=perspective,
-                    kid=item.get("kid"),  # optional: specific knowledge point id
                 )
                 results.append({
                     "id": ins.id,
