@@ -302,7 +302,8 @@ DATABASES = {
             "charset": "utf8mb4",
         },
         "TEST": {
-            "NAME": env("DB_SNOWFLAKE_TEST_NAME", default="sf_snowflake_test"),
+            # Tests use the default test DB for this alias (no separate sf_snowflake_test schema).
+            "MIRROR": "default",
         },
     },
     "user_rw": {
@@ -594,6 +595,7 @@ NOTICE_SERVICE_URL = env("NOTICE_SERVICE_URL", default="http://127.0.0.1:8000/ap
 NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", default=1)
 # Console SearchRec「API 调试」页示例 JSON 中的 access_key；未设置环境变量时为空字符串
 CONSOLE_SEARCHREC_ACCESS_KEY = env("CONSOLE_SEARCHREC_ACCESS_KEY", default="")
+CONSOLE_SNOWFLAKE_ACCESS_KEY = env("CONSOLE_SNOWFLAKE_ACCESS_KEY", default="")
 # 运行监控页服务端拉取 AIBroker 汇总指标（仅服务端使用，勿下发到前端脚本）
 CONSOLE_AIBROKER_ACCESS_KEY = env("CONSOLE_AIBROKER_ACCESS_KEY", default="")
 CONSOLE_AIBROKER_METRICS_WINDOW_MS = env.int("CONSOLE_AIBROKER_METRICS_WINDOW_MS", default=86400000)

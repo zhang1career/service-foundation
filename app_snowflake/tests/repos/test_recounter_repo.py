@@ -1,13 +1,12 @@
 import sys
-from unittest import TestCase
 from unittest.mock import Mock, patch, MagicMock
+
+from django.test import SimpleTestCase
 
 from app_snowflake.consts.recounter_const import DEFAULT_RECOUNTER
 
 
-class TestRecounterRepo(TestCase):
-
-    databases = {'default', 'snowflake_rw'}
+class TestRecounterRepo(SimpleTestCase):
 
     def setUp(self):
         """Set up test fixtures"""

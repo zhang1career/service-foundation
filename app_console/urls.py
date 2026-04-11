@@ -13,7 +13,10 @@ from app_console.views import (
     MailAccountListView,
     MailboxListView,
     OssBrowserView,
-    SnowflakeView,
+    SnowflakeCallerListView,
+    SnowflakeGenerateView,
+    SnowflakeHistoryView,
+    SnowflakeParseView,
     CdnDistributionListView,
     CdnDistributionDetailView,
     CdnDistributionEditView,
@@ -62,7 +65,10 @@ urlpatterns = [
     path('oss/', OssBrowserView.as_view(), name='oss-browser'),
 
     # Snowflake ID generator
-    path('snowflake/', SnowflakeView.as_view(), name='snowflake'),
+    path('snowflake/callers/', SnowflakeCallerListView.as_view(), name='snowflake-callers'),
+    path('snowflake/generate/', SnowflakeGenerateView.as_view(), name='snowflake-generate'),
+    path('snowflake/parse/', SnowflakeParseView.as_view(), name='snowflake-parse'),
+    path('snowflake/history/', SnowflakeHistoryView.as_view(), name='snowflake-history'),
 
     # CDN management
     path('cdn/', CdnDistributionListView.as_view(), name='cdn-distributions'),

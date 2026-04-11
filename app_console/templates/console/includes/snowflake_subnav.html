@@ -1,0 +1,18 @@
+{% comment %}
+ID 生成模块子导航（与用户中心、通知中心一致）
+
+参数:
+  active — callers | generate | parse | history
+{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-4 py-2' %}
+<nav class="flex flex-wrap gap-2 mb-6" aria-label="ID 生成导航">
+    <a href="{% url 'console:snowflake-callers' %}"
+       class="{{ base_cls }} {% if active == 'callers' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
+    <a href="{% url 'console:snowflake-generate' %}"
+       class="{{ base_cls }} {% if active == 'generate' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">生成 ID</a>
+    <a href="{% url 'console:snowflake-parse' %}"
+       class="{{ base_cls }} {% if active == 'parse' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">ID 解析</a>
+    <a href="{% url 'console:snowflake-history' %}"
+       class="{{ base_cls }} {% if active == 'history' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">生成历史</a>
+</nav>
+{% endwith %}

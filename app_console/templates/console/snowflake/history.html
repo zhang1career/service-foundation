@@ -1,0 +1,74 @@
+{% extends 'console/base.html' %}
+
+{% block title %}ID 生成 - 生成历史{% endblock %}
+{% block page_title %}ID 生成{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/snowflake_subnav.html' with active='history' %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">生成历史</h2>
+        <button type="button" onclick="clearHistory()" class="btn btn-outline btn-sm">清空历史</button>
+    </div>
+    <div class="card-body p-0">
+        <p class="text-sm text-gray-600 px-4 pt-4 pb-3 border-b border-gray-200">
+            以下记录仅保存在<strong>当前浏览器</strong>的本地存储（<code class="text-xs font-mono">localStorage</code>）中，<strong>不会</strong>写入服务端；在「生成 ID」页每次成功生成后会追加，最多保留约 20 条。更换浏览器或设备、清除站点数据、使用无痕/隐私模式时，列表可能为空或丢失。
+        </p>
+        <div id="history-list">
+            <div class="empty-state">
+                <p class="text-gray-500">暂无生成记录</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let generatedHistory = JSON.parse(localStorage.getItem('snowflakeHistory') || '[]');
+
+function formatDate(iso) {
+    try {
+        return new Date(iso).toLocaleString('zh-CN');
+    } catch (e) {
+        return iso;
+    }
+}
+
+function loadHistory() {
+    var container = document.getElementById('history-list');
+    if (generatedHistory.length === 0) {
+        container.innerHTML = '<div class="empty-state p-8"><p class="text-gray-500">暂无生成记录</p></div>';
+        return;
+    }
+    var html = '<table class="data-table"><thead><tr><th>时间</th><th>数量</th><th>ID 列表</th><th>操作</th></tr></thead><tbody>';
+    generatedHistory.forEach(function (item, index) {
+        var idsPreview = item.ids.length > 2
+            ? item.ids[0] + ', ' + item.ids[1] + ', ...'
+            : item.ids.join(', ');
+        html += '<tr><td>' + formatDate(item.timestamp) + '</td><td>' + item.count + '</td>' +
+            '<td class="font-mono text-sm max-w-md truncate">' + idsPreview + '</td><td>' +
+            '<button type="button" onclick="copyHistoryIds(' + index + ')" class="btn btn-outline btn-sm">复制</button></td></tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function copyHistoryIds(index) {
+    copyToClipboard(generatedHistory[index].ids.join('\n'));
+}
+
+function clearHistory() {
+    if (!confirm('确认清空所有生成历史？')) return;
+    generatedHistory = [];
+    localStorage.removeItem('snowflakeHistory');
+    loadHistory();
+    showToast('历史已清空', 'success');
+}
+
+document.addEventListener('DOMContentLoaded', loadHistory);
+</script>
+{% endblock %}

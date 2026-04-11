@@ -12,21 +12,10 @@ from common.utils.http_util import post_payload, resp_err, resp_exception, resp_
 logger = logging.getLogger(__name__)
 
 
-def _resolve_rid_from_payload(data) -> int:
-    if not isinstance(data, dict):
-        raise ValueError("JSON body with field `access_key` is required")
-    access_key = (data.get("access_key") or "").strip()
-    if not access_key:
-        raise ValueError("field `access_key` is required")
-    reg = get_reg_by_access_key_and_status(access_key, ServiceRegStatus.ENABLED)
-    if not reg:
-        raise ValueError("invalid or inactive access_key")
-    return int(reg.id)
-
-
 class SnowflakeDetailView(APIView):
-    # add permission to check if user is authenticated
-    # permission_classes = [permissions.IsAuthenticated]
+    """与 curl / 服务间调用一致：凭 body内 access_key，不绑定 Session/CSRF。"""
+
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         try:
@@ -41,3 +30,15 @@ class SnowflakeDetailView(APIView):
         except Exception as e:
             logger.exception(e)
             return resp_exception(e)
+
+
+def _resolve_rid_from_payload(data) -> int:
+    if not isinstance(data, dict):
+        raise ValueError("JSON body with field `access_key` is required")
+    access_key = (data.get("access_key") or "").strip()
+    if not access_key:
+        raise ValueError("field `access_key` is required")
+    reg = get_reg_by_access_key_and_status(access_key, ServiceRegStatus.ENABLED)
+    if not reg:
+        raise ValueError("invalid or inactive access_key")
+    return int(reg.id)

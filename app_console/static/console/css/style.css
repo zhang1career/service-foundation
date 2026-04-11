@@ -325,6 +325,12 @@ body {
     font-size: 14px;
 }
 
+/* 卡片内浅表面（列表结果区、提示块）：亮色主题为深字+浅底；暗色见 theme.css */
+.console-surface-muted {
+    background-color: #f9fafb;
+    color: #111827;
+}
+
 .form-input {
     width: 100%;
     padding: 10px 12px;

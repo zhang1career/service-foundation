@@ -2,6 +2,10 @@
  * 控制台主题：暗色下的样式覆盖（公用）
  * 触发条件：html.theme-dark（由 base.html 中主题切换设置）
  * 新增/修改与主题相关的样式时，请只改本文件，保持集中管理。
+ *
+ * 亮色下表单字段：style.css 的 .form-input / .form-textarea（与 CDN「备注」等一致）。
+ * 卡片内浅底辅助区：.console-surface-muted（style亮色 + 本文件暗色）；未改模板处仍可用 Tailwind
+ * 的 bg-gray-50/100/200，暗色下在本文件中统一压成与表单接近的表面色并校正字色。
  */
 html.theme-dark body { background-color: #111827; }
 html.theme-dark .theme-header { background: #1f2937; border-bottom: 1px solid #374151; }
@@ -54,10 +58,53 @@ html.theme-dark .form-input,
 html.theme-dark .form-textarea,
 html.theme-dark input[type="text"],
 html.theme-dark input[type="number"],
+html.theme-dark input[type="email"],
+html.theme-dark input[type="password"],
+html.theme-dark input[type="search"],
+html.theme-dark input[type="url"],
+html.theme-dark input[type="tel"],
 html.theme-dark textarea,
-html.theme-dark select { background: #374151; border-color: #4b5563; color: #f3f4f6; }
+html.theme-dark select { background-color: #374151; border-color: #4b5563; color: #f3f4f6; }
+html.theme-dark .form-input::placeholder,
+html.theme-dark .form-textarea::placeholder,
+html.theme-dark textarea::placeholder,
+html.theme-dark input[type="text"]::placeholder,
+html.theme-dark input[type="search"]::placeholder {
+    color: #9ca3af;
+    opacity: 1;
+}
 html.theme-dark .form-label,
 html.theme-dark label { color: #d1d5db; }
+
+/* 与 .form-input 同系的浅底区块：避免继承 card-body 浅字 + Tailwind 浅底 */
+html.theme-dark .console-surface-muted {
+    background-color: #374151;
+    color: #e5e7eb;
+}
+html.theme-dark .bg-gray-50 {
+    background-color: #374151 !important;
+    color: #e5e7eb;
+}
+html.theme-dark .bg-gray-100 {
+    background-color: #4b5563 !important;
+    color: #f3f4f6;
+}
+html.theme-dark .bg-gray-200 {
+    background-color: #4b5563 !important;
+    color: #f3f4f6;
+}
+html.theme-dark .text-gray-700 { color: #e5e7eb !important; }
+html.theme-dark .text-gray-900 { color: #f3f4f6 !important; }
+html.theme-dark .border-gray-200 { border-color: #4b5563 !important; }
+
+/* 解析结果等彩色浅底卡片 */
+html.theme-dark .bg-blue-50 { background-color: rgba(30, 58, 95, 0.85) !important; color: #e5e7eb; }
+html.theme-dark .bg-green-50 { background-color: rgba(6, 78, 59, 0.75) !important; color: #e5e7eb; }
+html.theme-dark .bg-yellow-50 { background-color: rgba(113, 63, 18, 0.75) !important; color: #fef3c7; }
+html.theme-dark .bg-purple-50 { background-color: rgba(76, 29, 149, 0.55) !important; color: #e9d5ff; }
+html.theme-dark .bg-orange-50 { background-color: rgba(124, 45, 18, 0.75) !important; color: #ffedd5; }
+html.theme-dark .bg-teal-50 { background-color: rgba(19, 78, 74, 0.75) !important; color: #ccfbf1; }
+html.theme-dark .bg-blue-100 { background-color: rgba(30, 58, 95, 0.95) !important; color: #e5e7eb; }
 
 /* Badge */
 html.theme-dark .badge-success { background: #065f46; color: #a7f3d0; }
@@ -97,6 +144,11 @@ html.theme-dark .text-gray-500 { color: #9ca3af; }
 html.theme-dark .text-gray-600 { color: #d1d5db; }
 html.theme-dark .text-gray-800 { color: #f3f4f6; }
 html.theme-dark .text-blue-600 { color: #93c5fd; }
+html.theme-dark .text-blue-700 { color: #93c5fd; }
+html.theme-dark .text-yellow-600 { color: #fde047; }
+html.theme-dark .text-orange-600 { color: #fdba74; }
+html.theme-dark .text-teal-700 { color: #5eead4; }
+html.theme-dark .text-purple-600 { color: #d8b4fe; }
 html.theme-dark .text-red-500 { color: #fca5a5; }
 
 /* 详情只读块：与 card-body 字色一致，避免浅底 + 默认黑字 */
