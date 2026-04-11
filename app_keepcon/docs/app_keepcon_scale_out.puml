@@ -1,0 +1,21 @@
+@startuml app_keepcon_scale_out
+!theme plain
+title app_keepcon — 水平扩展要点（多副本）
+
+collections "WS Worker\n实例 N个" as wsN
+collections "WS Worker\n实例 M个" as wsM
+queue "Redis" as r
+database "MySQL\nsf_keepcon" as db
+
+wsN -down-> r : 订阅 device:{id} /\n节点心跳
+wsM -down-> r
+wsN -down-> db
+wsM -down-> db
+
+note bottom of r
+  **禁止** 仅在单机内存维护「设备→连接」
+  全局路由需 Redis（或等价）+ TTL；
+  投递：写库后 Pub 到目标 device 或 node 分片
+end note
+
+@enduml

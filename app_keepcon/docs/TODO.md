@@ -68,4 +68,4 @@
 ## 说明
 
 - **优先级**可按业务调整：若主要卖 B2B IoT，P1 会整体上移；若先做消息中台，P0 与 P2 更重。  
-- 与主设计文档、部署图见同目录 [`deployment_architecture.md`](deployment_architecture.md)。
+- 部署架构 PlantUML：`app_keepcon_deployment.puml`（主图）、`app_keepcon_network_zones.puml`、`app_keepcon_scale_out.puml`（同目录）。

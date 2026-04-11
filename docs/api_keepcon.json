@@ -1,0 +1,193 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Keepcon API",
+    "description": "app_keepcon 对外 HTTP 接口（长连接推送：服务端经 Channels 向已鉴权 WebSocket 客户端投递消息）。\n\n- **挂载前缀**：`/api/keepcon/`（见 `service_foundation/urls.py`）。\n- **响应包络**：`{ errorCode, data, message, ... }`；`errorCode === 0` 表示成功（与 `common.pojo.response.Response` / `resp_ok`一致）。多数错误在业务层仍返回 **HTTP 200**，通过 `errorCode` 区分。\n- **请求 ID**：可传请求头 `X-Request-Id`；成功响应由 `response_with_request_id` 写入响应头（默认名 `X-Request-Id`，可由 `REQUEST_ID_RESPONSE_HEADER` 覆盖）。\n- **WebSocket**（非 OpenAPI 路径）：浏览器/终端连接 `ws(s)://<host>/ws/keepcon/`。鉴权后客户端加入组 `keepcon_{device_key}`（逻辑组名；Redis 中 Channels key 另带配置前缀）。JSON 消息类型概要：`hello`（`device_key` + `secret`）→ `hello_ok` / `hello_fail`；`sync`（`since_seq`）→ `sync_ok`；`ack`（`msg_id`）→ `ack_ok`；`ping` → `pong`；下行 `push`（`msg_id`, `seq`, `payload`）。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "相对当前站点根路径"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Keepcon",
+      "description": "健康检查与内部消息投递"
+    }
+  ],
+  "paths": {
+    "/api/keepcon/health": {
+      "get": {
+        "tags": ["Keepcon"],
+        "summary": "健康检查",
+        "operationId": "keepconHealth",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/EnvelopeOk" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "status": { "type": "string", "example": "ok" },
+                            "service": { "type": "string", "example": "keepcon" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" },
+              "Expires": { "schema": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/keepcon/internal/messages": {
+      "post": {
+        "tags": ["Keepcon"],
+        "summary": "内部投递消息到设备",
+        "description": "供已注册的 HTTP 调用方（`reg.access_key`，且 **status=启用**，与 `ServiceRegStatus.ENABLED` 一致）向指定 `device_key` 投递 `payload`：落库为待推送消息并 `group_send` 到对应 WebSocket 组；无在线客户端时消息仍为 pending。\n\n- `payload`：可为任意 JSON 可序列化值；非 object/array 时会包装为 `{\"value\": ...}` 再序列化存储。\n- **幂等**：`idem_key` 与 `idempotency_key` 二选一（字符串，去空白）；相同键复用已存在消息，返回该消息的 `msg_id` / `seq` / `status`。\n- 常见 `message`：`access_key is required`、`invalid or inactive access_key`、`device_key is required`、`payload is required`、`device not found or disabled`（均为参数类错误，`errorCode` 为 100）。未捕获的服务器异常可能由统一异常中间件处理（HTTP 状态码或非 0 `errorCode` 以实际为准）。",
+        "operationId": "keepconInternalDispatch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InternalDispatchRequest" },
+              "examples": {
+                "minimal": {
+                  "summary": "最简投递",
+                  "value": {
+                    "access_key": "YOUR_ACCESS_KEY",
+                    "device_key": "device_001",
+                    "payload": { "type": "notify", "text": "hello" }
+                  }
+                },
+                "withIdempotency": {
+                  "summary": "带幂等键",
+                  "value": {
+                    "access_key": "YOUR_ACCESS_KEY",
+                    "device_key": "device_001",
+                    "payload": { "order_id": "o1" },
+                    "idem_key": "idem-2025-001"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数/业务校验错误（errorCode≠0 时 HTTP 常为 200，见包络）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/DispatchResult" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "XRequestId": {
+        "description": "请求关联 ID；客户端可传 `X-Request-Id`，响应会回显。",
+        "schema": { "type": "string" }
+      }
+    },
+    "schemas": {
+      "EnvelopeOk": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": { "type": "integer", "enum": [0], "description": "成功为 0" },
+          "data": { "description": "业务数据" },
+          "message": { "type": "string", "description": "成功时通常为空串" }
+        }
+      },
+      "EnvelopeError": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": { "type": "integer", "description": "非 0；本接口参数/鉴权失败为 100（RET_INVALID_PARAM）" },
+          "data": { "nullable": true },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "InternalDispatchRequest": {
+        "type": "object",
+        "required": ["access_key", "device_key", "payload"],
+        "properties": {
+          "access_key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "调用方在 keepcon `reg` 表中的 access_key，且记录须为启用状态。"
+          },
+          "device_key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "目标设备键；设备须存在且启用（status=1）。"
+          },
+          "payload": {
+            "description": "投递给客户端的业务负载；须出现该键；值可为 object、array、标量等（标量会按实现包装后存库）。"
+          },
+          "idem_key": {
+            "type": "string",
+            "description": "幂等键；与 `idempotency_key` 等价，优先使用先出现的非空值。"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "同 `idem_key`。"
+          }
+        }
+      },
+      "DispatchResult": {
+        "type": "object",
+        "required": ["msg_id", "seq", "device_key", "status"],
+        "properties": {
+          "msg_id": { "type": "integer", "description": "消息主键" },
+          "seq": { "type": "integer", "description": "设备维度单调序号" },
+          "device_key": { "type": "string" },
+          "status": {
+            "type": "integer",
+            "description": "消息状态：0=pending，1=delivered，2=acked（新建成功时一般为 0）",
+            "enum": [0, 1, 2]
+          }
+        }
+      }
+    }
+  }
+}

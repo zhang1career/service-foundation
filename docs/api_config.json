@@ -1,0 +1,232 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Config Center API",
+    "description": "app_config 对外 HTTP 接口（配置查询）。响应包络为 `{ errorCode, data, message, ... }`：`errorCode === 0` 表示成功。挂载路径前缀：`/api/config/`（`APP_CONFIG_ENABLED` 为真时，见 `service_foundation/urls.py`）。\n\n查询接口按 `access_key` 在 `sf_config.reg` 中解析调用方（**status=1 启用**）；按 `key` 与可选 `conditions` 匹配 `config_entry` 行，按 `ut`、`id` 升序对 `value`（JSON 字符串）做浅合并；结果可经 Redis（`caches[\"config\"]`）缓存，键含 `rid` 代际，控制台写入会失效缓存。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "相对当前站点根路径"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Config",
+      "description": "配置中心查询与健康检查"
+    }
+  ],
+  "paths": {
+    "/api/config/health": {
+      "get": {
+        "tags": ["Config"],
+        "summary": "健康检查",
+        "operationId": "configHealth",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/EnvelopeOk" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "status": { "type": "string", "example": "ok" },
+                            "service": { "type": "string", "example": "config" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" },
+              "Expires": { "schema": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/get": {
+      "post": {
+        "tags": ["Config"],
+        "summary": "按条件查询合并后的配置值",
+        "description": "请求体须含已启用调用方的 `access_key` 与业务配置键 `key`。`conditions` 为可选 JSON 对象；与 `config_entry.condition`（JSON 对象）做子集匹配：对配置行条件中每个键 `k`，请求须含 `conditions[k]` 且值相等（严格相等，无隐式类型转换）。多行命中时按 `ut`、`id` 升序浅合并：两值均为 object 时用后者键覆盖前者；若某行解析值为非 object，则整值成为结果并停止后续合并。`value` 可为任意 JSON 类型或 `null`（无有效合并结果时）。",
+        "operationId": "configGet",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConfigGetRequest" },
+              "examples": {
+                "minimal": {
+                  "summary": "仅默认条件",
+                  "value": {
+                    "access_key": "YOUR_ACCESS_KEY",
+                    "key": "app.feature.flags"
+                  }
+                },
+                "withConditions": {
+                  "summary": "带条件",
+                  "value": {
+                    "access_key": "YOUR_ACCESS_KEY",
+                    "key": "app.feature.flags",
+                    "conditions": { "env": "prod", "region": "cn" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数错误（errorCode≠0 时 HTTP 仍为 200，见包络）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/ConfigGetResult" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" },
+              "Expires": { "schema": { "type": "string" }, "description": "成功响应可能带短期 Expires（与 `resp_ok` 一致）" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "XRequestId": {
+        "description": "请求关联 ID；客户端可传 `X-Request-Id`，成功响应会回显。",
+        "schema": { "type": "string" }
+      }
+    },
+    "schemas": {
+      "EnvelopeOk": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": { "type": "integer", "enum": [0], "description": "成功为 0（RET_OK）" },
+          "data": { "description": "业务数据" },
+          "message": { "type": "string", "description": "成功时通常为空串" }
+        }
+      },
+      "EnvelopeError": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "非 0；参数/鉴权类错误常见为 100（RET_INVALID_PARAM），见 `common/consts/response_const.py`"
+          },
+          "data": { "nullable": true },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "AccessKey": {
+        "type": "string",
+        "minLength": 1,
+        "description": "调用方 Access Key。服务端在 `sf_config.reg` 中按 `access_key` 与 **status=1（启用）** 解析；未匹配或非启用返回错误（message 如 invalid or inactive access_key）。"
+      },
+      "ConfigKey": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 191,
+        "description": "配置业务键，对应表 `config_entry.config_key`。"
+      },
+      "ConfigGetRequest": {
+        "type": "object",
+        "required": ["access_key", "key"],
+        "properties": {
+          "access_key": { "$ref": "#/components/schemas/AccessKey" },
+          "key": { "$ref": "#/components/schemas/ConfigKey" },
+          "conditions": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "可选。须为 JSON 对象；缺省按 `{}` 处理。键值参与与 `config_entry.condition` 的匹配。"
+          }
+        }
+      },
+      "ConfigGetResult": {
+        "type": "object",
+        "required": ["value", "source_ids", "audit"],
+        "properties": {
+          "value": {
+            "description": "合并后的 JSON 值；无有效行或值均无法解析时可为 null",
+            "nullable": true
+          },
+          "source_ids": {
+            "type": "string",
+            "description": "参与合并的 `config_entry.id`，按合并顺序逗号分隔；无命中时为空串",
+            "example": "12,45"
+          },
+          "audit": { "$ref": "#/components/schemas/ConfigGetAudit" }
+        }
+      },
+      "ConfigGetAudit": {
+        "type": "object",
+        "required": ["conditions_received", "matched_layers"],
+        "properties": {
+          "conditions_received": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "本次请求使用的 `conditions` 副本（与校验一致）"
+          },
+          "matched_layers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ConfigMatchedLayer" },
+            "description": "按合并顺序排列的命中层审计信息"
+          }
+        }
+      },
+      "ConfigMatchedLayer": {
+        "type": "object",
+        "required": ["config_id", "row_condition", "condition_keys", "satisfied_by_request"],
+        "properties": {
+          "config_id": { "type": "integer", "description": "`config_entry` 主键" },
+          "row_condition": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "该行的条件 JSON；`{}` 表示通配"
+          },
+          "condition_keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "`row_condition` 键名排序列表"
+          },
+          "satisfied_by_request": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "本行条件键在 `conditions_received` 中的取值快照"
+          }
+        }
+      }
+    }
+  }
+}
