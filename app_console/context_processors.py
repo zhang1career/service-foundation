@@ -17,6 +17,7 @@ def console_context(request):
     """Provide app status and static cache-bust version to all console templates."""
     return {
         'static_version': _get_static_version(),
+        'console_snowflake_access_key': getattr(settings, 'CONSOLE_SNOWFLAKE_ACCESS_KEY', '') or '',
         'apps': {
             'know': {
                 'name': '知识管理',

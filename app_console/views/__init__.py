@@ -10,7 +10,12 @@ from .know_view import (
 )
 from .mail_view import MailAccountListView, MailboxListView
 from .oss_view import OssBrowserView
-from .snowflake_view import SnowflakeView
+from .snowflake_console_view import (
+    SnowflakeCallerListView,
+    SnowflakeGenerateView,
+    SnowflakeHistoryView,
+    SnowflakeParseView,
+)
 from .cdn_view import (
     CdnDistributionListView,
     CdnDistributionDetailView,
@@ -42,7 +47,10 @@ __all__ = [
     'MailAccountListView',
     'MailboxListView',
     'OssBrowserView',
-    'SnowflakeView',
+    'SnowflakeCallerListView',
+    'SnowflakeGenerateView',
+    'SnowflakeHistoryView',
+    'SnowflakeParseView',
     'CdnDistributionListView',
     'CdnDistributionDetailView',
     'CdnDistributionEditView',

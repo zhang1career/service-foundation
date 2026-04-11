@@ -1,0 +1,12 @@
+{% extends 'console/base.html' %}
+
+{% block title %}ID 生成 - 调用方{% endblock %}
+{% block page_title %}ID 生成{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/snowflake_subnav.html' with active='callers' %}
+</div>
+
+{% include 'console/includes/caller_reg_console.html' with lead_text='管理 Snowflake 调用方：名称、Access Key 与启用状态；生成 ID 时需使用已启用调用方的 Access Key（控制台可使用环境变量中的密钥）。' create_label='新建' create_modal_title='新建调用方' table_title='调用方列表' %}
+{% endblock %}

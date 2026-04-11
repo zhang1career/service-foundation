@@ -39,11 +39,12 @@ RUN groupadd -r service_foundation && useradd -r -g service_foundation service_f
 # Copy requirements first to leverage Docker layer caching
 COPY requirements.txt .
 
-# Install Python dependencies with pip cache mounting
-# Use PyTorch CPU index for smaller image and faster install (no CUDA)
+# Install Python dependencies with pip cache mounting.
+# Do not pass --extra-index-url for PyTorch unless requirements include torch*;
+# extra indexes slow pip resolution for every package on PyPI.
 RUN --mount=type=cache,target=/root/.cache/pip,uid=0,gid=0 \
     pip install --upgrade pip \
-    && pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+    && pip install -r requirements.txt
 
 # Copy application code (this layer will only rebuild when code changes)
 COPY --chown=service_foundation:service_foundation . .

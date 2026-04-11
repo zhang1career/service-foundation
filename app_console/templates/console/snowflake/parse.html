@@ -1,0 +1,121 @@
+{% extends 'console/base.html' %}
+
+{% block title %}ID 生成 - ID 解析{% endblock %}
+{% block page_title %}ID 生成{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/snowflake_subnav.html' with active='parse' %}
+</div>
+
+<div class="card max-w-2xl">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">ID 解析</h2>
+    </div>
+    <div class="card-body">
+        <p class="text-gray-600 mb-6">
+            解析 Snowflake ID，查看时间戳、数据中心、机器、重启计数、业务段与序列号（与当前服务位布局一致）。
+        </p>
+
+        <div class="form-group">
+            <label class="form-label" for="parse-id">输入 ID</label>
+            <input type="text" id="parse-id" class="form-input" placeholder="输入要解析的 Snowflake ID">
+        </div>
+
+        <button type="button" onclick="parseId()" class="btn btn-secondary w-full">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z"></path>
+            </svg>
+            解析 ID
+        </button>
+
+        <div id="parse-result" class="mt-6 hidden">
+            <h3 class="font-semibold mb-4">解析结果</h3>
+            <div class="space-y-3" id="parse-details">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="application/json" id="snowflake-parse-bits">{{ snowflake_parse_config_json|safe }}</script>
+<script>
+function snowflakeParseCfg() {
+    var el = document.getElementById('snowflake-parse-bits');
+    return el ? JSON.parse(el.textContent) : {};
+}
+
+function parseId() {
+    var id = document.getElementById('parse-id').value.trim();
+    var resultDiv = document.getElementById('parse-result');
+    var detailsDiv = document.getElementById('parse-details');
+    var cfg = snowflakeParseCfg();
+
+    if (!id) {
+        showToast('请输入 ID', 'error');
+        return;
+    }
+
+    try {
+        var bigId = BigInt(id);
+        var tsShift = BigInt(cfg.timestamp_shift);
+        var dcShift = BigInt(cfg.datacenter_shift);
+        var mShift = BigInt(cfg.machine_shift);
+        var rShift = BigInt(cfg.recount_shift);
+        var bShift = BigInt(cfg.business_shift);
+        var dcBits = BigInt(cfg.datacenter_bits);
+        var mBits = BigInt(cfg.machine_bits);
+        var rBits = BigInt(cfg.recount_bits);
+        var bBits = BigInt(cfg.business_bits);
+        var maskSeq = BigInt(cfg.mask_sequence);
+        var epoch = BigInt(cfg.start_timestamp);
+
+        var mask = function (bits) { return (BigInt(1) << bits) - BigInt(1); };
+
+        var timestamp = (bigId >> tsShift) + epoch;
+        var datacenterId = (bigId >> dcShift) & mask(dcBits);
+        var machineId = (bigId >> mShift) & mask(mBits);
+        var recount = (bigId >> rShift) & mask(rBits);
+        var businessId = (bigId >> bShift) & mask(bBits);
+        var sequence = bigId & maskSeq;
+
+        var date = new Date(Number(timestamp));
+
+        detailsDiv.innerHTML =
+            '<div class="console-surface-muted p-3 rounded-lg">' +
+            '<p class="text-sm text-gray-500">原始 ID</p>' +
+            '<p class="font-mono font-semibold">' + id + '</p></div>' +
+            '<div class="console-surface-muted p-3 rounded-lg">' +
+            '<p class="text-sm text-gray-500">二进制表示</p>' +
+            '<p class="font-mono text-xs break-all">' + bigId.toString(2).padStart(64, '0') + '</p></div>' +
+            '<div class="grid grid-cols-2 gap-3">' +
+            '<div class="bg-blue-50 p-3 rounded-lg"><p class="text-sm text-blue-600">时间戳</p>' +
+            '<p class="font-semibold">' + date.toLocaleString('zh-CN') + '</p>' +
+            '<p class="text-xs text-gray-500">' + timestamp.toString() + ' ms</p></div>' +
+            '<div class="bg-green-50 p-3 rounded-lg"><p class="text-sm text-green-600">数据中心 ID</p>' +
+            '<p class="font-semibold">' + datacenterId.toString() + '</p></div>' +
+            '<div class="bg-yellow-50 p-3 rounded-lg"><p class="text-sm text-yellow-600">机器 ID</p>' +
+            '<p class="font-semibold">' + machineId.toString() + '</p></div>' +
+            '<div class="bg-orange-50 p-3 rounded-lg"><p class="text-sm text-orange-600">重启/回拨计数</p>' +
+            '<p class="font-semibold">' + recount.toString() + '</p></div>' +
+            '<div class="bg-teal-50 p-3 rounded-lg"><p class="text-sm text-teal-700">业务段 (rid 映射)</p>' +
+            '<p class="font-semibold">' + businessId.toString() + '</p></div>' +
+            '<div class="bg-purple-50 p-3 rounded-lg"><p class="text-sm text-purple-600">序列号</p>' +
+            '<p class="font-semibold">' + sequence.toString() + '</p></div>' +
+            '</div>';
+
+        resultDiv.classList.remove('hidden');
+    } catch (e) {
+        detailsDiv.innerHTML = '<p class="text-red-500">解析失败：无效的 ID 格式</p>';
+        resultDiv.classList.remove('hidden');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('parse-id').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') parseId();
+    });
+});
+</script>
+{% endblock %}

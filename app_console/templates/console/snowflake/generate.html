@@ -1,0 +1,106 @@
+{% extends 'console/base.html' %}
+
+{% block title %}ID 生成 - 生成 ID{% endblock %}
+{% block page_title %}ID 生成{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/snowflake_subnav.html' with active='generate' %}
+</div>
+
+<div class="card max-w-2xl">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">生成 ID</h2>
+    </div>
+    <div class="card-body">
+        <p class="text-gray-600 mb-6">
+            Snowflake 算法生成的 64 位唯一 ID。请求使用控制台环境变量 <code class="text-sm console-surface-muted px-1 rounded">CONSOLE_SNOWFLAKE_ACCESS_KEY</code> 作为接口 <code class="text-sm console-surface-muted px-1 rounded">access_key</code>（须对应已启用的调用方）。
+        </p>
+        {% if not console_snowflake_access_key %}
+        <p class="text-amber-700 text-sm mb-4">未配置 CONSOLE_SNOWFLAKE_ACCESS_KEY，将无法调用生成接口。</p>
+        {% endif %}
+
+        {% csrf_token %}
+        <button type="button" onclick="generateIds()" class="btn btn-primary w-full" id="btn-generate">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            生成 ID
+        </button>
+
+        <div id="generated-ids" class="mt-6 hidden">
+            <div class="flex justify-between items-center mb-2">
+                <label class="form-label mb-0">生成结果</label>
+                <button type="button" onclick="copyAllIds()" class="btn btn-outline btn-sm">复制全部</button>
+            </div>
+            <div id="ids-container" class="console-surface-muted rounded-lg p-4 max-h-64 overflow-y-auto">
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ console_snowflake_access_key|default:''|json_script:"snowflake-console-access-key" }}
+<script>
+const API_SNOWFLAKE_ID = '/api/snowflake/id';
+const ACCESS_KEY = (function () {
+    var el = document.getElementById('snowflake-console-access-key');
+    return el ? JSON.parse(el.textContent) : '';
+})();
+let generatedHistory = JSON.parse(localStorage.getItem('snowflakeHistory') || '[]');
+
+async function generateIds() {
+    if (!ACCESS_KEY) {
+        showToast('未配置 CONSOLE_SNOWFLAKE_ACCESS_KEY', 'error');
+        return;
+    }
+    const container = document.getElementById('ids-container');
+    const resultDiv = document.getElementById('generated-ids');
+    var csrfEl = document.querySelector('[name=csrfmiddlewaretoken]');
+    var csrfToken = csrfEl ? csrfEl.value : '';
+
+    container.innerHTML = '<div class="text-center"><div class="spinner"></div></div>';
+    resultDiv.classList.remove('hidden');
+
+    try {
+        const response = await fetch(API_SNOWFLAKE_ID, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ access_key: ACCESS_KEY }),
+        });
+        const result = await response.json();
+        if (result.errorCode !== 0) {
+            throw new Error(result.message || '生成失败');
+        }
+        const id = result.data && result.data.id;
+        if (id) {
+            container.innerHTML =
+                '<div class="flex items-center justify-between py-2 border-b border-gray-200 last:border-0">' +
+                '<code class="font-mono text-sm">' + id + '</code>' +
+                '<button type="button" onclick="copyToClipboard(\'' + id + '\')" class="btn btn-outline btn-sm">复制</button></div>';
+
+            generatedHistory.unshift({ ids: [id], timestamp: new Date().toISOString(), count: 1 });
+            generatedHistory = generatedHistory.slice(0, 20);
+            localStorage.setItem('snowflakeHistory', JSON.stringify(generatedHistory));
+
+            showToast('已生成 ID', 'success');
+        }
+    } catch (error) {
+        container.innerHTML = '<p class="text-red-500">生成失败: ' + (error.message || '') + '</p>';
+        showToast(error.message || '生成失败', 'error');
+    }
+}
+
+function copyAllIds() {
+    const container = document.getElementById('ids-container');
+    const codes = container.querySelectorAll('code');
+    const ids = Array.from(codes).map(function (c) { return c.textContent; }).join('\n');
+    copyToClipboard(ids);
+}
+</script>
+{% endblock %}

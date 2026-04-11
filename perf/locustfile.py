@@ -1,10 +1,11 @@
 """
-Locust entry: smoke GETs across enabled apps (dict + health-style endpoints).
+Locust entry: smoke GETs across enabled apps (dict + health-style endpoints),
+plus POST /api/snowflake/id.
 
 Environment:
-  HOST          — base URL (also pass via Locust --host)
-  DICT_CODES    — comma-separated dict codes (default: aibroker_nested_param_type)
-  SNOWFLAKE_BID — query bid for /api/snowflake/id (default: 1)
+  HOST                 — base URL (also pass via Locust --host)
+  DICT_CODES           — comma-separated dict codes (default: aibroker_nested_param_type)
+  TEST_SNOWFLAKE_ACCESS_KEY — JSON body access_key for POST /api/snowflake/id (default: empty)
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ def _env_int(name: str, default: int) -> int:
 
 
 DICT_CODES = os.environ.get("DICT_CODES", "aibroker_nested_param_type")
-SNOWFLAKE_BID = os.environ.get("SNOWFLAKE_BID", "1")
+TEST_SNOWFLAKE_ACCESS_KEY = os.environ.get("TEST_SNOWFLAKE_ACCESS_KEY", "")
 
 W_DICT = _env_int("WEIGHT_DICT", 10)
 W_HEALTH = _env_int("WEIGHT_HEALTH", 3)
@@ -113,8 +114,8 @@ class SmokeUser(HttpUser):
 
     @task(W_SNOW)
     def snowflake_id(self):
-        self.client.get(
+        self.client.post(
             "/api/snowflake/id",
-            params={"bid": SNOWFLAKE_BID},
+            json={"access_key": TEST_SNOWFLAKE_ACCESS_KEY},
             name="/api/snowflake/id",
         )
