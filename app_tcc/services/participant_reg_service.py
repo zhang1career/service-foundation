@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.db import transaction
 
 from app_tcc.models import TccParticipant
@@ -30,10 +32,10 @@ def _build_participant_for_insert(
 @transaction.atomic(using="tcc_rw")
 def create_participant(
     *,
-    access_key: str,
     name: str,
     status: int = ServiceRegStatus.ENABLED.value,
 ) -> TccParticipant:
+    access_key = uuid.uuid4().hex
     p = _build_participant_for_insert(
         access_key=access_key,
         name=name,

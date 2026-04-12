@@ -53,7 +53,7 @@ _MANAGE_URL_NAME_BY_KEY = {
     "cms": "console:cms-dashboard",
     "config": "console:config-callers",
     "keepcon": "console:keepcon-devices",
-    "tcc": "console:tcc-businesses",
+    "tcc": "console:tcc-callers",
 }
 
 

@@ -243,7 +243,6 @@ if getattr(settings, "APP_KEEPCON_ENABLED", False):
 if getattr(settings, "APP_TCC_ENABLED", False):
     from app_console.views.tcc_console_view import (
         TccBizListConsoleView,
-        TccBranchIndexConsoleView,
         TccBranchMetaConsoleView,
         TccManualConsoleView,
         TccParticipantConsoleView,
@@ -253,9 +252,8 @@ if getattr(settings, "APP_TCC_ENABLED", False):
 
     urlpatterns.extend(
         [
-            path("tcc/participants/", TccParticipantConsoleView.as_view(), name="tcc-participants"),
+            path("tcc/callers/", TccParticipantConsoleView.as_view(), name="tcc-callers"),
             path("tcc/businesses/", TccBizListConsoleView.as_view(), name="tcc-businesses"),
-            path("tcc/branches/", TccBranchIndexConsoleView.as_view(), name="tcc-branches-index"),
             path(
                 "tcc/biz/<int:biz_id>/branches/",
                 TccBranchMetaConsoleView.as_view(),

@@ -59,6 +59,7 @@ class TccBranchMeta(models.Model):
         db_column="biz_id",
     )
     branch_index = models.PositiveIntegerField()
+    name = models.CharField(max_length=255, blank=True, default="")
     try_url = models.CharField(max_length=2048)
     confirm_url = models.CharField(max_length=2048)
     cancel_url = models.CharField(max_length=2048)

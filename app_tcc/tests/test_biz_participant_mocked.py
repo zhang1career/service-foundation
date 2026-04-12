@@ -7,6 +7,7 @@ time. Tests call small helpers that contain the ORM/query logic (or model init)
 without entering that atomic block.
 """
 
+from contextlib import nullcontext
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
@@ -32,6 +33,28 @@ class BizBranchServiceMockedTests(SimpleTestCase):
         with self.assertRaises(ValueError) as ctx:
             biz_branch_service.load_branch_metas_for_begin([1, 2])
         self.assertIn("unknown", str(ctx.exception).lower())
+
+    @patch("django.db.transaction.atomic", lambda **kw: nullcontext())
+    @patch("app_tcc.services.biz_branch_service.TccBranchMeta.objects")
+    def test_reorder_branch_metas_raises_length_mismatch(self, mock_objects):
+        m1 = MagicMock()
+        m1.id = 1
+        m1.branch_index = 0
+        mock_objects.using.return_value.filter.return_value.order_by.return_value = [m1]
+        with self.assertRaises(ValueError) as ctx:
+            biz_branch_service.reorder_branch_metas_for_biz(1, [1, 2])
+        self.assertIn("length", str(ctx.exception).lower())
+
+    @patch("django.db.transaction.atomic", lambda **kw: nullcontext())
+    @patch("app_tcc.services.biz_branch_service.TccBranchMeta.objects")
+    def test_reorder_branch_metas_raises_id_set_mismatch(self, mock_objects):
+        m1 = MagicMock()
+        m1.id = 1
+        m1.branch_index = 0
+        mock_objects.using.return_value.filter.return_value.order_by.return_value = [m1]
+        with self.assertRaises(ValueError) as ctx:
+            biz_branch_service.reorder_branch_metas_for_biz(1, [2])
+        self.assertIn("id set", str(ctx.exception).lower())
 
 
 class ParticipantRegServiceMockedTests(SimpleTestCase):

@@ -53,6 +53,21 @@ def create_biz_meta(
 
 
 @transaction.atomic(using="tcc_rw")
+def update_biz_meta(
+    biz_id: int,
+    *,
+    name: str | None = None,
+) -> TccBizMeta | None:
+    b = TccBizMeta.objects.using("tcc_rw").filter(pk=biz_id).first()
+    if not b:
+        return None
+    if name is not None:
+        b.name = name.strip()
+    b.save(using="tcc_rw")
+    return b
+
+
+@transaction.atomic(using="tcc_rw")
 def delete_biz_meta(biz_id: int) -> bool:
     deleted, _ = TccBizMeta.objects.using("tcc_rw").filter(pk=biz_id).delete()
     return deleted > 0
@@ -71,6 +86,7 @@ def create_branch_meta(
     biz_id: int,
     *,
     branch_index: int,
+    name: str = "",
     try_url: str,
     confirm_url: str,
     cancel_url: str,
@@ -80,6 +96,7 @@ def create_branch_meta(
     m = TccBranchMeta(
         biz_id=biz_id,
         branch_index=int(branch_index),
+        name=(name or "").strip(),
         try_url=(try_url or "").strip(),
         confirm_url=(confirm_url or "").strip(),
         cancel_url=(cancel_url or "").strip(),
@@ -93,6 +110,7 @@ def update_branch_meta(
     pk: int,
     *,
     branch_index: int | None = None,
+    name: str | None = None,
     try_url: str | None = None,
     confirm_url: str | None = None,
     cancel_url: str | None = None,
@@ -102,6 +120,8 @@ def update_branch_meta(
         return None
     if branch_index is not None:
         m.branch_index = int(branch_index)
+    if name is not None:
+        m.name = name.strip()
     if try_url is not None:
         m.try_url = try_url.strip()
     if confirm_url is not None:
@@ -116,6 +136,33 @@ def update_branch_meta(
 def delete_branch_meta(pk: int) -> bool:
     deleted, _ = TccBranchMeta.objects.using("tcc_rw").filter(pk=pk).delete()
     return deleted > 0
+
+
+@transaction.atomic(using="tcc_rw")
+def reorder_branch_metas_for_biz(biz_id: int, ordered_branch_ids: list[int]) -> None:
+    """Set ``branch_index`` to ``0..n-1`` in the given order (same ids as DB for this biz)."""
+    rows = list(
+        TccBranchMeta.objects.using("tcc_rw")
+        .filter(biz_id=biz_id)
+        .order_by("branch_index", "id")
+    )
+    id_set = {r.id for r in rows}
+    if not ordered_branch_ids:
+        raise ValueError("ordered_branch_ids is required")
+    if len(ordered_branch_ids) != len(id_set):
+        raise ValueError("branch order length mismatch")
+    if set(ordered_branch_ids) != id_set:
+        raise ValueError("branch order id set mismatch")
+    base = max((r.branch_index for r in rows), default=0) + 100000
+    id_to_row = {r.id: r for r in rows}
+    for i, bid in enumerate(ordered_branch_ids):
+        r = id_to_row[bid]
+        r.branch_index = base + i
+        r.save(using="tcc_rw", update_fields=["branch_index", "ut"])
+    for i, bid in enumerate(ordered_branch_ids):
+        r = id_to_row[bid]
+        r.branch_index = i
+        r.save(using="tcc_rw", update_fields=["branch_index", "ut"])
 
 
 @transaction.atomic(using="tcc_rw")

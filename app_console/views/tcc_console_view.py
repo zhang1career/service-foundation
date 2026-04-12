@@ -3,7 +3,7 @@
 import json
 import math
 
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.views.generic import TemplateView
 
 from app_tcc.enums import BranchStatus, GlobalTxStatus
@@ -49,7 +49,9 @@ class TccParticipantConsoleView(TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx.update(_tcc_common_ctx())
         ctx["participants"] = participant_reg_service.list_participants()
-        ctx["reg_status"] = ServiceRegStatus
+        # Do not pass the Enum class: Django calls callables during dotted lookup.
+        ctx["reg_status_enabled"] = ServiceRegStatus.ENABLED.value
+        ctx["reg_status_disabled"] = ServiceRegStatus.DISABLED.value
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -57,7 +59,6 @@ class TccParticipantConsoleView(TemplateView):
         try:
             if action == "create":
                 participant_reg_service.create_participant(
-                    access_key=(request.POST.get("access_key") or "").strip(),
                     name=(request.POST.get("name") or "").strip(),
                     status=ServiceRegStatus.ENABLED.value,
                 )
@@ -65,7 +66,6 @@ class TccParticipantConsoleView(TemplateView):
                 pk = int(request.POST.get("participant_id", 0))
                 participant_reg_service.update_participant(
                     pk,
-                    access_key=(request.POST.get("access_key") or "").strip(),
                     name=(request.POST.get("name") or "").strip(),
                 )
             elif action == "set_status":
@@ -108,6 +108,11 @@ class TccBizListConsoleView(TemplateView):
                     int(request.POST.get("participant_id", 0)),
                     name=(request.POST.get("name") or "").strip(),
                 )
+            elif action == "update_biz":
+                biz_branch_service.update_biz_meta(
+                    int(request.POST.get("biz_id", 0)),
+                    name=(request.POST.get("name") or "").strip(),
+                )
             elif action == "delete_biz":
                 biz_branch_service.delete_biz_meta(int(request.POST.get("biz_id", 0)))
         except (ValueError, TypeError):
@@ -118,16 +123,12 @@ class TccBizListConsoleView(TemplateView):
         return HttpResponseRedirect(red)
 
 
-class TccBranchIndexConsoleView(TemplateView):
-    """List businesses with link to branch management (per biz)."""
-
-    template_name = "console/tcc/branch_pick.html"
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx.update(_tcc_common_ctx())
-        ctx["businesses"] = biz_branch_service.list_all_biz_meta()
-        return ctx
+def _branch_meta_redirect(request: HttpRequest) -> HttpResponseRedirect:
+    q = (request.POST.get("participant_id") or request.GET.get("participant_id") or "").strip()
+    path = request.path
+    if q.isdigit():
+        path += "?participant_id=" + q
+    return HttpResponseRedirect(path)
 
 
 class TccBranchMetaConsoleView(TemplateView):
@@ -146,8 +147,8 @@ class TccBranchMetaConsoleView(TemplateView):
         ctx["biz"] = self.biz
         ctx["participant"] = self.biz.participant
         ctx["branches"] = biz_branch_service.list_branch_meta_for_biz(self.biz_id)
-        mx = max((b.branch_index for b in ctx["branches"]), default=-1)
-        ctx["suggested_next_index"] = mx + 1
+        pid_raw = (self.request.GET.get("participant_id") or "").strip()
+        ctx["filter_participant_id"] = int(pid_raw) if pid_raw.isdigit() else None
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -155,9 +156,13 @@ class TccBranchMetaConsoleView(TemplateView):
         bid = self.biz_id
         try:
             if action == "create_branch":
+                brs = biz_branch_service.list_branch_meta_for_biz(bid)
+                mx = max((b.branch_index for b in brs), default=-1)
+                next_idx = mx + 1
                 biz_branch_service.create_branch_meta(
                     bid,
-                    branch_index=int(request.POST.get("branch_index", 0)),
+                    branch_index=next_idx,
+                    name=(request.POST.get("name") or "").strip(),
                     try_url=(request.POST.get("try_url") or "").strip(),
                     confirm_url=(request.POST.get("confirm_url") or "").strip(),
                     cancel_url=(request.POST.get("cancel_url") or "").strip(),
@@ -165,24 +170,24 @@ class TccBranchMetaConsoleView(TemplateView):
             elif action == "update_branch":
                 biz_branch_service.update_branch_meta(
                     int(request.POST.get("branch_id", 0)),
-                    branch_index=int(request.POST.get("branch_index", 0)),
+                    name=(request.POST.get("name") or "").strip(),
                     try_url=(request.POST.get("try_url") or "").strip(),
                     confirm_url=(request.POST.get("confirm_url") or "").strip(),
                     cancel_url=(request.POST.get("cancel_url") or "").strip(),
                 )
             elif action == "delete_branch":
                 biz_branch_service.delete_branch_meta(int(request.POST.get("branch_id", 0)))
-            elif action == "branch_move_up":
-                biz_branch_service.swap_branch_meta_order(
-                    bid, int(request.POST.get("branch_id", 0)), "up"
-                )
-            elif action == "branch_move_down":
-                biz_branch_service.swap_branch_meta_order(
-                    bid, int(request.POST.get("branch_id", 0)), "down"
-                )
+            elif action == "reorder_branches":
+                raw = (request.POST.get("branch_ids_ordered") or "").strip()
+                ids: list[int] = []
+                for x in raw.split(","):
+                    xs = x.strip()
+                    if xs.isdigit():
+                        ids.append(int(xs))
+                biz_branch_service.reorder_branch_metas_for_biz(bid, ids)
         except (ValueError, TypeError):
             pass
-        return HttpResponseRedirect(request.path)
+        return _branch_meta_redirect(request)
 
 
 class TccTxListConsoleView(TemplateView):

@@ -1,12 +1,14 @@
-{% comment %}分布式事务子导航；active: reg | biz | branches | tx | manual{% endcomment %}
+{% comment %}分布式事务子导航；active: reg | biz | branches | tx | manual。传入 tcc_branch_nav_biz_id 时在「业务管理」后显示「分支管理」（当前业务的分支配置）。filter_participant_id 存在时「业务管理」「分支管理」链接均带筛选。{% endcomment %}
 {% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-3 py-2 text-sm' %}
 <nav class="flex flex-wrap gap-2 mb-6" aria-label="分布式事务导航">
-    <a href="{% url 'console:tcc-participants' %}"
-       class="{{ base_cls }} {% if active == 'reg' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">使用方注册</a>
-    <a href="{% url 'console:tcc-businesses' %}"
+    <a href="{% url 'console:tcc-callers' %}"
+       class="{{ base_cls }} {% if active == 'reg' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
+    <a href="{% url 'console:tcc-businesses' %}{% if filter_participant_id %}?participant_id={{ filter_participant_id }}{% endif %}"
        class="{{ base_cls }} {% if active == 'biz' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">业务管理</a>
-    <a href="{% url 'console:tcc-branches-index' %}"
+    {% if tcc_branch_nav_biz_id %}
+    <a href="{% url 'console:tcc-branch-meta' tcc_branch_nav_biz_id %}{% if filter_participant_id %}?participant_id={{ filter_participant_id }}{% endif %}"
        class="{{ base_cls }} {% if active == 'branches' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">分支管理</a>
+    {% endif %}
     <a href="{% url 'console:tcc-transactions' %}"
        class="{{ base_cls }} {% if active == 'tx' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">事务管理</a>
     <a href="{% url 'console:tcc-manual' %}"
