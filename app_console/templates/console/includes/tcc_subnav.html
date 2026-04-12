@@ -1,0 +1,15 @@
+{% comment %}分布式事务子导航；active: reg | biz | branches | tx | manual{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-3 py-2 text-sm' %}
+<nav class="flex flex-wrap gap-2 mb-6" aria-label="分布式事务导航">
+    <a href="{% url 'console:tcc-participants' %}"
+       class="{{ base_cls }} {% if active == 'reg' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">使用方注册</a>
+    <a href="{% url 'console:tcc-businesses' %}"
+       class="{{ base_cls }} {% if active == 'biz' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">业务管理</a>
+    <a href="{% url 'console:tcc-branches-index' %}"
+       class="{{ base_cls }} {% if active == 'branches' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">分支管理</a>
+    <a href="{% url 'console:tcc-transactions' %}"
+       class="{{ base_cls }} {% if active == 'tx' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">事务管理</a>
+    <a href="{% url 'console:tcc-manual' %}"
+       class="{{ base_cls }} {% if active == 'manual' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">人工处理</a>
+</nav>
+{% endwith %}

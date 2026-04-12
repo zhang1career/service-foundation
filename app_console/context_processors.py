@@ -97,6 +97,12 @@ def console_context(request):
                 'description': 'WebSocket 推送与设备消息',
                 'icon': 'link',
             },
+            'tcc': {
+                'name': '分布式事务',
+                'enabled': getattr(settings, 'APP_TCC_ENABLED', False),
+                'description': 'TCC 协调、参与者注册与事务扫描',
+                'icon': 'layers',
+            },
         },
         'cms_content_metas': _cms_content_metas_for_sidebar(),
     }

@@ -1,0 +1,154 @@
+{% extends 'console/base.html' %}
+
+{% block title %}分布式事务-分支管理{% endblock %}
+{% block page_title %}分布式事务{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/tcc_subnav.html' with active='branches' %}
+</div>
+
+<p class="text-gray-600 mb-2">
+    业务 #{{ biz.id }} · {{ biz.name|default:"(未命名)" }} · 使用方 <code class="text-sm bg-gray-100 px-1 rounded">{{ participant.access_key }}</code>
+</p>
+<p class="mb-4">
+    <a href="{% url 'console:tcc-branches-index' %}" class="text-blue-600 hover:underline">← 分支入口</a>
+    <span class="mx-2 text-gray-300">|</span>
+    <a href="{% url 'console:tcc-businesses' %}" class="text-blue-600 hover:underline">业务管理</a>
+</p>
+
+<div class="card mb-8">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">新增分支</h2>
+    </div>
+    <div class="card-body space-y-3">
+        <form method="post" class="space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_branch">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="form-label">branch_index（建议 {{ suggested_next_index }}）</label>
+                    <input name="branch_index" type="number" class="form-input w-full" required min="0" value="{{ suggested_next_index }}">
+                </div>
+            </div>
+            <div>
+                <label class="form-label">Try URL</label>
+                <input name="try_url" class="form-input w-full" required maxlength="2048">
+            </div>
+            <div>
+                <label class="form-label">Confirm URL</label>
+                <input name="confirm_url" class="form-input w-full" required maxlength="2048">
+            </div>
+            <div>
+                <label class="form-label">Cancel URL</label>
+                <input name="cancel_url" class="form-input w-full" required maxlength="2048">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">添加分支</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">分支列表（顺序即 Try 执行顺序；↑↓ 调整）</h2>
+    </div>
+    <div class="card-body p-0 overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>顺序</th>
+                    <th>ID</th>
+                    <th>Try URL</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for br in branches %}
+                <tr>
+                    <td class="font-mono text-sm">{{ br.branch_index }}</td>
+                    <td class="font-mono text-sm">{{ br.id }}</td>
+                    <td class="text-xs break-all max-w-lg">{{ br.try_url }}</td>
+                    <td class="whitespace-nowrap">
+                        <form method="post" class="inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="branch_move_up">
+                            <input type="hidden" name="branch_id" value="{{ br.id }}">
+                            <button type="submit" class="btn btn-outline btn-sm" title="上移">↑</button>
+                        </form>
+                        <form method="post" class="inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="branch_move_down">
+                            <input type="hidden" name="branch_id" value="{{ br.id }}">
+                            <button type="submit" class="btn btn-outline btn-sm" title="下移">↓</button>
+                        </form>
+                        <button type="button" class="btn btn-outline btn-sm tcc-br-edit"
+                                data-id="{{ br.id }}"
+                                data-index="{{ br.branch_index }}"
+                                data-try="{{ br.try_url }}"
+                                data-confirm="{{ br.confirm_url }}"
+                                data-cancel="{{ br.cancel_url }}">编辑</button>
+                        <form method="post" class="inline" onsubmit="return confirm('删除该分支定义？若有运行中事务引用将失败。');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete_branch">
+                            <input type="hidden" name="branch_id" value="{{ br.id }}">
+                            <button type="submit" class="btn btn-danger btn-sm">删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-gray-500 text-sm py-6 text-center">暂无分支</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="tcc-br-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div class="bg-white rounded-lg shadow-lg max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold mb-4">编辑分支</h3>
+        <form method="post" class="space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_branch">
+            <input type="hidden" name="branch_id" id="tcc-br-id" value="">
+            <div>
+                <label class="form-label">branch_index</label>
+                <input name="branch_index" id="tcc-br-index" type="number" class="form-input w-full" required min="0">
+            </div>
+            <div>
+                <label class="form-label">Try URL</label>
+                <input name="try_url" id="tcc-br-try" class="form-input w-full" required maxlength="2048">
+            </div>
+            <div>
+                <label class="form-label">Confirm URL</label>
+                <input name="confirm_url" id="tcc-br-confirm" class="form-input w-full" required maxlength="2048">
+            </div>
+            <div>
+                <label class="form-label">Cancel URL</label>
+                <input name="cancel_url" id="tcc-br-cancel" class="form-input w-full" required maxlength="2048">
+            </div>
+            <div class="flex gap-2 justify-end pt-2">
+                <button type="button" class="btn btn-outline" onclick="tccBrClose()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.tcc-br-edit').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.getElementById('tcc-br-id').value = btn.getAttribute('data-id') || '';
+        document.getElementById('tcc-br-index').value = btn.getAttribute('data-index') || '0';
+        document.getElementById('tcc-br-try').value = btn.getAttribute('data-try') || '';
+        document.getElementById('tcc-br-confirm').value = btn.getAttribute('data-confirm') || '';
+        document.getElementById('tcc-br-cancel').value = btn.getAttribute('data-cancel') || '';
+        document.getElementById('tcc-br-modal').classList.remove('hidden');
+    });
+});
+function tccBrClose() {
+    document.getElementById('tcc-br-modal').classList.add('hidden');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends 'console/base.html' %}
+
+{% block title %}分布式事务-业务管理{% endblock %}
+{% block page_title %}分布式事务{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/tcc_subnav.html' with active='biz' %}
+</div>
+
+<div class="card mb-8">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">筛选</h2>
+    </div>
+    <div class="card-body">
+        <form method="get" class="flex flex-wrap items-end gap-4">
+            <div>
+                <label class="form-label" for="f-pid">使用方</label>
+                <select id="f-pid" name="participant_id" class="form-input min-w-[12rem]" onchange="this.form.submit()">
+                    <option value="">全部</option>
+                    {% for p in participants %}
+                    <option value="{{ p.id }}"{% if filter_participant_id == p.id %} selected{% endif %}>{{ p.access_key }} · {{ p.name|default:"" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-8">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">新建业务</h2>
+    </div>
+    <div class="card-body">
+        <form method="post" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_biz">
+            <input type="hidden" name="filter_participant_id" value="{{ filter_participant_id|default:'' }}">
+            <div>
+                <label class="form-label" for="biz-pid">使用方</label>
+                <select id="biz-pid" name="participant_id" class="form-input w-full" required>
+                    {% for p in participants %}
+                    <option value="{{ p.id }}"{% if filter_participant_id == p.id %} selected{% endif %}>{{ p.access_key }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label" for="biz-name">业务名称</label>
+                <input id="biz-name" name="name" class="form-input w-full" maxlength="255" placeholder="可选">
+            </div>
+            <div class="flex items-end">
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">业务列表</h2>
+    </div>
+    <div class="card-body p-0 overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>使用方</th>
+                    <th>名称</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in businesses %}
+                <tr>
+                    <td class="font-mono text-sm">{{ b.id }}</td>
+                    <td class="font-mono text-sm">{{ b.participant.access_key }}</td>
+                    <td>{{ b.name|default:"—" }}</td>
+                    <td>
+                        <a href="{% url 'console:tcc-branch-meta' b.id %}" class="btn btn-outline btn-sm">分支管理</a>
+                        <form method="post" class="inline" onsubmit="return confirm('删除该业务及其分支定义？');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete_biz">
+                            <input type="hidden" name="biz_id" value="{{ b.id }}">
+                            <input type="hidden" name="filter_participant_id" value="{{ filter_participant_id|default:'' }}">
+                            <button type="submit" class="btn btn-danger btn-sm">删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-gray-500 py-8">暂无业务</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'console/base.html' %}
+
+{% block title %}分布式事务-人工处理{% endblock %}
+{% block page_title %}分布式事务{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/tcc_subnav.html' with active='manual' %}
+</div>
+
+<p class="text-gray-600 mb-4">状态为 NEEDS_MANUAL 的全局事务；请结合 <code class="text-sm bg-gray-100 px-1 rounded">review_snapshot</code> 与原因处理。</p>
+
+<div class="card">
+    <div class="card-header flex justify-between items-center">
+        <h2 class="text-lg font-semibold">待人工处理</h2>
+        <span class="text-sm text-gray-500">共 {{ total }} 条</span>
+    </div>
+    <div class="card-body p-0 overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>tx id</th>
+                    <th>idem_key</th>
+                    <th>manual_reason</th>
+                    <th>快照摘要</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in manual_rows %}
+                <tr>
+                    <td class="font-mono text-sm">{{ row.tx.id }}</td>
+                    <td class="font-mono text-sm">{{ row.tx.idem_key }}</td>
+                    <td class="text-sm max-w-xs break-words">{{ row.tx.manual_reason|default:"—"|truncatechars:80 }}</td>
+                    <td class="text-xs text-gray-600 max-w-md font-mono">
+                        {% if row.review %}{{ row.review.snapshot|truncatechars:120 }}{% else %}—{% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'console:tcc-transaction-detail' row.tx.id %}" class="btn btn-outline btn-sm">详情</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-gray-500 py-8">暂无待处理记录</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if total_pages > 1 %}
+<div class="mt-4 flex gap-2 items-center text-sm">
+    {% if page > 1 %}
+    <a href="?page={{ page|add:'-1' }}" class="btn btn-outline btn-sm">上一页</a>
+    {% endif %}
+    <span>第 {{ page }} / {{ total_pages }} 页</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page|add:1 }}" class="btn btn-outline btn-sm">下一页</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

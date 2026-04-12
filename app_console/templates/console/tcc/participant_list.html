@@ -1,0 +1,142 @@
+{% extends 'console/base.html' %}
+
+{% block title %}分布式事务-使用方注册{% endblock %}
+{% block page_title %}分布式事务{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/tcc_subnav.html' with active='reg' %}
+</div>
+
+<div class="mb-6">
+    <p class="text-gray-600">注册 TCC 使用方（<code class="text-sm bg-gray-100 px-1 rounded">access_key</code>）。业务与分支在「业务管理」「分支管理」中配置。</p>
+</div>
+
+<div class="card mb-8">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">新增参与者</h2>
+    </div>
+    <div class="card-body">
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="form-label" for="tcc-access-key">access_key</label>
+                    <input id="tcc-access-key" name="access_key" class="form-input w-full" required maxlength="128" placeholder="唯一标识，如 order_svc">
+                </div>
+                <div>
+                    <label class="form-label" for="tcc-name">名称</label>
+                    <input id="tcc-name" name="name" class="form-input w-full" maxlength="255">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">创建</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">参与者列表</h2>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>access_key</th>
+                        <th>名称</th>
+                        <th>status</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in participants %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ p.id }}</td>
+                        <td class="font-mono text-sm break-all">{{ p.access_key }}</td>
+                        <td>{{ p.name|default:"-" }}</td>
+                        <td>
+                            <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                                <span class="console-toggle-wrap">
+                                    <input type="checkbox" class="console-toggle-input"{% if p.status == reg_status.ENABLED %} checked{% endif %}
+                                           onchange="tccSetStatus({{ p.id }}, this.checked)">
+                                    <span class="console-toggle-track" aria-hidden="true"></span>
+                                </span>
+                            </label>
+                        </td>
+                        <td>
+                            <a href="{% url 'console:tcc-businesses' %}?participant_id={{ p.id }}" class="btn btn-outline btn-sm">业务</a>
+                            <button type="button" class="btn btn-outline btn-sm tcc-edit-btn"
+                                    data-id="{{ p.id }}"
+                                    data-access-key="{{ p.access_key }}"
+                                    data-name="{{ p.name }}">编辑</button>
+                            <form method="post" class="inline" onsubmit="return confirm('确认删除该参与者？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="participant_id" value="{{ p.id }}">
+                                <button type="submit" class="btn btn-danger btn-sm">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无参与者</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<form id="tcc-status-form" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="set_status">
+    <input type="hidden" name="participant_id" id="tcc-status-pid" value="">
+    <input type="hidden" name="status" id="tcc-status-val" value="0">
+</form>
+
+<div id="tcc-edit-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div class="bg-white rounded-lg shadow-lg max-w-lg w-full mx-4 p-6">
+        <h3 class="text-lg font-semibold mb-4">编辑参与者</h3>
+        <form method="post" class="space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="participant_id" id="tcc-edit-id" value="">
+            <div>
+                <label class="form-label" for="tcc-edit-access-key">access_key</label>
+                <input id="tcc-edit-access-key" name="access_key" class="form-input w-full" required maxlength="128">
+            </div>
+            <div>
+                <label class="form-label" for="tcc-edit-name">名称</label>
+                <input id="tcc-edit-name" name="name" class="form-input w-full" maxlength="255">
+            </div>
+            <div class="flex gap-2 justify-end pt-2">
+                <button type="button" class="btn btn-outline" onclick="tccCloseEdit()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function tccSetStatus(id, on) {
+    document.getElementById('tcc-status-pid').value = id;
+    document.getElementById('tcc-status-val').value = on ? '{{ reg_status.ENABLED.value }}' : '{{ reg_status.DISABLED.value }}';
+    document.getElementById('tcc-status-form').submit();
+}
+document.querySelectorAll('.tcc-edit-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.getElementById('tcc-edit-id').value = btn.getAttribute('data-id') || '';
+        document.getElementById('tcc-edit-access-key').value = btn.getAttribute('data-access-key') || '';
+        document.getElementById('tcc-edit-name').value = btn.getAttribute('data-name') || '';
+        document.getElementById('tcc-edit-modal').classList.remove('hidden');
+    });
+});
+function tccCloseEdit() {
+    document.getElementById('tcc-edit-modal').classList.add('hidden');
+}
+</script>
+{% endblock %}
