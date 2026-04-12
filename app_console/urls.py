@@ -239,3 +239,32 @@ if getattr(settings, "APP_KEEPCON_ENABLED", False):
             path("keepcon/messages/", KeepconMessagesConsoleView.as_view(), name="keepcon-messages"),
         ]
     )
+
+if getattr(settings, "APP_TCC_ENABLED", False):
+    from app_console.views.tcc_console_view import (
+        TccBizListConsoleView,
+        TccBranchMetaConsoleView,
+        TccManualConsoleView,
+        TccParticipantConsoleView,
+        TccTxDetailConsoleView,
+        TccTxListConsoleView,
+    )
+
+    urlpatterns.extend(
+        [
+            path("tcc/callers/", TccParticipantConsoleView.as_view(), name="tcc-callers"),
+            path("tcc/businesses/", TccBizListConsoleView.as_view(), name="tcc-businesses"),
+            path(
+                "tcc/biz/<int:biz_id>/branches/",
+                TccBranchMetaConsoleView.as_view(),
+                name="tcc-branch-meta",
+            ),
+            path("tcc/transactions/", TccTxListConsoleView.as_view(), name="tcc-transactions"),
+            path(
+                "tcc/transactions/<int:tx_id>/",
+                TccTxDetailConsoleView.as_view(),
+                name="tcc-transaction-detail",
+            ),
+            path("tcc/manual/", TccManualConsoleView.as_view(), name="tcc-manual"),
+        ]
+    )

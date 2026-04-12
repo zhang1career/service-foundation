@@ -19,6 +19,7 @@ _HTTP_PROBE_KEY_BY_APP = {
     "user": "user_health",
     "verify": "verify_health",
     "keepcon": "keepcon_health",
+    "tcc": "tcc_health",
 }
 
 _APP_KEYS_ORDER = (
@@ -35,6 +36,7 @@ _APP_KEYS_ORDER = (
     "cms",
     "config",
     "keepcon",
+    "tcc",
 )
 
 _MANAGE_URL_NAME_BY_KEY = {
@@ -51,6 +53,7 @@ _MANAGE_URL_NAME_BY_KEY = {
     "cms": "console:cms-dashboard",
     "config": "console:config-callers",
     "keepcon": "console:keepcon-devices",
+    "tcc": "console:tcc-callers",
 }
 
 
@@ -151,6 +154,12 @@ class DashboardView(TemplateView):
                 "enabled": getattr(settings, "APP_VERIFY_ENABLED", False),
                 "description": "校验码生成、校验与调用方注册管理",
                 "icon": "shield",
+            },
+            "tcc": {
+                "name": "分布式事务",
+                "enabled": getattr(settings, "APP_TCC_ENABLED", False),
+                "description": "TCC 协调、参与者注册与事务扫描",
+                "icon": "layers",
             },
         }
 

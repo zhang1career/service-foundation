@@ -29,6 +29,7 @@ _APP_TO_DB_ALIAS: dict[str, str] = {
     "oss": "oss_rw",
     "searchrec": "searchrec_rw",
     "snowflake": "snowflake_rw",
+    "tcc": "tcc_rw",
     "user": "user_rw",
     "verify": "verify_rw",
 }
@@ -256,6 +257,11 @@ def collect_monitoring_snapshot() -> dict[str, Any]:
         from app_keepcon.views.keepcon_api_view import KeepconHealthView
 
         out["http_probes"]["keepcon_health"] = _probe_drf_view(KeepconHealthView, "/api/keepcon/health")
+
+    if getattr(settings, "APP_TCC_ENABLED", False):
+        from app_tcc.views.tcc_health_view import TccHealthView
+
+        out["http_probes"]["tcc_health"] = _probe_drf_view(TccHealthView, "/api/tcc/health")
 
     out["aibroker_metrics"] = _aibroker_metrics_if_configured()
 

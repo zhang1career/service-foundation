@@ -80,6 +80,7 @@ APP_USER_ENABLED = env.bool("APP_USER_ENABLED", default=True)
 APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=True)
 APP_CONFIG_ENABLED = env.bool("APP_CONFIG_ENABLED", default=True)
 APP_KEEPCON_ENABLED = env.bool("APP_KEEPCON_ENABLED", default=False)
+APP_TCC_ENABLED = env.bool("APP_TCC_ENABLED", default=False)
 
 # Application definition
 INSTALLED_APPS = [
@@ -126,6 +127,8 @@ if APP_KEEPCON_ENABLED:
     INSTALLED_APPS.insert(0, "daphne")
     INSTALLED_APPS.append("channels")
     INSTALLED_APPS.append("app_keepcon.apps.KeepconConfig")
+if APP_TCC_ENABLED:
+    INSTALLED_APPS.append("app_tcc.apps.AppTccConfig")
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
@@ -377,6 +380,20 @@ DATABASES = {
             "NAME": env("DB_KEEPCON_TEST_NAME", default="sf_keepcon_test"),
         },
     },
+    "tcc_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_TCC_NAME", default="sf_tcc"),
+        "USER": env("DB_TCC_USER", default="zhang"),
+        "PASSWORD": env("DB_TCC_PASS", default=""),
+        "HOST": env("DB_TCC_HOST", default="127.0.0.1"),
+        "PORT": env("DB_TCC_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_TCC_TEST_NAME", default="sf_tcc_test"),
+        },
+    },
 }
 
 # Dynamically configure database routers based on enabled apps
@@ -405,6 +422,8 @@ if APP_CONFIG_ENABLED:
     DATABASE_ROUTERS.append("app_config.db_routers.ReadWriteRouter")
 if APP_KEEPCON_ENABLED:
     DATABASE_ROUTERS.append("app_keepcon.db_routers.ReadWriteRouter")
+if APP_TCC_ENABLED:
+    DATABASE_ROUTERS.append("app_tcc.db_routers.ReadWriteRouter")
 
 
 # Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
@@ -681,6 +700,20 @@ NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", defau
 # Console SearchRec「API 调试」页示例 JSON 中的 access_key；未设置环境变量时为空字符串
 CONSOLE_SEARCHREC_ACCESS_KEY = env("CONSOLE_SEARCHREC_ACCESS_KEY", default="")
 CONSOLE_SNOWFLAKE_ACCESS_KEY = env("CONSOLE_SNOWFLAKE_ACCESS_KEY", default="")
+# app_tcc: snowflake id allocation (POST JSON {access_key})；完整 URL，例如 https://api.example.com/api/snowflake/id
+TCC_SNOWFLAKE_ACCESS_KEY = env("TCC_SNOWFLAKE_ACCESS_KEY", default="")
+TCC_SNOWFLAKE_ID_URL = env("TCC_SNOWFLAKE_ID_URL", default="")
+TCC_SNOWFLAKE_HTTP_TIMEOUT_SEC = env.float("TCC_SNOWFLAKE_HTTP_TIMEOUT_SEC", default=10.0)
+TCC_OUTBOUND_TIMEOUT_SEC = env.float("TCC_OUTBOUND_TIMEOUT_SEC", default=30.0)
+TCC_PHASE_TRY_TIMEOUT_SECONDS = env.int("TCC_PHASE_TRY_TIMEOUT_SECONDS", default=120)
+TCC_PHASE_CONFIRM_TIMEOUT_SECONDS = env.int("TCC_PHASE_CONFIRM_TIMEOUT_SECONDS", default=120)
+TCC_PHASE_CANCEL_TIMEOUT_SECONDS = env.int("TCC_PHASE_CANCEL_TIMEOUT_SECONDS", default=120)
+TCC_AWAIT_CONFIRM_TIMEOUT_SECONDS = env.int("TCC_AWAIT_CONFIRM_TIMEOUT_SECONDS", default=300)
+TCC_MAX_AUTO_RETRIES = env.int("TCC_MAX_AUTO_RETRIES", default=10)
+TCC_DEFAULT_AUTO_CONFIRM = env.bool("TCC_DEFAULT_AUTO_CONFIRM", default=True)
+# app_tcc scan: when phase_deadline_at is missing, next_retry cap (see scan_service.process_one)
+TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS = env.int("TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS", default=60000)
+TCC_SCAN_NEXT_RETRY_CAP_MS = env.int("TCC_SCAN_NEXT_RETRY_CAP_MS", default=15000)
 # 运行监控页服务端拉取 AIBroker 汇总指标（仅服务端使用，勿下发到前端脚本）
 CONSOLE_AIBROKER_ACCESS_KEY = env("CONSOLE_AIBROKER_ACCESS_KEY", default="")
 CONSOLE_AIBROKER_METRICS_WINDOW_MS = env.int("CONSOLE_AIBROKER_METRICS_WINDOW_MS", default=86400000)

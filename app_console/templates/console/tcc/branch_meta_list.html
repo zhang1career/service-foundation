@@ -1,0 +1,264 @@
+{% extends 'console/base.html' %}
+
+{% block title %}分布式事务-分支管理{% endblock %}
+{% block page_title %}分布式事务{% endblock %}
+
+{% block extra_head %}
+<script src="https://unpkg.com/sortablejs@1.15.2/Sortable.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/tcc_subnav.html' with active='branches' tcc_branch_nav_biz_id=biz.id %}
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">业务信息</h2>
+    </div>
+    <div class="card-body">
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div>
+                <dt class="text-gray-500">调用方名称</dt>
+                <dd class="mt-0.5">{% if participant.name %}{{ participant.name }}{% else %}（未命名 #{{ participant.id }}）{% endif %}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">业务名称</dt>
+                <dd class="mt-0.5">{{ biz.name|default:"—" }}</dd>
+            </div>
+        </dl>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">分支列表</h2>
+        <div class="flex flex-wrap gap-2 items-center">
+            <button type="button" id="tcc-save-order-btn" class="btn btn-outline btn-sm" disabled title="拖拽调整顺序后保存">保存顺序</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openTccBranchCreateModal()">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                新增
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0 overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="w-10" aria-label="拖拽排序"></th>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>Try URL</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="tcc-branch-tbody">
+                {% for br in branches %}
+                <tr data-branch-id="{{ br.id }}">
+                    <td class="align-middle">
+                        <span class="tcc-drag-handle inline-flex cursor-grab text-gray-400 hover:text-gray-600 p-1" title="拖拽排序" role="button" tabindex="0" aria-label="拖拽排序">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h2v2H9V4zm4 0h2v2h-2V4zM9 9h2v2H9V9zm4 0h2v2h-2V9zm-4 4h2v2H9v-2zm4 0h2v2h-2v-2zm-4 4h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>
+                        </span>
+                    </td>
+                    <td class="font-mono text-sm align-middle">{{ br.id }}</td>
+                    <td class="align-middle max-w-xs break-words">{{ br.name|default:"—" }}</td>
+                    <td class="text-xs break-all max-w-lg align-middle">{{ br.try_url }}</td>
+                    <td class="whitespace-nowrap align-middle">
+                        <div class="flex gap-1 items-center flex-wrap">
+                            <button type="button" class="btn btn-outline btn-icon tcc-br-edit" title="编辑"
+                                    data-id="{{ br.id }}"
+                                    data-name="{{ br.name|default_if_none:''|escape }}"
+                                    data-try="{{ br.try_url|escape }}"
+                                    data-confirm="{{ br.confirm_url|escape }}"
+                                    data-cancel="{{ br.cancel_url|escape }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            </button>
+                            <form method="post" class="inline" onsubmit="return confirm('删除该分支定义？若有运行中事务引用将失败。');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_branch">
+                                <input type="hidden" name="branch_id" value="{{ br.id }}">
+                                <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+                                <button type="submit" class="btn btn-danger btn-icon" title="删除">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-gray-500 text-sm py-8 text-center">暂无分支，请点击「新增」添加。</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<form id="tcc-reorder-form" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="reorder_branches">
+    <input type="hidden" name="branch_ids_ordered" id="tcc-branch-ids-ordered" value="">
+    <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+</form>
+
+<div id="tcc-br-create-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="tcc-br-create-title">
+        <div class="modal-header">
+            <h3 id="tcc-br-create-title" class="text-lg font-semibold">新增分支</h3>
+        </div>
+        <form method="post" id="tcc-br-create-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_branch">
+            <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-create-name">名称</label>
+                    <input id="tcc-br-create-name" name="name" class="form-input w-full" maxlength="255" placeholder="可选" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-create-try">Try URL *</label>
+                    <input id="tcc-br-create-try" name="try_url" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-create-confirm">Confirm URL *</label>
+                    <input id="tcc-br-create-confirm" name="confirm_url" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-create-cancel">Cancel URL *</label>
+                    <input id="tcc-br-create-cancel" name="cancel_url" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeTccBranchCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="tcc-br-edit-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="tcc-br-edit-title">
+        <div class="modal-header">
+            <h3 id="tcc-br-edit-title" class="text-lg font-semibold">编辑分支</h3>
+        </div>
+        <form method="post" id="tcc-br-edit-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_branch">
+            <input type="hidden" name="branch_id" id="tcc-br-id" value="">
+            <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+            <div class="modal-body">
+                <p class="text-gray-500 text-sm mb-3">执行顺序请在列表中拖拽调整，保存「顺序」后写入 branch_index。</p>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-name">名称</label>
+                    <input name="name" id="tcc-br-name" class="form-input w-full" maxlength="255" placeholder="可选" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-try">Try URL *</label>
+                    <input name="try_url" id="tcc-br-try" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-confirm">Confirm URL *</label>
+                    <input name="confirm_url" id="tcc-br-confirm" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-cancel">Cancel URL *</label>
+                    <input name="cancel_url" id="tcc-br-cancel" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeTccBranchEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    function el(id) { return document.getElementById(id); }
+
+    window.openTccBranchCreateModal = function () {
+        var m = el('tcc-br-create-modal');
+        var f = el('tcc-br-create-form');
+        if (f) f.reset();
+        m.classList.remove('hidden');
+        m.setAttribute('aria-hidden', 'false');
+    };
+    window.closeTccBranchCreateModal = function () {
+        var m = el('tcc-br-create-modal');
+        m.classList.add('hidden');
+        m.setAttribute('aria-hidden', 'true');
+    };
+
+    window.closeTccBranchEditModal = function () {
+        var m = el('tcc-br-edit-modal');
+        m.classList.add('hidden');
+        m.setAttribute('aria-hidden', 'true');
+    };
+
+    function orderedIds() {
+        var tbody = el('tcc-branch-tbody');
+        if (!tbody) return [];
+        return Array.prototype.map.call(tbody.querySelectorAll('tr[data-branch-id]'), function (row) {
+            return row.getAttribute('data-branch-id');
+        });
+    }
+
+    var saveBtn = el('tcc-save-order-btn');
+    var orderDirty = false;
+
+    function setOrderDirty(dirty) {
+        orderDirty = dirty;
+        if (saveBtn) saveBtn.disabled = !dirty;
+    }
+
+    window.tccSubmitReorder = function () {
+        var ids = orderedIds();
+        if (ids.length === 0) return;
+        el('tcc-branch-ids-ordered').value = ids.join(',');
+        el('tcc-reorder-form').submit();
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function () {
+                if (!orderDirty) return;
+                window.tccSubmitReorder();
+            });
+        }
+
+        var tbody = el('tcc-branch-tbody');
+        if (tbody && typeof Sortable !== 'undefined' && tbody.querySelector('tr[data-branch-id]')) {
+            Sortable.create(tbody, {
+                handle: '.tcc-drag-handle',
+                animation: 150,
+                onEnd: function () {
+                    setOrderDirty(true);
+                }
+            });
+        }
+
+        document.querySelectorAll('.tcc-br-edit').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                el('tcc-br-id').value = btn.getAttribute('data-id') || '';
+                el('tcc-br-name').value = btn.getAttribute('data-name') || '';
+                el('tcc-br-try').value = btn.getAttribute('data-try') || '';
+                el('tcc-br-confirm').value = btn.getAttribute('data-confirm') || '';
+                el('tcc-br-cancel').value = btn.getAttribute('data-cancel') || '';
+                var m = el('tcc-br-edit-modal');
+                m.classList.remove('hidden');
+                m.setAttribute('aria-hidden', 'false');
+            });
+        });
+
+        if (typeof attachModalBackdropClose === 'function') {
+            attachModalBackdropClose(el('tcc-br-create-modal'), closeTccBranchCreateModal);
+            attachModalBackdropClose(el('tcc-br-edit-modal'), closeTccBranchEditModal);
+        }
+    });
+})();
+</script>
+{% endblock %}

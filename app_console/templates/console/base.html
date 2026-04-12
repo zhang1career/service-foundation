@@ -166,6 +166,18 @@
                     </li>
                     {% endif %}
 
+                    {% if apps.tcc.enabled %}
+                    <li>
+                        <a href="{% url 'console:tcc-callers' %}"
+                           class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/tcc/' in request.path %}bg-gray-700{% endif %}" title="分布式事务">
+                            <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path>
+                            </svg>
+                            <span class="sidebar-text ml-3 whitespace-nowrap">分布式事务</span>
+                        </a>
+                    </li>
+                    {% endif %}
+
                     {% if apps.user.enabled %}
                     <li>
                         <a href="{% url 'console:user-list' %}"
@@ -191,7 +203,7 @@
                     {% endif %}
                 </ul>
             </nav>
-            
+
             <!-- Footer -->
             <div id="sidebar-footer" class="p-4 border-t border-gray-700 text-sm text-gray-400 shrink-0 overflow-hidden flex items-center justify-center">
                 <p class="sidebar-text whitespace-nowrap">Service Foundation</p>

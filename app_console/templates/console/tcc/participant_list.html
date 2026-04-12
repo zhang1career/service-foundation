@@ -1,0 +1,194 @@
+{% extends 'console/base.html' %}
+
+{% block title %}分布式事务-调用方{% endblock %}
+{% block page_title %}分布式事务{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/tcc_subnav.html' with active='reg' %}
+</div>
+
+<div class="mb-6">
+    <p class="text-gray-600">管理 TCC 调用方：名称、Access Key（新建时由系统生成）与启用状态。业务与分支在「业务管理」中配置（业务列表中可进入分支管理）。</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">调用方列表</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="tccOpenCreateModal()">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            新增
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="overflow-x-auto">
+            <table class="data-table caller-reg-list-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>名称</th>
+                        <th>Access Key</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in participants %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ p.id }}</td>
+                        <td class="font-medium">{{ p.name|default:"-" }}</td>
+                        <td class="break-all text-sm font-mono caller-reg-access-key-cell">{{ p.access_key }}</td>
+                        <td class="align-middle">
+                            <div class="flex items-center justify-center">
+                                <label class="inline-flex items-center gap-2 cursor-pointer shrink-0 select-none">
+                                    <span class="console-toggle-wrap">
+                                        <input type="checkbox" class="console-toggle-input"{% if p.status == reg_status_enabled %} checked{% endif %}
+                                               onchange="tccSubmitStatus({{ p.id }}, this.checked)">
+                                        <span class="console-toggle-track" aria-hidden="true"></span>
+                                    </span>
+                                </label>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="flex gap-1 items-center flex-wrap">
+                                <a href="{% url 'console:tcc-businesses' %}?participant_id={{ p.id }}"
+                                   class="btn btn-outline btn-icon" title="业务管理">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                                    </svg>
+                                </a>
+                                <button type="button" class="btn btn-outline btn-icon" title="编辑"
+                                        data-pid="{{ p.id }}"
+                                        data-name="{{ p.name|default_if_none:''|escape }}"
+                                        onclick="tccOpenEditModal(this)">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <button type="button" class="btn btn-danger btn-icon" title="删除" onclick="tccSubmitDelete({{ p.id }})">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="empty-state py-8 text-center text-gray-500">暂无数据</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% for p in participants %}
+<form id="tcc-reg-st-{{ p.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="set_status">
+    <input type="hidden" name="participant_id" value="{{ p.id }}">
+    <input type="hidden" name="status" id="tcc-reg-st-val-{{ p.id }}" value="{{ p.status }}">
+</form>
+<form id="tcc-reg-del-{{ p.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="participant_id" value="{{ p.id }}">
+</form>
+{% endfor %}
+
+<div id="tcc-create-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="tcc-create-title">
+        <div class="modal-header">
+            <h3 id="tcc-create-title" class="text-lg font-semibold">新增调用方</h3>
+        </div>
+        <form method="post" id="tcc-create-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="tcc-create-name">名称 *</label>
+                    <input type="text" id="tcc-create-name" name="name" class="form-input" placeholder="调用方名称" required maxlength="255" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="tccCloseCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="tcc-edit-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="tcc-edit-title">
+        <div class="modal-header">
+            <h3 id="tcc-edit-title" class="text-lg font-semibold">编辑调用方</h3>
+        </div>
+        <form method="post" id="tcc-edit-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="participant_id" id="tcc-edit-pid" value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="tcc-edit-name">名称 *</label>
+                    <input type="text" id="tcc-edit-name" name="name" class="form-input" required maxlength="255" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="tccCloseEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    function el(id) { return document.getElementById(id); }
+
+    window.tccOpenCreateModal = function () {
+        var m = el('tcc-create-modal');
+        var f = el('tcc-create-form');
+        if (f) f.reset();
+        m.classList.remove('hidden');
+        m.setAttribute('aria-hidden', 'false');
+    };
+    window.tccCloseCreateModal = function () {
+        var m = el('tcc-create-modal');
+        m.classList.add('hidden');
+        m.setAttribute('aria-hidden', 'true');
+    };
+
+    window.tccOpenEditModal = function (btn) {
+        el('tcc-edit-pid').value = btn.getAttribute('data-pid') || '';
+        el('tcc-edit-name').value = btn.getAttribute('data-name') || '';
+        var m = el('tcc-edit-modal');
+        m.classList.remove('hidden');
+        m.setAttribute('aria-hidden', 'false');
+    };
+    window.tccCloseEditModal = function () {
+        var m = el('tcc-edit-modal');
+        m.classList.add('hidden');
+        m.setAttribute('aria-hidden', 'true');
+    };
+
+    window.tccSubmitStatus = function (pid, enabled) {
+        var inp = el('tcc-reg-st-val-' + pid);
+        if (inp) inp.value = enabled ? '{{ reg_status_enabled }}' : '{{ reg_status_disabled }}';
+        var f = el('tcc-reg-st-' + pid);
+        if (f) f.submit();
+    };
+
+    window.tccSubmitDelete = function (pid) {
+        if (!confirm('确认删除该调用方？此操作不可恢复。')) return;
+        var f = el('tcc-reg-del-' + pid);
+        if (f) f.submit();
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof attachModalBackdropClose !== 'function') return;
+        attachModalBackdropClose(el('tcc-create-modal'), tccCloseCreateModal);
+        attachModalBackdropClose(el('tcc-edit-modal'), tccCloseEditModal);
+    });
+})();
+</script>
+{% endblock %}

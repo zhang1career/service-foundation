@@ -1,0 +1,93 @@
+{% extends 'console/base.html' %}
+
+{% block title %}分布式事务-事务详情{% endblock %}
+{% block page_title %}分布式事务{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/tcc_subnav.html' with active='tx' %}
+</div>
+
+<p class="mb-4">
+    <a href="{% url 'console:tcc-transactions' %}" class="text-blue-600 hover:underline">← 事务列表</a>
+</p>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">事务 #{{ tx.id }}</h2>
+    </div>
+    <div class="card-body space-y-2 text-sm">
+        <p><span class="text-gray-500">idem_key</span> <code class="font-mono">{{ tx.idem_key }}</code></p>
+        <p><span class="text-gray-500">status</span>
+            {% for val, label in status_options %}
+                {% if val == tx.status %}{{ label }}{% endif %}
+            {% endfor %}
+            <span class="text-gray-400">({{ tx.status }})</span>
+        </p>
+        <p><span class="text-gray-500">auto_confirm</span> {{ tx.auto_confirm }}</p>
+        <p><span class="text-gray-500">retry_count</span> {{ tx.retry_count }}</p>
+        <p><span class="text-gray-500">manual_reason</span> {{ tx.manual_reason|default:"—" }}</p>
+        <p><span class="text-gray-500">phase_started_at</span> <span class="font-mono">{{ tx.phase_started_at }}</span></p>
+        <p><span class="text-gray-500">next_retry_at</span> <span class="font-mono">{{ tx.next_retry_at }}</span></p>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">context</h2>
+    </div>
+    <div class="card-body">
+        <pre class="text-xs bg-gray-50 p-4 rounded overflow-x-auto whitespace-pre-wrap">{{ context_pretty|escape }}</pre>
+    </div>
+</div>
+
+{% if manual_review %}
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">人工审核快照</h2>
+    </div>
+    <div class="card-body">
+        <pre class="text-xs bg-amber-50 p-4 rounded overflow-x-auto whitespace-pre-wrap">{{ manual_review.snapshot|escape }}</pre>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">分支实例</h2>
+    </div>
+    <div class="card-body p-0 overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>branch_index</th>
+                    <th>branch_meta_id</th>
+                    <th>status</th>
+                    <th>idem_key</th>
+                    <th>last_http</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in branches %}
+                <tr>
+                    <td class="font-mono">{{ b.branch_index }}</td>
+                    <td class="font-mono">{{ b.branch_meta_id }}</td>
+                    <td>
+                        {% for val, label in branch_status_options %}
+                            {% if val == b.status %}{{ label }}{% endif %}
+                        {% endfor %}
+                        <span class="text-gray-400 text-xs">({{ b.status }})</span>
+                    </td>
+                    <td class="font-mono text-xs">{{ b.idem_key }}</td>
+                    <td class="font-mono text-xs">{{ b.last_http_status|default:"—" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-gray-500 py-6">无分支记录</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

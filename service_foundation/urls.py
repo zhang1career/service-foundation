@@ -89,3 +89,8 @@ if getattr(settings, "APP_KEEPCON_ENABLED", False):
     from app_keepcon import urls as app_keepcon_urls
 
     urlpatterns.append(path("api/keepcon/", include(app_keepcon_urls)))
+
+if getattr(settings, "APP_TCC_ENABLED", False):
+    from app_tcc import urls as app_tcc_urls
+
+    urlpatterns.append(path("api/tcc/", include(app_tcc_urls)))
