@@ -70,6 +70,8 @@ trap cleanup SIGTERM SIGINT
 
 # Start Django development server in background (so we can manage it)
 # Note: Using Django's runserver for container deployment
+# Default: no autoreload (one process). Set DJANGO_RUNSERVER_NORELOAD=false for dev reload inside the container.
+export DJANGO_RUNSERVER_NORELOAD="${DJANGO_RUNSERVER_NORELOAD:-true}"
 echo "Starting Django development server on ${HOST:-0.0.0.0}:${PORT:-8000}..."
 python manage.py runserver ${HOST:-0.0.0.0}:${PORT:-8000} &
 DJANGO_PID=$!

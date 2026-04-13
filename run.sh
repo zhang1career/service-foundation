@@ -8,14 +8,14 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Load APP_NAME and LOG_FILE_PATH from .env
+# Load APP_NAME and LOG_DIR from .env
 load_app_name() {
     if [ -f .env ]; then
         APP_NAME=$(grep -E "^APP_NAME=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
-        LOG_FILE_PATH=$(grep -E "^LOG_FILE_PATH=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
+        LOG_DIR=$(grep -E "^LOG_DIR=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
     fi
-    APP_NAME=${APP_NAME:-service-foundation}
-    LOG_FILE_PATH=${LOG_FILE_PATH:-log}
+    APP_NAME=${APP_NAME:-serv-fd}
+    LOG_DIR=${LOG_DIR:-/var/log/serv-fd}
 }
 
 # PID file path: /var/run/<APP_NAME>/app.pid
@@ -47,7 +47,7 @@ start() {
     load_app_name
     local pid_dir="/var/run/${APP_NAME}"
     local pid_file="${pid_dir}/app.pid"
-    local django_log_path="${LOG_FILE_PATH}/${APP_NAME}/django.log"
+    local django_log_path="${LOG_DIR}/django.log"
 
     if is_running; then
         echo "App is already running (PID: $(get_pid))"

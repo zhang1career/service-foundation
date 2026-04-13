@@ -38,6 +38,9 @@ SECRET_KEY = "django-insecure-l7qc5yniq$_0fe*%e_6zzxw=4k@1q=))v25=q%4w7rj@0-vv5(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=True)
 
+# Plain HTTP on non-loopback hosts makes browsers ignore COOP and warn in the console.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None if DEBUG else "same-origin"
+
 # Handle ALLOWED_HOSTS configuration
 # Support '*' to allow all hosts (useful for Docker containers)
 # Also handle comma-separated string format from .env files
@@ -160,19 +163,22 @@ CORS_ORIGIN_ALLOW_ALL = True
 
 ROOT_URLCONF = "service_foundation.urls"
 
+_TEMPLATE_CONTEXT_PROCESSORS = [
+    "django.template.context_processors.debug",
+    "django.template.context_processors.request",
+    "django.contrib.auth.context_processors.auth",
+    "django.contrib.messages.context_processors.messages",
+]
+if APP_CONSOLE_ENABLED:
+    _TEMPLATE_CONTEXT_PROCESSORS.append("app_console.context_processors.console_context")
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-                "app_console.context_processors.console_context",
-            ],
+            "context_processors": _TEMPLATE_CONTEXT_PROCESSORS,
         },
     },
 ]
