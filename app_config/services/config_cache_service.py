@@ -25,12 +25,12 @@ def get_rid_generation(rid: int) -> int:
     return int(v)
 
 
-def query_cache_get(rid: int, rid_gen: int, config_key: str, cond_hash: str):
-    k = f"q:{rid_gen}:{rid}:{config_key}:{cond_hash}"
+def query_cache_get(rid: int, rid_gen: int, config_key: str, cond_hash: str, scope: str):
+    k = f"q:{rid_gen}:{rid}:{config_key}:{cond_hash}:{scope}"
     return _cache().get(k)
 
 
-def query_cache_set(rid: int, rid_gen: int, config_key: str, cond_hash: str, payload: dict) -> None:
-    k = f"q:{rid_gen}:{rid}:{config_key}:{cond_hash}"
+def query_cache_set(rid: int, rid_gen: int, config_key: str, cond_hash: str, scope: str, payload: dict) -> None:
+    k = f"q:{rid_gen}:{rid}:{config_key}:{cond_hash}:{scope}"
     ttl = int(getattr(settings, "CONFIG_CACHE_TTL_SECONDS", 300) or 300)
     _cache().set(k, payload, timeout=ttl)

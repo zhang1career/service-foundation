@@ -1,3 +1,7 @@
-from app_config.views.config_query_view import ConfigHealthView, ConfigQueryView
+from app_config.views.config_query_view import (
+    ConfigHealthView,
+    ConfigPriQueryView,
+    ConfigPubQueryView,
+)
 
-__all__ = ["ConfigHealthView", "ConfigQueryView"]
+__all__ = ["ConfigHealthView", "ConfigPriQueryView", "ConfigPubQueryView"]

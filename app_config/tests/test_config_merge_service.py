@@ -5,6 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from app_config.enums import ConfigEntryPublic
 from app_config.services.config_merge_service import (
     conditions_hash,
     merge_config_query_result,
@@ -27,13 +28,23 @@ class TestNormalizeAndHash(unittest.TestCase):
 
 
 class TestMergeConfigQueryResult(unittest.TestCase):
-    def _row(self, pk, ut, cond, value):
-        return SimpleNamespace(id=pk, ut=ut, condition=json.dumps(cond), value=json.dumps(value))
+    def _row(self, pk, ut, cond, value, public=ConfigEntryPublic.PRIVATE):
+        return SimpleNamespace(
+            id=pk,
+            ut=ut,
+            condition=json.dumps(cond),
+            value=json.dumps(value),
+            public=int(public),
+        )
+
+    def test_invalid_endpoint_mode(self):
+        with self.assertRaises(ValueError):
+            merge_config_query_result(1, "k", {}, endpoint_mode="x")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_empty_returns_null_value(self, mock_list):
         mock_list.return_value = []
-        out = merge_config_query_result(1, "k", {})
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertIsNone(out["value"])
         self.assertEqual(out["source_ids"], "")
         self.assertEqual(out["audit"]["matched_layers"], [])
@@ -44,7 +55,7 @@ class TestMergeConfigQueryResult(unittest.TestCase):
             self._row(1, 100, {}, {"a": 1}),
             self._row(2, 200, {"env": "prod"}, {"b": 2}),
         ]
-        out = merge_config_query_result(1, "k", {"env": "prod"})
+        out = merge_config_query_result(1, "k", {"env": "prod"}, endpoint_mode="pri")
         self.assertEqual(out["value"], {"a": 1, "b": 2})
         self.assertEqual(out["source_ids"], "1,2")
         self.assertEqual(len(out["audit"]["matched_layers"]), 2)
@@ -56,32 +67,87 @@ class TestMergeConfigQueryResult(unittest.TestCase):
             self._row(1, 100, {}, {"a": 1}),
             self._row(2, 200, {}, [1, 2]),
         ]
-        out = merge_config_query_result(1, "k", {})
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertEqual(out["value"], [1, 2])
         self.assertEqual(out["source_ids"], "1,2")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_row_missing_condition_key_no_match(self, mock_list):
         mock_list.return_value = [self._row(1, 100, {"env": "prod"}, {"x": 1})]
-        out = merge_config_query_result(1, "k", {})
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertIsNone(out["value"])
         self.assertEqual(out["source_ids"], "")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
-    def test_invalid_condition_json_row_skipped(self, mock_list):
+    def test_invalid_condition_json_skipped_for_private_row(self, mock_list):
         mock_list.return_value = [
-            SimpleNamespace(id=1, ut=100, condition="not json", value=json.dumps({"a": 1})),
+            SimpleNamespace(
+                id=1,
+                ut=100,
+                condition="not json",
+                value=json.dumps({"a": 1}),
+                public=ConfigEntryPublic.PRIVATE,
+            ),
         ]
-        out = merge_config_query_result(1, "k", {})
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertIsNone(out["value"])
         self.assertEqual(out["source_ids"], "")
+
+    @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
+    def test_public_row_ignores_condition_for_matching(self, mock_list):
+        mock_list.return_value = [
+            SimpleNamespace(
+                id=1,
+                ut=100,
+                condition="not json",
+                value=json.dumps({"a": 1}),
+                public=ConfigEntryPublic.PUBLIC,
+            ),
+        ]
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
+        self.assertEqual(out["value"], {"a": 1})
+        self.assertEqual(out["source_ids"], "1")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_invalid_value_json_skipped_for_merge(self, mock_list):
         mock_list.return_value = [
             self._row(1, 100, {}, {"a": 1}),
-            SimpleNamespace(id=2, ut=200, condition="{}", value="not-json"),
+            SimpleNamespace(
+                id=2,
+                ut=200,
+                condition="{}",
+                value="not-json",
+                public=ConfigEntryPublic.PRIVATE,
+            ),
         ]
-        out = merge_config_query_result(1, "k", {})
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
+        self.assertEqual(out["value"], {"a": 1})
+        self.assertEqual(out["source_ids"], "1")
+
+    @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
+    def test_pub_only_db_public_rows(self, mock_list):
+        mock_list.return_value = [
+            self._row(1, 100, {}, {"a": 1}, public=ConfigEntryPublic.PRIVATE),
+        ]
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pub")
+        self.assertIsNone(out["value"])
+        self.assertEqual(out["source_ids"], "")
+
+    @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
+    def test_private_row_requires_condition_match(self, mock_list):
+        mock_list.return_value = [
+            self._row(1, 100, {"env": "prod"}, {"x": 1}),
+        ]
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
+        self.assertIsNone(out["value"])
+        self.assertEqual(out["source_ids"], "")
+
+    @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
+    def test_pub_merge_only_public_rows(self, mock_list):
+        mock_list.return_value = [
+            self._row(1, 100, {}, {"a": 1}, public=ConfigEntryPublic.PUBLIC),
+            self._row(2, 200, {}, {"b": 2}),
+        ]
+        out = merge_config_query_result(1, "k", {}, endpoint_mode="pub")
         self.assertEqual(out["value"], {"a": 1})
         self.assertEqual(out["source_ids"], "1")

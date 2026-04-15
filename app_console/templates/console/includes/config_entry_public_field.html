@@ -1,0 +1,11 @@
+{% comment %}
+config_entry.public：0=private（按 condition）；1=public（无条件，condition 须为 {}）
+参数: field_id — select id；selected — "1"|"0"|None
+{% endcomment %}
+<div class="form-group">
+    <label class="form-label" for="{{ field_id }}">类型 *</label>
+    <select id="{{ field_id }}" name="{{ name|default:'public' }}" class="form-input">
+        <option value="0"{% if selected == '0' %} selected{% endif %}>按条件（private，参与 /api/config/pri，按 condition 匹配）</option>
+        <option value="1"{% if selected == '1' %} selected{% endif %}>公开（public，无条件；仅 /api/config/pub 与 pri，condition 固定 {}）</option>
+    </select>
+</div>

@@ -41,11 +41,11 @@ class TestConfigCacheService(TestCase):
 
         rid = 3
         gen0 = get_rid_generation(rid)
-        query_cache_set(rid, gen0, "key", "h1", {"value": 1})
-        self.assertEqual(query_cache_get(rid, gen0, "key", "h1"), {"value": 1})
+        query_cache_set(rid, gen0, "key", "h1", "pri", {"value": 1})
+        self.assertEqual(query_cache_get(rid, gen0, "key", "h1", "pri"), {"value": 1})
         bump_config_cache_generation(rid)
         gen1 = get_rid_generation(rid)
-        self.assertIsNone(query_cache_get(rid, gen1, "key", "h1"))
+        self.assertIsNone(query_cache_get(rid, gen1, "key", "h1", "pri"))
 
     def test_query_cache_set_respects_ttl_setting(self):
         from django.test import override_settings
@@ -59,5 +59,5 @@ class TestConfigCacheService(TestCase):
         with override_settings(CONFIG_CACHE_TTL_SECONDS=60):
             rid = 9
             gen0 = get_rid_generation(rid)
-            query_cache_set(rid, gen0, "k2", "hh", {"v": 2})
-            self.assertEqual(query_cache_get(rid, gen0, "k2", "hh"), {"v": 2})
+            query_cache_set(rid, gen0, "k2", "hh", "pub", {"v": 2})
+            self.assertEqual(query_cache_get(rid, gen0, "k2", "hh", "pub"), {"v": 2})

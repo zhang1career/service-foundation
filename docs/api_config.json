@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Config Center API",
-    "description": "app_config 对外 HTTP 接口（配置查询）。响应包络为 `{ errorCode, data, message, ... }`：`errorCode === 0` 表示成功。挂载路径前缀：`/api/config/`（`APP_CONFIG_ENABLED` 为真时，见 `service_foundation/urls.py`）。\n\n查询接口按 `access_key` 在 `sf_config.reg` 中解析调用方（**status=1 启用**）；按 `key` 与可选 `conditions` 匹配 `config_entry` 行，按 `ut`、`id` 升序对 `value`（JSON 字符串）做浅合并；结果可经 Redis（`caches[\"config\"]`）缓存，键含 `rid` 代际，控制台写入会失效缓存。",
+    "description": "app_config 对外 HTTP 接口（配置查询）。响应包络为 `{ errorCode, data, message, ... }`：`errorCode === 0` 表示成功。挂载路径前缀：`/api/config/`（`APP_CONFIG_ENABLED` 为真时，见 `service_foundation/urls.py`）。\n\n`sf_config.config_entry.public`：**0=private（按 `condition` 与请求 `conditions` 子集匹配）**；**1=public（不按 `condition` 计算，行内 `condition` 须为 `{}`）**。\n`POST /api/config/pub`（无登录）仅合并 **public=1** 行；`POST /api/config/pri`（需登录）合并 **public=1** 与 **public=0** 行。合并顺序按 `ut`、`id` 升序浅合并；缓存键含 `rid` 代际与 `pub`/`pri` 作用域。",
     "version": "1.0.0"
   },
   "servers": [
@@ -55,17 +55,17 @@
         }
       }
     },
-    "/api/config/get": {
+    "/api/config/pub": {
       "post": {
         "tags": ["Config"],
-        "summary": "按条件查询合并后的配置值",
-        "description": "请求体须含已启用调用方的 `access_key` 与业务配置键 `key`。`conditions` 为可选 JSON 对象；与 `config_entry.condition`（JSON 对象）做子集匹配：对配置行条件中每个键 `k`，请求须含 `conditions[k]` 且值相等（严格相等，无隐式类型转换）。多行命中时按 `ut`、`id` 升序浅合并：两值均为 object 时用后者键覆盖前者；若某行解析值为非 object，则整值成为结果并停止后续合并。`value` 可为任意 JSON 类型或 `null`（无有效合并结果时）。",
-        "operationId": "configGet",
+        "summary": "无登录态：合并配置（仅 public=1 行）",
+        "description": "无需登录。请求体须含已启用调用方的 `access_key` 与业务配置键 `key`。仅合并 `config_entry.public=1` 的行；此类行**不按** `condition` 过滤（约定 `condition` 为 `{}`）。`public=0` 行不会出现在本接口结果中。",
+        "operationId": "configPub",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ConfigGetRequest" },
+              "schema": { "$ref": "#/components/schemas/ConfigQueryRequest" },
               "examples": {
                 "minimal": {
                   "summary": "仅默认条件",
@@ -99,7 +99,7 @@
                         {
                           "type": "object",
                           "properties": {
-                            "data": { "$ref": "#/components/schemas/ConfigGetResult" }
+                            "data": { "$ref": "#/components/schemas/ConfigQueryResult" }
                           }
                         }
                       ]
@@ -116,9 +116,80 @@
           }
         }
       }
+    },
+    "/api/config/pri": {
+      "post": {
+        "tags": ["Config"],
+        "summary": "登录态：合并配置（public=1 与 private=0 行）",
+        "description": "需要已认证用户（DRF Session 或 Basic）。请求体同 `pub`。合并 **public=1** 行（不按 `condition`）与 **public=0** 行（按 `condition` 与 `conditions` 子集匹配）。未登录时返回 403（DRF 默认行为，具体包络见项目异常处理）。",
+        "operationId": "configPri",
+        "security": [{ "sessionAuth": [] }, { "basicAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConfigQueryRequest" },
+              "examples": {
+                "minimal": {
+                  "summary": "仅默认条件",
+                  "value": {
+                    "access_key": "YOUR_ACCESS_KEY",
+                    "key": "app.feature.flags"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/ConfigQueryResult" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/XRequestId" },
+              "Expires": { "schema": { "type": "string" } }
+            }
+          },
+          "403": {
+            "description": "未登录或无权限（`IsAuthenticated`）"
+          }
+        }
+      }
     }
   },
   "components": {
+    "securitySchemes": {
+      "sessionAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sessionid",
+        "description": "Django 会话（控制台同源登录后携带 cookie）。"
+      },
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "HTTP Basic（若服务端启用）。"
+      }
+    },
     "headers": {
       "XRequestId": {
         "description": "请求关联 ID；客户端可传 `X-Request-Id`，成功响应会回显。",
@@ -141,7 +212,7 @@
         "properties": {
           "errorCode": {
             "type": "integer",
-            "description": "非 0；参数/鉴权类错误常见为 100（RET_INVALID_PARAM），见 `common/consts/response_const.py`"
+            "description": "非 0；参数类常见为 100（RET_INVALID_PARAM），见 `common/consts/response_const.py`"
           },
           "data": { "nullable": true },
           "message": { "type": "string" },
@@ -160,7 +231,7 @@
         "maxLength": 191,
         "description": "配置业务键，对应表 `config_entry.config_key`。"
       },
-      "ConfigGetRequest": {
+      "ConfigQueryRequest": {
         "type": "object",
         "required": ["access_key", "key"],
         "properties": {
@@ -169,11 +240,11 @@
           "conditions": {
             "type": "object",
             "additionalProperties": true,
-            "description": "可选。须为 JSON 对象；缺省按 `{}` 处理。键值参与与 `config_entry.condition` 的匹配。"
+            "description": "可选。须为 JSON 对象；缺省按 `{}` 处理。用于与 **public=0** 行的 `config_entry.condition` 匹配（public=1 行不使用）。"
           }
         }
       },
-      "ConfigGetResult": {
+      "ConfigQueryResult": {
         "type": "object",
         "required": ["value", "source_ids", "audit"],
         "properties": {
@@ -186,10 +257,10 @@
             "description": "参与合并的 `config_entry.id`，按合并顺序逗号分隔；无命中时为空串",
             "example": "12,45"
           },
-          "audit": { "$ref": "#/components/schemas/ConfigGetAudit" }
+          "audit": { "$ref": "#/components/schemas/ConfigQueryAudit" }
         }
       },
-      "ConfigGetAudit": {
+      "ConfigQueryAudit": {
         "type": "object",
         "required": ["conditions_received", "matched_layers"],
         "properties": {
@@ -213,7 +284,7 @@
           "row_condition": {
             "type": "object",
             "additionalProperties": true,
-            "description": "该行的条件 JSON；`{}` 表示通配"
+            "description": "审计用条件快照；**public=1** 行不按条件合并，此处为 `{}`；**public=0** 行为解析后的 `condition`。"
           },
           "condition_keys": {
             "type": "array",

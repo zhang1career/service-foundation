@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.views.generic import TemplateView
 
+from app_config.enums import ConfigEntryPublic
 from app_config.services.condition_field_service import ConfigConditionFieldService
 from app_config.services.config_entry_service import ConfigEntryService
 from app_config.services.reg_service import ConfigRegService
@@ -35,6 +36,9 @@ class ConfigEntriesConsoleView(TemplateView):
                     config_key=(request.POST.get("config_key") or "").strip(),
                     condition=(request.POST.get("condition") or "").strip() or "{}",
                     value=(request.POST.get("value") or "").strip(),
+                    public=int(
+                        request.POST.get("public", ConfigEntryPublic.PRIVATE),
+                    ),
                 )
             elif action == "update":
                 ConfigEntryService.update(
@@ -42,6 +46,9 @@ class ConfigEntriesConsoleView(TemplateView):
                     config_key=(request.POST.get("config_key") or "").strip() or None,
                     condition=(request.POST.get("condition") or "").strip() or None,
                     value=(request.POST.get("value") or "").strip() or None,
+                    public=int(
+                        request.POST.get("public", ConfigEntryPublic.PRIVATE),
+                    ),
                 )
             elif action == "delete":
                 ConfigEntryService.delete(int(request.POST.get("entry_id", 0)))
