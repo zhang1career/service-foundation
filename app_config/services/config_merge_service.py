@@ -72,7 +72,8 @@ def merge_config_query_result(
     endpoint_mode: str,
 ) -> dict[str, Any]:
     """
-    Return API data payload: value, source_ids, audit.
+    Return API data payload: ``value``, ``_ids``; ``_explain`` only when
+    ``endpoint_mode`` is ``pri`` (omitted for ``pub``).
 
     ``config_entry.public`` (``ConfigEntryPublic``): **public=1** 不按 ``condition`` 过滤；
     **private=0** 按 ``condition`` 与请求 ``conditions`` 子集匹配。
@@ -131,11 +132,13 @@ def merge_config_query_result(
 
     source_ids_str = ",".join(str(i) for i in source_ids)
 
-    return {
+    out: dict[str, Any] = {
         "value": merged,
-        "source_ids": source_ids_str,
-        "audit": {
+        "_ids": source_ids_str,
+    }
+    if endpoint_mode == "pri":
+        out["_explain"] = {
             "conditions_received": dict(conditions),
             "matched_layers": matched_layers,
-        },
-    }
+        }
+    return out

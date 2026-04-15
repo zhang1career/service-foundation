@@ -77,8 +77,10 @@ if settings.APP_VERIFY_ENABLED:
 
 if getattr(settings, "APP_CONFIG_ENABLED", False):
     from app_config import urls as app_config_urls
+    from app_config import urls_ai as app_config_urls_ai
 
     urlpatterns.append(path("api/config/", include(app_config_urls)))
+    urlpatterns.append(path("ai/config/", include(app_config_urls_ai)))
 
 if getattr(settings, 'APP_CMS_ENABLED', False):
     from app_cms import urls as app_cms_urls

@@ -46,8 +46,8 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         mock_list.return_value = []
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertIsNone(out["value"])
-        self.assertEqual(out["source_ids"], "")
-        self.assertEqual(out["audit"]["matched_layers"], [])
+        self.assertEqual(out["_ids"], "")
+        self.assertEqual(out["_explain"]["matched_layers"], [])
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_subset_match_merge_order(self, mock_list):
@@ -57,9 +57,9 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {"env": "prod"}, endpoint_mode="pri")
         self.assertEqual(out["value"], {"a": 1, "b": 2})
-        self.assertEqual(out["source_ids"], "1,2")
-        self.assertEqual(len(out["audit"]["matched_layers"]), 2)
-        self.assertEqual(out["audit"]["conditions_received"], {"env": "prod"})
+        self.assertEqual(out["_ids"], "1,2")
+        self.assertEqual(len(out["_explain"]["matched_layers"]), 2)
+        self.assertEqual(out["_explain"]["conditions_received"], {"env": "prod"})
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_non_dict_value_stops_merge(self, mock_list):
@@ -69,14 +69,14 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertEqual(out["value"], [1, 2])
-        self.assertEqual(out["source_ids"], "1,2")
+        self.assertEqual(out["_ids"], "1,2")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_row_missing_condition_key_no_match(self, mock_list):
         mock_list.return_value = [self._row(1, 100, {"env": "prod"}, {"x": 1})]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertIsNone(out["value"])
-        self.assertEqual(out["source_ids"], "")
+        self.assertEqual(out["_ids"], "")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_invalid_condition_json_skipped_for_private_row(self, mock_list):
@@ -91,7 +91,7 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertIsNone(out["value"])
-        self.assertEqual(out["source_ids"], "")
+        self.assertEqual(out["_ids"], "")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_public_row_ignores_condition_for_matching(self, mock_list):
@@ -106,7 +106,7 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertEqual(out["value"], {"a": 1})
-        self.assertEqual(out["source_ids"], "1")
+        self.assertEqual(out["_ids"], "1")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_invalid_value_json_skipped_for_merge(self, mock_list):
@@ -122,7 +122,7 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertEqual(out["value"], {"a": 1})
-        self.assertEqual(out["source_ids"], "1")
+        self.assertEqual(out["_ids"], "1")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_pub_only_db_public_rows(self, mock_list):
@@ -131,7 +131,8 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pub")
         self.assertIsNone(out["value"])
-        self.assertEqual(out["source_ids"], "")
+        self.assertEqual(out["_ids"], "")
+        self.assertNotIn("_explain", out)
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_private_row_requires_condition_match(self, mock_list):
@@ -140,7 +141,7 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pri")
         self.assertIsNone(out["value"])
-        self.assertEqual(out["source_ids"], "")
+        self.assertEqual(out["_ids"], "")
 
     @patch("app_config.services.config_merge_service.config_entry_repo.list_entries_for_rid_and_key")
     def test_pub_merge_only_public_rows(self, mock_list):
@@ -150,4 +151,5 @@ class TestMergeConfigQueryResult(unittest.TestCase):
         ]
         out = merge_config_query_result(1, "k", {}, endpoint_mode="pub")
         self.assertEqual(out["value"], {"a": 1})
-        self.assertEqual(out["source_ids"], "1")
+        self.assertEqual(out["_ids"], "1")
+        self.assertNotIn("_explain", out)

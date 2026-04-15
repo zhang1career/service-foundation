@@ -36,7 +36,7 @@ class TestConfigEntryService(SimpleTestCase):
     @patch("app_config.services.config_entry_service.config_entry_repo")
     @patch(
         "app_config.services.config_entry_service.normalize_and_validate_condition",
-        return_value="{}",
+        return_value="",
     )
     def test_create_private_calls_validate(self, mock_norm, mock_repo, mock_bump, _oc):
         mock_repo.create_entry.return_value = _entry_row(id=3, rid_id=10)
@@ -45,7 +45,7 @@ class TestConfigEntryService(SimpleTestCase):
         )
         mock_norm.assert_called_once_with(10, "{}")
         mock_repo.create_entry.assert_called_once_with(
-            10, "app.x", "{}", '{"x":1}', ConfigEntryPublic.PRIVATE
+            10, "app.x", "", '{"x":1}', ConfigEntryPublic.PRIVATE
         )
         mock_bump.assert_called_once_with(10)
         self.assertEqual(out["id"], 3)
@@ -62,7 +62,7 @@ class TestConfigEntryService(SimpleTestCase):
         )
         mock_norm.assert_not_called()
         mock_repo.create_entry.assert_called_once_with(
-            10, "app.x", "{}", '{"x":1}', ConfigEntryPublic.PUBLIC
+            10, "app.x", "", '{"x":1}', ConfigEntryPublic.PUBLIC
         )
         mock_bump.assert_called_once_with(10)
 

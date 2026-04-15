@@ -34,7 +34,7 @@ class ConfigEntriesConsoleView(TemplateView):
                 ConfigEntryService.create(
                     rid=int(request.POST.get("rid", 0)),
                     config_key=(request.POST.get("config_key") or "").strip(),
-                    condition=(request.POST.get("condition") or "").strip() or "{}",
+                    condition=(request.POST.get("condition") or "").strip(),
                     value=(request.POST.get("value") or "").strip(),
                     public=int(
                         request.POST.get("public", ConfigEntryPublic.PRIVATE),
@@ -44,7 +44,7 @@ class ConfigEntriesConsoleView(TemplateView):
                 ConfigEntryService.update(
                     int(request.POST.get("entry_id", 0)),
                     config_key=(request.POST.get("config_key") or "").strip() or None,
-                    condition=(request.POST.get("condition") or "").strip() or None,
+                    condition=(request.POST.get("condition") or "").strip(),
                     value=(request.POST.get("value") or "").strip() or None,
                     public=int(
                         request.POST.get("public", ConfigEntryPublic.PRIVATE),

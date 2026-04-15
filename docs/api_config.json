@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Config Center API",
-    "description": "app_config 对外 HTTP 接口（配置查询）。响应包络为 `{ errorCode, data, message, ... }`：`errorCode === 0` 表示成功。挂载路径前缀：`/api/config/`（`APP_CONFIG_ENABLED` 为真时，见 `service_foundation/urls.py`）。\n\n`sf_config.config_entry.public`：**0=private（按 `condition` 与请求 `conditions` 子集匹配）**；**1=public（不按 `condition` 计算，行内 `condition` 须为 `{}`）**。\n`POST /api/config/pub`（无登录）仅合并 **public=1** 行；`POST /api/config/pri`（需登录）合并 **public=1** 与 **public=0** 行。合并顺序按 `ut`、`id` 升序浅合并；缓存键含 `rid` 代际与 `pub`/`pri` 作用域。",
+    "description": "app_config 对外 HTTP 接口（配置查询）。响应包络为 `{ errorCode, data, message, ... }`：`errorCode === 0` 表示成功。`APP_CONFIG_ENABLED` 为真时：`/api/config/` 挂载健康检查与 `pub`；`/ai/config/` 挂载需登录的 `pri`（见 `service_foundation/urls.py`）。\n\n`sf_config.config_entry.public`：**0=private（按 `condition` 与请求 `conditions` 子集匹配）**；**1=public（不按 `condition` 计算，行内 `condition` 须为 `{}`）**。\n`POST /api/config/pub`（无登录）仅合并 **public=1** 行；`POST /ai/config/pri`（需登录）合并 **public=1** 与 **public=0** 行。合并顺序按 `ut`、`id` 升序浅合并；缓存键含 `rid` 代际与 `pub`/`pri` 作用域。",
     "version": "1.0.0"
   },
   "servers": [
@@ -59,7 +59,7 @@
       "post": {
         "tags": ["Config"],
         "summary": "无登录态：合并配置（仅 public=1 行）",
-        "description": "无需登录。请求体须含已启用调用方的 `access_key` 与业务配置键 `key`。仅合并 `config_entry.public=1` 的行；此类行**不按** `condition` 过滤（约定 `condition` 为 `{}`）。`public=0` 行不会出现在本接口结果中。",
+        "description": "无需登录。请求体须含已启用调用方的 `access_key` 与业务配置键 `key`。仅合并 `config_entry.public=1` 的行；此类行**不按** `condition` 过滤（约定 `condition` 为空字符串）。`public=0` 行不会出现在本接口结果中。成功时 `data` 仅含 `value` 与 `_ids`，**不含** `_explain`。",
         "operationId": "configPub",
         "requestBody": {
           "required": true,
@@ -99,7 +99,7 @@
                         {
                           "type": "object",
                           "properties": {
-                            "data": { "$ref": "#/components/schemas/ConfigQueryResult" }
+                            "data": { "$ref": "#/components/schemas/ConfigQueryResultPub" }
                           }
                         }
                       ]
@@ -117,11 +117,11 @@
         }
       }
     },
-    "/api/config/pri": {
+    "/ai/config/pri": {
       "post": {
         "tags": ["Config"],
         "summary": "登录态：合并配置（public=1 与 private=0 行）",
-        "description": "需要已认证用户（DRF Session 或 Basic）。请求体同 `pub`。合并 **public=1** 行（不按 `condition`）与 **public=0** 行（按 `condition` 与 `conditions` 子集匹配）。未登录时返回 403（DRF 默认行为，具体包络见项目异常处理）。",
+        "description": "需要已认证用户（DRF Session 或 Basic）。请求体同 `POST /api/config/pub`。合并 **public=1** 行（不按 `condition`）与 **public=0** 行（按 `condition` 与 `conditions` 子集匹配）。未登录时返回 403（DRF 默认行为，具体包络见项目异常处理）。",
         "operationId": "configPri",
         "security": [{ "sessionAuth": [] }, { "basicAuth": [] }],
         "requestBody": {
@@ -244,23 +244,38 @@
           }
         }
       },
-      "ConfigQueryResult": {
+      "ConfigQueryResultPub": {
         "type": "object",
-        "required": ["value", "source_ids", "audit"],
+        "required": ["value", "_ids"],
         "properties": {
           "value": {
             "description": "合并后的 JSON 值；无有效行或值均无法解析时可为 null",
             "nullable": true
           },
-          "source_ids": {
+          "_ids": {
+            "type": "string",
+            "description": "参与合并的 `config_entry.id`，按合并顺序逗号分隔；无命中时为空串",
+            "example": "12,45"
+          }
+        }
+      },
+      "ConfigQueryResult": {
+        "type": "object",
+        "required": ["value", "_ids", "_explain"],
+        "properties": {
+          "value": {
+            "description": "合并后的 JSON 值；无有效行或值均无法解析时可为 null",
+            "nullable": true
+          },
+          "_ids": {
             "type": "string",
             "description": "参与合并的 `config_entry.id`，按合并顺序逗号分隔；无命中时为空串",
             "example": "12,45"
           },
-          "audit": { "$ref": "#/components/schemas/ConfigQueryAudit" }
+          "_explain": { "$ref": "#/components/schemas/ConfigQueryExplain" }
         }
       },
-      "ConfigQueryAudit": {
+      "ConfigQueryExplain": {
         "type": "object",
         "required": ["conditions_received", "matched_layers"],
         "properties": {

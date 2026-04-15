@@ -11,7 +11,7 @@
 </div>
 
 <div class="mb-6">
-    <p class="text-gray-600">同一调用方、同一 <code>config_key</code> 可多行，按 <code>ut</code> 升序浅合并。<strong>按条件（private）</strong>行用 <code>condition</code> 与请求 <code>conditions</code> 匹配（键须在「条件字段」登记）；<strong>公开（public）</strong>行不按条件合并，<code>condition</code> 须为 <code>{}</code>，且出现在无登录接口 <code>/api/config/pub</code> 与 <code>/api/config/pri</code>。<code>value</code> 为 JSON 字符串。</p>
+    <p class="text-gray-600">同一调用方、同一 <code>config_key</code> 可多行，按 <code>ut</code> 升序浅合并。<strong>按条件（private）</strong>行用 <code>condition</code> 与请求 <code>conditions</code> 匹配（键须在「条件字段」登记）；<strong>公开（public）</strong>行不按条件合并，<code>condition</code> 须为空（存库为空字符串），且出现在无登录接口 <code>/api/config/pub</code> 与需登录接口 <code>/ai/config/pri</code>。<code>value</code> 为 JSON 字符串。</p>
 </div>
 
 <div class="card">
@@ -42,7 +42,7 @@
                     {% for e in entries %}
                     <tr>
                         <td class="font-mono text-sm">{{ e.id }}</td>
-                        <td>{{ e.reg_name }} <span class="text-gray-500 text-xs">#{{ e.rid }}</span></td>
+                        <td>{{ e.reg_name }}</td>
                         <td class="font-medium">{{ e.config_key }}</td>
                         <td class="text-sm">{% if e.public == 1 %}公开{% else %}按条件{% endif %}</td>
                         <td class="text-xs font-mono max-w-xs truncate" title="{{ e.condition }}">{{ e.condition }}</td>
@@ -51,9 +51,9 @@
                             <div class="flex gap-1 items-center flex-wrap">
                                 <button type="button" class="btn btn-outline btn-icon" title="编辑"
                                         data-id="{{ e.id }}"
-                                        data-config-key="{{ e.config_key|escapejs }}"
-                                        data-condition="{{ e.condition|escapejs }}"
-                                        data-value="{{ e.value|escapejs }}"
+                                        data-config-key="{{ e.config_key }}"
+                                        data-condition="{{ e.condition }}"
+                                        data-value="{{ e.value }}"
                                         data-public="{{ e.public }}"
                                         onclick="openEntryEditModal(this)">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -94,7 +94,7 @@
                     <select id="entry-c-rid" name="rid" class="form-input" required>
                         <option value="">请选择</option>
                         {% for r in regs %}
-                        <option value="{{ r.id }}">{{ r.id }} — {{ r.name }}</option>
+                        <option value="{{ r.id }}">{{ r.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -105,7 +105,7 @@
                 {% include 'console/includes/config_entry_public_field.html' with field_id='entry-c-public' selected='0' only %}
                 <div class="form-group">
                     <label class="form-label" for="entry-c-condition">condition（JSON 对象）</label>
-                    <textarea id="entry-c-condition" name="condition" class="form-input font-mono text-sm" rows="3" placeholder="{}"></textarea>
+                    <textarea id="entry-c-condition" name="condition" class="form-input font-mono text-sm" rows="3" placeholder="空 或 JSON 对象，例如 {&quot;env&quot;:&quot;prod&quot;}"></textarea>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="entry-c-value">value（JSON 字符串）*</label>
@@ -164,7 +164,7 @@
     function onPublicChange(condEl, pubEl) {
         if (!condEl || !pubEl) return;
         if (pubEl.value === '1') {
-            condEl.value = '{}';
+            condEl.value = '';
             condEl.readOnly = true;
             condEl.classList.add('bg-gray-100');
         } else {
@@ -178,7 +178,7 @@
         document.getElementById('entry-c-key').value = '';
         document.getElementById('entry-c-value').value = '';
         document.getElementById('entry-c-rid').value = '';
-        cCond.value = '{}';
+        cCond.value = '';
         cPub.value = '0';
         onPublicChange(cCond, cPub);
     };
@@ -189,7 +189,7 @@
         var d = btn.dataset;
         document.getElementById('entry-e-id').value = d.id || '';
         document.getElementById('entry-e-key').value = d.configKey || '';
-        document.getElementById('entry-e-condition').value = d.condition || '{}';
+        document.getElementById('entry-e-condition').value = d.condition || '';
         document.getElementById('entry-e-value').value = d.value || '';
         document.getElementById('entry-e-public').value = (d.public !== undefined && d.public !== '') ? String(d.public) : '0';
         onPublicChange(eCond, ePub);

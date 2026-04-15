@@ -19,8 +19,10 @@ def _coerce_public(raw) -> int:
 
 
 def _normalize_public_row_condition(condition_raw: str) -> str:
-    """public=1: condition must be empty object {}."""
-    s = (condition_raw or "").strip() or "{}"
+    """public=1: condition must be empty (stored as empty string)."""
+    s = (condition_raw or "").strip()
+    if not s:
+        return ""
     try:
         obj = json.loads(s)
     except json.JSONDecodeError as exc:
@@ -28,8 +30,8 @@ def _normalize_public_row_condition(condition_raw: str) -> str:
     if not isinstance(obj, dict):
         raise ValueError("condition must be a JSON object")
     if len(obj) > 0:
-        raise ValueError("public entry condition must be empty object {}")
-    return "{}"
+        raise ValueError("public entry condition must be empty")
+    return ""
 
 
 class ConfigEntryService:
@@ -70,7 +72,7 @@ class ConfigEntryService:
             else:
                 cond_normalized = normalize_and_validate_condition(rid, condition)
         elif public is not None and effective_public == ConfigEntryPublic.PUBLIC:
-            cond_normalized = "{}"
+            cond_normalized = ""
 
         pub_normalized: int | None = None
         if public is not None:

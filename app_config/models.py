@@ -77,7 +77,7 @@ class ConfigEntry(models.Model):
         related_name="config_entries",
     )
     config_key = models.CharField(max_length=191)
-    condition = models.TextField(default="{}")
+    condition = models.TextField(default="")
     public = models.SmallIntegerField(default=ConfigEntryPublic.PRIVATE)
     value = models.TextField()
     ct = models.PositiveBigIntegerField(default=0)
