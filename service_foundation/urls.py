@@ -96,3 +96,5 @@ if getattr(settings, "APP_TCC_ENABLED", False):
     from app_tcc import urls as app_tcc_urls
 
     urlpatterns.append(path("api/tcc/", include(app_tcc_urls)))
+
+handler404 = "service_foundation.error_views.page_not_found"

@@ -43,6 +43,34 @@ is_running() {
     return 1
 }
 
+# Resolve DEBUG the same way as Django: common.utils.env_util.load_env reads .env,
+# then .env.dev | .env.test | .env.prod when RUN_ENV matches (overrides .env).
+_collectstatic_action_from_env() {
+    python -c "
+from pathlib import Path
+import sys
+root = Path(r'''${SCRIPT_DIR}''').resolve()
+sys.path.insert(0, str(root))
+from common.utils.env_util import load_env
+e = load_env(root)
+print('collectstatic' if not e.bool('DEBUG', default=True) else 'skip')
+"
+}
+
+maybe_collectstatic() {
+    local action
+    action=$(_collectstatic_action_from_env 2>/dev/null) || action=""
+    if [ -z "$action" ]; then
+        echo "Warning: could not resolve DEBUG (same rules as .env + RUN_ENV); skipping collectstatic."
+        return 0
+    fi
+    if [ "$action" != "collectstatic" ]; then
+        return 0
+    fi
+    echo "DEBUG=False: running collectstatic..."
+    python manage.py collectstatic --noinput
+}
+
 start() {
     load_app_name
     local pid_dir="/var/run/${APP_NAME}"
@@ -58,6 +86,8 @@ start() {
         mkdir -p "$pid_dir" || { echo "Error: cannot create $pid_dir (may need sudo)"; exit 1; }
     fi
     mkdir -p "$(dirname "$django_log_path")" || { echo "Error: cannot create log dir for $django_log_path"; exit 1; }
+
+    maybe_collectstatic
 
     echo "Starting app (HOST/PORT/logging from .env via manage.py)..."
     echo "Django runserver output: $django_log_path"
