@@ -15,6 +15,7 @@ from app_config.services.config_merge_service import (
     merge_config_query_result,
     normalize_conditions,
 )
+from common.annotations import http_response_client_cache
 from common.consts.response_const import RET_INVALID_PARAM
 from common.enums.service_reg_status_enum import ServiceRegStatus
 from common.utils.http_util import (
@@ -72,6 +73,7 @@ class ConfigPubQueryView(APIView):
     authentication_classes = ()
     permission_classes = ()
 
+    @http_response_client_cache(300)
     def post(self, request, *args, **kwargs):
         return _execute_config_post(request, "pub")
 

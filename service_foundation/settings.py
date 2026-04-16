@@ -70,6 +70,10 @@ HOST = env("HOST", default="127.0.0.1")
 PORT = env("PORT", default=80)
 THREAD = env("THREAD", default=1)
 
+# Default max-age (seconds) for ``common.annotations.http_response_client_cache`` when the
+# decorator is used without a ttl argument, or with a ttl <= 0.
+HTTP_RESPONSE_CACHE_MAX_AGE_SECONDS = env.int("HTTP_RESPONSE_CACHE_MAX_AGE_SECONDS", default=5)
+
 # Timezone
 GMT = env("GMT", default="+00:00")
 
