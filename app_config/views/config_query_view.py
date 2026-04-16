@@ -1,5 +1,7 @@
 """HTTP API: resolve config by access_key, key, conditions (with server-side cache)."""
 
+import json
+
 from rest_framework.authentication import BasicAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -39,8 +41,21 @@ def _resolve_reg_id_from_payload(data: dict) -> int:
     return reg.id
 
 
-def _execute_config_post(request, endpoint_mode: str):
-    data = post_payload(request)
+def _pub_query_params_payload(request) -> dict:
+    qp = getattr(request, "query_params", request.GET)
+    access_key = (qp.get("access_key") or "").strip()
+    key = (qp.get("key") or "").strip()
+    out: dict = {"access_key": access_key, "key": key}
+    raw = qp.get("conditions")
+    if raw is not None and str(raw).strip() != "":
+        try:
+            out["conditions"] = json.loads(str(raw))
+        except json.JSONDecodeError:
+            raise ValueError("conditions must be valid JSON") from None
+    return out
+
+
+def _execute_config_query(request, data: dict, endpoint_mode: str):
     req_id = resolve_request_id(request)
     try:
         reg_id = _resolve_reg_id_from_payload(data)
@@ -62,20 +77,29 @@ def _execute_config_post(request, endpoint_mode: str):
         return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=req_id)
 
 
+def _execute_config_post(request, endpoint_mode: str):
+    return _execute_config_query(request, post_payload(request), endpoint_mode)
+
+
 class ConfigHealthView(APIView):
     def get(self, request, *args, **kwargs):
         return response_with_request_id(request, resp_ok({"status": "ok", "service": "config"}))
 
 
 class ConfigPubQueryView(APIView):
-    """POST JSON: access_key, key, conditions (optional). No login; only ``public=1`` rows (no condition eval)."""
+    """GET query: access_key, key, conditions (optional JSON string). No login; only ``public=1`` rows."""
 
     authentication_classes = ()
     permission_classes = ()
 
     @http_response_client_cache(300)
-    def post(self, request, *args, **kwargs):
-        return _execute_config_post(request, "pub")
+    def get(self, request, *args, **kwargs):
+        try:
+            data = _pub_query_params_payload(request)
+        except ValueError as exc:
+            req_id = resolve_request_id(request)
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=req_id)
+        return _execute_config_query(request, data, "pub")
 
 
 class ConfigPriQueryView(APIView):
