@@ -163,6 +163,9 @@ if APP_CONSOLE_ENABLED:
 
 REST_FRAMEWORK: dict[str, Any] = {
     "EXCEPTION_HANDLER": "common.utils.http_util.drf_unified_exception_handler",
+    # Match compact JSON from API_JSON_DUMPS_PARAMS (no decorative whitespace in separators).
+    "COMPACT_JSON": True,
+    "UNICODE_JSON": True,
 }
 
 # CORS

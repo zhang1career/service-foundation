@@ -18,6 +18,7 @@ from common.exceptions.checked.upstream_http_error import UpstreamHttpError
 from common.pojo.response import Response
 from common.services.http import HttpCallError, HttpClientPool, request_sync
 from common.utils.date_util import get_date_str_of_datetime
+from common.utils.json_util import API_JSON_DUMPS_PARAMS
 from common.utils.url_util import url_decode
 
 
@@ -355,7 +356,11 @@ class UnifiedExceptionMiddleware:
 
     def _respond(self, request, drf_response: DRFResponse, request_id: str):
         if _wants_json(request):
-            resp = JsonResponse(drf_response.data, status=drf_response.status_code, json_dumps_params={"ensure_ascii": False})
+            resp = JsonResponse(
+                drf_response.data,
+                status=drf_response.status_code,
+                json_dumps_params=API_JSON_DUMPS_PARAMS,
+            )
             attach_request_id_header(resp, request_id)
             return resp
         msg = drf_response.data.get("message", "错误")
