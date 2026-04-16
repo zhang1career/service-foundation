@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Final
 
 logger = logging.getLogger(__name__)
+
+# For HTTP JSON bodies (JsonResponse / HttpResponse): no decorative spaces after `,` / `:`.
+API_JSON_DUMPS_PARAMS: Final[dict[str, Any]] = {
+    "ensure_ascii": False,
+    "separators": (",", ":"),
+}
 
 
 def json_encode(result):

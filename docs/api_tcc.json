@@ -1,0 +1,440 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TCC 协调服务 API (app_tcc)",
+    "description": "分布式 TCC 全局事务协调：Try / Confirm / Cancel 阶段编排与查询。仅在 `APP_TCC_ENABLED=true` 时挂载；HTTP 前缀：`/api/tcc/`（见 `service_foundation/urls.py` → `app_tcc/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**鉴权**：当前视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**状态码（整数）**：全局事务见 `GlobalTxStatus`（INIT=10, TRYING=20, AWAIT_CONFIRM=30, CONFIRMING=40, CANCELING=50, COMMITTED=60, ROLLED_BACK=70, NEEDS_MANUAL=80）；分支见 `BranchStatus`（PENDING_TRY=10, TRY_SUCCEEDED=20, TRY_FAILED=30, CONFIRM_SUCCEEDED=40, CONFIRM_FAILED=50, CANCEL_SUCCEEDED=60, CANCEL_FAILED=70），定义于 `app_tcc/enums.py`。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "相对当前站点根路径"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "存活检查"
+    },
+    {
+      "name": "Transactions",
+      "description": "全局事务：开启、查询、确认、取消"
+    }
+  ],
+  "paths": {
+    "/api/tcc/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "健康检查",
+        "description": "返回固定负载，表示 TCC 应用路由已启用。",
+        "operationId": "tccHealth",
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode=0`）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/TccHealthPayload" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                },
+                "examples": {
+                  "success": {
+                    "summary": "成功",
+                    "value": {
+                      "errorCode": 0,
+                      "message": "",
+                      "data": { "status": "ok", "service": "tcc" }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tcc/transactions/begin": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "开启全局事务（Try 阶段及后续）",
+        "description": "请求体为 JSON 对象。\n\n- `branches`：非空数组；每项须含 **`branch_meta_id`（int）**，可选 **`payload`（对象）**。同一请求内 `branch_meta_id` 不可重复。\n- `auto_confirm`：可选布尔；省略时使用服务端 `TCC_DEFAULT_AUTO_CONFIRM`。\n- `context`：可选对象，持久化为全局事务上下文（JSON）。\n\n服务端分配 Snowflake `idem_key` 与各分支幂等键，按分支元数据顺序调用参与者 Try；成功且 `auto_confirm` 为真时进入 Confirm，否则进入 `AWAIT_CONFIRM` 等待显式确认。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
+        "operationId": "tccTransactionBegin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TccBeginRequest" },
+              "example": {
+                "branches": [{ "branch_meta_id": 1, "payload": { "order_id": "a1" } }],
+                "auto_confirm": false,
+                "context": { "biz": "demo" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode=0`，`data` 为事务详情）或参数/依赖错误（`errorCode≠0`，HTTP 仍为 200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/TccTransactionDetail" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tcc/transactions/detail": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "查询全局事务详情",
+        "description": "**二选一**查询：`idem_key`（int）或 `global_tx_id`（字符串，与全局事务主键一致的可解析整数）。两者同时提供 → `errorCode=100`；均未提供 → `100`；找不到事务 → `100`（message: `transaction not found`）。成功时 `data` 结构与 `serialize_transaction` 一致。",
+        "operationId": "tccTransactionDetail",
+        "parameters": [
+          {
+            "name": "idem_key",
+            "in": "query",
+            "required": false,
+            "description": "开启事务时分配的幂等/全局 idem（Snowflake 整数）。与 `global_tx_id` 互斥。",
+            "schema": { "type": "integer", "format": "int64", "example": 1234567890123456789 }
+          },
+          {
+            "name": "global_tx_id",
+            "in": "query",
+            "required": false,
+            "description": "全局事务 ID（`TccGlobalTransaction` 主键的十进制字符串）。与 `idem_key` 互斥。",
+            "schema": { "type": "string", "pattern": "^[0-9]+$", "example": "9876543210987654321" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功或业务错误（HTTP 200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/TccTransactionDetail" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                },
+                "examples": {
+                  "notFound": {
+                    "summary": "未找到事务",
+                    "value": {
+                      "errorCode": 100,
+                      "message": "transaction not found",
+                      "data": null
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tcc/transactions/{global_tx_id}/confirm": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "确认全局事务（进入 Confirm 阶段）",
+        "description": "路径参数 `global_tx_id` 为全局事务主键字符串。仅当当前状态为 **`AWAIT_CONFIRM`** 时可确认；否则 `errorCode=100`。成功返回更新后的 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
+        "operationId": "tccTransactionConfirm",
+        "parameters": [
+          {
+            "name": "global_tx_id",
+            "in": "path",
+            "required": true,
+            "description": "全局事务 ID（可解析为整数的字符串，前后空白会被 trim）。",
+            "schema": { "type": "string", "example": "9876543210987654321" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功或错误（HTTP 200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/TccTransactionDetail" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                },
+                "examples": {
+                  "invalidState": {
+                    "summary": "非待确认状态",
+                    "value": {
+                      "errorCode": 100,
+                      "message": "transaction is not awaiting confirm",
+                      "data": null
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tcc/transactions/{global_tx_id}/cancel": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "取消全局事务（进入 Cancel 阶段）",
+        "description": "对已 **COMMITTED**、**ROLLED_BACK** 或 **NEEDS_MANUAL** 的事务调用会返回 `errorCode=100`（`transaction is already terminal`）。对其余非终态事务置为取消阶段并对已成功 Try 的分支逆序调用 Cancel。成功返回 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
+        "operationId": "tccTransactionCancel",
+        "parameters": [
+          {
+            "name": "global_tx_id",
+            "in": "path",
+            "required": true,
+            "description": "全局事务 ID（可解析为整数的字符串）。",
+            "schema": { "type": "string", "example": "9876543210987654321" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功或错误（HTTP 200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/TccTransactionDetail" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EnvelopeOk": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "enum": [0],
+            "description": "成功为 0（RET_OK）"
+          },
+          "data": { "description": "业务数据" },
+          "message": { "type": "string", "description": "成功时通常为空串" }
+        }
+      },
+      "EnvelopeError": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "非 0。常见：`100`（RET_INVALID_PARAM）；`-1` 未捕获异常（resp_exception）"
+          },
+          "data": { "nullable": true },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "TccHealthPayload": {
+        "type": "object",
+        "required": ["status", "service"],
+        "properties": {
+          "status": { "type": "string", "enum": ["ok"] },
+          "service": { "type": "string", "enum": ["tcc"] }
+        }
+      },
+      "TccBeginBranchItem": {
+        "type": "object",
+        "required": ["branch_meta_id"],
+        "properties": {
+          "branch_meta_id": {
+            "type": "integer",
+            "description": "分支元数据主键（`TccBranchMeta.id`），同一 begin 请求内不可重复"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "可选；省略等价于 `{}`。若非对象则返回参数错误"
+          }
+        }
+      },
+      "TccBeginRequest": {
+        "type": "object",
+        "required": ["branches"],
+        "properties": {
+          "branches": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/TccBeginBranchItem" }
+          },
+          "auto_confirm": {
+            "type": "boolean",
+            "description": "省略时使用服务端默认 `TCC_DEFAULT_AUTO_CONFIRM`"
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "可选全局上下文对象"
+          }
+        }
+      },
+      "TccBranchSummary": {
+        "type": "object",
+        "required": [
+          "branch_id",
+          "branch_meta_id",
+          "branch_index",
+          "branch_status",
+          "last_http_status",
+          "last_error"
+        ],
+        "properties": {
+          "branch_id": {
+            "type": "string",
+            "description": "分支行主键（`TccBranch.pk`）的字符串形式"
+          },
+          "branch_meta_id": { "type": "integer" },
+          "branch_index": { "type": "integer", "minimum": 0 },
+          "branch_status": {
+            "type": "integer",
+            "description": "分支状态，见 `BranchStatus`（10–70）"
+          },
+          "last_http_status": {
+            "type": "integer",
+            "nullable": true,
+            "description": "最后一次调用参与者 HTTP 状态码；无则为 null"
+          },
+          "last_error": {
+            "type": "string",
+            "description": "错误信息截断至约 200 字符"
+          }
+        }
+      },
+      "TccTransactionDetail": {
+        "type": "object",
+        "required": [
+          "global_tx_id",
+          "idem_key",
+          "status",
+          "auto_confirm",
+          "retry_count",
+          "branches"
+        ],
+        "properties": {
+          "global_tx_id": {
+            "type": "string",
+            "description": "全局事务主键的字符串形式"
+          },
+          "idem_key": {
+            "type": "integer",
+            "format": "int64",
+            "description": "开启时分配的 Snowflake 幂等键"
+          },
+          "status": {
+            "type": "integer",
+            "description": "全局状态，见 `GlobalTxStatus`（10–80）"
+          },
+          "auto_confirm": { "type": "boolean" },
+          "retry_count": { "type": "integer", "minimum": 0 },
+          "branches": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TccBranchSummary" }
+          },
+          "review_snapshot": {
+            "type": "string",
+            "description": "当存在人工复核记录时存在；为 `TccManualReview.snapshot` 文本（通常为 JSON 字符串）"
+          }
+        }
+      }
+    }
+  }
+}

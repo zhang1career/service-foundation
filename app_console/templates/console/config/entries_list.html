@@ -4,56 +4,25 @@
 {% block page_title %}配置中心{% endblock %}
 
 {% block content %}
-{% if messages %}
-<div class="mb-4 space-y-2">
-    {% for message in messages %}
-    <div class="rounded border px-3 py-2 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-800{% else %}border-green-200 bg-green-50 text-green-800{% endif %}">{{ message }}</div>
-    {% endfor %}
-</div>
-{% endif %}
+{% include 'console/includes/messages_alerts.html' %}
+
 <div class="mb-6">
     {% include 'console/includes/config_subnav.html' with active='entries' %}
 </div>
 
-<p class="text-gray-600 text-sm mb-4">同一调用方、同一 config_key 下可多行；按条件匹配后按更新时间升序浅合并 JSON 对象。<code>condition</code> 必须为 JSON 对象，且<strong>键必须是该调用方在「条件字段」里登记过的 <code>field_key</code> 的子集</strong>；空 <code>{}</code> 表示通配。<code>value</code> 为 JSON 编码字符串。</p>
-
-<div class="card mb-6">
-    <div class="card-header">
-        <h2 class="text-lg font-semibold">新增配置项</h2>
-    </div>
-    <div class="card-body">
-        <form method="post" class="space-y-4">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create">
-            <div class="form-group">
-                <label class="form-label" for="entry-rid">调用方 *</label>
-                <select id="entry-rid" name="rid" class="form-input" required>
-                    <option value="">请选择</option>
-                    {% for r in regs %}
-                    <option value="{{ r.id }}">{{ r.id }} — {{ r.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="entry-key">config_key *</label>
-                <input type="text" id="entry-key" name="config_key" class="form-input" required maxlength="191" placeholder="例如 app.feature.flags">
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="entry-condition">condition（JSON 对象）</label>
-                <textarea id="entry-condition" name="condition" class="form-input font-mono text-sm" rows="3" placeholder="{}"></textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="entry-value">value（JSON 字符串）*</label>
-                <textarea id="entry-value" name="value" class="form-input font-mono text-sm" rows="4" required placeholder='{"enabled":true}'></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary btn-sm">创建</button>
-        </form>
-    </div>
+<div class="mb-6">
+    <p class="text-gray-600">同一调用方、同一 <code>config_key</code> 可多行，按 <code>ut</code> 升序浅合并。<strong>按条件（private）</strong>行用 <code>condition</code> 与请求 <code>conditions</code> 匹配（键须在「条件字段」登记）；<strong>公开（public）</strong>行不按条件合并，<code>condition</code> 须为空（存库为空字符串），且出现在无登录接口 <code>/api/config/pub</code> 与需登录接口 <code>/ai/config/pri</code>。<code>value</code> 为 JSON 字符串。</p>
 </div>
 
 <div class="card">
     <div class="card-header">
         <h2 class="text-lg font-semibold">配置项列表</h2>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openEntryCreateModal()">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            创建
+        </button>
     </div>
     <div class="card-body p-0">
         <div class="overflow-x-auto">
@@ -63,6 +32,7 @@
                         <th>ID</th>
                         <th>调用方</th>
                         <th>config_key</th>
+                        <th>类型</th>
                         <th>condition</th>
                         <th>value</th>
                         <th>操作</th>
@@ -72,34 +42,36 @@
                     {% for e in entries %}
                     <tr>
                         <td class="font-mono text-sm">{{ e.id }}</td>
-                        <td>{{ e.reg_name }} <span class="text-gray-500 text-xs">#{{ e.rid }}</span></td>
+                        <td>{{ e.reg_name }}</td>
                         <td class="font-medium">{{ e.config_key }}</td>
+                        <td class="text-sm">{% if e.public == 1 %}公开{% else %}按条件{% endif %}</td>
                         <td class="text-xs font-mono max-w-xs truncate" title="{{ e.condition }}">{{ e.condition }}</td>
                         <td class="text-xs font-mono max-w-xs truncate" title="{{ e.value }}">{{ e.value }}</td>
                         <td>
-                            <details class="text-sm">
-                                <summary class="cursor-pointer text-blue-600">编辑</summary>
-                                <form method="post" class="mt-2 p-2 bg-gray-50 rounded space-y-2">
+                            <div class="flex gap-1 items-center flex-wrap">
+                                <button type="button" class="btn btn-outline btn-icon" title="编辑"
+                                        data-id="{{ e.id }}"
+                                        data-config-key="{{ e.config_key }}"
+                                        data-condition="{{ e.condition }}"
+                                        data-value="{{ e.value }}"
+                                        data-public="{{ e.public }}"
+                                        onclick="openEntryEditModal(this)">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <form method="post" class="inline" onsubmit="return confirm('确认删除？');">
                                     {% csrf_token %}
-                                    <input type="hidden" name="action" value="update">
+                                    <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="entry_id" value="{{ e.id }}">
-                                    <input type="text" name="config_key" value="{{ e.config_key }}" class="form-input text-sm" maxlength="191">
-                                    <textarea name="condition" class="form-input font-mono text-xs" rows="2">{{ e.condition }}</textarea>
-                                    <textarea name="value" class="form-input font-mono text-xs" rows="3">{{ e.value }}</textarea>
-                                    <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                                    <button type="submit" class="btn btn-danger btn-icon" title="删除">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
                                 </form>
-                            </details>
-                            <form method="post" class="inline" onsubmit="return confirm('确认删除？');">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="entry_id" value="{{ e.id }}">
-                                <button type="submit" class="btn btn-danger btn-sm mt-1">删除</button>
-                            </form>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="empty-state py-8 text-center text-gray-500">暂无配置项</td>
+                        <td colspan="7" class="empty-state py-8 text-center text-gray-500">暂无配置项</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -107,4 +79,134 @@
         </div>
     </div>
 </div>
+
+<div id="entry-create-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="entry-create-title">
+        <div class="modal-header">
+            <h3 id="entry-create-title" class="text-lg font-semibold">新增配置项</h3>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="entry-c-rid">调用方 *</label>
+                    <select id="entry-c-rid" name="rid" class="form-input" required>
+                        <option value="">请选择</option>
+                        {% for r in regs %}
+                        <option value="{{ r.id }}">{{ r.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-c-key">config_key *</label>
+                    <input type="text" id="entry-c-key" name="config_key" class="form-input" required maxlength="191" placeholder="例如 app.feature.flags" autocomplete="off">
+                </div>
+                {% include 'console/includes/config_entry_public_field.html' with field_id='entry-c-public' selected='0' only %}
+                <div class="form-group">
+                    <label class="form-label" for="entry-c-condition">condition（JSON 对象）</label>
+                    <textarea id="entry-c-condition" name="condition" class="form-input font-mono text-sm" rows="3" placeholder="空 或 JSON 对象，例如 {&quot;env&quot;:&quot;prod&quot;}"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-c-value">value（JSON 字符串）*</label>
+                    <textarea id="entry-c-value" name="value" class="form-input font-mono text-sm" rows="4" required placeholder='{"enabled":true}'></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeEntryCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="entry-edit-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="entry-edit-title">
+        <div class="modal-header">
+            <h3 id="entry-edit-title" class="text-lg font-semibold">编辑配置项</h3>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="entry_id" id="entry-e-id" value="">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="entry-e-key">config_key *</label>
+                    <input type="text" id="entry-e-key" name="config_key" class="form-input" required maxlength="191" autocomplete="off">
+                </div>
+                {% include 'console/includes/config_entry_public_field.html' with field_id='entry-e-public' only %}
+                <div class="form-group">
+                    <label class="form-label" for="entry-e-condition">condition（JSON 对象）</label>
+                    <textarea id="entry-e-condition" name="condition" class="form-input font-mono text-sm" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="entry-e-value">value（JSON 字符串）*</label>
+                    <textarea id="entry-e-value" name="value" class="form-input font-mono text-sm" rows="4" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeEntryEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var cCond = document.getElementById('entry-c-condition');
+    var cPub = document.getElementById('entry-c-public');
+    var eCond = document.getElementById('entry-e-condition');
+    var ePub = document.getElementById('entry-e-public');
+
+    function onPublicChange(condEl, pubEl) {
+        if (!condEl || !pubEl) return;
+        if (pubEl.value === '1') {
+            condEl.value = '';
+            condEl.readOnly = true;
+            condEl.classList.add('bg-gray-100');
+        } else {
+            condEl.readOnly = false;
+            condEl.classList.remove('bg-gray-100');
+        }
+    }
+
+    window.openEntryCreateModal = function () {
+        document.getElementById('entry-create-modal').classList.remove('hidden');
+        document.getElementById('entry-c-key').value = '';
+        document.getElementById('entry-c-value').value = '';
+        document.getElementById('entry-c-rid').value = '';
+        cCond.value = '';
+        cPub.value = '0';
+        onPublicChange(cCond, cPub);
+    };
+    window.closeEntryCreateModal = function () {
+        document.getElementById('entry-create-modal').classList.add('hidden');
+    };
+    window.openEntryEditModal = function (btn) {
+        var d = btn.dataset;
+        document.getElementById('entry-e-id').value = d.id || '';
+        document.getElementById('entry-e-key').value = d.configKey || '';
+        document.getElementById('entry-e-condition').value = d.condition || '';
+        document.getElementById('entry-e-value').value = d.value || '';
+        document.getElementById('entry-e-public').value = (d.public !== undefined && d.public !== '') ? String(d.public) : '0';
+        onPublicChange(eCond, ePub);
+        document.getElementById('entry-edit-modal').classList.remove('hidden');
+    };
+    window.closeEntryEditModal = function () {
+        document.getElementById('entry-edit-modal').classList.add('hidden');
+    };
+
+    if (cPub) cPub.addEventListener('change', function () { onPublicChange(cCond, cPub); });
+    if (ePub) ePub.addEventListener('change', function () { onPublicChange(eCond, ePub); });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof attachModalBackdropClose !== 'function') return;
+        attachModalBackdropClose(document.getElementById('entry-create-modal'), closeEntryCreateModal);
+        attachModalBackdropClose(document.getElementById('entry-edit-modal'), closeEntryEditModal);
+    });
+})();
+</script>
 {% endblock %}

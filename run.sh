@@ -8,14 +8,14 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Load APP_NAME and LOG_FILE_PATH from .env
+# Load APP_NAME and LOG_DIR from .env
 load_app_name() {
     if [ -f .env ]; then
         APP_NAME=$(grep -E "^APP_NAME=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
-        LOG_FILE_PATH=$(grep -E "^LOG_FILE_PATH=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
+        LOG_DIR=$(grep -E "^LOG_DIR=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^[[:space:]["'\'']*//;s/[[:space:]["'\'']*$//')
     fi
-    APP_NAME=${APP_NAME:-service-foundation}
-    LOG_FILE_PATH=${LOG_FILE_PATH:-log}
+    APP_NAME=${APP_NAME:-serv-fd}
+    LOG_DIR=${LOG_DIR:-/var/log/serv-fd}
 }
 
 # PID file path: /var/run/<APP_NAME>/app.pid
@@ -43,11 +43,39 @@ is_running() {
     return 1
 }
 
+# Resolve DEBUG the same way as Django: common.utils.env_util.load_env reads .env,
+# then .env.dev | .env.test | .env.prod when RUN_ENV matches (overrides .env).
+_collectstatic_action_from_env() {
+    python -c "
+from pathlib import Path
+import sys
+root = Path(r'''${SCRIPT_DIR}''').resolve()
+sys.path.insert(0, str(root))
+from common.utils.env_util import load_env
+e = load_env(root)
+print('collectstatic' if not e.bool('DEBUG', default=True) else 'skip')
+"
+}
+
+maybe_collectstatic() {
+    local action
+    action=$(_collectstatic_action_from_env 2>/dev/null) || action=""
+    if [ -z "$action" ]; then
+        echo "Warning: could not resolve DEBUG (same rules as .env + RUN_ENV); skipping collectstatic."
+        return 0
+    fi
+    if [ "$action" != "collectstatic" ]; then
+        return 0
+    fi
+    echo "DEBUG=False: running collectstatic..."
+    python manage.py collectstatic --noinput
+}
+
 start() {
     load_app_name
     local pid_dir="/var/run/${APP_NAME}"
     local pid_file="${pid_dir}/app.pid"
-    local django_log_path="${LOG_FILE_PATH}/${APP_NAME}/django.log"
+    local django_log_path="${LOG_DIR}/django.log"
 
     if is_running; then
         echo "App is already running (PID: $(get_pid))"
@@ -58,6 +86,8 @@ start() {
         mkdir -p "$pid_dir" || { echo "Error: cannot create $pid_dir (may need sudo)"; exit 1; }
     fi
     mkdir -p "$(dirname "$django_log_path")" || { echo "Error: cannot create log dir for $django_log_path"; exit 1; }
+
+    maybe_collectstatic
 
     echo "Starting app (HOST/PORT/logging from .env via manage.py)..."
     echo "Django runserver output: $django_log_path"

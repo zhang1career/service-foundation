@@ -1,15 +1,15 @@
-"""Tests for common.annotation.cache decorators."""
+"""Tests for common.annotations.cache decorators."""
 from django.core.cache import caches
 from django.test import override_settings
 
-from common.annotation.cache import django_cached, local_ttl_cached
+from common.annotations.cache import django_cached, local_ttl_cached
 
 
 @override_settings(
     CACHES={
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "cache-annotation-test",
+            "LOCATION": "cache-annotations-test",
         }
     }
 )
@@ -39,5 +39,3 @@ def test_local_ttl_cached_second_call_hits_memory():
     assert g(1) == 2
     assert g(1) == 2
     assert calls["n"] == 1
-
-

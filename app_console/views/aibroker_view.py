@@ -43,6 +43,7 @@ from common.dict_catalog import dict_value_to_label, get_dict_by_codes
 from common.exceptions.base_exception import generic_message_for_ret
 from common.pojo.response import Response as ApiResponse
 from common.utils.http_util import attach_request_id_header, resolve_request_id, response_as_dict
+from common.utils.json_util import API_JSON_DUMPS_PARAMS
 from common.utils.page_util import slice_window_for_page
 
 logger = logging.getLogger(__name__)
@@ -583,7 +584,7 @@ def _aibroker_debug_json_response(
     rid = resolve_request_id(request)
     obj = ApiResponse(errorCode=error_code, data=data, message=message, detail=detail, _req_id=rid)
     payload = response_as_dict(obj)
-    resp = JsonResponse(payload, status=200, json_dumps_params={"ensure_ascii": False})
+    resp = JsonResponse(payload, status=200, json_dumps_params=API_JSON_DUMPS_PARAMS)
     attach_request_id_header(resp, rid)
     return resp
 

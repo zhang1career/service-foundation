@@ -1,5 +1,6 @@
 from django.db import models
 
+from app_config.enums import ConfigEntryPublic
 from common.utils.date_util import get_now_timestamp_ms
 
 
@@ -76,7 +77,8 @@ class ConfigEntry(models.Model):
         related_name="config_entries",
     )
     config_key = models.CharField(max_length=191)
-    condition = models.TextField(default="{}")
+    condition = models.TextField(default="")
+    public = models.SmallIntegerField(default=ConfigEntryPublic.PRIVATE)
     value = models.TextField()
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)

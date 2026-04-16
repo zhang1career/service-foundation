@@ -25,11 +25,14 @@ def get_entry_by_id(entry_id: int) -> Optional[ConfigEntry]:
     return ConfigEntry.objects.using(_DB).filter(id=entry_id).first()
 
 
-def create_entry(rid: int, config_key: str, condition: str, value: str) -> ConfigEntry:
+def create_entry(
+    rid: int, config_key: str, condition: str, value: str, public: int
+) -> ConfigEntry:
     return ConfigEntry.objects.using(_DB).create(
         rid_id=rid,
         config_key=config_key.strip(),
         condition=condition,
+        public=public,
         value=value,
     )
 
@@ -39,6 +42,7 @@ def update_entry(
     config_key: str | None = None,
     condition: str | None = None,
     value: str | None = None,
+    public: int | None = None,
 ) -> Optional[ConfigEntry]:
     entry = get_entry_by_id(entry_id)
     if not entry:
@@ -53,6 +57,9 @@ def update_entry(
     if value is not None:
         entry.value = value
         update_fields.append("value")
+    if public is not None:
+        entry.public = public
+        update_fields.append("public")
     if update_fields:
         entry.save(using=_DB, update_fields=update_fields)
     return entry

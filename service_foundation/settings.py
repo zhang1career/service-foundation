@@ -38,6 +38,16 @@ SECRET_KEY = "django-insecure-l7qc5yniq$_0fe*%e_6zzxw=4k@1q=))v25=q%4w7rj@0-vv5(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=True)
 
+# COOP is meaningful on trustworthy origins (HTTPS or localhost). On plain http://<ip>:…
+# browsers ignore the header and log a warning. Do not set by default; use HTTPS and
+# set SECURE_CROSS_ORIGIN_OPENER_POLICY=same-origin in env when you terminate TLS.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = env("SECURE_CROSS_ORIGIN_OPENER_POLICY", default=None)
+
+# WhiteNoise serves collected files from STATIC_ROOT. With DEBUG=False you must run
+# collectstatic (see docker-entrypoint.sh). Optional: WHITENOISE_USE_FINDERS=true to
+# resolve files via staticfiles finders when STATIC_ROOT is not populated (slower).
+WHITENOISE_USE_FINDERS = env.bool("WHITENOISE_USE_FINDERS", default=False)
+
 # Handle ALLOWED_HOSTS configuration
 # Support '*' to allow all hosts (useful for Docker containers)
 # Also handle comma-separated string format from .env files
@@ -59,6 +69,10 @@ print(f"[Django Settings] ALLOWED_HOSTS configured as: {ALLOWED_HOSTS} (from env
 HOST = env("HOST", default="127.0.0.1")
 PORT = env("PORT", default=80)
 THREAD = env("THREAD", default=1)
+
+# Default max-age (seconds) for ``common.annotations.http_response_client_cache`` when the
+# decorator is used without a ttl argument, or with a ttl <= 0.
+HTTP_RESPONSE_CACHE_MAX_AGE_SECONDS = env.int("HTTP_RESPONSE_CACHE_MAX_AGE_SECONDS", default=5)
 
 # Timezone
 GMT = env("GMT", default="+00:00")
@@ -153,6 +167,9 @@ if APP_CONSOLE_ENABLED:
 
 REST_FRAMEWORK: dict[str, Any] = {
     "EXCEPTION_HANDLER": "common.utils.http_util.drf_unified_exception_handler",
+    # Match compact JSON from API_JSON_DUMPS_PARAMS (no decorative whitespace in separators).
+    "COMPACT_JSON": True,
+    "UNICODE_JSON": True,
 }
 
 # CORS
@@ -160,19 +177,22 @@ CORS_ORIGIN_ALLOW_ALL = True
 
 ROOT_URLCONF = "service_foundation.urls"
 
+_TEMPLATE_CONTEXT_PROCESSORS = [
+    "django.template.context_processors.debug",
+    "django.template.context_processors.request",
+    "django.contrib.auth.context_processors.auth",
+    "django.contrib.messages.context_processors.messages",
+]
+if APP_CONSOLE_ENABLED:
+    _TEMPLATE_CONTEXT_PROCESSORS.append("app_console.context_processors.console_context")
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-                "app_console.context_processors.console_context",
-            ],
+            "context_processors": _TEMPLATE_CONTEXT_PROCESSORS,
         },
     },
 ]

@@ -14,7 +14,6 @@ import json
 from functools import wraps
 from typing import Any, Callable, Optional, TypeVar
 
-
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -28,11 +27,11 @@ def _args_key(func_qualname: str, args: tuple, kwargs: dict) -> str:
 
 
 def django_cached(
-    *,
-    key_prefix: str,
-    ttl_seconds: int,
-    cache_alias: str = "default",
-    key_fn: Optional[Callable[..., str]] = None,
+        *,
+        key_prefix: str,
+        ttl_seconds: int,
+        cache_alias: str = "default",
+        key_fn: Optional[Callable[..., str]] = None,
 ) -> Callable[[F], F]:
     """
     Cache synchronous function results in Django's cache.

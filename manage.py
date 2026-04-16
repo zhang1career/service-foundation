@@ -27,6 +27,17 @@ def main():
             host = os.environ.get("HOST", "127.0.0.1")
             port = os.environ.get("PORT", "8000")
             sys.argv.insert(runserver_idx + 1, f"{host}:{port}")
+        # Autoreload spawns a second process; disable when running many instances to cut RAM.
+        noreload_var = os.environ.get("DJANGO_RUNSERVER_NORELOAD")
+        if noreload_var is not None and noreload_var.strip() != "":
+            noreload_norm = noreload_var.strip().lower()
+            if noreload_norm not in ("true", "false"):
+                raise SystemExit(
+                    "DJANGO_RUNSERVER_NORELOAD must be true or false, not "
+                    f"{noreload_var.strip()!r}"
+                )
+            if noreload_norm == "true" and "--noreload" not in sys.argv:
+                sys.argv.append("--noreload")
 
     try:
         from django.core.management import execute_from_command_line

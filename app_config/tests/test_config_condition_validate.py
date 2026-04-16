@@ -11,8 +11,8 @@ class TestNormalizeAndValidateCondition(unittest.TestCase):
     @patch("app_config.services.config_condition_validate.condition_field_repo.list_fields_for_rid")
     def test_empty_meta_only_empty_object(self, mock_list):
         mock_list.return_value = []
-        self.assertEqual(normalize_and_validate_condition(1, ""), "{}")
-        self.assertEqual(normalize_and_validate_condition(1, "{}"), "{}")
+        self.assertEqual(normalize_and_validate_condition(1, ""), "")
+        self.assertEqual(normalize_and_validate_condition(1, "{}"), "")
         with self.assertRaises(ValueError) as ctx:
             normalize_and_validate_condition(1, '{"env":"prod"}')
         self.assertIn("not declared", str(ctx.exception))

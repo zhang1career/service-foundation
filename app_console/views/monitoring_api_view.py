@@ -7,6 +7,7 @@ from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.views import View
 
 from app_console.services.monitoring_snapshot import get_snapshot_payload
+from common.utils.json_util import API_JSON_DUMPS_PARAMS
 
 
 class MonitoringSnapshotView(View):
@@ -15,7 +16,7 @@ class MonitoringSnapshotView(View):
     def get(self, request, *args, **kwargs):
         return JsonResponse(
             get_snapshot_payload(),
-            json_dumps_params={"ensure_ascii": False},
+            json_dumps_params=API_JSON_DUMPS_PARAMS,
         )
 
 
@@ -33,6 +34,6 @@ class MonitoringJsonView(View):
 
         payload = get_snapshot_payload()
         return HttpResponse(
-            json.dumps(payload, ensure_ascii=False, default=str),
+            json.dumps(payload, default=str, **API_JSON_DUMPS_PARAMS),
             content_type="application/json; charset=utf-8",
         )

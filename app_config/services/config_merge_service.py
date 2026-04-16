@@ -8,6 +8,7 @@ from typing import Any
 
 from common.utils.dict_util import merge
 
+from app_config.enums import ConfigEntryPublic
 from app_config.models import ConfigEntry
 from app_config.repos import config_entry_repo
 
@@ -63,16 +64,39 @@ def _layer_audit(
     }
 
 
-def merge_config_query_result(rid: int, config_key: str, conditions: dict[str, Any]) -> dict[str, Any]:
+def merge_config_query_result(
+    rid: int,
+    config_key: str,
+    conditions: dict[str, Any],
+    *,
+    endpoint_mode: str,
+) -> dict[str, Any]:
     """
-    Return API data payload: value, source_ids, audit.
+    Return API data payload: ``value``, ``_ids``; ``_explain`` only when
+    ``endpoint_mode`` is ``pri`` (omitted for ``pub``).
+
+    ``config_entry.public`` (``ConfigEntryPublic``): **public=1** 不按 ``condition`` 过滤；
+    **private=0** 按 ``condition`` 与请求 ``conditions`` 子集匹配。
+
+    ``endpoint_mode``:
+    - ``pub``: only ``public=1`` rows (no login API).
+    - ``pri``: ``public=1`` and ``public=0`` rows.
 
     Shallow merge: for each matching row in ut ascending, merge dicts with ``common.utils.dict_util.merge``.
     If a row's parsed value is not a dict, it becomes the whole merged value and merging stops.
     """
+    if endpoint_mode not in ("pub", "pri"):
+        raise ValueError("endpoint_mode must be pub or pri")
+
     rows = config_entry_repo.list_entries_for_rid_and_key(rid, config_key)
     matched: list[ConfigEntry] = []
     for row in rows:
+        is_public_row = int(row.public) == ConfigEntryPublic.PUBLIC
+        if endpoint_mode == "pub" and not is_public_row:
+            continue
+        if is_public_row:
+            matched.append(row)
+            continue
         cond = _parse_row_condition(row.condition)
         if cond is None:
             continue
@@ -87,7 +111,10 @@ def merge_config_query_result(rid: int, config_key: str, conditions: dict[str, A
     matched_layers: list[dict[str, Any]] = []
 
     for row in matched:
-        cond = _parse_row_condition(row.condition) or {}
+        if int(row.public) == ConfigEntryPublic.PUBLIC:
+            cond: dict[str, Any] = {}
+        else:
+            cond = _parse_row_condition(row.condition) or {}
         try:
             parsed = json.loads(row.value)
         except json.JSONDecodeError:
@@ -105,11 +132,13 @@ def merge_config_query_result(rid: int, config_key: str, conditions: dict[str, A
 
     source_ids_str = ",".join(str(i) for i in source_ids)
 
-    return {
+    out: dict[str, Any] = {
         "value": merged,
-        "source_ids": source_ids_str,
-        "audit": {
+        "_ids": source_ids_str,
+    }
+    if endpoint_mode == "pri":
+        out["_explain"] = {
             "conditions_received": dict(conditions),
             "matched_layers": matched_layers,
-        },
-    }
+        }
+    return out
