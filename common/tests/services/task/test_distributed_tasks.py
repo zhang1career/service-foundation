@@ -3,6 +3,9 @@ from __future__ import annotations
 from unittest import TestCase
 from unittest.mock import MagicMock
 
+from django.test import override_settings
+
+from common.services.http.sync_task_ref import SYNC_HTTP_REQUEST_FN_REF
 from common.services.task import distributed_tasks as dt
 
 
@@ -56,6 +59,17 @@ class RestorePayloadDataTest(TestCase):
         self.assertEqual(dt._restore_payload_data(b"raw"), b"raw")
 
 
+class SyncFnRefAllowlistTest(TestCase):
+    @override_settings(CELERY_SYNC_CALL_ALLOWED_REFS=None)
+    def test_default_allowlist_contains_http_request_sync(self):
+        self.assertIn(SYNC_HTTP_REQUEST_FN_REF, dt._allowed_sync_fn_refs())
+
+    def test_rejects_ref_when_allowlist_empty(self):
+        with override_settings(CELERY_SYNC_CALL_ALLOWED_REFS=frozenset()):
+            with self.assertRaises(ValueError):
+                dt._reject_if_sync_fn_ref_not_allowed(SYNC_HTTP_REQUEST_FN_REF)
+
+
 class ResultToDictTest(TestCase):
     def test_dict_sets_elapsed_when_missing(self):
         out = dt._result_to_dict({"x": 1}, 42)
@@ -79,6 +93,16 @@ class ResultToDictTest(TestCase):
         self.assertEqual(out["text"], "body")
         self.assertEqual(out["url"], "https://api.example/r")
         self.assertEqual(out["elapsed_ms"], 10)
+
+    def test_response_like_object_strips_query_from_url(self):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        resp.text = ""
+        resp.request.url = "https://api.example/r?token=secret"
+
+        out = dt._result_to_dict(resp, 1)
+        self.assertEqual(out["url"], "https://api.example/r")
 
     def test_invalid_result_raises(self):
         with self.assertRaises(TypeError):

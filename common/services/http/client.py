@@ -27,7 +27,11 @@ def get_http_client(
         if client is None:
             # Client default timeout from settings only; per-request timeouts pass through
             # request_sync(..., timeout_sec=...) without mutating this shared instance.
-            client = httpx.Client(limits=_resolve_limits(pool_key), timeout=_resolve_timeout(timeout_sec))
+            client = httpx.Client(
+                limits=_resolve_limits(pool_key),
+                timeout=_resolve_timeout(timeout_sec),
+                follow_redirects=False,
+            )
             _CLIENTS[pool_key] = client
             logger.info("[httpx] initialized pool=%s", pool_key)
             return client

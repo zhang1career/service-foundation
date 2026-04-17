@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from importlib import import_module
 
@@ -5,6 +7,10 @@ from common.consts.result_const import RESULT_INDEX_MAP
 from common.utils.json_util import json_encode, json_decode
 
 logger = logging.getLogger(__name__)
+
+
+def _allowed_module_func_pairs() -> frozenset[tuple[str, str]]:
+    return frozenset((v["module"], v["func"]) for v in RESULT_INDEX_MAP.values())
 
 
 def build_result_index(result_id, param_map: dict):
@@ -41,6 +47,14 @@ def get_result(result_index: dict):
     if not func_name:
         return None, "function name is empty"
 
+    if (module_name, func_name) not in _allowed_module_func_pairs():
+        logger.warning(
+            "get_result rejected module/func not in RESULT_INDEX_MAP m=%s f=%s",
+            module_name,
+            func_name,
+        )
+        return None, "result index is not allowed"
+
     param_map = None
     param_str = result_index["p"]
     if param_str:
@@ -51,6 +65,6 @@ def get_result(result_index: dict):
         func = getattr(module, func_name)
         result = func(param_map)
         return result, None
-    except Exception as e:
-        logger.exception(e)
-        return None, repr(e)
+    except Exception:
+        logger.exception("get_result failed for m=%s f=%s", module_name, func_name)
+        return None, "execution failed"

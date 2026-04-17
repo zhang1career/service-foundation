@@ -4,10 +4,25 @@ import time
 from typing import Any, Dict
 
 from celery import shared_task
+from django.conf import settings
 
 from common.services.http.errors import HttpCallError
+from common.services.http.outbound_url import sanitize_url_for_log
+from common.services.http.sync_task_ref import SYNC_HTTP_REQUEST_FN_REF
 
 logger = logging.getLogger(__name__)
+
+
+def _allowed_sync_fn_refs() -> frozenset[str]:
+    configured = getattr(settings, "CELERY_SYNC_CALL_ALLOWED_REFS", None)
+    if configured is not None:
+        return frozenset(configured)
+    return frozenset({SYNC_HTTP_REQUEST_FN_REF})
+
+
+def _reject_if_sync_fn_ref_not_allowed(sync_fn_ref: str) -> None:
+    if sync_fn_ref not in _allowed_sync_fn_refs():
+        raise ValueError(f"sync_fn_ref is not allowed: {sync_fn_ref!r}")
 
 
 @shared_task(
@@ -23,6 +38,7 @@ def sync_call_task(
         sync_fn_ref: str,
         fn_kwargs: Dict[str, Any],
 ) -> Dict[str, Any]:
+    _reject_if_sync_fn_ref_not_allowed(sync_fn_ref)
     sync_fn = _import_callable(sync_fn_ref)
     kwargs = dict(fn_kwargs)
     if "data" in kwargs:
@@ -78,10 +94,11 @@ def _result_to_dict(result: Any, elapsed_ms: int) -> Dict[str, Any]:
         raise TypeError(
             "sync call result must be a dict or an object with status_code, headers, text, request"
         )
+    raw_url = str(getattr(result, "request").url)
     return {
         "status_code": status_code,
         "headers": dict(getattr(result, "headers", {})),
         "text": getattr(result, "text", ""),
-        "url": str(getattr(result, "request").url),
+        "url": sanitize_url_for_log(raw_url),
         "elapsed_ms": elapsed_ms,
     }

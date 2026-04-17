@@ -12,6 +12,7 @@ from common.services.http.executor import (
     request_async,
     request_sync,
 )
+from common.services.http.outbound_url import OutboundUrlPolicyError
 
 
 class HttpExecutorTest(TestCase):
@@ -46,6 +47,10 @@ class HttpExecutorTest(TestCase):
     def test_queue_for_pool_empty_when_mapping_none(self):
         self.assertEqual(_queue_for_pool("any_pool"), "q_only")
 
+    def test_request_sync_rejects_loopback_url(self):
+        with self.assertRaises(OutboundUrlPolicyError):
+            request_sync(method="get", url="http://127.0.0.1/")
+
     @patch("common.services.http.executor.get_http_client")
     def test_request_sync_success(self, get_client_mock):
         client = MagicMock()
@@ -54,7 +59,7 @@ class HttpExecutorTest(TestCase):
         client.request.return_value = response
         get_client_mock.return_value = client
 
-        ret = request_sync(method="get", url="https://example.com")
+        ret = request_sync(method="get", url="http://203.0.113.1/")
         self.assertIs(ret, response)
         client.request.assert_called_once()
         get_client_mock.assert_called_once_with(
@@ -63,12 +68,13 @@ class HttpExecutorTest(TestCase):
         )
         call_kw = client.request.call_args.kwargs
         self.assertEqual(call_kw["method"], "GET")
-        self.assertEqual(call_kw["url"], "https://example.com")
+        self.assertEqual(call_kw["url"], "http://203.0.113.1/")
         self.assertIsNone(call_kw["headers"])
         self.assertIsNone(call_kw["params"])
         self.assertIsNone(call_kw["json"])
         self.assertIsNone(call_kw["content"])
         self.assertIsNone(call_kw["timeout"])
+        self.assertIs(call_kw["follow_redirects"], False)
 
     @patch("common.services.http.executor.get_http_client")
     def test_request_sync_forwards_pool_timeout_headers_params_json_and_data(
@@ -82,7 +88,7 @@ class HttpExecutorTest(TestCase):
 
         ret = request_sync(
             method="post",
-            url="https://api.example/v1",
+            url="http://203.0.113.1/v1",
             pool_name="webhook_pl",
             headers={"X-Req": "1"},
             params={"q": "a"},
@@ -97,12 +103,13 @@ class HttpExecutorTest(TestCase):
         )
         client.request.assert_called_once_with(
             method="POST",
-            url="https://api.example/v1",
+            url="http://203.0.113.1/v1",
             headers={"X-Req": "1"},
             params={"q": "a"},
             json={"a": 1},
             content=b"raw",
             timeout=12.5,
+            follow_redirects=False,
         )
 
     @patch("common.services.http.executor.get_http_client")
@@ -112,7 +119,7 @@ class HttpExecutorTest(TestCase):
         get_client_mock.return_value = client
 
         with self.assertRaises(HttpCallError):
-            request_sync(method="get", url="https://example.com")
+            request_sync(method="get", url="http://203.0.113.1/")
 
     @patch("common.services.http.executor.get_http_client")
     def test_request_sync_http_error_preserves_cause(self, get_client_mock):
@@ -122,7 +129,7 @@ class HttpExecutorTest(TestCase):
         get_client_mock.return_value = client
 
         with self.assertRaises(HttpCallError) as ctx:
-            request_sync(method="get", url="https://example.com")
+            request_sync(method="get", url="http://203.0.113.1/")
         self.assertIs(ctx.exception.__cause__, inner)
 
     @patch("common.services.task.sync_call_task")
@@ -135,7 +142,7 @@ class HttpExecutorTest(TestCase):
 
         task_id = request_async(
             method="post",
-            url="https://upstream.example/hook",
+            url="http://203.0.113.1/hook",
             pool_name="webhook_pl",
             headers={"H": "1"},
             params={"p": "q"},
@@ -149,7 +156,7 @@ class HttpExecutorTest(TestCase):
         self.assertEqual(call_kw["sync_fn_ref"], SYNC_HTTP_REQUEST_FN_REF)
         fn_kw = call_kw["fn_kwargs"]
         self.assertEqual(fn_kw["method"], "POST")
-        self.assertEqual(fn_kw["url"], "https://upstream.example/hook")
+        self.assertEqual(fn_kw["url"], "http://203.0.113.1/hook")
         self.assertEqual(fn_kw["pool_name"], "webhook_pl")
         self.assertEqual(fn_kw["headers"], {"H": "1"})
         self.assertEqual(fn_kw["params"], {"p": "q"})
@@ -167,7 +174,7 @@ class HttpExecutorTest(TestCase):
 
         request_async(
             method="get",
-            url="https://x",
+            url="http://203.0.113.1/x",
             queue_name="priority",
         )
         self.assertEqual(mock_apply.call_args.kwargs["queue"], "priority")
