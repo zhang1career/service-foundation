@@ -28,6 +28,18 @@ from common.utils.http_util import (
     response_with_request_id,
 )
 
+# Pub/pri: caller access key MUST be sent as X-Config-Access-Key (not URL or JSON body),
+# so it is less likely to appear in access logs, proxies, or Referer.
+CONFIG_PUB_ACCESS_KEY_HEADER = "X-Config-Access-Key"
+CONFIG_PUB_CONFIG_KEY_HEADER = "X-Config-Key"
+
+
+def _header_config_access_key(request) -> str:
+    headers = getattr(request, "headers", None)
+    if headers is not None:
+        return (headers.get(CONFIG_PUB_ACCESS_KEY_HEADER) or "").strip()
+    return (request.META.get("HTTP_X_CONFIG_ACCESS_KEY") or "").strip()
+
 
 def _resolve_reg_id_from_payload(data: dict) -> int:
     if not isinstance(data, dict):
@@ -41,10 +53,19 @@ def _resolve_reg_id_from_payload(data: dict) -> int:
     return reg.id
 
 
+def _pub_headers_access_key_and_config_key(request) -> tuple[str, str]:
+    access_key = _header_config_access_key(request)
+    headers = getattr(request, "headers", None)
+    if headers is not None:
+        key = (headers.get(CONFIG_PUB_CONFIG_KEY_HEADER) or "").strip()
+    else:
+        key = (request.META.get("HTTP_X_CONFIG_KEY") or "").strip()
+    return access_key, key
+
+
 def _pub_query_params_payload(request) -> dict:
     qp = getattr(request, "query_params", request.GET)
-    access_key = (qp.get("access_key") or "").strip()
-    key = (qp.get("key") or "").strip()
+    access_key, key = _pub_headers_access_key_and_config_key(request)
     out: dict = {"access_key": access_key, "key": key}
     raw = qp.get("conditions")
     if raw is not None and str(raw).strip() != "":
@@ -53,6 +74,20 @@ def _pub_query_params_payload(request) -> dict:
         except json.JSONDecodeError:
             raise ValueError("conditions must be valid JSON") from None
     return out
+
+
+def _pri_post_payload(request) -> dict:
+    raw = post_payload(request)
+    if isinstance(raw, dict):
+        body = dict(raw)
+    else:
+        try:
+            body = dict(raw)
+        except (TypeError, ValueError):
+            raise ValueError("invalid payload") from None
+    body.pop("access_key", None)
+    body["access_key"] = _header_config_access_key(request)
+    return body
 
 
 def _execute_config_query(request, data: dict, endpoint_mode: str):
@@ -78,7 +113,14 @@ def _execute_config_query(request, data: dict, endpoint_mode: str):
 
 
 def _execute_config_post(request, endpoint_mode: str):
-    return _execute_config_query(request, post_payload(request), endpoint_mode)
+    if endpoint_mode != "pri":
+        return _execute_config_query(request, post_payload(request), endpoint_mode)
+    try:
+        data = _pri_post_payload(request)
+    except ValueError as exc:
+        req_id = resolve_request_id(request)
+        return resp_err(code=RET_INVALID_PARAM, message=str(exc), req_id=req_id)
+    return _execute_config_query(request, data, endpoint_mode)
 
 
 class ConfigHealthView(APIView):
@@ -87,7 +129,13 @@ class ConfigHealthView(APIView):
 
 
 class ConfigPubQueryView(APIView):
-    """GET query: access_key, key, conditions (optional JSON string). No login; only ``public=1`` rows."""
+    """
+    GET:
+      `X-Config-Access-Key` + `X-Config-Key` headers;
+      optional `conditions` query (JSON string).
+      No login;
+      only ``public=1`` rows.
+    """
 
     authentication_classes = ()
     permission_classes = ()
@@ -103,7 +151,13 @@ class ConfigPubQueryView(APIView):
 
 
 class ConfigPriQueryView(APIView):
-    """POST JSON: access_key, key, conditions (optional). Login required; ``public=1`` + ``public=0`` rows."""
+    """
+    POST JSON:
+      `X-Config-Access-Key` header required.
+      `key`,
+      optional `conditions`.
+      Login required;
+    """
 
     authentication_classes = (SessionAuthentication, BasicAuthentication)
     permission_classes = (IsAuthenticated,)
