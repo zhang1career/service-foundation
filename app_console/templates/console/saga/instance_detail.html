@@ -1,0 +1,89 @@
+{% extends 'console/base.html' %}
+
+{% block title %}SAGA-实例详情{% endblock %}
+{% block page_title %}SAGA{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/saga_subnav.html' with active='instances' %}
+</div>
+
+<div class="mb-4">
+    <a href="{% url 'console:saga-instances' %}" class="text-blue-600 hover:underline">← 实例列表</a>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">实例 #{{ inst.id }}</h2>
+    </div>
+    <div class="card-body text-sm space-y-2">
+        <p><span class="text-gray-500">flow_id</span> <span class="font-mono">{{ inst.flow_id }}</span></p>
+        <p><span class="text-gray-500">idem_key</span> <span class="font-mono">{{ inst.idem_key }}</span></p>
+        <p><span class="text-gray-500">状态</span>
+            {% for val, label in status_options %}
+                {% if val == inst.status %} {{ label }} ({{ val }}){% endif %}
+            {% endfor %}
+        </p>
+        <p><span class="text-gray-500">current_step_index</span> {{ inst.current_step_index }}</p>
+        <p><span class="text-gray-500">retry_count</span> {{ inst.retry_count }}</p>
+        {% if inst.last_error %}
+        <p class="text-red-600 break-words"><span class="text-gray-500">last_error</span> {{ inst.last_error }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">context</h2>
+    </div>
+    <div class="card-body">
+        <pre class="text-xs overflow-x-auto bg-gray-50 p-3 rounded border border-gray-200">{{ context_pretty }}</pre>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">步骤执行</h2>
+    </div>
+    <div class="card-body p-0 overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>action</th>
+                    <th>compensate</th>
+                    <th>http(action)</th>
+                    <th>http(comp)</th>
+                    <th>err(action)</th>
+                    <th>err(comp)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in step_runs %}
+                <tr>
+                    <td class="font-mono text-sm">{{ r.step_index }}</td>
+                    <td>
+                        {% for val, label in action_status_options %}
+                            {% if val == r.action_status %}{{ label }}{% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for val, label in compensate_status_options %}
+                            {% if val == r.compensate_status %}{{ label }}{% endif %}
+                        {% endfor %}
+                    </td>
+                    <td class="font-mono text-xs">{{ r.last_http_status_action|default:"—" }}</td>
+                    <td class="font-mono text-xs">{{ r.last_http_status_compensate|default:"—" }}</td>
+                    <td class="text-xs break-all max-w-xs">{{ r.last_error_action|truncatechars:80 }}</td>
+                    <td class="text-xs break-all max-w-xs">{{ r.last_error_compensate|truncatechars:80 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-gray-500 py-6">无步骤记录</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

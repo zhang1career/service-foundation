@@ -1,0 +1,283 @@
+{% extends 'console/base.html' %}
+
+{% block title %}SAGA-步骤{% endblock %}
+{% block page_title %}SAGA{% endblock %}
+
+{% block extra_head %}
+<script src="https://unpkg.com/sortablejs@1.15.2/Sortable.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/saga_subnav.html' with active='steps' saga_flow_nav_flow_id=flow.id filter_participant_id=filter_participant_id %}
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">流程信息</h2>
+    </div>
+    <div class="card-body">
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div>
+                <dt class="text-gray-500">调用方</dt>
+                <dd class="mt-0.5">{% if participant.name %}{{ participant.name }}{% else %}（未命名 #{{ participant.id }}）{% endif %}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">flow_id</dt>
+                <dd class="mt-0.5 font-mono">{{ flow.id }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">名称</dt>
+                <dd class="mt-0.5">{{ flow.name|default:"—" }}</dd>
+            </div>
+        </dl>
+        <p class="mt-4">
+            <a href="{% url 'console:saga-flows' %}{% if filter_participant_id %}?participant_id={{ filter_participant_id }}{% endif %}" class="text-blue-600 hover:underline">← 返回流程列表</a>
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">步骤列表（按顺序执行；失败则逆序补偿）</h2>
+        <div class="flex flex-wrap gap-2 items-center">
+            <button type="button" id="saga-save-order-btn" class="btn btn-outline btn-sm" disabled title="拖拽调整顺序后保存">保存顺序</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openSagaStepCreateModal()">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                新增
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0 overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th class="w-10" aria-label="拖拽排序"></th>
+                    <th>ID</th>
+                    <th>#</th>
+                    <th>名称</th>
+                    <th>Action URL</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="saga-step-tbody">
+                {% for br in steps %}
+                <tr data-step-id="{{ br.id }}">
+                    <td class="align-middle">
+                        <span class="saga-drag-handle inline-flex cursor-grab text-gray-400 hover:text-gray-600 p-1" title="拖拽排序" role="button" tabindex="0" aria-label="拖拽排序">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h2v2H9V4zm4 0h2v2h-2V4zM9 9h2v2H9V9zm4 0h2v2h-2V9zm-4 4h2v2H9v-2zm4 0h2v2h-2v-2zm-4 4h2v2H9v-2zm4 0h2v2h-2v-2z"/></svg>
+                        </span>
+                    </td>
+                    <td class="font-mono text-sm align-middle">{{ br.id }}</td>
+                    <td class="font-mono text-sm align-middle">{{ br.step_index }}</td>
+                    <td class="align-middle max-w-xs break-words">{{ br.name|default:"—" }}</td>
+                    <td class="text-xs break-all max-w-lg align-middle">{{ br.action_url }}</td>
+                    <td class="whitespace-nowrap align-middle">
+                        <div class="flex gap-1 items-center flex-wrap">
+                            <button type="button" class="btn btn-outline btn-icon saga-step-edit" title="编辑"
+                                    data-id="{{ br.id }}"
+                                    data-name="{{ br.name|default_if_none:''|escape }}"
+                                    data-action="{{ br.action_url|escape }}"
+                                    data-compensate="{{ br.compensate_url|escape }}"
+                                    data-timeout="{{ br.timeout_sec }}"
+                                    data-retries="{{ br.max_retries }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                            </button>
+                            <form method="post" class="inline" onsubmit="return confirm('删除该步骤？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_step">
+                                <input type="hidden" name="step_id" value="{{ br.id }}">
+                                <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+                                <button type="submit" class="btn btn-danger btn-icon" title="删除">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-gray-500 text-sm py-8 text-center">暂无步骤，请点击「新增」添加。</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<form id="saga-reorder-form" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="reorder_steps">
+    <input type="hidden" name="step_ids_ordered" id="saga-step-ids-ordered" value="">
+    <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+</form>
+
+<div id="saga-step-create-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="saga-step-create-title">
+        <div class="modal-header">
+            <h3 id="saga-step-create-title" class="text-lg font-semibold">新增步骤</h3>
+        </div>
+        <form method="post" id="saga-step-create-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_step">
+            <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-create-name">名称</label>
+                    <input id="saga-step-create-name" name="name" class="form-input w-full" maxlength="255" placeholder="可选（可作 step_payloads 键）" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-create-action">Action URL *</label>
+                    <input id="saga-step-create-action" name="action_url" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-create-compensate">Compensate URL *</label>
+                    <input id="saga-step-create-compensate" name="compensate_url" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-create-timeout">超时（秒）</label>
+                    <input id="saga-step-create-timeout" name="timeout_sec" type="number" min="1" class="form-input w-full" value="30">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-create-retries">最大重试</label>
+                    <input id="saga-step-create-retries" name="max_retries" type="number" min="0" class="form-input w-full" value="10">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeSagaStepCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="saga-step-edit-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="saga-step-edit-title">
+        <div class="modal-header">
+            <h3 id="saga-step-edit-title" class="text-lg font-semibold">编辑步骤</h3>
+        </div>
+        <form method="post" id="saga-step-edit-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_step">
+            <input type="hidden" name="step_id" id="saga-step-id" value="">
+            <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+            <div class="modal-body">
+                <p class="text-gray-500 text-sm mb-3">执行顺序请在列表中拖拽调整，保存「顺序」后写入 step_index。</p>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-name">名称</label>
+                    <input name="name" id="saga-step-name" class="form-input w-full" maxlength="255" placeholder="可选" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-action">Action URL *</label>
+                    <input name="action_url" id="saga-step-action" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-compensate">Compensate URL *</label>
+                    <input name="compensate_url" id="saga-step-compensate" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-timeout">超时（秒）</label>
+                    <input name="timeout_sec" id="saga-step-timeout" type="number" min="1" class="form-input w-full" value="30">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-retries">最大重试</label>
+                    <input name="max_retries" id="saga-step-retries" type="number" min="0" class="form-input w-full" value="10">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeSagaStepEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    function el(id) { return document.getElementById(id); }
+
+    window.openSagaStepCreateModal = function () {
+        var m = el('saga-step-create-modal');
+        var f = el('saga-step-create-form');
+        if (f) f.reset();
+        m.classList.remove('hidden');
+        m.setAttribute('aria-hidden', 'false');
+    };
+    window.closeSagaStepCreateModal = function () {
+        var m = el('saga-step-create-modal');
+        m.classList.add('hidden');
+        m.setAttribute('aria-hidden', 'true');
+    };
+
+    window.closeSagaStepEditModal = function () {
+        var m = el('saga-step-edit-modal');
+        m.classList.add('hidden');
+        m.setAttribute('aria-hidden', 'true');
+    };
+
+    function orderedIds() {
+        var tbody = el('saga-step-tbody');
+        if (!tbody) return [];
+        return Array.prototype.map.call(tbody.querySelectorAll('tr[data-step-id]'), function (row) {
+            return row.getAttribute('data-step-id');
+        });
+    }
+
+    var saveBtn = el('saga-save-order-btn');
+    var orderDirty = false;
+
+    function setOrderDirty(dirty) {
+        orderDirty = dirty;
+        if (saveBtn) saveBtn.disabled = !dirty;
+    }
+
+    window.sagaSubmitStepReorder = function () {
+        var ids = orderedIds();
+        if (ids.length === 0) return;
+        el('saga-step-ids-ordered').value = ids.join(',');
+        el('saga-reorder-form').submit();
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function () {
+                if (!orderDirty) return;
+                window.sagaSubmitStepReorder();
+            });
+        }
+
+        var tbody = el('saga-step-tbody');
+        if (tbody && typeof Sortable !== 'undefined' && tbody.querySelector('tr[data-step-id]')) {
+            Sortable.create(tbody, {
+                handle: '.saga-drag-handle',
+                animation: 150,
+                onEnd: function () {
+                    setOrderDirty(true);
+                }
+            });
+        }
+
+        document.querySelectorAll('.saga-step-edit').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                el('saga-step-id').value = btn.getAttribute('data-id') || '';
+                el('saga-step-name').value = btn.getAttribute('data-name') || '';
+                el('saga-step-action').value = btn.getAttribute('data-action') || '';
+                el('saga-step-compensate').value = btn.getAttribute('data-compensate') || '';
+                el('saga-step-timeout').value = btn.getAttribute('data-timeout') || '30';
+                el('saga-step-retries').value = btn.getAttribute('data-retries') || '10';
+                var m = el('saga-step-edit-modal');
+                m.classList.remove('hidden');
+                m.setAttribute('aria-hidden', 'false');
+            });
+        });
+
+        if (typeof attachModalBackdropClose === 'function') {
+            attachModalBackdropClose(el('saga-step-create-modal'), closeSagaStepCreateModal);
+            attachModalBackdropClose(el('saga-step-edit-modal'), closeSagaStepEditModal);
+        }
+    });
+})();
+</script>
+{% endblock %}

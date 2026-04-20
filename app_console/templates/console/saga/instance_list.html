@@ -1,11 +1,11 @@
 {% extends 'console/base.html' %}
 
-{% block title %}TCC-事务管理{% endblock %}
-{% block page_title %}TCC{% endblock %}
+{% block title %}SAGA-实例{% endblock %}
+{% block page_title %}SAGA{% endblock %}
 
 {% block content %}
 <div class="mb-6">
-    {% include 'console/includes/tcc_subnav.html' with active='tx' %}
+    {% include 'console/includes/saga_subnav.html' with active='instances' %}
 </div>
 
 <div class="card mb-6">
@@ -27,7 +27,7 @@
 
 <div class="card">
     <div class="card-header flex justify-between items-center">
-        <h2 class="text-lg font-semibold">全局事务</h2>
+        <h2 class="text-lg font-semibold">Saga 实例</h2>
         <span class="text-sm text-gray-500">共 {{ total }} 条</span>
     </div>
     <div class="card-body p-0 overflow-x-auto">
@@ -35,17 +35,19 @@
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>flow_id</th>
                     <th>idem_key</th>
                     <th>状态</th>
+                    <th>step</th>
                     <th>retry</th>
-                    <th>ct</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                {% for t in transactions %}
+                {% for t in instances %}
                 <tr>
                     <td class="font-mono text-sm">{{ t.id }}</td>
+                    <td class="font-mono text-sm">{{ t.flow_id }}</td>
                     <td class="font-mono text-sm">{{ t.idem_key }}</td>
                     <td>
                         {% for val, label in status_options %}
@@ -53,13 +55,13 @@
                         {% endfor %}
                         <span class="text-gray-400 text-xs ml-1">({{ t.status }})</span>
                     </td>
+                    <td class="font-mono text-sm">{{ t.current_step_index }}</td>
                     <td class="font-mono text-sm">{{ t.retry_count }}</td>
-                    <td class="font-mono text-xs">{{ t.ct }}</td>
-                    <td><a href="{% url 'console:tcc-transaction-detail' t.id %}" class="btn btn-outline btn-sm">详情</a></td>
+                    <td><a href="{% url 'console:saga-instance-detail' t.id %}" class="btn btn-outline btn-sm">详情</a></td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center text-gray-500 py-8">暂无数据</td>
+                    <td colspan="7" class="text-center text-gray-500 py-8">暂无数据</td>
                 </tr>
                 {% endfor %}
             </tbody>

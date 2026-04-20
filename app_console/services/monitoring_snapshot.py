@@ -30,6 +30,7 @@ _APP_TO_DB_ALIAS: dict[str, str] = {
     "searchrec": "searchrec_rw",
     "snowflake": "snowflake_rw",
     "tcc": "tcc_rw",
+    "saga": "saga_rw",
     "user": "user_rw",
     "verify": "verify_rw",
 }
@@ -262,6 +263,11 @@ def collect_monitoring_snapshot() -> dict[str, Any]:
         from app_tcc.views.tcc_health_view import TccHealthView
 
         out["http_probes"]["tcc_health"] = _probe_drf_view(TccHealthView, "/api/tcc/health")
+
+    if getattr(settings, "APP_SAGA_ENABLED", False):
+        from app_saga.views.saga_health_view import SagaHealthView
+
+        out["http_probes"]["saga_health"] = _probe_drf_view(SagaHealthView, "/api/saga/health")
 
     out["aibroker_metrics"] = _aibroker_metrics_if_configured()
 

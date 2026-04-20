@@ -268,3 +268,30 @@ if getattr(settings, "APP_TCC_ENABLED", False):
             path("tcc/manual/", TccManualConsoleView.as_view(), name="tcc-manual"),
         ]
     )
+
+if getattr(settings, "APP_SAGA_ENABLED", False):
+    from app_console.views.saga_console_view import (
+        SagaFlowListConsoleView,
+        SagaFlowStepsConsoleView,
+        SagaInstanceDetailConsoleView,
+        SagaInstanceListConsoleView,
+        SagaParticipantConsoleView,
+    )
+
+    urlpatterns.extend(
+        [
+            path("saga/callers/", SagaParticipantConsoleView.as_view(), name="saga-callers"),
+            path("saga/flows/", SagaFlowListConsoleView.as_view(), name="saga-flows"),
+            path(
+                "saga/flows/<int:flow_id>/steps/",
+                SagaFlowStepsConsoleView.as_view(),
+                name="saga-flow-steps",
+            ),
+            path("saga/instances/", SagaInstanceListConsoleView.as_view(), name="saga-instances"),
+            path(
+                "saga/instances/<int:instance_id>/",
+                SagaInstanceDetailConsoleView.as_view(),
+                name="saga-instance-detail",
+            ),
+        ]
+    )

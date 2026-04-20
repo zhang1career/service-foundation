@@ -95,6 +95,7 @@ APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=True)
 APP_CONFIG_ENABLED = env.bool("APP_CONFIG_ENABLED", default=True)
 APP_KEEPCON_ENABLED = env.bool("APP_KEEPCON_ENABLED", default=False)
 APP_TCC_ENABLED = env.bool("APP_TCC_ENABLED", default=False)
+APP_SAGA_ENABLED = env.bool("APP_SAGA_ENABLED", default=False)
 
 # Application definition
 INSTALLED_APPS = [
@@ -143,6 +144,8 @@ if APP_KEEPCON_ENABLED:
     INSTALLED_APPS.append("app_keepcon.apps.KeepconConfig")
 if APP_TCC_ENABLED:
     INSTALLED_APPS.append("app_tcc.apps.AppTccConfig")
+if APP_SAGA_ENABLED:
+    INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 
 MIDDLEWARE = [
     "log_request_id.middleware.RequestIDMiddleware",
@@ -414,6 +417,20 @@ DATABASES = {
             "NAME": env("DB_TCC_TEST_NAME", default="sf_tcc_test"),
         },
     },
+    "saga_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_SAGA_NAME", default="sf_saga"),
+        "USER": env("DB_SAGA_USER", default="zhang"),
+        "PASSWORD": env("DB_SAGA_PASS", default=""),
+        "HOST": env("DB_SAGA_HOST", default="127.0.0.1"),
+        "PORT": env("DB_SAGA_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_SAGA_TEST_NAME", default="sf_saga_test"),
+        },
+    },
 }
 
 # Dynamically configure database routers based on enabled apps
@@ -444,6 +461,8 @@ if APP_KEEPCON_ENABLED:
     DATABASE_ROUTERS.append("app_keepcon.db_routers.ReadWriteRouter")
 if APP_TCC_ENABLED:
     DATABASE_ROUTERS.append("app_tcc.db_routers.ReadWriteRouter")
+if APP_SAGA_ENABLED:
+    DATABASE_ROUTERS.append("app_saga.db_routers.ReadWriteRouter")
 
 
 # Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
@@ -734,6 +753,16 @@ TCC_DEFAULT_AUTO_CONFIRM = env.bool("TCC_DEFAULT_AUTO_CONFIRM", default=True)
 # app_tcc scan: when phase_deadline_at is missing, next_retry cap (see scan_service.process_one)
 TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS = env.int("TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS", default=60000)
 TCC_SCAN_NEXT_RETRY_CAP_MS = env.int("TCC_SCAN_NEXT_RETRY_CAP_MS", default=15000)
+# app_saga: snowflake id for idem_key when omitted (POST JSON {access_key})
+SAGA_SNOWFLAKE_ACCESS_KEY = env("SAGA_SNOWFLAKE_ACCESS_KEY", default="")
+SAGA_SNOWFLAKE_ID_URL = env("SAGA_SNOWFLAKE_ID_URL", default="")
+SAGA_SNOWFLAKE_HTTP_TIMEOUT_SEC = env.float("SAGA_SNOWFLAKE_HTTP_TIMEOUT_SEC", default=10.0)
+SAGA_OUTBOUND_TIMEOUT_SEC = env.float("SAGA_OUTBOUND_TIMEOUT_SEC", default=30.0)
+SAGA_START_SYNC_STEP_BUDGET = env.int("SAGA_START_SYNC_STEP_BUDGET", default=32)
+SAGA_SCAN_NEXT_RETRY_CAP_MS = env.int("SAGA_SCAN_NEXT_RETRY_CAP_MS", default=15000)
+SAGA_SCAN_BACKOFF_BASE_MS = env.int("SAGA_SCAN_BACKOFF_BASE_MS", default=500)
+SAGA_SCAN_BACKOFF_STEP_MS = env.int("SAGA_SCAN_BACKOFF_STEP_MS", default=1500)
+SAGA_SCAN_BACKOFF_CAP_MS = env.int("SAGA_SCAN_BACKOFF_CAP_MS", default=60000)
 # 运行监控页服务端拉取 AIBroker 汇总指标（仅服务端使用，勿下发到前端脚本）
 CONSOLE_AIBROKER_ACCESS_KEY = env("CONSOLE_AIBROKER_ACCESS_KEY", default="")
 CONSOLE_AIBROKER_METRICS_WINDOW_MS = env.int("CONSOLE_AIBROKER_METRICS_WINDOW_MS", default=86400000)
