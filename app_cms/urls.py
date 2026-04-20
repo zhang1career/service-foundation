@@ -9,12 +9,12 @@ RECORD_ID_RE = r"(?P<record_id>[0-9]+)"
 urlpatterns = [
     path("health", CmsHealthView.as_view(), name="cms-health"),
     re_path(
-        rf"^{CONTENT_ROUTE}/{RECORD_ID_RE}/$",
+        rf"^{CONTENT_ROUTE}/{RECORD_ID_RE}$",
         CmsContentDetailApiView.as_view(),
         name="cms-content-detail",
     ),
     re_path(
-        rf"^{CONTENT_ROUTE}/$",
+        rf"^{CONTENT_ROUTE}$",
         CmsContentListApiView.as_view(),
         name="cms-content-list",
     ),

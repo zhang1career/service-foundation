@@ -3,13 +3,14 @@ Functional-style tests for app_user API views: request/response and error codes.
 Services are mocked so tests do not require user_rw DB or outbound HTTP.
 """
 import json
+import time
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
 from app_user.enums import UserStatusEnum
-from app_user.utils.jwt_util import create_access_token
+from app_user.utils.jwt_util import create_access_token, jwt_signing_secret
 from app_user.views.user_view import (
     EventConsoleDetailView,
     EventConsoleListView,
@@ -21,6 +22,7 @@ from app_user.views.user_view import (
     UserListView,
     UserMeUpdateRequestView,
     UserMeUpdateVerifyView,
+    UserJwtValidateView,
     UserMeView,
 )
 from common.consts.response_const import (
@@ -28,8 +30,10 @@ from common.consts.response_const import (
     RET_LOGIN_REQUIRED,
     RET_OK,
     RET_RESOURCE_NOT_FOUND,
+    RET_TOKEN_EXPIRED,
     RET_TOKEN_INVALID,
 )
+from common.utils.jwt_codec import claims_with_expiry, encode_hs256_token
 
 
 def _json_response(response):
@@ -48,6 +52,49 @@ class UserViewsTest(SimpleTestCase):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
+
+    def test_jwt_validate_get_login_required(self):
+        request = self.factory.get("/api/user/me/validate")
+        response = UserJwtValidateView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_LOGIN_REQUIRED)
+
+    def test_jwt_validate_get_invalid_token(self):
+        request = self.factory.get(
+            "/api/user/me/validate",
+            HTTP_AUTHORIZATION="Bearer not-a-valid-jwt",
+        )
+        response = UserJwtValidateView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_TOKEN_INVALID)
+
+    def test_jwt_validate_get_expired(self):
+        past = int(time.time()) - 20_000
+        claims = claims_with_expiry(
+            {"type": "access", "user_id": 3, "username": "exp"},
+            ttl_seconds=60,
+            now=past,
+        )
+        token = encode_hs256_token(claims, jwt_signing_secret())
+        request = self.factory.get(
+            "/api/user/me/validate",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        response = UserJwtValidateView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_TOKEN_EXPIRED)
+
+    def test_jwt_validate_get_success(self):
+        request = self.factory.get(
+            "/api/user/me/validate",
+            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+        )
+        response = UserJwtValidateView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_OK)
+        self.assertEqual(body["data"]["user_id"], 7)
+        self.assertEqual(body["data"]["username"], "me")
+        self.assertEqual(body["data"]["permissions"], [])
 
     def test_me_get_login_required(self):
         request = self.factory.get("/api/user/me")

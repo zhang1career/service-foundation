@@ -15,7 +15,7 @@
     { "name": "Dict", "description": "枚举字典查询（与其它 app 的 dict 接口同形）" },
     { "name": "Auth", "description": "注册、登录、刷新令牌" },
     { "name": "Password", "description": "密码重置（当前实现会返回业务错误）" },
-    { "name": "Me", "description": "当前登录用户资料（JWT）" },
+    { "name": "Me", "description": "当前登录用户：资料、轻量 JWT 校验（JWT）" },
     { "name": "Users", "description": "用户列表与按 ID 查询/改状态" },
     { "name": "Console", "description": "控制台用户与事件管理（无额外网关鉴权，部署时需自行保护）" }
   ],
@@ -106,6 +106,20 @@
           "next_offset": { "type": "integer", "nullable": true },
           "total_num": { "type": "integer" }
         }
+      },
+      "JwtValidateResult": {
+        "type": "object",
+        "required": ["user_id", "permissions"],
+        "properties": {
+          "user_id": { "type": "integer", "description": "access JWT 内 user_id" },
+          "username": { "type": "string", "description": "JWT 内 username，可能缺失" },
+          "permissions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "权限占位，当前恒为空数组"
+          }
+        },
+        "description": "仅校验 JWT（验签、exp、type=access、user_id）；不查 token 表，不返回完整 User"
       }
     }
   },
@@ -408,6 +422,35 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/validate": {
+      "get": {
+        "tags": ["Me"],
+        "summary": "轻量校验 access JWT",
+        "description": "仅本地校验 HS256 签名与 exp，并确认 claims 为 type=access 且含 user_id。**不**查询 `token` 表：登出/吊销后至 JWT 过期仍可能返回成功。需完整会话校验或用户资料请用 `GET /me`。`permissions` 预留，当前恒为 `[]`。错误码：未带 token 202；非法 211；过期 212（见 response_const）。",
+        "operationId": "userMeJwtValidate",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "errorCode=0 时 data 为 JwtValidateResult；失败见 message",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" },
+                "examples": {
+                  "ok": {
+                    "summary": "成功",
+                    "value": {
+                      "errorCode": 0,
+                      "data": { "user_id": 7, "username": "alice", "permissions": [] },
+                      "message": ""
+                    }
+                  }
+                }
               }
             }
           }
