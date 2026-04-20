@@ -2,11 +2,7 @@ import time
 
 from django.test import SimpleTestCase
 
-from common.utils.jwt_codec import (
-    claims_with_expiry,
-    decode_hs256_token,
-    encode_hs256_token,
-)
+from common.utils.jwt_codec import claims_with_expiry, decode_hs256_token, encode_hs256_token
 
 
 class JwtCodecTests(SimpleTestCase):
