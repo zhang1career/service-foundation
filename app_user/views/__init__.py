@@ -6,6 +6,7 @@ from app_user.views.auth_view import (
     PasswordResetVerifyView,
 )
 from app_user.views.user_view import (
+    UserJwtValidateView,
     UserMeView,
     UserMeUpdateRequestView,
     UserMeUpdateVerifyView,
@@ -25,6 +26,7 @@ __all__ = [
     "LoginView",
     "PasswordResetView",
     "PasswordResetVerifyView",
+    "UserJwtValidateView",
     "UserMeView",
     "UserMeUpdateRequestView",
     "UserMeUpdateVerifyView",

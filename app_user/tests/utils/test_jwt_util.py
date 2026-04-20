@@ -3,6 +3,8 @@ from django.test import SimpleTestCase
 from app_user.utils.jwt_util import (
     access_expires_at_ms_from_token,
     create_access_token,
+    create_refresh_token,
+    decode_access_token_light,
     decode_token,
 )
 
@@ -31,3 +33,22 @@ class TestJwtUtil(SimpleTestCase):
         with self.assertRaises(ValueError) as ctx:
             access_expires_at_ms_from_token("not-a-jwt")
         self.assertIn("exp", str(ctx.exception).lower())
+
+    def test_decode_access_token_light_refresh_rejected(self):
+        token = create_refresh_token(user_id=1, username="u")
+        claims, err = decode_access_token_light(token)
+        self.assertIsNone(claims)
+        self.assertEqual(err, "invalid")
+
+    def test_decode_access_token_light_success(self):
+        token = create_access_token(user_id=9, username="n")
+        claims, err = decode_access_token_light(token)
+        self.assertIsNone(err)
+        assert claims is not None
+        self.assertEqual(claims.get("user_id"), 9)
+        self.assertEqual(claims.get("username"), "n")
+
+    def test_decode_access_token_light_empty_invalid(self):
+        claims, err = decode_access_token_light("")
+        self.assertIsNone(claims)
+        self.assertEqual(err, "invalid")
