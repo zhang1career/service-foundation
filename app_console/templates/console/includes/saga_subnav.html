@@ -1,0 +1,15 @@
+{% comment %}SAGA subnav: active reg | flows | steps | instances. saga_flow_nav_flow_id shows「步骤」for that flow.{% endcomment %}
+{% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-3 py-2 text-sm' %}
+<nav class="flex flex-wrap gap-2 mb-6" aria-label="SAGA 导航">
+    <a href="{% url 'console:saga-callers' %}"
+       class="{{ base_cls }} {% if active == 'reg' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
+    <a href="{% url 'console:saga-flows' %}{% if filter_participant_id %}?participant_id={{ filter_participant_id }}{% endif %}"
+       class="{{ base_cls }} {% if active == 'flows' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">流程</a>
+    {% if saga_flow_nav_flow_id %}
+    <a href="{% url 'console:saga-flow-steps' saga_flow_nav_flow_id %}{% if filter_participant_id %}?participant_id={{ filter_participant_id }}{% endif %}"
+       class="{{ base_cls }} {% if active == 'steps' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">步骤</a>
+    {% endif %}
+    <a href="{% url 'console:saga-instances' %}"
+       class="{{ base_cls }} {% if active == 'instances' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">实例</a>
+</nav>
+{% endwith %}

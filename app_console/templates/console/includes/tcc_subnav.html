@@ -1,6 +1,6 @@
-{% comment %}分布式事务子导航；active: reg | biz | branches | tx | manual。传入 tcc_branch_nav_biz_id 时在「业务管理」后显示「分支管理」（当前业务的分支配置）。filter_participant_id 存在时「业务管理」「分支管理」链接均带筛选。{% endcomment %}
+{% comment %}TCC 子导航；active: reg | biz | branches | tx | manual。传入 tcc_branch_nav_biz_id 时在「业务管理」后显示「分支管理」（当前业务的分支配置）。filter_participant_id 存在时「业务管理」「分支管理」链接均带筛选。{% endcomment %}
 {% with active_cls='bg-blue-600 text-white rounded-lg' inactive_cls='bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300' base_cls='px-3 py-2 text-sm' %}
-<nav class="flex flex-wrap gap-2 mb-6" aria-label="分布式事务导航">
+<nav class="flex flex-wrap gap-2 mb-6" aria-label="TCC 导航">
     <a href="{% url 'console:tcc-callers' %}"
        class="{{ base_cls }} {% if active == 'reg' %}{{ active_cls }}{% else %}{{ inactive_cls }}{% endif %}">调用方</a>
     <a href="{% url 'console:tcc-businesses' %}{% if filter_participant_id %}?participant_id={{ filter_participant_id }}{% endif %}"

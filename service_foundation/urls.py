@@ -94,4 +94,9 @@ if getattr(settings, "APP_TCC_ENABLED", False):
 
     urlpatterns.append(path("api/tcc/", include(app_tcc_urls)))
 
+if getattr(settings, "APP_SAGA_ENABLED", False):
+    from app_saga import urls as app_saga_urls
+
+    urlpatterns.append(path("api/saga/", include(app_saga_urls)))
+
 handler404 = "service_foundation.error_views.page_not_found"

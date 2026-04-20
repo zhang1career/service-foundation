@@ -1,0 +1,370 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Saga 编排服务 API (app_saga)",
+    "description": "长事务 Saga 实例：按流程定义顺序调用参与者 action/compensate，并支持查询实例状态。仅在 `APP_SAGA_ENABLED=true` 时挂载；HTTP 前缀：`/api/saga/`（见 `service_foundation/urls.py` → `app_saga/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**错误响应**：`resp_err` / `resp_exception` 可能设置 `X-Request-Id`（见 `common.utils.http_util`）。\n\n**鉴权**：当前视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**状态码（整数）**：实例见 `SagaInstanceStatus`（PENDING=10, RUNNING=20, COMPENSATING=30, COMPLETED=40, ROLLED_BACK=50, FAILED=60）；步骤 action 见 `SagaStepActionStatus`（PENDING=10, SUCCEEDED=20, FAILED=30）；补偿见 `SagaStepCompensateStatus`（PENDING=10, SUCCEEDED=20, FAILED=30, SKIPPED=40），定义于 `app_saga/enums.py`。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "相对当前站点根路径"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "存活检查"
+    },
+    {
+      "name": "Instances",
+      "description": "Saga 实例：启动与查询"
+    }
+  ],
+  "paths": {
+    "/api/saga/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "健康检查",
+        "description": "返回固定负载，表示 Saga 应用路由已启用。",
+        "operationId": "sagaHealth",
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode=0`）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/SagaHealthPayload" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                },
+                "examples": {
+                  "success": {
+                    "summary": "成功",
+                    "value": {
+                      "errorCode": 0,
+                      "message": "",
+                      "data": { "status": "ok", "service": "saga" }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/saga/instances/start": {
+      "post": {
+        "tags": ["Instances"],
+        "summary": "启动 Saga 实例",
+        "description": "请求体为 JSON 对象。\n\n- **`access_key`**（string，必填）：参与者注册 access key，须为启用状态。\n- **`flow_id`**（int，必填）：该参与者下已启用的流程 ID。\n- **`context`**（object，可选）：持久化为实例上下文（JSON 对象）。\n- **`step_payloads`**（object，可选）：按步骤传入负载；键为 **`step_index` 的十进制字符串** 或（非空时）**步骤 `name`**，值为对象（见 `saga_coordinator._payload_for_step`）。\n- **`idem_key`**（int，可选）：显式幂等键；若已存在同键实例则 **直接返回已有实例序列化结果**（不重复创建）。省略时由 Snowflake 服务分配（依赖 `SAGA_SNOWFLAKE_*` 配置）。\n\n创建后服务端会在 `SAGA_START_SYNC_STEP_BUDGET` 限制内同步推进若干步，响应中的 `status` / `step_runs` 反映当前进度。\n\n**错误**：缺字段/类型错误/业务校验失败 → `errorCode=100`（`RET_INVALID_PARAM`）；未捕获异常（含实例上下文 JSON 损坏导致的解析失败等）→ `errorCode=-1`（`resp_exception`）。极端情况下若实例在处理后丢失，`data` 可能为空对象 `{}`（见 `start_instance` 实现）。",
+        "operationId": "sagaInstanceStart",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SagaStartRequest" },
+              "example": {
+                "access_key": "participant-access-key-hex",
+                "flow_id": 1,
+                "context": { "order_id": "o1" },
+                "step_payloads": {
+                  "0": { "amount": 100 }
+                },
+                "idem_key": 1234567890123456789
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode=0`，`data` 为实例详情）或参数/依赖错误（`errorCode≠0`，HTTP 仍为 200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/SagaInstanceDetail" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              },
+              "X-Request-Id": {
+                "description": "错误时 `resp_err` / `resp_exception` 可能设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/saga/instances/detail": {
+      "get": {
+        "tags": ["Instances"],
+        "summary": "查询 Saga 实例详情",
+        "description": "**二选一**查询：`idem_key`（int）或 `saga_instance_id`（int，实例主键）。两者同时提供 → `errorCode=100`；均未提供 → `100`；找不到实例 → `100`（message: `instance not found`）。\n\n成功时 `data` 与 `serialize_instance` 一致（`context` 为解析后的 JSON 对象；若库内字段非合法 JSON 对象，可能触发未捕获异常并返回 `errorCode=-1`）。",
+        "operationId": "sagaInstanceDetail",
+        "parameters": [
+          {
+            "name": "idem_key",
+            "in": "query",
+            "required": false,
+            "description": "启动时分配或传入的幂等键（Snowflake 整数）。与 `saga_instance_id` 互斥。",
+            "schema": { "type": "integer", "format": "int64", "example": 1234567890123456789 }
+          },
+          {
+            "name": "saga_instance_id",
+            "in": "query",
+            "required": false,
+            "description": "实例主键（`SagaInstance.id`）。与 `idem_key` 互斥。",
+            "schema": { "type": "integer", "format": "int64", "example": 42 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功或业务错误（HTTP 200）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/EnvelopeOk" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "data": { "$ref": "#/components/schemas/SagaInstanceDetail" }
+                          }
+                        }
+                      ]
+                    },
+                    { "$ref": "#/components/schemas/EnvelopeError" }
+                  ]
+                },
+                "examples": {
+                  "notFound": {
+                    "summary": "未找到实例",
+                    "value": {
+                      "errorCode": 100,
+                      "message": "instance not found",
+                      "data": null
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Expires": {
+                "description": "成功时由 `resp_ok` 设置",
+                "schema": { "type": "string" }
+              },
+              "X-Request-Id": {
+                "description": "错误时可能设置",
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EnvelopeOk": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "enum": [0],
+            "description": "成功为 0（RET_OK）"
+          },
+          "data": { "description": "业务数据" },
+          "message": { "type": "string", "description": "成功时通常为空串" }
+        }
+      },
+      "EnvelopeError": {
+        "type": "object",
+        "required": ["errorCode", "message"],
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "非 0。常见：`100`（RET_INVALID_PARAM）；`-1` 未捕获异常（resp_exception）"
+          },
+          "data": { "nullable": true },
+          "message": { "type": "string" },
+          "detail": { "type": "string" },
+          "_req_id": { "type": "string" }
+        }
+      },
+      "SagaHealthPayload": {
+        "type": "object",
+        "required": ["status", "service"],
+        "properties": {
+          "status": { "type": "string", "enum": ["ok"] },
+          "service": { "type": "string", "enum": ["saga"] }
+        }
+      },
+      "SagaStartRequest": {
+        "type": "object",
+        "required": ["access_key", "flow_id"],
+        "properties": {
+          "access_key": {
+            "type": "string",
+            "minLength": 1,
+            "description": "参与者 access key（非空字符串）"
+          },
+          "flow_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "流程 ID（正整数）"
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "可选；省略等价于 `{}`"
+          },
+          "step_payloads": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "可选；键为步骤索引字符串或步骤名，值为对象。省略等价于 `{}`"
+          },
+          "idem_key": {
+            "type": "integer",
+            "format": "int64",
+            "description": "可选显式幂等键；已存在则返回已有实例"
+          }
+        }
+      },
+      "SagaStepRunRow": {
+        "type": "object",
+        "required": [
+          "step_index",
+          "action_status",
+          "compensate_status",
+          "last_http_status_action",
+          "last_http_status_compensate",
+          "last_error_action",
+          "last_error_compensate"
+        ],
+        "properties": {
+          "step_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "流程中的步骤序号"
+          },
+          "action_status": {
+            "type": "integer",
+            "description": "Action 状态：`SagaStepActionStatus`（10=PENDING, 20=SUCCEEDED, 30=FAILED）"
+          },
+          "compensate_status": {
+            "type": "integer",
+            "description": "补偿状态：`SagaStepCompensateStatus`（10=PENDING, 20=SUCCEEDED, 30=FAILED, 40=SKIPPED）"
+          },
+          "last_http_status_action": {
+            "type": "integer",
+            "nullable": true,
+            "description": "最近一次 action HTTP 状态码；无则为 null"
+          },
+          "last_http_status_compensate": {
+            "type": "integer",
+            "nullable": true,
+            "description": "最近一次 compensate HTTP 状态码；无则为 null"
+          },
+          "last_error_action": {
+            "type": "string",
+            "description": "Action 侧错误信息"
+          },
+          "last_error_compensate": {
+            "type": "string",
+            "description": "Compensate 侧错误信息"
+          }
+        }
+      },
+      "SagaInstanceDetail": {
+        "type": "object",
+        "required": [
+          "saga_instance_id",
+          "idem_key",
+          "flow_id",
+          "status",
+          "current_step_index",
+          "retry_count",
+          "last_error",
+          "context",
+          "step_runs"
+        ],
+        "properties": {
+          "saga_instance_id": {
+            "type": "string",
+            "description": "实例主键的十进制字符串（与 `SagaInstance.pk` 一致）"
+          },
+          "idem_key": {
+            "type": "integer",
+            "format": "int64",
+            "description": "幂等键"
+          },
+          "flow_id": {
+            "type": "integer",
+            "description": "流程 ID"
+          },
+          "status": {
+            "type": "integer",
+            "description": "实例状态：`SagaInstanceStatus`（10–60）"
+          },
+          "current_step_index": { "type": "integer" },
+          "retry_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_error": {
+            "type": "string",
+            "description": "聚合错误信息，最长约 500 字符"
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "由持久化 JSON 解析得到的对象"
+          },
+          "step_runs": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SagaStepRunRow" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -20,6 +20,7 @@ _HTTP_PROBE_KEY_BY_APP = {
     "verify": "verify_health",
     "keepcon": "keepcon_health",
     "tcc": "tcc_health",
+    "saga": "saga_health",
 }
 
 _APP_KEYS_ORDER = (
@@ -37,6 +38,7 @@ _APP_KEYS_ORDER = (
     "config",
     "keepcon",
     "tcc",
+    "saga",
 )
 
 _MANAGE_URL_NAME_BY_KEY = {
@@ -54,6 +56,7 @@ _MANAGE_URL_NAME_BY_KEY = {
     "config": "console:config-callers",
     "keepcon": "console:keepcon-devices",
     "tcc": "console:tcc-callers",
+    "saga": "console:saga-callers",
 }
 
 
@@ -156,10 +159,16 @@ class DashboardView(TemplateView):
                 "icon": "shield",
             },
             "tcc": {
-                "name": "分布式事务",
+                "name": "TCC",
                 "enabled": getattr(settings, "APP_TCC_ENABLED", False),
                 "description": "TCC 协调、参与者注册与事务扫描",
                 "icon": "layers",
+            },
+            "saga": {
+                "name": "SAGA",
+                "enabled": getattr(settings, "APP_SAGA_ENABLED", False),
+                "description": "线性 Saga 流程编排与实例",
+                "icon": "bolt",
             },
         }
 
