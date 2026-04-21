@@ -62,7 +62,7 @@ class UserViewsTest(SimpleTestCase):
     def test_jwt_validate_get_invalid_token(self):
         request = self.factory.get(
             "/api/user/me/validate",
-            HTTP_AUTHORIZATION="Bearer not-a-valid-jwt",
+            HTTP_X_USER_ACCESS_TOKEN="not-a-valid-jwt",
         )
         response = UserJwtValidateView.as_view()(request)
         body = _json_response(response)
@@ -78,7 +78,7 @@ class UserViewsTest(SimpleTestCase):
         token = encode_hs256_token(claims, jwt_signing_secret())
         request = self.factory.get(
             "/api/user/me/validate",
-            HTTP_AUTHORIZATION=f"Bearer {token}",
+            HTTP_X_USER_ACCESS_TOKEN=token,
         )
         response = UserJwtValidateView.as_view()(request)
         body = _json_response(response)
@@ -87,7 +87,7 @@ class UserViewsTest(SimpleTestCase):
     def test_jwt_validate_get_success(self):
         request = self.factory.get(
             "/api/user/me/validate",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserJwtValidateView.as_view()(request)
         body = _json_response(response)
@@ -102,10 +102,19 @@ class UserViewsTest(SimpleTestCase):
         body = _json_response(response)
         self.assertEqual(body["errorCode"], RET_LOGIN_REQUIRED)
 
+    def test_me_get_authorization_bearer_ignored(self):
+        request = self.factory.get(
+            "/api/user/me",
+            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+        )
+        response = UserMeView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_LOGIN_REQUIRED)
+
     def test_me_get_token_invalid(self):
         request = self.factory.get(
             "/api/user/me",
-            HTTP_AUTHORIZATION="Bearer not-a-valid-jwt",
+            HTTP_X_USER_ACCESS_TOKEN="not-a-valid-jwt",
         )
         response = UserMeView.as_view()(request)
         body = _json_response(response)
@@ -116,7 +125,7 @@ class UserViewsTest(SimpleTestCase):
         mock_get_me.return_value = {"id": 7, "username": "me"}
         request = self.factory.get(
             "/api/user/me",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserMeView.as_view()(request)
         body = _json_response(response)
@@ -129,7 +138,7 @@ class UserViewsTest(SimpleTestCase):
         mock_get_me.return_value = None
         request = self.factory.get(
             "/api/user/me",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserMeView.as_view()(request)
         body = _json_response(response)
@@ -142,7 +151,7 @@ class UserViewsTest(SimpleTestCase):
             "/api/user/me",
             data={"email": "n@e.w"},
             format="json",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserMeView.as_view()(request)
         body = _json_response(response)
@@ -160,7 +169,7 @@ class UserViewsTest(SimpleTestCase):
                 "email": "x@y.z",
             },
             format="json",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserMeUpdateRequestView.as_view()(request)
         body = _json_response(response)
@@ -174,7 +183,7 @@ class UserViewsTest(SimpleTestCase):
             "/api/user/me/update/request",
             data={"notice_channel": "fax", "notice_target": "x"},
             format="json",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserMeUpdateRequestView.as_view()(request)
         body = _json_response(response)
@@ -187,7 +196,7 @@ class UserViewsTest(SimpleTestCase):
             "/api/user/me/update/verify",
             data={"event_id": 1, "code": "123456"},
             format="json",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserMeUpdateVerifyView.as_view()(request)
         body = _json_response(response)
@@ -201,7 +210,7 @@ class UserViewsTest(SimpleTestCase):
             "/api/user/me/update/verify",
             data={"event_id": 1, "code": "123456"},
             format="json",
-            HTTP_AUTHORIZATION=f"Bearer {self.access_token}",
+            HTTP_X_USER_ACCESS_TOKEN=self.access_token,
         )
         response = UserMeUpdateVerifyView.as_view()(request)
         body = _json_response(response)
