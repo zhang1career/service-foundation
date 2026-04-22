@@ -12,7 +12,7 @@ from app_searchrec.views import (
 urlpatterns = [
     path("dict", DictCodesView.as_view(), name="searchrec-dict"),
     path("health", SearchRecHealthView.as_view(), name="searchrec-health"),
-    path("index/upsert", SearchRecIndexUpsertView.as_view(), name="searchrec-index-upsert"),
+    path("index", SearchRecIndexUpsertView.as_view(), name="searchrec-index"),
     path("search", SearchRecSearchView.as_view(), name="searchrec-search"),
     path("recommend", SearchRecRecommendView.as_view(), name="searchrec-recommend"),
     path("rank", SearchRecRankView.as_view(), name="searchrec-rank"),

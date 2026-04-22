@@ -713,6 +713,10 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_VERIFY", default="INFO"),
             "handlers": [_log_handler],
         },
+        "app_saga": {
+            "level": env("LOG_LEVEL_APP_SAGA", default="INFO"),
+            "handlers": [_log_handler],
+        },
         "common": {
             "level": env("LOG_LEVEL_COMMON", default="INFO"),
             "handlers": [_log_handler],

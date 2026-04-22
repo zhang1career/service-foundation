@@ -3,7 +3,7 @@ title Use Case A - Content Upsert Flow
 skinparam shadowing false
 
 start
-:BusinessSystem\ncall POST index/upsert;
+:BusinessSystem\ncall POST /api/searchrec/index;
 :SearchRecAPI\nparse body, validate\n**documents** non-empty list;
 :SearchRecService.upsert_documents;
 :IndexAdapter.upsert_documents;
