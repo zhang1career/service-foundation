@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "TCC 协调服务 API (app_tcc)",
-    "description": "分布式 TCC 全局事务协调：Try / Confirm / Cancel 阶段编排与查询。仅在 `APP_TCC_ENABLED=true` 时挂载；HTTP 前缀：`/api/tcc/`（见 `service_foundation/urls.py` → `app_tcc/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**鉴权**：当前视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**状态码（整数）**：全局事务见 `GlobalTxStatus`（INIT=10, TRYING=20, AWAIT_CONFIRM=30, CONFIRMING=40, CANCELING=50, COMMITTED=60, ROLLED_BACK=70, NEEDS_MANUAL=80）；分支见 `BranchStatus`（PENDING_TRY=10, TRY_SUCCEEDED=20, TRY_FAILED=30, CONFIRM_SUCCEEDED=40, CONFIRM_FAILED=50, CANCEL_SUCCEEDED=60, CANCEL_FAILED=70），定义于 `app_tcc/enums.py`。",
+    "description": "分布式 TCC 全局事务协调：Try / Confirm / Cancel 阶段编排与查询。仅在 `APP_TCC_ENABLED=true` 时挂载；HTTP 前缀：`/api/tcc/`（见 `service_foundation/urls.py` → `app_tcc/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**鉴权**：当前业务视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**XXL-JOB 执行器**（`/api/tcc/xxl-job/*`）：响应为 `{ code, msg, data }`（`code` 为 200/500），与业务 API 包络**不同**；请求头 `XXL-JOB-ACCESS-TOKEN`（与 `XXL_JOB_TOKEN` 一致），配置见 `XXL_JOB_*`（与 `app_saga` 共用 `common` 内执行器）。内建任务名 **`tccScan`**：同步执行与 `python manage.py tcc_scan` 相同逻辑（`executorParams` 可选为 batch `limit`）。\n\n**状态码（整数）**：全局事务见 `GlobalTxStatus`（INIT=10, TRYING=20, AWAIT_CONFIRM=30, CONFIRMING=40, CANCELING=50, COMMITTED=60, ROLLED_BACK=70, NEEDS_MANUAL=80）；分支见 `BranchStatus`（PENDING_TRY=10, TRY_SUCCEEDED=20, TRY_FAILED=30, CONFIRM_SUCCEEDED=40, CONFIRM_FAILED=50, CANCEL_SUCCEEDED=60, CANCEL_FAILED=70），定义于 `app_tcc/enums.py`。",
     "version": "1.0.0"
   },
   "servers": [
@@ -19,6 +19,10 @@
     {
       "name": "Transactions",
       "description": "全局事务：开启、查询、确认、取消"
+    },
+    {
+      "name": "XXL-JOB",
+      "description": "XXL-JOB 嵌入式执行器（与 `app_saga` 同实现、注册名不同）"
     }
   ],
   "paths": {
@@ -293,10 +297,101 @@
           }
         }
       }
+    },
+    "/api/tcc/xxl-job/beat": {
+      "get": {
+        "tags": ["XXL-JOB"],
+        "summary": "XXL-JOB 执行器心跳",
+        "description": "同 `/api/saga/xxl-job/beat`；`XXL-JOB-ACCESS-TOKEN` 与 `XXL_JOB_TOKEN` 一致。",
+        "operationId": "tccXxlBeat",
+        "security": [{ "XxlJobAccessToken": [] }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/XxlJobExecutorResponse" }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/tcc/xxl-job/run": {
+      "post": {
+        "tags": ["XXL-JOB"],
+        "summary": "执行一次任务（同步）",
+        "description": "同 Saga 端 `/run` 契约；本应用预注册 `tccScan`（`python manage.py tcc_scan` 等价）。**必填**：`jobId`、`logId`、`executorHandler`。",
+        "operationId": "tccXxlRun",
+        "security": [{ "XxlJobAccessToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/XxlJobRunBody" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/XxlJobExecutorResponse" }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/tcc/xxl-job/kill": {
+      "post": {
+        "tags": ["XXL-JOB"],
+        "summary": "kill（无操作）",
+        "description": "同步执行器占位返回 noop。",
+        "operationId": "tccXxlKill",
+        "security": [{ "XxlJobAccessToken": [] }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/XxlJobExecutorResponse" }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
     }
   },
   "components": {
+    "securitySchemes": {
+      "XxlJobAccessToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "XXL-JOB-ACCESS-TOKEN"
+      }
+    },
     "schemas": {
+      "XxlJobExecutorResponse": {
+        "type": "object",
+        "required": ["code", "msg"],
+        "properties": {
+          "code": { "type": "integer", "enum": [200, 500] },
+          "msg": { "type": "string" },
+          "data": { "nullable": true }
+        }
+      },
+      "XxlJobRunBody": {
+        "type": "object",
+        "required": ["jobId", "logId", "executorHandler"],
+        "properties": {
+          "jobId": { "type": "integer" },
+          "logId": { "type": "integer" },
+          "executorHandler": { "type": "string" },
+          "executorParams": { "type": "string", "nullable": true }
+        }
+      },
       "EnvelopeOk": {
         "type": "object",
         "required": ["errorCode", "message"],

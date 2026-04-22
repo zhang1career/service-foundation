@@ -6,3 +6,8 @@ class AppSagaConfig(AppConfig):
     name = "app_saga"
     label = "app_saga"
     verbose_name = "Saga 编排"
+
+    def ready(self) -> None:
+        from app_saga.services import xxl_job_handlers
+
+        xxl_job_handlers.register_saga_jobs()
