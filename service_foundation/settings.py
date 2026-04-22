@@ -148,7 +148,9 @@ if APP_SAGA_ENABLED:
     INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 
 MIDDLEWARE = [
+    "common.middleware.trace_id_header_middleware.TraceIdHeaderNormalizeMiddleware",
     "log_request_id.middleware.RequestIDMiddleware",
+    "common.middleware.tcc_saga_access_log_middleware.TccSagaAccessLogMiddleware",
     "common.middleware.host_validation_middleware.HostValidationMiddleware",  # Must be before SecurityMiddleware
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -464,7 +466,6 @@ if APP_TCC_ENABLED:
 if APP_SAGA_ENABLED:
     DATABASE_ROUTERS.append("app_saga.db_routers.ReadWriteRouter")
 
-
 # Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
 CACHE_REDIS_URL = env("CACHE_REDIS_URL", default="redis://127.0.0.1:6379")
 GLOBAL_CACHE_REDIS_KEY_PREFIX = env("GLOBAL_CACHE_REDIS_KEY_PREFIX", default="sf")
@@ -516,7 +517,6 @@ if APP_KEEPCON_ENABLED:
 # Prime ``get_dict_by_codes`` LRU at startup (comma-separated); matches perf/locust smoke default.
 DICT_HTTP_PRIME_CODES = env("DICT_HTTP_PRIME_CODES", default="aibroker_nested_param_type")
 
-
 # app_cms
 CMS_PROFILE = env("CMS_PROFILE", default="commerce")
 CMS_LIST_PER_PAGE = env.int("CMS_LIST_PER_PAGE", default=15)
@@ -533,7 +533,6 @@ USER_DISPOSITION_AUTH_THROTTLE_WINDOW_SECONDS = env.int(
     default=300,
 )
 USER_DISPOSITION_AUTH_THROTTLE_MAX = env.int("USER_DISPOSITION_AUTH_THROTTLE_MAX", default=30)
-
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -583,36 +582,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Required for file-io and other services uploading to /api/oss
 DATA_UPLOAD_MAX_MEMORY_SIZE = env.int("DATA_UPLOAD_MAX_MEMORY_SIZE", default=104857600)
 
-# Build logging config with resilient logfile handler
+# Logging: logfile 时每 logger 一个文件 {LOG_DIR}/<stem>.log（按日切分，保留 14 份）。LOG_DIR 见 .env。
+_LOG_DIR = Path(env("LOG_DIR", default="/var/log/serv-fd"))
+_LOG_BACKUP_COUNT = 14
 _log_handler = env("LOG_HANDLER", default="console")
-_log_file_path = env("LOG_FILE_PATH", default="log")
-_log_path = Path(_log_file_path)
-if not _log_path.is_absolute():
-    _log_path = BASE_DIR / _log_path
-# 日志路径（当 LOG_HANDLER=logfile 时写入该文件）：
-# 默认 = <项目根目录>/log/app.log
-# 可通过环境变量 LOG_FILE_PATH、LOG_FILE 覆盖
-_log_path = _log_path / env("LOG_FILE", default="app.log")
-_logfile_ok = False
-if _log_handler == "logfile":
-    try:
-        _log_path.parent.mkdir(parents=True, exist_ok=True)
-        # Test if we can open the file (same check TimedRotatingFileHandler will do)
-        with open(_log_path, "a", encoding="utf-8"):
-            pass
-        _logfile_ok = True
-    except (OSError, PermissionError) as e:
-        import sys
-
-        print(
-            f"[Django Settings] logfile handler unavailable ({e}), falling back to console",
-            file=sys.stderr,
-        )
-        _log_handler = "console"
-
-# StreamHandler：不在生产环境使用 RequireDebugTrue，否则 DEBUG=False 时（常见 Docker 部署）
-# 所有走 console handler 的 app_* / 自定义 logger 日志会被丢弃，docker logs 看不到排错信息。
-_logging_handlers = {
+_logging_handlers: dict[str, dict] = {
     "console": {
         "level": "DEBUG",
         "filters": ["request_id"],
@@ -620,18 +594,56 @@ _logging_handlers = {
         "formatter": "simple",
     }
 }
-if _logfile_ok:
-    _logging_handlers["logfile"] = {
-        "level": env("LOG_LEVEL", default="INFO"),
-        "filters": ["request_id"],
-        "class": "logging.handlers.TimedRotatingFileHandler",
-        "filename": str(_log_path),
-        "when": "D",
-        "interval": 1,
-        "backupCount": 14,
-        "formatter": "verbose",
-        "encoding": "utf8",
-    }
+_logger_handler_keys: dict[str, str] = {}
+if _log_handler == "logfile":
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
+    _seen_stems: set[str] = set()
+    for _name in (
+            "django.request",
+            "django.db.backends",
+            "service_foundation",
+            "app_aibroker",
+            "app_cdn",
+            "app_cms",
+            "app_config",
+            "app_console",
+            "app_keepcon",
+            "app_know",
+            "app_mailserver",
+            "app_notice",
+            "app_oss",
+            "app_searchrec",
+            "app_snowflake",
+            "app_tcc",
+            "app_user",
+            "app_verify",
+            "app_saga",
+            "common",
+    ):
+        _stem = "django" if _name.startswith("django.") else _name
+        _hkey = f"logfile_{_stem}"
+        _logger_handler_keys[_name] = _hkey
+        if _stem in _seen_stems:
+            continue
+        _seen_stems.add(_stem)
+        _logging_handlers[_hkey] = {
+            "level": env("LOG_LEVEL", default="INFO"),
+            "filters": ["request_id"],
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "filename": str(_LOG_DIR / f"{_stem}.log"),
+            "when": "midnight",
+            "interval": 1,
+            "backupCount": _LOG_BACKUP_COUNT,
+            "formatter": "verbose",
+            "encoding": "utf8",
+        }
+
+
+def _logger_handlers(logger_name: str) -> list[str]:
+    if _log_handler != "logfile":
+        return ["console"]
+    return [_logger_handler_keys[logger_name]]
+
 
 LOGGING = {
     "version": 1,
@@ -654,79 +666,92 @@ LOGGING = {
     "loggers": {
         "django.request": {
             "level": "ERROR",
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("django.request"),
             "propagate": False,
         },
         "django.db.backends": {
             "level": env("LOG_LEVEL_DJANGO_DB", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("django.db.backends"),
         },
         "service_foundation": {
             "level": env("LOG_LEVEL_APP_SERV_FD", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("service_foundation"),
         },
         "app_aibroker": {
             "level": env("LOG_LEVEL_APP_AIBROKER", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_aibroker"),
         },
         "app_cdn": {
             "level": env("LOG_LEVEL_APP_CDN", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_cdn"),
         },
         "app_cms": {
             "level": env("LOG_LEVEL_APP_CMS", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_cms"),
+        },
+        "app_config": {
+            "level": env("LOG_LEVEL_APP_CONFIG", default="INFO"),
+            "handlers": _logger_handlers("app_config"),
         },
         "app_console": {
             "level": env("LOG_LEVEL_APP_CONSOLE", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_console"),
+        },
+        "app_keepcon": {
+            "level": env("LOG_LEVEL_APP_KEEPCON", default="INFO"),
+            "handlers": _logger_handlers("app_keepcon"),
         },
         "app_know": {
             "level": env("LOG_LEVEL_APP_KNOW", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_know"),
         },
         "app_mailserver": {
             "level": env("LOG_LEVEL_APP_MAILSERVER", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_mailserver"),
         },
         "app_notice": {
             "level": env("LOG_LEVEL_APP_NOTICE", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_notice"),
         },
         "app_oss": {
             "level": env("LOG_LEVEL_APP_OSS", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_oss"),
         },
         "app_searchrec": {
             "level": env("LOG_LEVEL_APP_SEARCHREC", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_searchrec"),
         },
         "app_snowflake": {
             "level": env("LOG_LEVEL_APP_SNOWFLAKE", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_snowflake"),
+        },
+        "app_tcc": {
+            "level": env("LOG_LEVEL_APP_TCC", default="INFO"),
+            "handlers": _logger_handlers("app_tcc"),
         },
         "app_user": {
             "level": env("LOG_LEVEL_APP_USER", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_user"),
         },
         "app_verify": {
             "level": env("LOG_LEVEL_APP_VERIFY", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_verify"),
         },
         "app_saga": {
             "level": env("LOG_LEVEL_APP_SAGA", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("app_saga"),
         },
         "common": {
             "level": env("LOG_LEVEL_COMMON", default="INFO"),
-            "handlers": [_log_handler],
+            "handlers": _logger_handlers("common"),
         },
-    }
+    },
 }
 
-# traceid
-LOG_REQUEST_ID_HEADER = "X_Request_Id"
-REQUEST_ID_RESPONSE_HEADER = "X_Request_Id"
+# traceid (Django META key; optional client header X-Trace-Id is copied in TraceIdHeaderNormalizeMiddleware)
+LOG_REQUEST_ID_HEADER = "HTTP_X_REQUEST_ID"
+GENERATE_REQUEST_ID_IF_NOT_IN_HEADER = True
+REQUEST_ID_RESPONSE_HEADER = "X-Request-Id"
 
 # Internal HTTP integration
 AIBROKER_SERVICE_URL = env("AIBROKER_SERVICE_URL", default="http://127.0.0.1:8000/api/ai")
@@ -767,9 +792,9 @@ SAGA_SCAN_NEXT_RETRY_CAP_MS = env.int("SAGA_SCAN_NEXT_RETRY_CAP_MS", default=150
 SAGA_SCAN_BACKOFF_BASE_MS = env.int("SAGA_SCAN_BACKOFF_BASE_MS", default=500)
 SAGA_SCAN_BACKOFF_STEP_MS = env.int("SAGA_SCAN_BACKOFF_STEP_MS", default=1500)
 SAGA_SCAN_BACKOFF_CAP_MS = env.int("SAGA_SCAN_BACKOFF_CAP_MS", default=60000)
-# XXL-JOB (app_saga): admin callback; XXL_JOB_ADMIN_ADDRESS supports ://{{key}} + SERVICE_HOST_* like SAGA_SNOWFLAKE_ID_URL
-XXL_JOB_TOKEN = (env("XXL_JOB_TOKEN", default="") or "").strip()
-XXL_JOB_ADMIN_ADDRESS = (env("XXL_JOB_ADMIN_ADDRESS", default="") or "").strip()
+# XXL-JOB
+XXL_JOB_TOKEN = env("XXL_JOB_TOKEN", default="").strip()
+XXL_JOB_ADMIN_ADDRESS = env("XXL_JOB_ADMIN_ADDRESS", default="").strip()
 XXL_JOB_CALLBACK_TIMEOUT_SEC = env.float("XXL_JOB_CALLBACK_TIMEOUT_SEC", default=10.0)
 # 运行监控页服务端拉取 AIBroker 汇总指标（仅服务端使用，勿下发到前端脚本）
 CONSOLE_AIBROKER_ACCESS_KEY = env("CONSOLE_AIBROKER_ACCESS_KEY", default="")
