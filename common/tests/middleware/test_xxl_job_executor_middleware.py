@@ -96,8 +96,8 @@ class XxlJobRunViewContractTests(SimpleTestCase):
         self.assertTrue(raw.startswith(b"{"), msg=raw[:120])
         parsed = json.loads(raw.decode("utf-8"))
         self.assertEqual(parsed.get("code"), 200)
-        self.assertEqual(parsed.get("msg"), "")
-        self.assertEqual(parsed.get("data"), {"closed": 7, "errors": 0})
+        self.assertEqual(parsed.get("msg"), '{"closed":7,"errors":0}')
+        self.assertIsNone(parsed.get("data"))
         mock_run_sync.assert_called_once()
 
 

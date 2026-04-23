@@ -1,4 +1,8 @@
-"""XXL-JOB executor HTTP JSON shape (``code`` / ``msg`` / ``data``)."""
+"""XXL-JOB executor HTTP JSON shape (``code`` / ``msg`` / ``data``).
+
+Admin Gson expects ``data`` to be a JSON **string** or null, not an object;
+put structured payloads in ``msg`` (e.g. compact JSON text).
+"""
 
 from __future__ import annotations
 

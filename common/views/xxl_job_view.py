@@ -7,6 +7,7 @@ admin scheduler Gson client can deserialize reliably.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from django.conf import settings
@@ -73,8 +74,9 @@ class XxlJobRunView(APIView):
             log_id=pr.log_id,
         )
         if ok:
-            if isinstance(detail, (dict, list)):
-                return _xxl_json(success(data=detail, msg=""))
+            if isinstance(detail, (dict, list, tuple)):
+                wire = json.dumps(detail, default=str, **API_JSON_DUMPS_PARAMS)
+                return _xxl_json(success(msg=wire))
             text = str(detail).strip() if detail is not None else ""
             return _xxl_json(success(msg=text or "OK"))
         return _xxl_json(fail(str(detail)))
