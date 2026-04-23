@@ -1,5 +1,10 @@
 """
-Structured access logging for app_tcc and app_saga HTTP APIs (entry + exit + duration).
+Structured access logging for HTTP APIs under caller-configured path prefixes.
+
+Routes and logger names are **not** hardcoded here. Set
+``settings.XXLJOB_EXECUTOR_ACCESS_LOG`` to a sequence of
+``(path_prefix, access_logger_name)`` (e.g. ``("/api/tcc/", "app_tcc.access")``).
+Longest matching prefix wins when multiple entries apply.
 """
 
 from __future__ import annotations
@@ -9,16 +14,35 @@ import logging
 import time
 from typing import Any
 
+from django.conf import settings
 from django.utils.deprecation import MiddlewareMixin
 
 from common.utils.http_util import resolve_request_id
 
-_TCC_PREFIX = "/api/tcc/"
-_SAGA_PREFIX = "/api/saga/"
 _MAX_BODY_JSON_CHARS = 8192
 _MAX_RESPONSE_JSON_CHARS = 4096
 _MAX_DATA_PREVIEW_ITEMS = 5
 _MAX_STR_PREVIEW = 200
+
+
+def _normalize_routes(raw: Any) -> list[tuple[str, str]]:
+    if not raw:
+        return []
+    out: list[tuple[str, str]] = []
+    for item in raw:
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            prefix, name = str(item[0]).strip(), str(item[1]).strip()
+            if prefix and name:
+                out.append((prefix, name))
+    out.sort(key=lambda x: len(x[0]), reverse=True)
+    return out
+
+
+def _match_logger(path: str, routes: list[tuple[str, str]]) -> str | None:
+    for prefix, logger_name in routes:
+        if path.startswith(prefix):
+            return logger_name
+    return None
 
 
 def _abbreviate_value(value: Any) -> Any:
@@ -47,8 +71,7 @@ def _abbreviate_value(value: Any) -> Any:
 
 
 def _request_params_snapshot(request) -> dict[str, Any]:
-    out: dict[str, Any] = {"method": request.method, "path": request.get_full_path()}
-    out["query"] = dict(request.GET)
+    out: dict[str, Any] = {"method": request.method, "path": request.get_full_path(), "query": dict(request.GET)}
     if request.method not in ("POST", "PUT", "PATCH"):
         return out
     ct = (request.META.get("CONTENT_TYPE") or "").split(";")[0].strip().lower()
@@ -76,7 +99,7 @@ def _request_params_snapshot(request) -> dict[str, Any]:
 def _response_payload_summary(response) -> tuple[Any, Any, Any]:
     try:
         text = response.content.decode("utf-8", errors="replace")
-    except Exception:
+    except (AttributeError, OSError, TypeError):
         return None, None, "<no_content>"
     if len(text) > _MAX_RESPONSE_JSON_CHARS:
         text = text[:_MAX_RESPONSE_JSON_CHARS] + "…"
@@ -90,56 +113,53 @@ def _response_payload_summary(response) -> tuple[Any, Any, Any]:
     return ec, msg, data
 
 
-class TccSagaAccessLogMiddleware(MiddlewareMixin):
+def _log_response(logger_name: str, request, response) -> None:
+    start = getattr(request, "_xxljob_executor_access_start", None)
+    duration_ms = None
+    if start is not None:
+        duration_ms = round((time.perf_counter() - start) * 1000, 3)
+    trace_id = resolve_request_id(request)
+    ec, msg, data = _response_payload_summary(response)
+
+    logging.getLogger(logger_name).info(
+        "[%s] %s data=%s errorCode=%s message=%s (%s)",
+        trace_id,
+        getattr(response, "status_code", None),
+        data,
+        ec,
+        msg,
+        duration_ms,
+    )
+
+
+def _log_request(logger_name: str, request) -> None:
+    trace_id = resolve_request_id(request)
+    params = _request_params_snapshot(request)
+    logging.getLogger(logger_name).info(
+        "[%s] params=%s",
+        trace_id,
+        params,
+    )
+
+
+class XxlJobExecutorLogMiddleware(MiddlewareMixin):
+    def __init__(self, get_response):
+        super().__init__(get_response)
+        self._routes = _normalize_routes(getattr(settings, "XXLJOB_EXECUTOR_ACCESS_LOG", ()))
+
     def process_request(self, request):
         path = request.path or ""
-        if not (path.startswith(_TCC_PREFIX) or path.startswith(_SAGA_PREFIX)):
+        logger_name = _match_logger(path, self._routes)
+        if logger_name is None:
             return None
-        request._tcc_saga_access_start = time.perf_counter()
-        trace_id = resolve_request_id(request)
-        params = _request_params_snapshot(request)
-        if path.startswith(_TCC_PREFIX):
-            logging.getLogger("app_tcc.access").info(
-                "request_in trace_id=%s params=%s",
-                trace_id,
-                params,
-            )
-        else:
-            logging.getLogger("app_saga.access").info(
-                "request_in trace_id=%s params=%s",
-                trace_id,
-                params,
-            )
+        request._xxljob_executor_access_start = time.perf_counter()
+        _log_request(logger_name, request)
         return None
 
     def process_response(self, request, response):
         path = request.path or ""
-        if not (path.startswith(_TCC_PREFIX) or path.startswith(_SAGA_PREFIX)):
+        logger_name = _match_logger(path, self._routes)
+        if logger_name is None:
             return response
-        start = getattr(request, "_tcc_saga_access_start", None)
-        duration_ms = None
-        if start is not None:
-            duration_ms = round((time.perf_counter() - start) * 1000, 3)
-        trace_id = resolve_request_id(request)
-        ec, msg, data = _response_payload_summary(response)
-        if path.startswith(_TCC_PREFIX):
-            logging.getLogger("app_tcc.access").info(
-                "request_out trace_id=%s errorCode=%s message=%s data=%s duration_ms=%s status=%s",
-                trace_id,
-                ec,
-                msg,
-                data,
-                duration_ms,
-                getattr(response, "status_code", None),
-            )
-        else:
-            logging.getLogger("app_saga.access").info(
-                "request_out trace_id=%s errorCode=%s message=%s data=%s duration_ms=%s status=%s",
-                trace_id,
-                ec,
-                msg,
-                data,
-                duration_ms,
-                getattr(response, "status_code", None),
-            )
+        _log_response(logger_name, request, response)
         return response
