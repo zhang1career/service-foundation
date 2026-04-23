@@ -10,6 +10,7 @@ from app_tcc.enums import BranchStatus, GlobalTxStatus
 from app_tcc.models import TccGlobalTransaction
 from app_tcc.services import coordinator
 from common.utils.date_util import get_now_timestamp_ms
+from common.utils.django_util import select_for_update_skip_locked
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def _set_next_retry_capped_by_phase_deadline(g: TccGlobalTransaction, now_ms: in
 
 
 def claim_batch(*, limit: int = 20) -> list[TccGlobalTransaction]:
-    """Select rows to process with row lock (skip locked)."""
+    """Select rows to process with row lock (``SKIP LOCKED`` when supported)."""
     now_ms = get_now_timestamp_ms()
     active = Q(
         status__in=[
@@ -58,8 +59,7 @@ def claim_batch(*, limit: int = 20) -> list[TccGlobalTransaction]:
     )
     with transaction.atomic(using="tcc_rw"):
         qs = (
-            TccGlobalTransaction.objects.using("tcc_rw")
-            .select_for_update(skip_locked=True)
+            select_for_update_skip_locked(TccGlobalTransaction.objects.using("tcc_rw"))
             .filter(active & (due_retry | due_await | due_phase))
             .order_by("next_retry_at")[:limit]
         )

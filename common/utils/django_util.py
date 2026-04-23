@@ -4,8 +4,16 @@ from functools import partial
 from typing import Any, Callable
 
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
+from django.db.models import QuerySet
 from django.http import QueryDict
+
+
+def select_for_update_skip_locked(queryset: QuerySet) -> QuerySet:
+    """Row lock for concurrent scanners; uses ``SKIP LOCKED`` only if the DB supports it."""
+    if getattr(connection.features, "supports_select_for_update_skip_locked", False):
+        return queryset.select_for_update(skip_locked=True)
+    return queryset.select_for_update()
 
 
 def schedule_on_commit(func: Callable[..., Any], /, *args, **kwargs) -> None:
