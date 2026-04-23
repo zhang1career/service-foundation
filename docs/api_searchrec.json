@@ -59,7 +59,7 @@
         }
       }
     },
-    "/api/searchrec/index/upsert": {
+    "/api/searchrec/index": {
       "post": {
         "tags": ["SearchRec"],
         "summary": "索引写入（文档 upsert）",
@@ -125,7 +125,7 @@
       "post": {
         "tags": ["SearchRec"],
         "summary": "关键词搜索",
-        "description": "融合 lexical、向量召回、标签与 popularity，再乘 score_boost。须传 `access_key`，解析方式同 index/upsert。`top_k` 会被限制在 [1, 100]。",
+        "description": "融合 lexical、向量召回、标签与 popularity，再乘 score_boost。须传 `access_key`，解析方式同 `POST /api/searchrec/index`。`top_k` 会被限制在 [1, 100]。",
         "operationId": "searchrecSearch",
         "requestBody": {
           "required": true,
@@ -169,7 +169,7 @@
       "post": {
         "tags": ["SearchRec"],
         "summary": "个性化推荐",
-        "description": "根据 `user_profile` 取用户特征，构造 query 后调用与 search 相同的融合逻辑，再对分数乘以 `affinity_boost`。须传 `access_key`，解析方式同 index/upsert。",
+        "description": "根据 `user_profile` 取用户特征，构造 query 后调用与 search 相同的融合逻辑，再对分数乘以 `affinity_boost`。须传 `access_key`，解析方式同 `POST /api/searchrec/index`。",
         "operationId": "searchrecRecommend",
         "requestBody": {
           "required": true,

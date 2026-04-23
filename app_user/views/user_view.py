@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 
 from app_user.enums import UserStatusEnum
 from app_user.services import AuthService, EventService, UserService
-from app_user.utils.auth_context import bearer_user_id_from_request
+from app_user.utils.auth_context import bearer_user_id_from_request, user_access_token_from_request
 from app_user.utils.jwt_util import decode_access_token_light
 from common.consts.query_const import LIMIT_PAGE
 from common.consts.response_const import (
@@ -12,7 +12,6 @@ from common.consts.response_const import (
     RET_TOKEN_EXPIRED,
     RET_TOKEN_INVALID,
 )
-from common.utils.http_auth_util import authorization_header_from_request, parse_bearer_token
 from common.utils.http_util import resp_ok, resp_err, with_type
 
 
@@ -20,7 +19,7 @@ class UserJwtValidateView(APIView):
     """JWT-only access check (no ``token`` table). ``permissions`` reserved, always empty."""
 
     def get(self, request, *args, **kwargs):
-        token = parse_bearer_token(authorization_header_from_request(request))
+        token = user_access_token_from_request(request)
         if not token:
             return resp_err(code=RET_LOGIN_REQUIRED, message="login required")
         claims, err = decode_access_token_light(token)

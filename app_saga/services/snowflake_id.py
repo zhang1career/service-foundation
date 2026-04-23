@@ -6,6 +6,8 @@ from django.conf import settings
 
 from common.consts.response_const import RET_OK
 from common.services.http import HttpClientPool, request_sync
+from common.services.service_discovery import expand_service_discovery_url
+from common.utils.service_url_template import ServiceUrlResolutionError
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,10 @@ def allocate_snowflake_int() -> int:
     url = (settings.SAGA_SNOWFLAKE_ID_URL or "").strip()
     if not url:
         raise SnowflakeIdError("SAGA_SNOWFLAKE_ID_URL is not configured")
+    try:
+        url = expand_service_discovery_url(url)
+    except ServiceUrlResolutionError as e:
+        raise SnowflakeIdError(str(e)) from e
     access_key = (settings.SAGA_SNOWFLAKE_ACCESS_KEY or "").strip()
     if not access_key:
         raise SnowflakeIdError("SAGA_SNOWFLAKE_ACCESS_KEY is not configured")

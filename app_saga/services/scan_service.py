@@ -9,6 +9,7 @@ from app_saga.enums import SagaInstanceStatus
 from app_saga.models import SagaInstance
 from app_saga.services.saga_coordinator import process_instance
 from common.utils.date_util import get_now_timestamp_ms
+from common.utils.django_util import select_for_update_skip_locked
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,7 @@ def claim_batch(*, limit: int = 20) -> list[SagaInstance]:
     due = Q(next_retry_at__lte=now_ms)
     with transaction.atomic(using="saga_rw"):
         qs = (
-            SagaInstance.objects.using("saga_rw")
-            .select_for_update(skip_locked=True)
+            select_for_update_skip_locked(SagaInstance.objects.using("saga_rw"))
             .filter(active & due)
             .order_by("next_retry_at")[:limit]
         )

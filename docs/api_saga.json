@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Saga 编排服务 API (app_saga)",
-    "description": "长事务 Saga 实例：按流程定义顺序调用参与者 action/compensate，并支持查询实例状态。仅在 `APP_SAGA_ENABLED=true` 时挂载；HTTP 前缀：`/api/saga/`（见 `service_foundation/urls.py` → `app_saga/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**错误响应**：`resp_err` / `resp_exception` 可能设置 `X-Request-Id`（见 `common.utils.http_util`）。\n\n**鉴权**：当前视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**状态码（整数）**：实例见 `SagaInstanceStatus`（PENDING=10, RUNNING=20, COMPENSATING=30, COMPLETED=40, ROLLED_BACK=50, FAILED=60）；步骤 action 见 `SagaStepActionStatus`（PENDING=10, SUCCEEDED=20, FAILED=30）；补偿见 `SagaStepCompensateStatus`（PENDING=10, SUCCEEDED=20, FAILED=30, SKIPPED=40），定义于 `app_saga/enums.py`。",
+    "description": "长事务 Saga 实例：按流程定义顺序调用参与者 action/compensate，并支持查询实例状态。仅在 `APP_SAGA_ENABLED=true` 时挂载；HTTP 前缀：`/api/saga/`（见 `service_foundation/urls.py` → `app_saga/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**错误响应**：`resp_err` / `resp_exception` 可能设置 `X-Request-Id`（见 `common.utils.http_util`）。\n\n**鉴权**：当前业务视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**XXL-JOB 执行器**（`/api/saga/xxl-job/*`）：与业务 API **不同**，响应为 `{ code, msg, data }`（`code` 为 200/500），请求头需 `XXL-JOB-ACCESS-TOKEN`（与 `XXL_JOB_TOKEN` 一致）；管理端回调地址见 `XXL_JOB_ADMIN_ADDRESS`。内建任务名 **`sagaScan`**：同步执行与 `manage.py saga_scan` 相同的扫描（`executorParams` 可选为 batch `limit` 的十进制字符串）。\n\n**状态码（整数）**：实例见 `SagaInstanceStatus`（PENDING=10, RUNNING=20, COMPENSATING=30, COMPLETED=40, ROLLED_BACK=50, FAILED=60）；步骤 action 见 `SagaStepActionStatus`（PENDING=10, SUCCEEDED=20, FAILED=30）；补偿见 `SagaStepCompensateStatus`（PENDING=10, SUCCEEDED=20, FAILED=30, SKIPPED=40），定义于 `app_saga/enums.py`。",
     "version": "1.0.0"
   },
   "servers": [
@@ -19,6 +19,10 @@
     {
       "name": "Instances",
       "description": "Saga 实例：启动与查询"
+    },
+    {
+      "name": "XXL-JOB",
+      "description": "XXL-JOB 嵌入式执行器（见 `common.services.xxl_job`、配置 `XXL_JOB_*`）"
     }
   ],
   "paths": {
@@ -199,10 +203,102 @@
           }
         }
       }
+    },
+    "/api/saga/xxl-job/beat": {
+      "get": {
+        "tags": ["XXL-JOB"],
+        "summary": "XXL-JOB 执行器心跳",
+        "description": "请求头 `XXL-JOB-ACCESS-TOKEN` 与 `XXL_JOB_TOKEN` 一致。`XXL_JOB_TOKEN` 未配置时 `code=500`。\n\n**响应体**为 `{ code, msg, data }`（`code=200` 成功），**非**本应用其余接口的 `errorCode` 包络。",
+        "operationId": "sagaXxlBeat",
+        "security": [{ "XxlJobAccessToken": [] }],
+        "responses": {
+          "200": {
+            "description": "以 `code` 区分",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/XxlJobExecutorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/saga/xxl-job/run": {
+      "post": {
+        "tags": ["XXL-JOB"],
+        "summary": "执行一次任务（同步）",
+        "description": "与 XXL-JOB 管理端 `/run` 一致；服务端同步跑 handler 后向 `XXL_JOB_ADMIN_ADDRESS/api/callback` 回写日志。**必填**：`jobId`、`logId`、`executorHandler`；`executorParams` 可选。已注册 `sagaScan`（效果同 `python manage.py saga_scan`，`executorParams` 为可选 limit）。",
+        "operationId": "sagaXxlRun",
+        "security": [{ "XxlJobAccessToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/XxlJobRunBody" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "本接口返回表示请求已按执行器处理完",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/XxlJobExecutorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/saga/xxl-job/kill": {
+      "post": {
+        "tags": ["XXL-JOB"],
+        "summary": "kill（无操作）",
+        "description": "同步执行器无文件/队列型任务，返回 `msg` 为 noop 语义。",
+        "operationId": "sagaXxlKill",
+        "security": [{ "XxlJobAccessToken": [] }],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/XxlJobExecutorResponse" }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
     }
   },
   "components": {
+    "securitySchemes": {
+      "XxlJobAccessToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "XXL-JOB-ACCESS-TOKEN"
+      }
+    },
     "schemas": {
+      "XxlJobExecutorResponse": {
+        "type": "object",
+        "required": ["code", "msg"],
+        "description": "XXL 执行器自研响应（非 resp_ok 包络）",
+        "properties": {
+          "code": { "type": "integer", "enum": [200, 500] },
+          "msg": { "type": "string" },
+          "data": { "nullable": true }
+        }
+      },
+      "XxlJobRunBody": {
+        "type": "object",
+        "required": ["jobId", "logId", "executorHandler"],
+        "properties": {
+          "jobId": { "type": "integer" },
+          "logId": { "type": "integer" },
+          "executorHandler": { "type": "string" },
+          "executorParams": { "type": "string", "nullable": true }
+        }
+      },
       "EnvelopeOk": {
         "type": "object",
         "required": ["errorCode", "message"],

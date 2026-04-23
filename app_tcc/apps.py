@@ -6,3 +6,8 @@ class AppTccConfig(AppConfig):
     name = "app_tcc"
     label = "app_tcc"
     verbose_name = "TCC"
+
+    def ready(self) -> None:
+        from app_tcc.services import xxl_job_handlers
+
+        xxl_job_handlers.register_tcc_jobs()

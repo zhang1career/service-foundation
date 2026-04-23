@@ -105,6 +105,40 @@ class SnowflakeIdTests(SimpleTestCase):
         self.assertIn("id", str(ctx.exception).lower())
 
     @override_settings(
+        SAGA_SNOWFLAKE_ID_URL="http://{{sf-snowflake}}/api/snowflake/id",
+        SAGA_SNOWFLAKE_ACCESS_KEY="k",
+        SERVICE_DISCOVERY_KEY_PREFIX="",
+    )
+    @patch("common.services.service_discovery.expand._get_redis_client")
+    @patch("app_saga.services.snowflake_id.request_sync")
+    def test_url_placeholder_expands_from_redis(self, mock_req, m_grc):
+        m_client = MagicMock()
+        m_client.get.return_value = "snow.test:8080"
+        m_grc.return_value = m_client
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"errorCode": RET_OK, "data": {"id": "1"}}
+        mock_req.return_value = mock_resp
+        self.assertEqual(allocate_snowflake_int(), 1)
+        self.assertEqual(
+            mock_req.call_args.kwargs["url"],
+            "http://snow.test:8080/api/snowflake/id",
+        )
+
+    @override_settings(
+        SAGA_SNOWFLAKE_ID_URL="http://{{sf-snowflake}}/api/x",
+        SAGA_SNOWFLAKE_ACCESS_KEY="k",
+    )
+    @patch("common.services.service_discovery.expand._get_redis_client")
+    def test_url_placeholder_missing_host_raises(self, m_grc):
+        m_client = MagicMock()
+        m_client.get.return_value = None
+        m_grc.return_value = m_client
+        with self.assertRaises(SnowflakeIdError) as ctx:
+            allocate_snowflake_int()
+        self.assertIn("No data found for service", str(ctx.exception))
+
+    @override_settings(
         SAGA_SNOWFLAKE_ID_URL="http://id.test/",
         SAGA_SNOWFLAKE_ACCESS_KEY="k",
     )

@@ -19,10 +19,19 @@ class TestAuthContext(SimpleTestCase):
         self.assertEqual(code, RET_LOGIN_REQUIRED)
         self.assertIn("login", message.lower())
 
+    def test_authorization_bearer_ignored_login_required(self):
+        request = self.factory.get(
+            "/api/x",
+            HTTP_AUTHORIZATION="Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.e30",
+        )
+        user_id, code, _message = bearer_user_id_from_request(request)
+        self.assertIsNone(user_id)
+        self.assertEqual(code, RET_LOGIN_REQUIRED)
+
     def test_invalid_token_returns_token_invalid(self):
         request = self.factory.get(
             "/api/x",
-            HTTP_AUTHORIZATION="Bearer not-a-jwt",
+            HTTP_X_USER_ACCESS_TOKEN="not-a-jwt",
         )
         user_id, code, _message = bearer_user_id_from_request(request)
         self.assertIsNone(user_id)
@@ -33,7 +42,7 @@ class TestAuthContext(SimpleTestCase):
         token = create_access_token(user_id=8, username="u8")
         request = self.factory.get(
             "/api/x",
-            HTTP_AUTHORIZATION=f"Bearer {token}",
+            HTTP_X_USER_ACCESS_TOKEN=token,
         )
         user_id, code, message = bearer_user_id_from_request(request)
         self.assertEqual(user_id, 8)
@@ -45,7 +54,7 @@ class TestAuthContext(SimpleTestCase):
         token = create_access_token(user_id=8, username="u8")
         request = self.factory.get(
             "/api/x",
-            HTTP_AUTHORIZATION=f"Bearer {token}",
+            HTTP_X_USER_ACCESS_TOKEN=token,
         )
         user_id, code, _message = bearer_user_id_from_request(request)
         self.assertIsNone(user_id)

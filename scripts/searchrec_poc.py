@@ -44,7 +44,7 @@ def main():
             },
         ]
     }
-    upsert_resp, upsert_ms = post("/index/upsert", docs)
+    upsert_resp, upsert_ms = post("/index", docs)
     print(f"upsert {upsert_ms:.2f}ms => {json.dumps(upsert_resp, ensure_ascii=False)}")
 
     search_resp, search_ms = post(

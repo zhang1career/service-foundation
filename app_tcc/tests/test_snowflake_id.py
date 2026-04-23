@@ -30,6 +30,25 @@ class SnowflakeIdTests(SimpleTestCase):
             {"access_key": "secret"},
         )
 
+    @override_settings(
+        TCC_SNOWFLAKE_ID_URL="https://{{sf-snowflake}}/snow",
+        TCC_SNOWFLAKE_ACCESS_KEY="secret",
+        TCC_SNOWFLAKE_HTTP_TIMEOUT_SEC=3.0,
+        SERVICE_DISCOVERY_KEY_PREFIX="",
+    )
+    @patch("common.services.service_discovery.expand._get_redis_client")
+    @patch("app_tcc.services.snowflake_id.request_sync")
+    def test_allocate_expands_url_placeholder(self, mock_sync, m_grc):
+        m_client = MagicMock()
+        m_client.get.return_value = "id.internal:443"
+        m_grc.return_value = m_client
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"errorCode": RET_OK, "data": {"id": "7"}}
+        mock_sync.return_value = mock_resp
+        self.assertEqual(allocate_snowflake_int(), 7)
+        self.assertEqual(mock_sync.call_args.kwargs["url"], "https://id.internal:443/snow")
+
     @override_settings(TCC_SNOWFLAKE_ID_URL="")
     def test_missing_url(self):
         with self.assertRaises(SnowflakeIdError) as ctx:

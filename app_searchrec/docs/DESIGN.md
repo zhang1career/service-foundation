@@ -4,7 +4,7 @@
 
 `app_searchrec` 是一个搜索/推荐基础服务，面向业务系统提供稳定的通用能力：
 
-- 文档索引写入（`index/upsert`）
+- 文档索引写入（`POST /api/searchrec/index`）
 - 搜索召回（`search`）
 - 个性化推荐（`recommend`）
 - 候选重排（`rank`）
@@ -30,7 +30,7 @@ PlantUML 图：[`architecture_flow.puml`](./architecture_flow.puml)
 
 ### 用例A：内容入库并可检索（运营发布内容）
 
-**场景**：运营同学发布一批内容，业务系统调用 `index/upsert`，让内容进入搜索/推荐候选池。  
+**场景**：运营同学发布一批内容，业务系统调用 `POST /api/searchrec/index`，让内容进入搜索/推荐候选池。  
 **价值**：保证后续搜索和推荐都能命中这批新内容。
 
 PlantUML 图：[`usecase_a_upsert_flow.puml`](./usecase_a_upsert_flow.puml)

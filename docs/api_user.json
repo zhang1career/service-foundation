@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "用户中心 API (app_user)",
-    "description": "统一用户注册、登录、资料、JWT 与控制台管理接口。HTTP 状态码多为 200；业务结果看响应体 `errorCode`（0 成功）。需登录的接口在请求头携带 `Authorization: Bearer <access_token>`。",
+    "description": "统一用户注册、登录、资料、JWT 与控制台管理接口。HTTP 状态码多为 200；业务结果看响应体 `errorCode`（0 成功）。当前用户相关接口（`/me`、`/me/validate`、`/me/update/*`）在请求头携带 `X-User-Access-Token: <access_token>`（原始 JWT，勿加 Bearer 前缀），与 API 网关占用的 `Authorization: Bearer` 分离。",
     "version": "1.0.0"
   },
   "servers": [
@@ -15,17 +15,20 @@
     { "name": "Dict", "description": "枚举字典查询（与其它 app 的 dict 接口同形）" },
     { "name": "Auth", "description": "注册、登录、刷新令牌" },
     { "name": "Password", "description": "密码重置（当前实现会返回业务错误）" },
-    { "name": "Me", "description": "当前登录用户：资料、轻量 JWT 校验（JWT）" },
+    {
+      "name": "Me",
+      "description": "当前登录用户：资料、轻量 JWT 校验。鉴权使用请求头 `X-User-Access-Token`（登录/注册返回的 access_token 原始 JWT），不使用 `Authorization: Bearer`。"
+    },
     { "name": "Users", "description": "用户列表与按 ID 查询/改状态" },
     { "name": "Console", "description": "控制台用户与事件管理（无额外网关鉴权，部署时需自行保护）" }
   ],
   "components": {
     "securitySchemes": {
-      "BearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "登录或注册验证成功后返回的 access_token（HS256，type=access）"
+      "UserAccessTokenHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-User-Access-Token",
+        "description": "登录或注册验证成功后返回的 access_token（HS256，type=access）。请求头值为原始 JWT 字符串，勿加 `Bearer ` 前缀；本服务 Me 类接口不读取 `Authorization`。"
       }
     },
     "schemas": {
@@ -372,11 +375,12 @@
       "get": {
         "tags": ["Me"],
         "summary": "当前用户资料",
+        "description": "需在请求头携带 `X-User-Access-Token`（有效 access JWT）；服务端会校验 JWT 并查询 `token` 表（吊销/过期见业务错误码）。",
         "operationId": "userMeGet",
-        "security": [{ "BearerAuth": [] }],
+        "security": [{ "UserAccessTokenHeader": [] }],
         "responses": {
           "200": {
-            "description": "未带或非法 token：errorCode=202/211；成功 data 为 User",
+            "description": "未带或非法 `X-User-Access-Token`：errorCode=202/211；token 已吊销：213；成功 data 为 User",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/StdResponse" }
@@ -388,9 +392,9 @@
       "patch": {
         "tags": ["Me"],
         "summary": "更新当前用户资料",
-        "description": "支持 JSON 或 multipart（avatar 文件）。字段存在则更新：email、phone、ext、avatar。",
+        "description": "需在请求头携带 `X-User-Access-Token`。支持 JSON 或 multipart（avatar 文件）。字段存在则更新：email、phone、ext、avatar。",
         "operationId": "userMePatch",
-        "security": [{ "BearerAuth": [] }],
+        "security": [{ "UserAccessTokenHeader": [] }],
         "requestBody": {
           "content": {
             "application/json": {
@@ -432,9 +436,9 @@
       "get": {
         "tags": ["Me"],
         "summary": "轻量校验 access JWT",
-        "description": "仅本地校验 HS256 签名与 exp，并确认 claims 为 type=access 且含 user_id。**不**查询 `token` 表：登出/吊销后至 JWT 过期仍可能返回成功。需完整会话校验或用户资料请用 `GET /me`。`permissions` 预留，当前恒为 `[]`。错误码：未带 token 202；非法 211；过期 212（见 response_const）。",
+        "description": "请求头携带 `X-User-Access-Token`（access JWT）。仅本地校验 HS256 签名与 exp，并确认 claims 为 type=access 且含 user_id。**不**查询 `token` 表：登出/吊销后至 JWT 过期仍可能返回成功。需完整会话校验或用户资料请用 `GET /me`。`permissions` 预留，当前恒为 `[]`。错误码：未带头或值为空 202；非法 211；过期 212（见 response_const）。",
         "operationId": "userMeJwtValidate",
-        "security": [{ "BearerAuth": [] }],
+        "security": [{ "UserAccessTokenHeader": [] }],
         "responses": {
           "200": {
             "description": "errorCode=0 时 data 为 JwtValidateResult；失败见 message",
@@ -461,9 +465,9 @@
       "post": {
         "tags": ["Me"],
         "summary": "资料变更请求验证码",
-        "description": "创建 UPDATE_PROFILE 事件并下发验证码。需登录。",
+        "description": "创建 UPDATE_PROFILE 事件并下发验证码。需请求头 `X-User-Access-Token`（有效 access JWT，校验规则同 `GET /me`）。",
         "operationId": "userMeUpdateRequest",
-        "security": [{ "BearerAuth": [] }],
+        "security": [{ "UserAccessTokenHeader": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -499,8 +503,9 @@
       "post": {
         "tags": ["Me"],
         "summary": "资料变更提交验证码",
+        "description": "需请求头 `X-User-Access-Token`（有效 access JWT）。",
         "operationId": "userMeUpdateVerify",
-        "security": [{ "BearerAuth": [] }],
+        "security": [{ "UserAccessTokenHeader": [] }],
         "requestBody": {
           "required": true,
           "content": {

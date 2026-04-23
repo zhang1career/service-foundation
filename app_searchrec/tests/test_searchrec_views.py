@@ -54,7 +54,7 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         get_reg.return_value = _active_reg_mock()
         service_cls.upsert_documents.return_value = {"upserted": 2}
         request = self.factory.post(
-            "/api/searchrec/index/upsert",
+            "/api/searchrec/index",
             data={"access_key": "k", "documents": [{"id": "1"}, {"id": "2"}]},
             format="json",
         )
@@ -145,7 +145,7 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         get_reg.return_value = _active_reg_mock()
         header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
         request = self.factory.post(
-            "/api/searchrec/index/upsert",
+            "/api/searchrec/index",
             data={"access_key": "k", "documents": []},
             format="json",
             HTTP_X_REQUEST_ID="err-rid-1",

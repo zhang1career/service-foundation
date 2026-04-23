@@ -90,9 +90,10 @@ def resolve_request_id(request) -> str:
     if request is None:
         return uuid.uuid4().hex[:16]
     rid = (
-        getattr(request, "request_id", None)
+        getattr(request, "id", None)
+        or getattr(request, "request_id", None)
         or request.META.get("HTTP_X_REQUEST_ID")
-        or request.META.get("HTTP_X_REQUEST_ID".upper().replace("-", "_"))
+        or request.META.get("HTTP_X_TRACE_ID")
     )
     if rid is not None and str(rid).strip().lower() not in ("", "none", "null"):
         return str(rid).strip()
