@@ -95,7 +95,7 @@ def _request_params_snapshot(request) -> dict[str, Any]:
     return out
 
 
-def _response_payload_summary(response) -> tuple[Any, Any, Any]:
+def response_payload_summary(response) -> tuple[Any, Any, Any]:
     blob = getattr(response, "data", None)
     if isinstance(blob, dict) and "code" in blob:
         return (
@@ -126,11 +126,11 @@ def _response_payload_summary(response) -> tuple[Any, Any, Any]:
 
 
 def _log_response(logger_name: str, request, response) -> None:
-    start = getattr(request, "_xxljob_executor_access_start", None)
+    start = getattr(request, "_xxl_job_executor_access_start", None)
     duration_ms = None
     if start is not None:
         duration_ms = round((time.perf_counter() - start) * 1000, 3)
-    code, msg, data = _response_payload_summary(response)
+    code, msg, data = response_payload_summary(response)
 
     logging.getLogger(logger_name).info(
         "%s code=%s msg=%s data=%s (%s)",
@@ -160,7 +160,7 @@ class XxlJobExecutorLogMiddleware(MiddlewareMixin):
         logger_name = _match_logger(path, self._routes)
         if logger_name is None:
             return None
-        request._xxljob_executor_access_start = time.perf_counter()
+        request._xxl_job_executor_access_start = time.perf_counter()
         _log_request(logger_name, request)
         return None
 

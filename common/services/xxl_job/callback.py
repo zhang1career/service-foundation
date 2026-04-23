@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any
@@ -17,6 +18,9 @@ from common.utils.service_url_template import (
 )
 
 logger = logging.getLogger(__name__)
+
+# XXL-JOB ``ReturnT.SUCCESS_CODE`` (admin ``/api/*`` JSON envelope).
+_RETURN_T_SUCCESS = 200
 
 
 def _admin_base() -> str:
@@ -47,7 +51,7 @@ def send_callback(*, log_id: int, handle_code: int, handle_msg: str) -> bool:
     body: list[dict[str, Any]] = [
         {
             "logId": log_id,
-            "logDateTim": int(time.time() * 1000),
+            "logDateTim": time.time_ns() // 1_000_000,
             "handleCode": int(handle_code),
             "handleMsg": handle_msg or "",
         }
@@ -76,4 +80,25 @@ def send_callback(*, log_id: int, handle_code: int, handle_msg: str) -> bool:
             (resp.text or "")[:500],
         )
         return False
+    raw_txt = getattr(resp, "text", "")
+    text = (raw_txt if isinstance(raw_txt, str) else "").strip()
+    if not text:
+        logger.info("[xxl_job] callback accepted log_id=%s handle_code=%s", log_id, handle_code)
+        return True
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        logger.info("[xxl_job] callback accepted log_id=%s (non-json response)", log_id)
+        return True
+    if isinstance(payload, dict):
+        ret_code = payload.get("code")
+        if ret_code is not None and int(ret_code) != _RETURN_T_SUCCESS:
+            logger.error(
+                "[xxl_job] callback admin ReturnT code=%s msg=%s log_id=%s",
+                ret_code,
+                (payload.get("msg") or "")[:500],
+                log_id,
+            )
+            return False
+    logger.info("[xxl_job] callback accepted log_id=%s handle_code=%s", log_id, handle_code)
     return True

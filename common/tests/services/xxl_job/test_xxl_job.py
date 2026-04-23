@@ -13,6 +13,7 @@ from common.services.xxl_job import (
     run_sync,
     validate_token,
 )
+from common.services.xxl_job.callback import send_callback
 
 
 class TokenTests(TestCase):
@@ -63,40 +64,79 @@ class RunnerRegistryTests(TestCase):
     @patch("common.services.xxl_job.callback.request_sync")
     def test_resolved_admin_url(self, m_req) -> None:
         m_req.return_value.status_code = 200
+        m_req.return_value.text = '{"code":200}'
         r = get_registry()
         r.register("h1", lambda p: (True, "x"))
-        run_sync(
+        out = run_sync(
             registry=r, executor_handler="h1", executor_params=None, log_id=1
         )
+        self.assertEqual(out, (True, "x"))
         self.assertIn("admin.internal:9999/xxl-job-admin/api/callback", m_req.call_args[1]["url"])
 
     @override_settings(XXL_JOB_TOKEN="k", XXL_JOB_ADMIN_ADDRESS="http://a/x")
     @patch("common.services.xxl_job.callback.request_sync")
     def test_happy(self, m_req) -> None:
         m_req.return_value.status_code = 200
+        m_req.return_value.text = '{"code":200}'
         r = get_registry()
         r.register("h1", lambda p: (True, "done"))
-        run_sync(registry=r, executor_handler="h1", executor_params="x", log_id=99)
+        self.assertEqual(
+            run_sync(registry=r, executor_handler="h1", executor_params="x", log_id=99),
+            (True, "done"),
+        )
         b = m_req.call_args[1]["json_body"][0]
         self.assertEqual(b["logId"], 99)
         self.assertEqual(b["handleCode"], 200)
         self.assertEqual(b["handleMsg"], "done")
+        self.assertIn("logDateTim", b)
+        self.assertIsInstance(b["logDateTim"], int)
+
+    @override_settings(XXL_JOB_TOKEN="k", XXL_JOB_ADMIN_ADDRESS="http://a/x")
+    @patch("common.services.xxl_job.callback.request_sync")
+    def test_send_callback_false_when_admin_return_t_not_success(self, m_req) -> None:
+        m_req.return_value.status_code = 200
+        m_req.return_value.text = '{"code":500,"msg":"bad token"}'
+        self.assertFalse(
+            send_callback(log_id=7, handle_code=200, handle_msg="handler ok"),
+        )
+
+    @override_settings(XXL_JOB_TOKEN="k", XXL_JOB_ADMIN_ADDRESS="http://a/x")
+    @patch("common.services.xxl_job.callback.request_sync")
+    def test_success_handler_empty_message_sends_ok(self, m_req) -> None:
+        m_req.return_value.status_code = 200
+        m_req.return_value.text = '{"code":200}'
+        r = get_registry()
+        r.register("h_empty", lambda p: (True, "   "))
+        self.assertEqual(
+            run_sync(
+                registry=r, executor_handler="h_empty", executor_params=None, log_id=5
+            ),
+            (True, "OK"),
+        )
+        b = m_req.call_args[1]["json_body"][0]
+        self.assertEqual(b["handleMsg"], "OK")
 
     @override_settings(XXL_JOB_TOKEN="k", XXL_JOB_ADMIN_ADDRESS="")
     def test_skip_callback_no_admin(self) -> None:
         with patch("common.services.xxl_job.callback.request_sync") as m_req:
             r = get_registry()
             r.register("h1", lambda p: (True, "ok"))
-            run_sync(registry=r, executor_handler="h1", executor_params=None, log_id=1)
+            self.assertEqual(
+                run_sync(registry=r, executor_handler="h1", executor_params=None, log_id=1),
+                (True, "ok"),
+            )
             m_req.assert_not_called()
 
     @override_settings(XXL_JOB_TOKEN="k", XXL_JOB_ADMIN_ADDRESS="http://a/x")
     @patch("common.services.xxl_job.callback.request_sync")
     def test_unknown_handler(self, m_req) -> None:
         m_req.return_value.status_code = 200
-        run_sync(
+        m_req.return_value.text = '{"code":200}'
+        out = run_sync(
             registry=get_registry(), executor_handler="nope", executor_params=None, log_id=3
         )
+        self.assertFalse(out[0])
+        self.assertIn("unknown handler", out[1])
         b = m_req.call_args[1]["json_body"][0]
         self.assertEqual(b["handleCode"], 500)
         self.assertIn("unknown handler", b["handleMsg"])

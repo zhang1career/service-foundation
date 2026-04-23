@@ -157,7 +157,7 @@ if APP_SAGA_ENABLED:
 MIDDLEWARE = [
     "common.middleware.trace_id_header_middleware.TraceIdHeaderNormalizeMiddleware",
     "log_request_id.middleware.RequestIDMiddleware",
-    "common.middleware.xxljob_executor_middleware.XxlJobExecutorLogMiddleware",
+    "common.middleware.xxl_job_executor_middleware.XxlJobExecutorLogMiddleware",
     "common.middleware.host_validation_middleware.HostValidationMiddleware",  # Must be before SecurityMiddleware
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -801,6 +801,7 @@ SAGA_SCAN_BACKOFF_STEP_MS = env.int("SAGA_SCAN_BACKOFF_STEP_MS", default=1500)
 SAGA_SCAN_BACKOFF_CAP_MS = env.int("SAGA_SCAN_BACKOFF_CAP_MS", default=60000)
 # XXL-JOB
 XXL_JOB_TOKEN = env("XXL_JOB_TOKEN", default="").strip()
+# Admin base URL (no trailing slash), e.g. http://host:8080/xxl-job-admin — required for executor → admin /api/callback.
 XXL_JOB_ADMIN_ADDRESS = env("XXL_JOB_ADMIN_ADDRESS", default="").strip()
 XXL_JOB_CALLBACK_TIMEOUT_SEC = env.float("XXL_JOB_CALLBACK_TIMEOUT_SEC", default=10.0)
 # 运行监控页服务端拉取 AIBroker 汇总指标（仅服务端使用，勿下发到前端脚本）

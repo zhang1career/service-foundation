@@ -9,7 +9,7 @@ response serialization / access-log summary.
 Run without full project MySQL::
 
   DJANGO_SETTINGS_MODULE=common.tests.middleware.settings_xxl_mw_min \\
-    python -m django test common.tests.middleware.test_xxljob_executor_middleware
+    python -m django test common.tests.middleware.test_xxl_job_executor_middleware
 """
 
 from __future__ import annotations
@@ -22,9 +22,9 @@ from django.test import RequestFactory, SimpleTestCase, override_settings
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 
-from common.middleware.xxljob_executor_middleware import (
+from common.middleware.xxl_job_executor_middleware import (
     XxlJobExecutorLogMiddleware,
-    _response_payload_summary,
+    response_payload_summary,
 )
 from common.services.xxl_job.response import success
 from common.utils.json_util import API_JSON_DUMPS_PARAMS
@@ -36,7 +36,7 @@ class ResponsePayloadSummaryTests(SimpleTestCase):
 
     def test_drf_response_uses_data_not_bytes(self) -> None:
         resp = Response(success(), status=200)
-        code, msg, data = _response_payload_summary(resp)
+        code, msg, data = response_payload_summary(resp)
         self.assertEqual(code, 200)
         self.assertEqual(msg, "")
         self.assertIsNone(data)
@@ -44,7 +44,7 @@ class ResponsePayloadSummaryTests(SimpleTestCase):
     def test_json_response_parses_content(self) -> None:
         envelope = success()
         resp = JsonResponse(envelope, status=200, json_dumps_params=API_JSON_DUMPS_PARAMS)
-        code, msg, data = _response_payload_summary(resp)
+        code, msg, data = response_payload_summary(resp)
         self.assertEqual(code, 200)
         self.assertEqual(msg, "")
         self.assertIsNone(data)
@@ -52,10 +52,11 @@ class ResponsePayloadSummaryTests(SimpleTestCase):
     def test_http_response_bytes_parse_as_xxl_object(self) -> None:
         body = json.dumps(success(), separators=(",", ":")).encode("utf-8")
         resp = HttpResponse(body, content_type="application/json", status=200)
-        code, msg, data = _response_payload_summary(resp)
+        code, msg, data = response_payload_summary(resp)
         self.assertEqual(code, 200)
         self.assertEqual(msg, "")
         self.assertIsNone(data)
+
 
 class XxlJobRunViewContractTests(SimpleTestCase):
     """Same POST shape as docker-lab XxlJobController::run + admin scheduler."""
@@ -78,8 +79,9 @@ class XxlJobRunViewContractTests(SimpleTestCase):
     @override_settings(XXL_JOB_TOKEN="ref-token", XXL_JOB_ADMIN_ADDRESS="")
     @patch("common.views.xxl_job_view.run_sync")
     def test_run_view_accepts_admin_style_body_returns_xxl_envelope(
-        self, _mock_run_sync: MagicMock,
+            self, mock_run_sync: MagicMock,
     ) -> None:
+        mock_run_sync.return_value = (True, "limit=50 ok=3 total=10")
         factory = APIRequestFactory()
         request = factory.post(
             "/api/tcc/xxl-job/run",
@@ -94,8 +96,9 @@ class XxlJobRunViewContractTests(SimpleTestCase):
         self.assertTrue(raw.startswith(b"{"), msg=raw[:120])
         parsed = json.loads(raw.decode("utf-8"))
         self.assertEqual(parsed.get("code"), 200)
-        self.assertEqual(parsed.get("msg"), "")
+        self.assertEqual(parsed.get("msg"), "limit=50 ok=3 total=10")
         self.assertIn("data", parsed)
+        mock_run_sync.assert_called_once()
 
 
 class XxlJobExecutorLogMiddlewareTests(SimpleTestCase):
@@ -106,7 +109,7 @@ class XxlJobExecutorLogMiddlewareTests(SimpleTestCase):
                 XXLJOB_EXECUTOR_ACCESS_LOG=[("/api/tcc/", "test_xxl_mw.access")],
             ),
             patch(
-                "common.middleware.xxljob_executor_middleware.logging.getLogger",
+                "common.middleware.xxl_job_executor_middleware.logging.getLogger",
                 return_value=mock_log,
             ),
         ):

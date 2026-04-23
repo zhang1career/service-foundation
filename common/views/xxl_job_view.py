@@ -66,13 +66,15 @@ class XxlJobRunView(APIView):
             pr = parse_run_body(data)
         except (KeyError, TypeError, ValueError) as e:
             return _xxl_json(fail(str(e) or "bad payload"))
-        run_sync(
+        ok, detail = run_sync(
             registry=get_registry(),
             executor_handler=pr.executor_handler,
             executor_params=pr.executor_params,
             log_id=pr.log_id,
         )
-        return _xxl_json(success())
+        if ok:
+            return _xxl_json(success(msg=detail))
+        return _xxl_json(fail(detail))
 
 
 class XxlJobKillView(APIView):
