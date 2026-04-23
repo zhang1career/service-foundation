@@ -81,7 +81,7 @@ class XxlJobRunViewContractTests(SimpleTestCase):
     def test_run_view_accepts_admin_style_body_returns_xxl_envelope(
             self, mock_run_sync: MagicMock,
     ) -> None:
-        mock_run_sync.return_value = (True, "limit=50 ok=3 total=10")
+        mock_run_sync.return_value = (True, {"closed": 7, "errors": 0})
         factory = APIRequestFactory()
         request = factory.post(
             "/api/tcc/xxl-job/run",
@@ -96,8 +96,8 @@ class XxlJobRunViewContractTests(SimpleTestCase):
         self.assertTrue(raw.startswith(b"{"), msg=raw[:120])
         parsed = json.loads(raw.decode("utf-8"))
         self.assertEqual(parsed.get("code"), 200)
-        self.assertEqual(parsed.get("msg"), "limit=50 ok=3 total=10")
-        self.assertIn("data", parsed)
+        self.assertEqual(parsed.get("msg"), "")
+        self.assertEqual(parsed.get("data"), {"closed": 7, "errors": 0})
         mock_run_sync.assert_called_once()
 
 

@@ -11,7 +11,7 @@ _DEFAULT = 50
 _LIMIT = re.compile(r"^\s*(\d{1,6})\s*$")
 
 
-def _tcc_scan(params: str | None) -> tuple[bool, str]:
+def _tcc_scan(params: str | None) -> tuple[bool, str | dict[str, int]]:
     from app_tcc.services.scan_service import claim_batch, process_one
 
     limit = _DEFAULT
@@ -23,14 +23,16 @@ def _tcc_scan(params: str | None) -> tuple[bool, str]:
         return False, "limit out of range"
 
     rows = claim_batch(limit=limit)
-    n = 0
+    processed = 0
+    errors = 0
     for g in rows:
         try:
             process_one(g)
-            n += 1
+            processed += 1
         except Exception:
+            errors += 1
             logger.exception("tcc_scan xxl job global_tx_id=%s", g.pk)
-    return True, f"limit={limit} ok={n} total={len(rows)}"
+    return True, {"closed": processed, "errors": errors}
 
 
 def register_tcc_jobs() -> None:

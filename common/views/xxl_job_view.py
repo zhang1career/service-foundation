@@ -73,8 +73,11 @@ class XxlJobRunView(APIView):
             log_id=pr.log_id,
         )
         if ok:
-            return _xxl_json(success(msg=detail))
-        return _xxl_json(fail(detail))
+            if isinstance(detail, (dict, list)):
+                return _xxl_json(success(data=detail, msg=""))
+            text = str(detail).strip() if detail is not None else ""
+            return _xxl_json(success(msg=text or "OK"))
+        return _xxl_json(fail(str(detail)))
 
 
 class XxlJobKillView(APIView):

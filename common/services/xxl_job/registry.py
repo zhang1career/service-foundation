@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
+from typing import Any
 
-XxlHandler = Callable[[str | None], tuple[bool, str]]
+XxlHandler = Callable[[str | None], tuple[bool, Any]]
 
 
 class XxlJobRegistry:

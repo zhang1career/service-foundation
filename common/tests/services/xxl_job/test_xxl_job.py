@@ -111,7 +111,7 @@ class RunnerRegistryTests(TestCase):
             run_sync(
                 registry=r, executor_handler="h_empty", executor_params=None, log_id=5
             ),
-            (True, "OK"),
+            (True, "   "),
         )
         b = m_req.call_args[1]["json_body"][0]
         self.assertEqual(b["handleMsg"], "OK")
@@ -140,3 +140,18 @@ class RunnerRegistryTests(TestCase):
         b = m_req.call_args[1]["json_body"][0]
         self.assertEqual(b["handleCode"], 500)
         self.assertIn("unknown handler", b["handleMsg"])
+
+    @override_settings(XXL_JOB_TOKEN="k", XXL_JOB_ADMIN_ADDRESS="http://a/x")
+    @patch("common.services.xxl_job.callback.request_sync")
+    def test_dict_payload_callback_json_encode_like_paganini(self, m_req) -> None:
+        m_req.return_value.status_code = 200
+        m_req.return_value.text = '{"code":200}'
+        r = get_registry()
+        r.register("h_dict", lambda p: (True, {"closed": 0, "errors": 0}))
+        self.assertEqual(
+            run_sync(registry=r, executor_handler="h_dict", executor_params=None, log_id=8),
+            (True, {"closed": 0, "errors": 0}),
+        )
+        b = m_req.call_args[1]["json_body"][0]
+        self.assertEqual(b["handleCode"], 200)
+        self.assertEqual(b["handleMsg"], '{"closed":0,"errors":0}')
