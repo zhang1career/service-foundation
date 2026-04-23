@@ -1,12 +1,17 @@
-"""Shared DRF views for XXL-JOB embedded executor (beat / run / kill)."""
+"""XXL-JOB embedded executor: beat / run / kill.
+
+Always respond with ``application/json`` and a root JSON **object**
+``{code, msg, data}`` (never DRF content negotiation / browsable HTML), so the
+admin scheduler Gson client can deserialize reliably.
+"""
 
 from __future__ import annotations
 
 import logging
 
 from django.conf import settings
+from django.http import JsonResponse
 from rest_framework.request import Request
-from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.services.xxl_job import (
@@ -17,18 +22,23 @@ from common.services.xxl_job import (
     validate_token,
 )
 from common.services.xxl_job.response import fail, success
+from common.utils.json_util import API_JSON_DUMPS_PARAMS
 
 logger = logging.getLogger(__name__)
 
 
-def _deny(request: Request) -> Response | None:
+def _xxl_json(payload: dict) -> JsonResponse:
+    return JsonResponse(payload, status=200, json_dumps_params=API_JSON_DUMPS_PARAMS)
+
+
+def _deny(request: Request) -> JsonResponse | None:
     exp = (getattr(settings, "XXL_JOB_TOKEN", "") or "").strip()
     if not exp:
         logger.error("[xxl_job] XXL_JOB_TOKEN missing")
-        return Response(fail("XXL_JOB_TOKEN is not configured"), status=200)
+        return _xxl_json(fail("XXL_JOB_TOKEN is not configured"))
     if not validate_token(provided=read_access_token(request), expected=exp):
         logger.warning("[xxl_job] bad token")
-        return Response(fail("Token validation failed"), status=200)
+        return _xxl_json(fail("Token validation failed"))
     return None
 
 
@@ -38,7 +48,7 @@ class XxlJobBeatView(APIView):
 
     def get(self, request: Request, *args, **kwargs):
         err = _deny(request)
-        return err if err is not None else Response(success(), status=200)
+        return err if err is not None else _xxl_json(success())
 
 
 class XxlJobRunView(APIView):
@@ -51,18 +61,18 @@ class XxlJobRunView(APIView):
             return err
         data = request.data if isinstance(request.data, dict) else None
         if data is None:
-            return Response(fail("JSON object required"), status=200)
+            return _xxl_json(fail("JSON object required"))
         try:
             pr = parse_run_body(data)
         except (KeyError, TypeError, ValueError) as e:
-            return Response(fail(str(e) or "bad payload"), status=200)
+            return _xxl_json(fail(str(e) or "bad payload"))
         run_sync(
             registry=get_registry(),
             executor_handler=pr.executor_handler,
             executor_params=pr.executor_params,
             log_id=pr.log_id,
         )
-        return Response(success(), status=200)
+        return _xxl_json(success())
 
 
 class XxlJobKillView(APIView):
@@ -71,4 +81,4 @@ class XxlJobKillView(APIView):
 
     def post(self, request: Request, *args, **kwargs):
         err = _deny(request)
-        return err if err is not None else Response(success(msg="noop"), status=200)
+        return err if err is not None else _xxl_json(success(msg="noop"))

@@ -15,9 +15,8 @@ import time
 from typing import Any
 
 from django.conf import settings
+from django.template.response import ContentNotRenderedError
 from django.utils.deprecation import MiddlewareMixin
-
-from common.utils.http_util import resolve_request_id
 
 _MAX_BODY_JSON_CHARS = 8192
 _MAX_RESPONSE_JSON_CHARS = 4096
@@ -97,20 +96,33 @@ def _request_params_snapshot(request) -> dict[str, Any]:
 
 
 def _response_payload_summary(response) -> tuple[Any, Any, Any]:
+    blob = getattr(response, "data", None)
+    if isinstance(blob, dict) and "code" in blob:
+        return (
+            blob.get("code"),
+            blob.get("msg"),
+            _abbreviate_value(blob.get("data")),
+        )
     try:
-        text = response.content.decode("utf-8", errors="replace")
-    except (AttributeError, OSError, TypeError):
-        return None, None, "<no_content>"
+        raw = response.content
+    except (AttributeError, OSError, TypeError, ContentNotRenderedError):
+        return None, None, None
+    text = raw.decode("utf-8", errors="replace").strip()
+    if not text:
+        return None, None, None
     if len(text) > _MAX_RESPONSE_JSON_CHARS:
         text = text[:_MAX_RESPONSE_JSON_CHARS] + "…"
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        return None, None, "<non_json_response>"
-    ec = payload.get("errorCode")
-    msg = payload.get("message")
-    data = _abbreviate_value(payload.get("data"))
-    return ec, msg, data
+        return None, None, None
+    if not isinstance(payload, dict):
+        return None, None, None
+    return (
+        payload.get("code"),
+        payload.get("msg"),
+        _abbreviate_value(payload.get("data")),
+    )
 
 
 def _log_response(logger_name: str, request, response) -> None:
@@ -118,26 +130,22 @@ def _log_response(logger_name: str, request, response) -> None:
     duration_ms = None
     if start is not None:
         duration_ms = round((time.perf_counter() - start) * 1000, 3)
-    trace_id = resolve_request_id(request)
-    ec, msg, data = _response_payload_summary(response)
+    code, msg, data = _response_payload_summary(response)
 
     logging.getLogger(logger_name).info(
-        "[%s] %s data=%s errorCode=%s message=%s (%s)",
-        trace_id,
+        "%s code=%s msg=%s data=%s (%s)",
         getattr(response, "status_code", None),
-        data,
-        ec,
+        code,
         msg,
+        data,
         duration_ms,
     )
 
 
 def _log_request(logger_name: str, request) -> None:
-    trace_id = resolve_request_id(request)
     params = _request_params_snapshot(request)
     logging.getLogger(logger_name).info(
-        "[%s] params=%s",
-        trace_id,
+        "params=%s",
         params,
     )
 
