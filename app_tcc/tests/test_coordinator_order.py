@@ -69,7 +69,7 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.TccGlobalTransaction")
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
     @patch("app_tcc.services.coordinator.get_now_timestamp_ms", return_value=1_000_000)
-    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin")
+    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin_by_biz")
     @patch("app_tcc.services.coordinator.allocate_snowflake_int")
     @patch("app_tcc.services.coordinator.participant_http.call_participant")
     def test_try_order_then_confirm_reverse(
@@ -137,9 +137,10 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         mock_mr_objects.using.return_value.filter.return_value.first.return_value = None
 
         coordinator.begin_transaction(
+            biz_id=1,
             branch_items=[
-                {"branch_meta_id": 10, "payload": {"k": 1}},
-                {"branch_meta_id": 11, "payload": {"k": 2}},
+                {"branch_index": 0, "payload": {"k": 1}},
+                {"branch_index": 1, "payload": {"k": 2}},
             ],
             auto_confirm=True,
         )
@@ -163,7 +164,7 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.TccGlobalTransaction")
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
     @patch("app_tcc.services.coordinator.get_now_timestamp_ms", return_value=1_000_000)
-    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin")
+    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin_by_biz")
     @patch("app_tcc.services.coordinator.allocate_snowflake_int")
     @patch("app_tcc.services.coordinator.participant_http.call_participant")
     def test_try_failure_cancels_reverse_try_order(
@@ -237,9 +238,10 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         mock_mr_objects.using.return_value.filter.return_value.first.return_value = None
 
         coordinator.begin_transaction(
+            biz_id=1,
             branch_items=[
-                {"branch_meta_id": 10},
-                {"branch_meta_id": 11},
+                {"branch_index": 0},
+                {"branch_index": 1},
             ],
             auto_confirm=True,
         )

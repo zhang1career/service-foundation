@@ -15,7 +15,7 @@ from app_tcc.enums import (
 )
 from app_tcc.models import TccBranch, TccBranchMeta, TccGlobalTransaction, TccManualReview
 from app_tcc.services import participant_http
-from app_tcc.services.biz_branch_service import load_branch_metas_for_begin
+from app_tcc.services.biz_branch_service import load_branch_metas_for_begin_by_biz
 from app_tcc.services.snowflake_id import allocate_snowflake_int
 from common.utils.date_util import get_now_timestamp_ms
 
@@ -180,26 +180,29 @@ def get_transaction_for_query(
 
 def begin_transaction(
     *,
+    biz_id: int,
     branch_items: list[dict[str, Any]],
     auto_confirm: bool | None = None,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if not isinstance(biz_id, int):
+        raise ValueError("biz_id is required and must be int")
     if not branch_items:
         raise ValueError("branch_items is required")
 
     payloads: dict[int, dict[str, Any]] = {}
     for raw in branch_items:
-        mid = raw.get("branch_meta_id")
-        if not isinstance(mid, int):
-            raise ValueError("branch_meta_id is required and must be int")
-        if mid in payloads:
-            raise ValueError("duplicate branch_meta_id in branch_items")
+        bidx = raw.get("branch_index")
+        if not isinstance(bidx, int):
+            raise ValueError("branch_index is required and must be int")
+        if bidx in payloads:
+            raise ValueError("duplicate branch_index in branch_items")
         payload = raw.get("payload")
         if payload is not None and not isinstance(payload, dict):
             raise ValueError("branch payload must be a JSON object when provided")
-        payloads[mid] = payload or {}
+        payloads[bidx] = payload or {}
 
-    ordered_metas = load_branch_metas_for_begin(list(payloads.keys()))
+    ordered_metas = load_branch_metas_for_begin_by_biz(biz_id, list(payloads.keys()))
 
     if auto_confirm is None:
         auto_confirm = _default_auto_confirm()
@@ -208,7 +211,7 @@ def begin_transaction(
     snow_ids = [allocate_snowflake_int() for _ in range(1 + n)]
     tx_idem = snow_ids[0]
     pending: list[tuple[TccBranchMeta, dict[str, Any], int]] = [
-        (meta, payloads[meta.pk], snow_ids[i + 1])
+        (meta, payloads[meta.branch_index], snow_ids[i + 1])
         for i, meta in enumerate(ordered_metas)
     ]
 
@@ -477,8 +480,8 @@ def mark_manual_simple(g: TccGlobalTransaction, reason: str, snap: dict[str, Any
         )
 
 
-def confirm_transaction(global_tx_id: str) -> dict[str, Any]:
-    g = get_transaction_by_global_id(global_tx_id)
+def confirm_transaction(idem_key: int) -> dict[str, Any]:
+    g = get_transaction_for_query(global_tx_id=None, idem_key=idem_key)
     if not g:
         raise ValueError("transaction not found")
     if g.status != GlobalTxStatus.AWAIT_CONFIRM:
@@ -514,10 +517,10 @@ def confirm_transaction(global_tx_id: str) -> dict[str, Any]:
     return serialize_transaction(g)
 
 
-def cancel_transaction(global_tx_id: str, cancel_reason: int) -> dict[str, Any]:
+def cancel_transaction(idem_key: int, cancel_reason: int) -> dict[str, Any]:
     if int(cancel_reason) not in CANCEL_REASON_VALUES:
         raise ValueError("invalid cancel_reason")
-    g = get_transaction_by_global_id(global_tx_id)
+    g = get_transaction_for_query(global_tx_id=None, idem_key=idem_key)
     if not g:
         raise ValueError("transaction not found")
     if g.status in (

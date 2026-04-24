@@ -11,6 +11,16 @@ from common.utils.http_util import post_payload, resp_err, resp_exception, resp_
 logger = logging.getLogger(__name__)
 
 
+def _parse_path_idem_key(raw: str | None) -> int:
+    s = (raw or "").strip()
+    if not s:
+        raise ValueError("idem_key required")
+    try:
+        return int(s)
+    except ValueError:
+        raise ValueError("idem_key must be a decimal integer string")
+
+
 class TccTransactionBeginView(APIView):
     authentication_classes = []
 
@@ -19,6 +29,9 @@ class TccTransactionBeginView(APIView):
             data = post_payload(request)
             if not isinstance(data, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="JSON object required")
+            biz_id = data.get("biz_id")
+            if not isinstance(biz_id, int):
+                return resp_err(code=RET_INVALID_PARAM, message="biz_id is required and must be int")
             branches = data.get("branches")
             if not isinstance(branches, list) or not branches:
                 return resp_err(code=RET_INVALID_PARAM, message="branches[] required")
@@ -29,6 +42,7 @@ class TccTransactionBeginView(APIView):
             if ctx is not None and not isinstance(ctx, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="context must be object")
             out = coordinator.begin_transaction(
+                biz_id=biz_id,
                 branch_items=branches,
                 auto_confirm=auto_confirm,
                 context=ctx,
@@ -46,9 +60,10 @@ class TccTransactionBeginView(APIView):
 class TccTransactionConfirmView(APIView):
     authentication_classes = []
 
-    def post(self, request, global_tx_id: str, *args, **kwargs):
+    def post(self, request, idem_key: str, *args, **kwargs):
         try:
-            out = coordinator.confirm_transaction(global_tx_id.strip())
+            ik = _parse_path_idem_key(idem_key)
+            out = coordinator.confirm_transaction(ik)
             return resp_ok(out)
         except ValueError as e:
             return resp_err(code=RET_INVALID_PARAM, message=str(e))
@@ -60,8 +75,9 @@ class TccTransactionConfirmView(APIView):
 class TccTransactionCancelView(APIView):
     authentication_classes = []
 
-    def post(self, request, global_tx_id: str, *args, **kwargs):
+    def post(self, request, idem_key: str, *args, **kwargs):
         try:
+            ik = _parse_path_idem_key(idem_key)
             data = post_payload(request)
             if not isinstance(data, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="JSON object required")
@@ -73,7 +89,7 @@ class TccTransactionCancelView(APIView):
                 return resp_err(code=RET_INVALID_PARAM, message="cancel_reason must be int")
             if cancel_reason not in CANCEL_REASON_VALUES:
                 return resp_err(code=RET_INVALID_PARAM, message="invalid cancel_reason")
-            out = coordinator.cancel_transaction(global_tx_id.strip(), cancel_reason)
+            out = coordinator.cancel_transaction(ik, cancel_reason)
             return resp_ok(out)
         except ValueError as e:
             return resp_err(code=RET_INVALID_PARAM, message=str(e))
@@ -85,11 +101,12 @@ class TccTransactionCancelView(APIView):
 class TccTransactionDetailView(APIView):
     authentication_classes = []
 
-    def get(self, request, global_tx_id: str, *args, **kwargs):
-        gtx = (global_tx_id or "").strip()
-        if not gtx:
-            return resp_err(code=RET_INVALID_PARAM, message="global_tx_id required")
-        g = coordinator.get_transaction_for_query(global_tx_id=gtx, idem_key=None)
+    def get(self, request, idem_key: str, *args, **kwargs):
+        try:
+            ik = _parse_path_idem_key(idem_key)
+        except ValueError as e:
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
+        g = coordinator.get_transaction_for_query(global_tx_id=None, idem_key=ik)
         if not g:
             return resp_err(code=RET_INVALID_PARAM, message="transaction not found")
         return resp_ok(coordinator.serialize_transaction(g))

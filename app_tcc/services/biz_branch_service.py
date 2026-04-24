@@ -215,3 +215,25 @@ def load_branch_metas_for_begin(branch_meta_ids: list[int]) -> list[TccBranchMet
     if p.status != ServiceRegStatus.ENABLED.value:
         raise ValueError("participant is disabled")
     return sorted(metas, key=lambda m: m.branch_index)
+
+
+def load_branch_metas_for_begin_by_biz(
+    biz_id: int, branch_indices: list[int]
+) -> list[TccBranchMeta]:
+    if not branch_indices:
+        raise ValueError("branch_indices is required")
+    if len(set(branch_indices)) != len(branch_indices):
+        raise ValueError("duplicate branch_index")
+    if not TccBizMeta.objects.using("tcc_rw").filter(pk=biz_id).exists():
+        raise ValueError("biz_meta not found")
+    metas = list(
+        TccBranchMeta.objects.using("tcc_rw")
+        .filter(biz_id=biz_id, branch_index__in=branch_indices)
+        .select_related("biz", "biz__participant")
+    )
+    if len(metas) != len(branch_indices):
+        raise ValueError("unknown branch_index for this biz")
+    p = metas[0].biz.participant
+    if p.status != ServiceRegStatus.ENABLED.value:
+        raise ValueError("participant is disabled")
+    return sorted(metas, key=lambda m: m.branch_index)

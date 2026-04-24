@@ -32,3 +32,9 @@ python manage.py createsuperuser
 pip install -r requirements.txt
 python manage.py migrate
 ```
+
+## TCC：开启事务 API（`POST /api/tcc/tx`）
+
+请求体需包含 **`biz_id`**（对应 `biz_meta.id`），`branches[]` 中每一项用 **`branch_index`**（与控制台为该业务配置的分支序号一致，对应 `branch_meta.branch_index`），不再要求调用方传入 `branch_meta` 表主键。
+
+**一致性说明：** 若在控制台调整分支顺序或修改 `branch_index`，而调用方仍按旧序号组请求，可能命中错误的参与方 URL 或业务语义错位。降低与内部主键耦合的同时，需要与配置变更保持协同（例如发布顺序、约定或版本化），否则存在单方面变更顺序导致的数据不一致风险。

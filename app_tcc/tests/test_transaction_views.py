@@ -23,9 +23,20 @@ class TccHealthViewTests(SimpleTestCase):
 
 
 class TccTransactionBeginViewTests(SimpleTestCase):
+    def test_biz_id_required(self):
+        factory = APIRequestFactory()
+        request = factory.post(
+            "/tcc/tx",
+            {"branches": [{"branch_index": 0}]},
+            format="json",
+        )
+        response = TccTransactionBeginView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(response.data["errorCode"], 0)
+
     def test_branches_required(self):
         factory = APIRequestFactory()
-        request = factory.post("/tcc/tx", {}, format="json")
+        request = factory.post("/tcc/tx", {"biz_id": 1}, format="json")
         response = TccTransactionBeginView.as_view()(request)
         self.assertEqual(response.status_code, 200)
         self.assertNotEqual(response.data["errorCode"], 0)
@@ -34,7 +45,11 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         factory = APIRequestFactory()
         request = factory.post(
             "/tcc/tx",
-            {"branches": [{"branch_meta_id": 1}], "auto_confirm": "yes"},
+            {
+                "biz_id": 1,
+                "branches": [{"branch_index": 0}],
+                "auto_confirm": "yes",
+            },
             format="json",
         )
         response = TccTransactionBeginView.as_view()(request)
@@ -46,7 +61,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         factory = APIRequestFactory()
         request = factory.post(
             "/tcc/tx",
-            {"branches": [{"branch_meta_id": 1, "payload": {}}]},
+            {"biz_id": 1, "branches": [{"branch_index": 0, "payload": {}}]},
             format="json",
         )
         response = TccTransactionBeginView.as_view()(request)
@@ -56,11 +71,11 @@ class TccTransactionBeginViewTests(SimpleTestCase):
 
 
 class TccTransactionDetailViewTests(SimpleTestCase):
-    def test_blank_global_tx_id_rejected(self):
+    def test_blank_idem_key_rejected(self):
         factory = APIRequestFactory()
         request = factory.get("/tcc/tx/   ")
         response = TccTransactionDetailView.as_view()(
-            request, global_tx_id="   "
+            request, idem_key="   "
         )
         self.assertNotEqual(response.data["errorCode"], 0)
 
@@ -69,7 +84,7 @@ class TccTransactionDetailViewTests(SimpleTestCase):
         mock_get.return_value = None
         factory = APIRequestFactory()
         request = factory.get("/tcc/tx/1")
-        response = TccTransactionDetailView.as_view()(request, global_tx_id="1")
+        response = TccTransactionDetailView.as_view()(request, idem_key="1")
         self.assertNotEqual(response.data["errorCode"], 0)
 
     @patch("app_tcc.views.transaction_api_view.coordinator.serialize_transaction")
@@ -80,7 +95,7 @@ class TccTransactionDetailViewTests(SimpleTestCase):
         mock_ser.return_value = {"global_tx_id": "1", "branches": []}
         factory = APIRequestFactory()
         request = factory.get("/tcc/tx/1")
-        response = TccTransactionDetailView.as_view()(request, global_tx_id="1")
+        response = TccTransactionDetailView.as_view()(request, idem_key="1")
         self.assertEqual(response.data["errorCode"], 0)
         self.assertEqual(response.data["data"]["global_tx_id"], "1")
         mock_ser.assert_called_once_with(found)
