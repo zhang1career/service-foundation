@@ -11,7 +11,7 @@ from django.conf import settings
 from common.services.http.errors import HttpCallError
 from common.services.http.executor import request_sync
 from common.services.http.pools import HttpClientPool
-from common.services.service_discovery import expand_service_discovery_url
+from common.services.service_discovery import maybe_expand_service_discovery_url
 from common.utils.service_url_template import ServiceUrlResolutionError
 
 logger = logging.getLogger(__name__)
@@ -24,12 +24,11 @@ def _admin_base() -> str:
     raw = (getattr(settings, "XXL_JOB_ADMIN_ADDRESS", "") or "").strip()
     if not raw:
         return ""
-    if "://{{" in raw:
-        try:
-            raw = expand_service_discovery_url(raw)
-        except ServiceUrlResolutionError as e:
-            logger.warning("[xxl_job] XXL_JOB_ADMIN_ADDRESS unresolved: %s", e)
-            return ""
+    try:
+        raw = maybe_expand_service_discovery_url(raw)
+    except ServiceUrlResolutionError as e:
+        logger.warning("[xxl_job] XXL_JOB_ADMIN_ADDRESS unresolved: %s", e)
+        return ""
     return raw.rstrip("/")
 
 

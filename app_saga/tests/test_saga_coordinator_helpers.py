@@ -40,3 +40,25 @@ class SagaCoordinatorHelperTests(SimpleTestCase):
         self.assertEqual(out["context"], {"k": 1})
         self.assertEqual(len(out["step_runs"]), 1)
         self.assertEqual(out["step_runs"][0]["step_index"], 0)
+
+    def test_load_start_request_empty(self):
+        inst = MagicMock()
+        inst.start_body = ""
+        self.assertEqual(saga_coordinator._load_start_request(inst), {})
+
+    def test_load_start_request_parses(self):
+        inst = MagicMock()
+        inst.start_body = (
+            '{"access_key":"k","flow_id":1,"context":{"a":1},'
+            '"step_payloads":{"0":{}},"idem_key":9}'
+        )
+        out = saga_coordinator._load_start_request(inst)
+        self.assertEqual(out["access_key"], "k")
+        self.assertEqual(out["flow_id"], 1)
+        self.assertEqual(out["context"], {"a": 1})
+        self.assertEqual(out["idem_key"], 9)
+
+    def test_load_start_request_invalid_returns_empty(self):
+        inst = MagicMock()
+        inst.start_body = "not-json"
+        self.assertEqual(saga_coordinator._load_start_request(inst), {})

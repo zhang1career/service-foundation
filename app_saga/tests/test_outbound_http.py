@@ -7,12 +7,17 @@ from django.test import SimpleTestCase, override_settings
 
 from app_saga.services import outbound_http
 from common.consts.response_const import RET_OK
+from common.utils.service_url_template import ServiceUrlResolutionError
 
 
 class OutboundHttpTests(SimpleTestCase):
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @override_settings(SAGA_OUTBOUND_TIMEOUT_SEC=12.0)
     @patch("app_saga.services.outbound_http.request_sync")
-    def test_call_saga_endpoint_uses_settings_timeout_when_none(self, mock_req):
+    def test_call_saga_endpoint_uses_settings_timeout_when_none(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = ""
@@ -29,8 +34,47 @@ class OutboundHttpTests(SimpleTestCase):
         mock_req.assert_called_once()
         self.assertEqual(mock_req.call_args.kwargs["timeout_sec"], 12.0)
 
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")
-    def test_call_saga_endpoint_http_error_returns_zero_status(self, mock_req):
+    def test_call_saga_expands_templated_url_before_request(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.return_value = "http://host:1/action"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = ""
+        mock_resp.json.return_value = {"errorCode": RET_OK}
+        mock_req.return_value = mock_resp
+        st, err, _data = outbound_http.call_saga_endpoint(
+            url="http://{{order-svc}}/action",
+            json_body={},
+            timeout_sec=1.0,
+        )
+        self.assertEqual(st, 200)
+        self.assertEqual(err, "")
+        mock_expand.assert_called_once_with("http://{{order-svc}}/action")
+        self.assertEqual(mock_req.call_args.kwargs["url"], "http://host:1/action")
+
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
+    @patch("app_saga.services.outbound_http.request_sync")
+    def test_call_saga_endpoint_resolution_error_returns_zero(self, mock_req, mock_expand):
+        mock_expand.side_effect = ServiceUrlResolutionError("no service")
+        st, err, data = outbound_http.call_saga_endpoint(
+            url="http://{{missing}}/a",
+            json_body={},
+            timeout_sec=1.0,
+        )
+        self.assertEqual(st, 0)
+        self.assertIn("no service", err)
+        self.assertIsNone(data)
+        mock_req.assert_not_called()
+
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
+    @patch("app_saga.services.outbound_http.request_sync")
+    def test_call_saga_endpoint_http_error_returns_zero_status(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
         mock_req.side_effect = httpx.ConnectError("boom")
         st, err, data = outbound_http.call_saga_endpoint(
             url="http://example.test/x",
@@ -41,8 +85,12 @@ class OutboundHttpTests(SimpleTestCase):
         self.assertIn("boom", err)
         self.assertIsNone(data)
 
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")
-    def test_call_saga_endpoint_non_2xx_returns_body_snippet(self, mock_req):
+    def test_call_saga_endpoint_non_2xx_returns_body_snippet(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
         mock_resp = MagicMock()
         mock_resp.status_code = 503
         mock_resp.text = "upstream" * 200
@@ -57,8 +105,10 @@ class OutboundHttpTests(SimpleTestCase):
         self.assertIn("upstream", err)
         self.assertIsNone(data)
 
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")
-    def test_call_saga_endpoint_2xx_non_json(self, mock_req):
+    def test_call_saga_endpoint_2xx_non_json(self, mock_req, mock_expand):
+        mock_expand.side_effect = lambda u: u
         mock_resp = MagicMock()
         mock_resp.status_code = 204
         mock_resp.text = "not-json"
@@ -73,8 +123,10 @@ class OutboundHttpTests(SimpleTestCase):
         self.assertEqual(err, "")
         self.assertIsNone(data)
 
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")
-    def test_call_saga_endpoint_error_code_non_ok(self, mock_req):
+    def test_call_saga_endpoint_error_code_non_ok(self, mock_req, mock_expand):
+        mock_expand.side_effect = lambda u: u
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = '{"errorCode":1}'
@@ -89,8 +141,12 @@ class OutboundHttpTests(SimpleTestCase):
         self.assertEqual(err, "nope")
         self.assertIsInstance(data, dict)
 
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")
-    def test_call_saga_endpoint_plain_dict_without_error_code(self, mock_req):
+    def test_call_saga_endpoint_plain_dict_without_error_code(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = "{}"
@@ -105,8 +161,12 @@ class OutboundHttpTests(SimpleTestCase):
         self.assertEqual(err, "")
         self.assertEqual(data, {"hello": "world"})
 
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")
-    def test_call_saga_endpoint_list_json_treated_as_no_dict(self, mock_req):
+    def test_call_saga_endpoint_list_json_treated_as_no_dict(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = "[]"

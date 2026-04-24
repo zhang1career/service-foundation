@@ -87,3 +87,19 @@ def expand_service_discovery_url(url: str, index: int | None = None) -> str:
     if "://{{" not in url:
         return url.rstrip("/")
     return specify_service_host(url, _redis_resolve_host, index).rstrip("/")
+
+
+def maybe_expand_service_discovery_url(url: str, index: int | None = None) -> str:
+    """
+    If *url* contains ``://{{service_key}}`` (Paganini / mall-agg style), resolve
+    **host:port** from the service registry in Redis — same as
+    :func:`expand_service_discovery_url`.
+
+    Otherwise return the value stripped of leading/trailing whitespace, **without**
+    stripping trailing path slashes. Use this for participant/outbound request URLs
+    that should stay literal when no placeholder is present.
+    """
+    u = (url or "").strip()
+    if not u or "://{{" not in u:
+        return u
+    return expand_service_discovery_url(u, index=index)

@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS `instance` (
   idem_key BIGINT NOT NULL,
   context LONGTEXT NOT NULL,
   step_payloads LONGTEXT NOT NULL,
+  start_body LONGTEXT NOT NULL,
   current_step_index INT NOT NULL DEFAULT 0,
   next_retry_at BIGINT NOT NULL,
   retry_count INT UNSIGNED NOT NULL DEFAULT 0,
@@ -65,6 +66,9 @@ CREATE TABLE IF NOT EXISTS `instance` (
   CONSTRAINT instance_flow_fk FOREIGN KEY (fid) REFERENCES flow (id) ON DELETE CASCADE,
   CONSTRAINT instance_reg_fk FOREIGN KEY (rid) REFERENCES reg (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Existing `instance` table: persist POST /api/saga/instances body for participant callbacks
+-- ALTER TABLE `instance` ADD COLUMN start_body LONGTEXT NOT NULL DEFAULT ('{}') AFTER step_payloads;
 
 CREATE TABLE IF NOT EXISTS step_run (
   id BIGINT NOT NULL AUTO_INCREMENT,

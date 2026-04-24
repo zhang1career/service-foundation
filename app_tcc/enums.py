@@ -20,3 +20,16 @@ class BranchStatus:
     CONFIRM_FAILED = 50
     CANCEL_SUCCEEDED = 60
     CANCEL_FAILED = 70
+
+
+class CancelReason:
+    """Business reason for entering / performing cancel; sent to participants."""
+
+    UNPAID = 0
+    ORDER_CLOSED = 10
+    DUPLICATE_CALLBACK = 20
+
+
+CANCEL_REASON_VALUES = frozenset(
+    (CancelReason.UNPAID, CancelReason.ORDER_CLOSED, CancelReason.DUPLICATE_CALLBACK)
+)

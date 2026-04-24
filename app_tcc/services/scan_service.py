@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 
-from app_tcc.enums import BranchStatus, GlobalTxStatus
+from app_tcc.enums import BranchStatus, CancelReason, GlobalTxStatus
 from app_tcc.models import TccGlobalTransaction
 from app_tcc.services import coordinator
 from common.utils.date_util import get_now_timestamp_ms
@@ -99,6 +99,7 @@ def process_one(g: TccGlobalTransaction) -> None:
                 )
                 g.await_confirm_deadline_at = None
                 g.next_retry_at = now_ms
+                g.last_cancel_reason = CancelReason.ORDER_CLOSED
                 g.save(
                     using="tcc_rw",
                     update_fields=[
@@ -107,6 +108,7 @@ def process_one(g: TccGlobalTransaction) -> None:
                         "phase_deadline_at",
                         "await_confirm_deadline_at",
                         "next_retry_at",
+                        "last_cancel_reason",
                         "ut",
                     ],
                 )

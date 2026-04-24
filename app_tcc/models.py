@@ -1,6 +1,6 @@
 from django.db import models
 
-from app_tcc.enums import BranchStatus, GlobalTxStatus
+from app_tcc.enums import BranchStatus, CancelReason, GlobalTxStatus
 from common.enums.service_reg_status_enum import ServiceRegStatus
 from common.utils.date_util import get_now_timestamp_ms
 
@@ -96,6 +96,7 @@ class TccGlobalTransaction(models.Model):
     manual_reason = models.TextField(blank=True, default="")
     context = models.TextField(default="{}", blank=True)
     idem_key = models.BigIntegerField(unique=True)
+    last_cancel_reason = models.PositiveSmallIntegerField(default=CancelReason.UNPAID)
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)
 

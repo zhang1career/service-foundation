@@ -116,6 +116,7 @@ class SagaInstance(models.Model):
     idem_key = models.BigIntegerField(unique=True)
     context = models.TextField(default="{}")
     step_payloads = models.TextField(default="{}")
+    start_body = models.TextField(default="{}")
     current_step_index = models.IntegerField(default=0)
     next_retry_at = models.BigIntegerField()
     retry_count = models.PositiveIntegerField(default=0)

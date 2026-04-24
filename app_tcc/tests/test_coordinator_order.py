@@ -247,5 +247,6 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         cancel_calls = [c for c in mock_call.call_args_list if c[1]["phase"] == "cancel"]
         self.assertEqual(len(cancel_calls), 1)
         self.assertEqual(cancel_calls[0][1]["url"], "http://a/cancel")
+        self.assertEqual(cancel_calls[0][1]["cancel_reason"], 0)
 
         self.assertEqual(g.status, GlobalTxStatus.ROLLED_BACK)

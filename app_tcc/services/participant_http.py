@@ -6,7 +6,10 @@ from typing import Any
 import httpx
 from django.conf import settings
 
+from app_tcc.enums import CancelReason
 from common.services.http import HttpClientPool, request_sync
+from common.services.service_discovery import maybe_expand_service_discovery_url
+from common.utils.service_url_template import ServiceUrlResolutionError
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +26,32 @@ def call_participant(
         branch_id: str,
         idempotency_key: str,
         payload: dict[str, Any] | None,
+        cancel_reason: int | None = None,
 ) -> tuple[int, str]:
     """
     POST JSON to participant. Returns (http_status, error_or_body_snippet).
     Success: status in 200..299 and empty error string.
+
+    For ``phase == \"cancel\"``, ``cancel_reason`` is required (int enum); omitted uses
+    :data:`CancelReason.UNPAID`.
     """
-    body = {
+    try:
+        url = maybe_expand_service_discovery_url(url)
+    except ServiceUrlResolutionError as e:
+        logger.warning("tcc participant URL unresolved: %s", e)
+        return 0, str(e)[:500]
+
+    body: dict[str, Any] = {
         "global_tx_id": global_tx_id,
         "branch_id": branch_id,
         "phase": phase,
         "idempotency_key": idempotency_key,
         "payload": payload if payload is not None else {},
     }
+    if phase == PHASE_CANCEL:
+        body["cancel_reason"] = (
+            int(cancel_reason) if cancel_reason is not None else CancelReason.UNPAID
+        )
     timeout = float(settings.TCC_OUTBOUND_TIMEOUT_SEC)
     try:
         resp = request_sync(

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Saga 编排服务 API (app_saga)",
-    "description": "长事务 Saga 实例：按流程定义顺序调用参与者 action/compensate，并支持查询实例状态。仅在 `APP_SAGA_ENABLED=true` 时挂载；HTTP 前缀：`/api/saga/`（见 `service_foundation/urls.py` → `app_saga/urls.py`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**错误响应**：`resp_err` / `resp_exception` 可能设置 `X-Request-Id`（见 `common.utils.http_util`）。\n\n**鉴权**：当前业务视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**XXL-JOB 执行器**（`/api/saga/xxl-job/*`）：与业务 API **不同**，响应为 `{ code, msg, data }`（`code` 为 200/500），请求头需 `XXL-JOB-ACCESS-TOKEN`（与 `XXL_JOB_TOKEN` 一致）；管理端回调地址见 `XXL_JOB_ADMIN_ADDRESS`。内建任务名 **`sagaScan`**：同步执行与 `manage.py saga_scan` 相同的扫描（`executorParams` 可选为 batch `limit` 的十进制字符串）。\n\n**状态码（整数）**：实例见 `SagaInstanceStatus`（PENDING=10, RUNNING=20, COMPENSATING=30, COMPLETED=40, ROLLED_BACK=50, FAILED=60）；步骤 action 见 `SagaStepActionStatus`（PENDING=10, SUCCEEDED=20, FAILED=30）；补偿见 `SagaStepCompensateStatus`（PENDING=10, SUCCEEDED=20, FAILED=30, SKIPPED=40），定义于 `app_saga/enums.py`。",
+    "description": "长事务 Saga 实例：按流程定义顺序调用参与者 action/compensate，并支持查询实例状态。仅在 `APP_SAGA_ENABLED=true` 时挂载；HTTP 前缀：`/api/saga/`（见 `service_foundation/urls.py` → `app_saga/urls.py`）。\n\n**参与者 HTTP（JSON POST）**：编排器对每个 `flow_step` 的 `action_url` / `compensate_url` 发送的 body 在原有 `saga_instance_id`、`idem_key`、`flow_id`、`step_index`、`phase`、`context`（**当前**步骤可见、可被步骤响应合并的上下文）、`payload`（本步骤的 `step_payloads` 项）之外，另含 **`start_request`** 对象，其内容与**创建该实例**时 `POST /api/saga/instances` 的 JSON 体一致（`access_key`、`flow_id`、`context`、`step_payloads`、`idem_key`），其中 `start_request.context` 为**创建时**的初始 `context`（与根级 `context` 可能不同）。`instance` 表需有 `start_body` 列以持久化该副本（见 `docs/schema/sf_saga.sql`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**错误响应**：`resp_err` / `resp_exception` 可能设置 `X-Request-Id`（见 `common.utils.http_util`）。\n\n**鉴权**：当前业务视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**XXL-JOB 执行器**（`/api/saga/xxl-job/*`）：与业务 API **不同**，响应为 `{ code, msg, data }`（`code` 为 200/500），请求头需 `XXL-JOB-ACCESS-TOKEN`（与 `XXL_JOB_TOKEN` 一致）；管理端回调地址见 `XXL_JOB_ADMIN_ADDRESS`。内建任务名 **`sagaScan`**：同步执行与 `manage.py saga_scan` 相同的扫描（`executorParams` 可选为 batch `limit` 的十进制字符串）。\n\n**状态码（整数）**：实例见 `SagaInstanceStatus`（PENDING=10, RUNNING=20, COMPENSATING=30, COMPLETED=40, ROLLED_BACK=50, FAILED=60）；步骤 action 见 `SagaStepActionStatus`（PENDING=10, SUCCEEDED=20, FAILED=30）；补偿见 `SagaStepCompensateStatus`（PENDING=10, SUCCEEDED=20, FAILED=30, SKIPPED=40），定义于 `app_saga/enums.py`。",
     "version": "1.0.0"
   },
   "servers": [
@@ -75,12 +75,12 @@
         }
       }
     },
-    "/api/saga/instances/start": {
+    "/api/saga/instances": {
       "post": {
         "tags": ["Instances"],
         "summary": "启动 Saga 实例",
         "description": "请求体为 JSON 对象。\n\n- **`access_key`**（string，必填）：参与者注册 access key，须为启用状态。\n- **`flow_id`**（int，必填）：该参与者下已启用的流程 ID。\n- **`context`**（object，可选）：持久化为实例上下文（JSON 对象）。\n- **`step_payloads`**（object，可选）：按步骤传入负载；键为 **`step_index` 的十进制字符串** 或（非空时）**步骤 `name`**，值为对象（见 `saga_coordinator._payload_for_step`）。\n- **`idem_key`**（int，可选）：显式幂等键；若已存在同键实例则 **直接返回已有实例序列化结果**（不重复创建）。省略时由 Snowflake 服务分配（依赖 `SAGA_SNOWFLAKE_*` 配置）。\n\n创建后服务端会在 `SAGA_START_SYNC_STEP_BUDGET` 限制内同步推进若干步，响应中的 `status` / `step_runs` 反映当前进度。\n\n**错误**：缺字段/类型错误/业务校验失败 → `errorCode=100`（`RET_INVALID_PARAM`）；未捕获异常（含实例上下文 JSON 损坏导致的解析失败等）→ `errorCode=-1`（`resp_exception`）。极端情况下若实例在处理后丢失，`data` 可能为空对象 `{}`（见 `start_instance` 实现）。",
-        "operationId": "sagaInstanceStart",
+        "operationId": "sagaInstancesCreate",
         "requestBody": {
           "required": true,
           "content": {
@@ -135,26 +135,19 @@
         }
       }
     },
-    "/api/saga/instances/detail": {
+    "/api/saga/instances/{instance_id}": {
       "get": {
         "tags": ["Instances"],
         "summary": "查询 Saga 实例详情",
-        "description": "**二选一**查询：`idem_key`（int）或 `saga_instance_id`（int，实例主键）。两者同时提供 → `errorCode=100`；均未提供 → `100`；找不到实例 → `100`（message: `instance not found`）。\n\n成功时 `data` 与 `serialize_instance` 一致（`context` 为解析后的 JSON 对象；若库内字段非合法 JSON 对象，可能触发未捕获异常并返回 `errorCode=-1`）。",
-        "operationId": "sagaInstanceDetail",
+        "description": "路径参数 `instance_id` 为实例主键（`SagaInstance.id` 的十进制整数，前后空白会被 trim）。无法解析为整数 → `errorCode=100`；找不到实例 → `100`（message: `instance not found`）。\n\n成功时 `data` 与 `serialize_instance` 一致（`context` 为解析后的 JSON 对象；若库内字段非合法 JSON 对象，可能触发未捕获异常并返回 `errorCode=-1`）。",
+        "operationId": "sagaInstancesGet",
         "parameters": [
           {
-            "name": "idem_key",
-            "in": "query",
-            "required": false,
-            "description": "启动时分配或传入的幂等键（Snowflake 整数）。与 `saga_instance_id` 互斥。",
-            "schema": { "type": "integer", "format": "int64", "example": 1234567890123456789 }
-          },
-          {
-            "name": "saga_instance_id",
-            "in": "query",
-            "required": false,
-            "description": "实例主键（`SagaInstance.id`）。与 `idem_key` 互斥。",
-            "schema": { "type": "integer", "format": "int64", "example": 42 }
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "description": "实例主键（`SagaInstance.id` 的十进制字符串）。",
+            "schema": { "type": "string", "pattern": "^[0-9]+$", "example": "42" }
           }
         ],
         "responses": {

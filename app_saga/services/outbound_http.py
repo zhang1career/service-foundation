@@ -9,7 +9,9 @@ from django.conf import settings
 
 from common.consts.response_const import RET_OK
 from common.services.http import HttpClientPool, request_sync
+from common.services.service_discovery import maybe_expand_service_discovery_url
 from common.utils.json_util import API_JSON_DUMPS_PARAMS, json_decode
+from common.utils.service_url_template import ServiceUrlResolutionError
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,12 @@ def call_saga_endpoint(
     POST JSON. Returns (http_status, error_snippet, parsed_json_or_none).
     On HTTP success, if body is JSON object with errorCode, requires RET_OK for logical success.
     """
+    try:
+        url = maybe_expand_service_discovery_url(url)
+    except ServiceUrlResolutionError as e:
+        logger.warning("saga service URL unresolved: %s", e)
+        return 0, str(e)[:500], None
+
     timeout = float(timeout_sec if timeout_sec is not None else settings.SAGA_OUTBOUND_TIMEOUT_SEC)
     try:
         resp = request_sync(

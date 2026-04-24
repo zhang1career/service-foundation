@@ -75,12 +75,12 @@
         }
       }
     },
-    "/api/tcc/transactions/begin": {
+    "/api/tcc/tx": {
       "post": {
         "tags": ["Transactions"],
         "summary": "开启全局事务（Try 阶段及后续）",
         "description": "请求体为 JSON 对象。\n\n- `branches`：非空数组；每项须含 **`branch_meta_id`（int）**，可选 **`payload`（对象）**。同一请求内 `branch_meta_id` 不可重复。\n- `auto_confirm`：可选布尔；省略时使用服务端 `TCC_DEFAULT_AUTO_CONFIRM`。\n- `context`：可选对象，持久化为全局事务上下文（JSON）。\n\n服务端分配 Snowflake `idem_key` 与各分支幂等键，按分支元数据顺序调用参与者 Try；成功且 `auto_confirm` 为真时进入 Confirm，否则进入 `AWAIT_CONFIRM` 等待显式确认。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
-        "operationId": "tccTransactionBegin",
+        "operationId": "tccTxBegin",
         "requestBody": {
           "required": true,
           "content": {
@@ -127,25 +127,18 @@
         }
       }
     },
-    "/api/tcc/transactions/detail": {
+    "/api/tcc/tx/{global_tx_id}": {
       "get": {
         "tags": ["Transactions"],
         "summary": "查询全局事务详情",
-        "description": "**二选一**查询：`idem_key`（int）或 `global_tx_id`（字符串，与全局事务主键一致的可解析整数）。两者同时提供 → `errorCode=100`；均未提供 → `100`；找不到事务 → `100`（message: `transaction not found`）。成功时 `data` 结构与 `serialize_transaction` 一致。",
-        "operationId": "tccTransactionDetail",
+        "description": "路径参数 `global_tx_id` 为全局事务主键（`TccGlobalTransaction` 主键的十进制字符串，前后空白会被 trim）。空字符串 → `errorCode=100`；找不到事务 → `100`（message: `transaction not found`）。成功时 `data` 结构与 `serialize_transaction` 一致。",
+        "operationId": "tccTxDetail",
         "parameters": [
           {
-            "name": "idem_key",
-            "in": "query",
-            "required": false,
-            "description": "开启事务时分配的幂等/全局 idem（Snowflake 整数）。与 `global_tx_id` 互斥。",
-            "schema": { "type": "integer", "format": "int64", "example": 1234567890123456789 }
-          },
-          {
             "name": "global_tx_id",
-            "in": "query",
-            "required": false,
-            "description": "全局事务 ID（`TccGlobalTransaction` 主键的十进制字符串）。与 `idem_key` 互斥。",
+            "in": "path",
+            "required": true,
+            "description": "全局事务 ID（`TccGlobalTransaction` 主键的十进制字符串）。",
             "schema": { "type": "string", "pattern": "^[0-9]+$", "example": "9876543210987654321" }
           }
         ],
@@ -192,12 +185,12 @@
         }
       }
     },
-    "/api/tcc/transactions/{global_tx_id}/confirm": {
+    "/api/tcc/tx/{global_tx_id}/confirm": {
       "post": {
         "tags": ["Transactions"],
         "summary": "确认全局事务（进入 Confirm 阶段）",
         "description": "路径参数 `global_tx_id` 为全局事务主键字符串。仅当当前状态为 **`AWAIT_CONFIRM`** 时可确认；否则 `errorCode=100`。成功返回更新后的 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
-        "operationId": "tccTransactionConfirm",
+        "operationId": "tccTxConfirm",
         "parameters": [
           {
             "name": "global_tx_id",
@@ -250,12 +243,12 @@
         }
       }
     },
-    "/api/tcc/transactions/{global_tx_id}/cancel": {
+    "/api/tcc/tx/{global_tx_id}/cancel": {
       "post": {
         "tags": ["Transactions"],
         "summary": "取消全局事务（进入 Cancel 阶段）",
-        "description": "对已 **COMMITTED**、**ROLLED_BACK** 或 **NEEDS_MANUAL** 的事务调用会返回 `errorCode=100`（`transaction is already terminal`）。对其余非终态事务置为取消阶段并对已成功 Try 的分支逆序调用 Cancel。成功返回 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
-        "operationId": "tccTransactionCancel",
+        "description": "请求体为 JSON 对象，**必填** `cancel_reason`（整型枚举，见 `TccCancelReason` / `app_tcc.enums.CancelReason`）。对已 **COMMITTED**、**ROLLED_BACK** 或 **NEEDS_MANUAL** 的事务调用会返回 `errorCode=100`（`transaction is already terminal`）。对其余非终态事务置为取消阶段并对已成功 Try 的分支逆序调用 Cancel；参与者 `cancel_url` 的 JSON 体会带 `cancel_reason` 与 `last_cancel_reason` 一致。Try 失败或待确认超时等由协调器触发的取消使用内部原因（见 `CancelReason`）。成功返回 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
+        "operationId": "tccTxCancel",
         "parameters": [
           {
             "name": "global_tx_id",
@@ -265,6 +258,15 @@
             "schema": { "type": "string", "example": "9876543210987654321" }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TccCancelRequest" },
+              "example": { "cancel_reason": 0 }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "成功或错误（HTTP 200）",
@@ -440,6 +442,19 @@
             "additionalProperties": true,
             "description": "可选；省略等价于 `{}`。若非对象则返回参数错误"
           }
+        }
+      },
+      "TccCancelReason": {
+        "type": "integer",
+        "description": "业务取消原因；定义于 `app_tcc.enums.CancelReason`",
+        "enum": [0, 10, 20],
+        "x-enum-varnames": ["UNPAID", "ORDER_CLOSED", "DUPLICATE_CALLBACK"]
+      },
+      "TccCancelRequest": {
+        "type": "object",
+        "required": ["cancel_reason"],
+        "properties": {
+          "cancel_reason": { "$ref": "#/components/schemas/TccCancelReason" }
         }
       },
       "TccBeginRequest": {

@@ -54,6 +54,17 @@ def _payload_for_step(step: SagaFlowStep, payloads: dict[str, Any]) -> dict[str,
     return {}
 
 
+def _load_start_request(inst: SagaInstance) -> dict[str, Any]:
+    """JSON snapshot of POST /api/saga/instances at creation (`instance.start_body`)."""
+    raw = getattr(inst, "start_body", None)
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        return outbound_http.loads_json_dict(raw)
+    except ValueError:
+        return {}
+
+
 def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
     runs = list(
         inst.step_runs.order_by("step_index").values(
@@ -141,6 +152,13 @@ def start_instance(
         except SnowflakeIdError as e:
             raise ValueError(str(e)) from e
 
+    start_request: dict[str, Any] = {
+        "access_key": access_key.strip(),
+        "flow_id": int(flow.pk),
+        "context": ctx,
+        "step_payloads": payloads,
+        "idem_key": int(ik),
+    }
     now = _now_ms()
     with transaction.atomic(using="saga_rw"):
         inst = SagaInstance(
@@ -150,6 +168,7 @@ def start_instance(
             idem_key=ik,
             context=outbound_http.dumps_json(ctx),
             step_payloads=outbound_http.dumps_json(payloads),
+            start_body=outbound_http.dumps_json(start_request),
             current_step_index=0,
             next_retry_at=now,
             retry_count=0,
@@ -203,6 +222,7 @@ def _run_forward_action(
         "phase": "action",
         "context": ctx,
         "payload": _payload_for_step(fs, payloads),
+        "start_request": _load_start_request(inst),
     }
     st, err, resp_obj = outbound_http.call_saga_endpoint(
         url=fs.action_url,
@@ -245,6 +265,7 @@ def _run_compensate(
         "phase": "compensate",
         "context": ctx,
         "payload": _payload_for_step(fs, payloads),
+        "start_request": _load_start_request(inst),
     }
     st, err, _resp = outbound_http.call_saga_endpoint(
         url=fs.compensate_url,

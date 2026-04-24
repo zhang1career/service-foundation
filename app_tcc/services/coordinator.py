@@ -7,7 +7,12 @@ from typing import Any
 from django.conf import settings
 from django.db import transaction
 
-from app_tcc.enums import BranchStatus, GlobalTxStatus
+from app_tcc.enums import (
+    CANCEL_REASON_VALUES,
+    BranchStatus,
+    CancelReason,
+    GlobalTxStatus,
+)
 from app_tcc.models import TccBranch, TccBranchMeta, TccGlobalTransaction, TccManualReview
 from app_tcc.services import participant_http
 from app_tcc.services.biz_branch_service import load_branch_metas_for_begin
@@ -64,6 +69,7 @@ def _call_participant_and_persist_branch(
     phase: str,
     status_on_success: int,
     status_on_failure: int,
+    cancel_reason: int | None = None,
 ) -> tuple[int, str]:
     st, err = participant_http.call_participant(
         url=url,
@@ -72,6 +78,7 @@ def _call_participant_and_persist_branch(
         branch_id=str(b.pk),
         idempotency_key=_participant_idem_key(b),
         payload=_branch_payload_dict(b),
+        cancel_reason=cancel_reason,
     )
     with transaction.atomic(using="tcc_rw"):
         b.refresh_from_db()
@@ -94,6 +101,7 @@ def _invoke_participant_phase_or_mark_manual(
     status_on_success: int,
     status_on_failure: int,
     manual_reason: str,
+    cancel_reason: int | None = None,
 ) -> bool:
     st, err = _call_participant_and_persist_branch(
         g=g,
@@ -102,6 +110,7 @@ def _invoke_participant_phase_or_mark_manual(
         phase=phase,
         status_on_success=status_on_success,
         status_on_failure=status_on_failure,
+        cancel_reason=cancel_reason,
     )
     if participant_http.is_success_status(st):
         return True
@@ -271,6 +280,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
                 g.phase_started_at = t
                 g.phase_deadline_at = _plus_ms(t, cancel_phase_timeout_delta(len(succeeded)))
                 g.next_retry_at = t
+                g.last_cancel_reason = CancelReason.UNPAID
                 g.save(
                     using="tcc_rw",
                     update_fields=[
@@ -278,6 +288,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
                         "phase_started_at",
                         "phase_deadline_at",
                         "next_retry_at",
+                        "last_cancel_reason",
                         "ut",
                     ],
                 )
@@ -361,6 +372,8 @@ def _execute_confirm_reverse(g: TccGlobalTransaction, ordered: list[TccBranch]) 
 
 
 def execute_cancel_reverse(g: TccGlobalTransaction, succeeded: list[TccBranch]) -> None:
+    g.refresh_from_db()
+    cr = int(g.last_cancel_reason)
     for b in reversed(succeeded):
         b = (
             TccBranch.objects.using("tcc_rw")
@@ -375,6 +388,7 @@ def execute_cancel_reverse(g: TccGlobalTransaction, succeeded: list[TccBranch]) 
             status_on_success=BranchStatus.CANCEL_SUCCEEDED,
             status_on_failure=BranchStatus.CANCEL_FAILED,
             manual_reason="cancel_failed",
+            cancel_reason=cr,
         ):
             return
 
@@ -416,6 +430,8 @@ def execute_confirm_reverse_partial(g: TccGlobalTransaction, ordered: list[TccBr
 
 
 def execute_cancel_reverse_partial(g: TccGlobalTransaction, succeeded: list[TccBranch]) -> None:
+    g.refresh_from_db()
+    cr = int(g.last_cancel_reason)
     for b in reversed(succeeded):
         b = (
             TccBranch.objects.using("tcc_rw")
@@ -433,6 +449,7 @@ def execute_cancel_reverse_partial(g: TccGlobalTransaction, succeeded: list[TccB
             status_on_success=BranchStatus.CANCEL_SUCCEEDED,
             status_on_failure=BranchStatus.CANCEL_FAILED,
             manual_reason="cancel_failed",
+            cancel_reason=cr,
         ):
             return
 
@@ -497,7 +514,9 @@ def confirm_transaction(global_tx_id: str) -> dict[str, Any]:
     return serialize_transaction(g)
 
 
-def cancel_transaction(global_tx_id: str) -> dict[str, Any]:
+def cancel_transaction(global_tx_id: str, cancel_reason: int) -> dict[str, Any]:
+    if int(cancel_reason) not in CANCEL_REASON_VALUES:
+        raise ValueError("invalid cancel_reason")
     g = get_transaction_by_global_id(global_tx_id)
     if not g:
         raise ValueError("transaction not found")
@@ -526,6 +545,7 @@ def cancel_transaction(global_tx_id: str) -> dict[str, Any]:
         g.phase_deadline_at = _plus_ms(t, cancel_phase_timeout_delta(len(succeeded)))
         g.await_confirm_deadline_at = None
         g.next_retry_at = t
+        g.last_cancel_reason = int(cancel_reason)
         g.save(
             using="tcc_rw",
             update_fields=[
@@ -534,6 +554,7 @@ def cancel_transaction(global_tx_id: str) -> dict[str, Any]:
                 "phase_deadline_at",
                 "await_confirm_deadline_at",
                 "next_retry_at",
+                "last_cancel_reason",
                 "ut",
             ],
         )
