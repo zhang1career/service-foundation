@@ -147,17 +147,13 @@ if APP_TCC_ENABLED:
 if APP_SAGA_ENABLED:
     INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 
-# (URL path prefix, logger name) for PathPrefixedRequestLogMiddleware; empty list disables.
-PATH_PREFIXED_REQUEST_LOG: list[tuple[str, str]] = []
-if APP_TCC_ENABLED:
-    PATH_PREFIXED_REQUEST_LOG.append(("/api/tcc/", "app_tcc.access"))
-if APP_SAGA_ENABLED:
-    PATH_PREFIXED_REQUEST_LOG.append(("/api/saga/", "app_saga.access"))
+# Logger name for HttpRequestLogMiddleware (all HTTP; configure in LOGGING).
+HTTP_REQUEST_LOG_LOGGER = "http.request"
 
 MIDDLEWARE = [
     "common.middleware.trace_id_header_middleware.TraceIdHeaderNormalizeMiddleware",
     "log_request_id.middleware.RequestIDMiddleware",
-    "common.middleware.path_prefixed_request_log_middleware.PathPrefixedRequestLogMiddleware",
+    "common.middleware.http_request_log_middleware.HttpRequestLogMiddleware",
     "common.middleware.host_validation_middleware.HostValidationMiddleware",  # Must be before SecurityMiddleware
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -614,6 +610,7 @@ if _log_handler == "logfile":
     for _name in (
             "django.request",
             "django.db.backends",
+            "http.request",
             "service_foundation",
             "app_aibroker",
             "app_cdn",
@@ -685,6 +682,11 @@ LOGGING = {
         "django.db.backends": {
             "level": env("LOG_LEVEL_DJANGO_DB", default="INFO"),
             "handlers": _logger_handlers("django.db.backends"),
+        },
+        "http.request": {
+            "level": env("LOG_LEVEL_HTTP_REQUEST", default="INFO"),
+            "handlers": _logger_handlers("http.request"),
+            "propagate": False,
         },
         "service_foundation": {
             "level": env("LOG_LEVEL_APP_SERV_FD", default="INFO"),
@@ -795,7 +797,7 @@ TCC_DEFAULT_AUTO_CONFIRM = env.bool("TCC_DEFAULT_AUTO_CONFIRM", default=True)
 # app_tcc scan: when phase_deadline_at is missing, next_retry cap (see scan_service.process_one)
 TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS = env.int("TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS", default=60000)
 TCC_SCAN_NEXT_RETRY_CAP_MS = env.int("TCC_SCAN_NEXT_RETRY_CAP_MS", default=15000)
-# app_saga: snowflake id for idem_key when omitted (POST JSON {access_key})
+# app_saga: optional HTTP snowflake client (not used for POST /api/saga/instances idem_key; callers must pass body idem_key or X-Request-Id)
 SAGA_SNOWFLAKE_ACCESS_KEY = env("SAGA_SNOWFLAKE_ACCESS_KEY", default="")
 SAGA_SNOWFLAKE_ID_URL = env("SAGA_SNOWFLAKE_ID_URL", default="")
 SAGA_SNOWFLAKE_HTTP_TIMEOUT_SEC = env.float("SAGA_SNOWFLAKE_HTTP_TIMEOUT_SEC", default=10.0)

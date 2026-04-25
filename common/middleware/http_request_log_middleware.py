@@ -1,10 +1,8 @@
 """
-Structured request/response logging for HTTP paths under configured prefixes.
+Structured request/response logging for all HTTP traffic.
 
-``settings.PATH_PREFIXED_REQUEST_LOG`` is a sequence of
-``(path_prefix, logger_name)``; only requests whose path starts with a prefix are
-logged to that named logger. Longest prefix wins when multiple entries apply.
-When the setting is empty, this middleware does not log.
+Uses ``settings.HTTP_REQUEST_LOG_LOGGER`` (logger name). Configure the logger
+in ``LOGGING`` (e.g. level and handlers).
 """
 
 from __future__ import annotations
@@ -21,26 +19,6 @@ from django.utils.deprecation import MiddlewareMixin
 _MAX_BODY_JSON_CHARS = 8192
 _MAX_RESPONSE_JSON_CHARS = 4096
 _MAX_STR_PREVIEW = 200
-
-
-def _normalize_routes(raw: Any) -> list[tuple[str, str]]:
-    if not raw:
-        return []
-    out: list[tuple[str, str]] = []
-    for item in raw:
-        if isinstance(item, (list, tuple)) and len(item) == 2:
-            prefix, name = str(item[0]).strip(), str(item[1]).strip()
-            if prefix and name:
-                out.append((prefix, name))
-    out.sort(key=lambda x: len(x[0]), reverse=True)
-    return out
-
-
-def _match_logger(path: str, routes: list[tuple[str, str]]) -> str | None:
-    for prefix, logger_name in routes:
-        if path.startswith(prefix):
-            return logger_name
-    return None
 
 
 def _abbreviate_value(value: Any) -> Any:
@@ -119,7 +97,7 @@ def response_payload_summary(response) -> tuple[Any, Any, Any]:
 
 
 def _log_response(logger_name: str, request, response) -> None:
-    start = getattr(request, "_path_prefixed_request_log_start", None)
+    start = getattr(request, "_http_request_log_start", None)
     duration_ms = None
     if start is not None:
         duration_ms = round((time.perf_counter() - start) * 1000, 3)
@@ -143,24 +121,16 @@ def _log_request(logger_name: str, request) -> None:
     )
 
 
-class PathPrefixedRequestLogMiddleware(MiddlewareMixin):
+class HttpRequestLogMiddleware(MiddlewareMixin):
     def __init__(self, get_response):
         super().__init__(get_response)
-        self._routes = _normalize_routes(getattr(settings, "PATH_PREFIXED_REQUEST_LOG", ()))
+        self._logger_name = (getattr(settings, "HTTP_REQUEST_LOG_LOGGER", None) or "").strip() or "http.request"
 
     def process_request(self, request):
-        path = request.path or ""
-        logger_name = _match_logger(path, self._routes)
-        if logger_name is None:
-            return None
-        request._path_prefixed_request_log_start = time.perf_counter()
-        _log_request(logger_name, request)
+        request._http_request_log_start = time.perf_counter()
+        _log_request(self._logger_name, request)
         return None
 
     def process_response(self, request, response):
-        path = request.path or ""
-        logger_name = _match_logger(path, self._routes)
-        if logger_name is None:
-            return response
-        _log_response(logger_name, request, response)
+        _log_response(self._logger_name, request, response)
         return response

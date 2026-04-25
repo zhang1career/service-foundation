@@ -31,12 +31,23 @@ class SagaInstanceStartView(APIView):
             step_payloads = data.get("step_payloads")
             if step_payloads is not None and not isinstance(step_payloads, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="step_payloads must be object")
-            idem_key = data.get("idem_key")
-            if idem_key is not None:
+            raw_ik = data.get("idem_key")
+            if raw_ik is not None:
                 try:
-                    idem_key = int(idem_key)
+                    idem_key = int(raw_ik)
                 except (TypeError, ValueError):
                     return resp_err(code=RET_INVALID_PARAM, message="idem_key must be int")
+            else:
+                hdr = (request.headers.get("X-Request-Id") or "").strip()
+                if hdr:
+                    try:
+                        idem_key = int(hdr)
+                    except (TypeError, ValueError):
+                        return resp_err(
+                            code=RET_INVALID_PARAM, message="X-Request-Id must be int"
+                        )
+                else:
+                    idem_key = 0
             tcc_tok = data.get("tcc_access_key")
             if tcc_tok is not None and not isinstance(tcc_tok, str):
                 return resp_err(

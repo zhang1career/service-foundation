@@ -1,10 +1,10 @@
 """
-Path-prefixed HTTP request/response logging middleware (DRF envelope contract).
+HTTP request/response logging middleware (DRF envelope contract).
 
-These tests pin response parsing and logging behavior. Run without full project MySQL::
+Run without full project MySQL::
 
-  DJANGO_SETTINGS_MODULE=common.tests.middleware.settings_path_prefixed_log_mw_min \\
-    python -m django test common.tests.middleware.test_path_prefixed_request_log_middleware
+  DJANGO_SETTINGS_MODULE=common.tests.middleware.settings_http_request_log_mw_min \\
+    python -m django test common.tests.middleware.test_http_request_log_middleware
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from django.test import RequestFactory, SimpleTestCase, override_settings
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 
-from common.middleware.path_prefixed_request_log_middleware import (
-    PathPrefixedRequestLogMiddleware,
+from common.middleware.http_request_log_middleware import (
+    HttpRequestLogMiddleware,
     response_payload_summary,
 )
 from common.services.xxl_job.response import success
@@ -100,22 +100,20 @@ class XxlJobRunViewContractTests(SimpleTestCase):
         )
 
 
-class PathPrefixedRequestLogMiddlewareTests(SimpleTestCase):
+class HttpRequestLogMiddlewareTests(SimpleTestCase):
     def test_process_response_summary_matches_drf_success_envelope(self) -> None:
         mock_log = MagicMock()
         with (
-            override_settings(
-                PATH_PREFIXED_REQUEST_LOG=[("/api/tcc/", "test_path_prefixed_log.access")],
-            ),
+            override_settings(HTTP_REQUEST_LOG_LOGGER="test_http_request_log.access"),
             patch(
-                "common.middleware.path_prefixed_request_log_middleware.logging.getLogger",
+                "common.middleware.http_request_log_middleware.logging.getLogger",
                 return_value=mock_log,
             ),
         ):
-            mw = PathPrefixedRequestLogMiddleware(lambda r: HttpResponse())
+            mw = HttpRequestLogMiddleware(lambda r: HttpResponse())
             rf = RequestFactory()
-            request = rf.post("/api/tcc/xxl-job/run")
-            request.path = "/api/tcc/xxl-job/run"
+            request = rf.post("/any/path/here")
+            request.path = "/any/path/here"
             mw.process_request(request)
             response = JsonResponse(
                 success(), status=200, json_dumps_params=API_JSON_DUMPS_PARAMS

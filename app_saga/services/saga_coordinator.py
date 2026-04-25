@@ -12,7 +12,6 @@ from app_saga.enums import (
 )
 from app_saga.models import SagaFlow, SagaFlowStep, SagaInstance, SagaStepRun
 from app_saga.services import outbound_http
-from app_saga.services.snowflake_id import SnowflakeIdError, allocate_snowflake_int
 from common.enums.service_reg_status_enum import ServiceRegStatus
 from common.utils.date_util import get_now_timestamp_ms
 
@@ -168,7 +167,7 @@ def start_instance(
         access_key: str,
         flow_id: int,
         context: dict[str, Any] | None,
-        idem_key: int | None,
+        idem_key: int,
         step_payloads: dict[str, Any] | None,
         tcc_access_key: str | None = None,
 ) -> dict[str, Any]:
@@ -203,16 +202,15 @@ def start_instance(
             raise ValueError("tcc_access_key must be str")
         tcc_tok = tcc_access_key.strip() or None
 
-    if idem_key is not None:
+    try:
         ik = int(idem_key)
-        existing = get_instance_by_idem(ik)
-        if existing:
-            return serialize_instance(existing)
-    else:
-        try:
-            ik = allocate_snowflake_int()
-        except SnowflakeIdError as e:
-            raise ValueError(str(e)) from e
+    except (TypeError, ValueError):
+        raise ValueError("idem_key must be int") from None
+    if ik == 0:
+        raise ValueError("idem_key or X-Request-Id required")
+    existing = get_instance_by_idem(ik)
+    if existing:
+        return serialize_instance(existing)
 
     start_request: dict[str, Any] = {
         "access_key": access_key.strip(),

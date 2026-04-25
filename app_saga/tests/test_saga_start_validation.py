@@ -98,3 +98,22 @@ class SagaStartValidationTests(SimpleTestCase):
                 step_payloads=None,
             )
         self.assertIn("flow_id", str(ctx.exception).lower())
+
+    @patch("app_saga.services.saga_coordinator._ordered_steps", return_value=[MagicMock(pk=100, step_index=0)])
+    @patch("app_saga.services.saga_coordinator.SagaFlow.objects.using")
+    @patch("app_saga.services.participant_reg_service.get_participant_by_access_key")
+    def test_idem_key_zero_rejected(self, mock_gp, mock_flow_using, _mock_steps):
+        mock_gp.return_value = MagicMock(pk=1, status=ServiceRegStatus.ENABLED.value)
+        chain = MagicMock()
+        mock_flow_using.return_value = chain
+        chain.filter.return_value = chain
+        chain.first.return_value = MagicMock(pk=9, status=ServiceRegStatus.ENABLED.value)
+        with self.assertRaises(ValueError) as ctx:
+            saga_coordinator.start_instance(
+                access_key="k",
+                flow_id=9,
+                context=None,
+                idem_key=0,
+                step_payloads=None,
+            )
+        self.assertIn("idem_key or x-request-id", str(ctx.exception).lower())
