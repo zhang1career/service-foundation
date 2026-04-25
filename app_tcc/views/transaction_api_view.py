@@ -31,11 +31,17 @@ class TccTransactionBeginView(APIView):
             if not isinstance(data, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="JSON object required")
             inp = parse_tcc_tx_post_json(data)
+            raw_xr = request.META.get("HTTP_X_REQUEST_ID")
+            if raw_xr is None:
+                x_request_id = None
+            else:
+                x_request_id = str(raw_xr).strip() or None
             out = coordinator.begin_transaction(
                 biz_id=inp.biz_id,
                 branch_items=inp.branch_items,
                 auto_confirm=inp.auto_confirm,
                 context=inp.context,
+                x_request_id=x_request_id,
             )
             return resp_ok(out)
         except ValueError as e:

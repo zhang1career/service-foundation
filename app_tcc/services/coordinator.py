@@ -51,8 +51,18 @@ def _plus_ms(base_ms: int, delta: timedelta) -> int:
     return base_ms + int(delta.total_seconds() * 1000)
 
 
+_BRANCH_IDEM_MAX_LEN = 256
+
+
+def _branch_idem_string(*, base: str, branch_index: int) -> str:
+    s = f"{base}-{int(branch_index)}"
+    if len(s) > _BRANCH_IDEM_MAX_LEN:
+        raise ValueError("X-Request-Id yields branch idempotency value too long")
+    return s
+
+
 def _participant_idem_key(b: TccBranch) -> str:
-    return str(b.idem_key)
+    return b.idem_key
 
 
 def _branch_payload_dict(b: TccBranch) -> dict[str, Any]:
@@ -122,6 +132,7 @@ def _call_participant_and_persist_branch(
         idempotency_key=_participant_idem_key(b),
         payload=_branch_payload_dict(b),
         cancel_reason=cancel_reason,
+        x_request_id=_participant_idem_key(b),
     )
     with transaction.atomic(using="tcc_rw"):
         b.refresh_from_db()
@@ -237,6 +248,7 @@ def begin_transaction(
     branch_items: list[dict[str, Any]],
     auto_confirm: bool | None = None,
     context: dict[str, Any] | None = None,
+    x_request_id: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(biz_id, int):
         raise ValueError("biz_id is required and must be int")
@@ -263,18 +275,22 @@ def begin_transaction(
     if auto_confirm is None:
         auto_confirm = _default_auto_confirm()
 
-    n = len(ordered_metas)
-    snow_ids = [allocate_snowflake_int() for _ in range(1 + n)]
-    tx_idem = snow_ids[0]
-    pending: list[tuple[TccBranchMeta, dict[str, Any], int]] = [
-        (meta, payloads[(meta.code or "").strip()], snow_ids[i + 1])
-        for i, meta in enumerate(ordered_metas)
-    ]
+    tx_idem = allocate_snowflake_int()
+    base = (x_request_id or "").strip()
+    if not base:
+        base = str(tx_idem)
+    pending: list[tuple[TccBranchMeta, dict[str, Any], str]] = []
+    for meta in ordered_metas:
+        code = (meta.code or "").strip()
+        bi = int(meta.branch_index)
+        branch_idem = _branch_idem_string(base=base, branch_index=bi)
+        pending.append((meta, payloads[code], branch_idem))
 
     now_ms = get_now_timestamp_ms()
+    n_branches = len(pending)
     phase_deadline_ms = _plus_ms(
         now_ms,
-        _try_phase_timeout_delta() * max(1, len(pending)),
+        _try_phase_timeout_delta() * max(1, n_branches),
     )
 
     with transaction.atomic(using="tcc_rw"):
@@ -288,8 +304,8 @@ def begin_transaction(
             context=json.dumps(context or {}, ensure_ascii=False),
         )
         branch_rows: list[TccBranch] = []
-        for meta, payload, branch_idem in pending:
-            payload_text = json.dumps(payload, ensure_ascii=False)
+        for meta, pl, branch_idem in pending:
+            payload_text = json.dumps(pl, ensure_ascii=False)
             b = TccBranch.objects.create(
                 global_tx=g,
                 branch_meta=meta,
@@ -321,6 +337,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
             branch_id=str(b.pk),
             idempotency_key=_participant_idem_key(b),
             payload=_branch_payload_dict(b),
+            x_request_id=_participant_idem_key(b),
         )
         with transaction.atomic(using="tcc_rw"):
             b.refresh_from_db()

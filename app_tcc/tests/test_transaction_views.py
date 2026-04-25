@@ -99,6 +99,22 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         self.assertEqual(len(c.kwargs["branch_items"]), 1)
         self.assertEqual(c.kwargs["branch_items"][0]["branch_code"], "a")
 
+    @patch("app_tcc.views.transaction_api_view.coordinator.begin_transaction")
+    def test_x_request_id_header_passed_to_coordinator(self, mock_begin):
+        mock_begin.return_value = {"global_tx_id": "1"}
+        factory = APIRequestFactory()
+        request = factory.post(
+            "/tcc/tx",
+            {"biz_id": 1, "branches": [{"branch_code": "a", "payload": {}}]},
+            format="json",
+            HTTP_X_REQUEST_ID="req-trace-7",
+        )
+        response = TccTransactionBeginView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errorCode"], 0)
+        mock_begin.assert_called_once()
+        self.assertEqual(mock_begin.call_args.kwargs["x_request_id"], "req-trace-7")
+
     def test_saga_envelope_requires_payload_biz_id(self):
         factory = APIRequestFactory()
         body = {
