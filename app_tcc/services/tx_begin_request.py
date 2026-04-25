@@ -29,9 +29,14 @@ def parse_tcc_tx_post_json(data: dict[str, Any]) -> TccTxBeginInput:
 def _from_saga(data: dict[str, Any]) -> TccTxBeginInput:
     shared = _as_shared(data)
     pld: dict[str, Any] = data["payload"]
-    token = (shared.get("tcc_access_token") or data.get("tcc_access_token"))
+    token = (
+        shared.get("tcc_access_key")
+        or shared.get("tcc_access_token")
+        or data.get("tcc_access_key")
+        or data.get("tcc_access_token")
+    )
     if isinstance(token, str) and token.strip():
-        logger.debug("TCC begin (Saga): tcc_access_token present, len=%s", len(token.strip()))
+        logger.debug("TCC begin (Saga): tcc access key present, len=%s", len(token.strip()))
 
     biz: int | None = None
     c = shared.get("tcc_flow_id")

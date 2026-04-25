@@ -79,9 +79,11 @@ def _saga_shared_for_outbound(inst: SagaInstance) -> dict[str, Any]:
         "step_payloads": outbound_http.loads_json_dict(inst.step_payloads),
     }
     sr = _load_start_request(inst)
-    t = sr.get("tcc_access_token")
+    t = sr.get("tcc_access_key")
+    if t is None:
+        t = sr.get("tcc_access_token")
     if isinstance(t, str) and t.strip():
-        out["tcc_access_token"] = t.strip()
+        out["tcc_access_key"] = t.strip()
     tf = sr.get("tcc_flow_id")
     if tf is not None:
         try:
@@ -178,7 +180,7 @@ def start_instance(
         context: dict[str, Any] | None,
         idem_key: int | None,
         step_payloads: dict[str, Any] | None,
-        tcc_access_token: str | None = None,
+        tcc_access_key: str | None = None,
         tcc_flow_id: int | None = None,
 ) -> dict[str, Any]:
     from app_saga.services import participant_reg_service
@@ -207,10 +209,10 @@ def start_instance(
     payloads = step_payloads if isinstance(step_payloads, dict) else {}
 
     tcc_tok: str | None = None
-    if tcc_access_token is not None:
-        if not isinstance(tcc_access_token, str):
-            raise ValueError("tcc_access_token must be str")
-        tcc_tok = tcc_access_token.strip() or None
+    if tcc_access_key is not None:
+        if not isinstance(tcc_access_key, str):
+            raise ValueError("tcc_access_key must be str")
+        tcc_tok = tcc_access_key.strip() or None
     tcc_f: int | None = None
     if tcc_flow_id is not None:
         tcc_f = int(tcc_flow_id)
@@ -236,7 +238,7 @@ def start_instance(
         "idem_key": int(ik),
     }
     if tcc_tok is not None:
-        start_request["tcc_access_token"] = tcc_tok
+        start_request["tcc_access_key"] = tcc_tok
     if tcc_f is not None:
         start_request["tcc_flow_id"] = int(tcc_f)
     now = _now_ms()

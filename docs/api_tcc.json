@@ -79,7 +79,7 @@
       "post": {
         "tags": ["Transactions"],
         "summary": "开启全局事务（Try 阶段及后续）",
-        "description": "请求体为 **二选一**。\n\n**A. 经典** — 根上 `biz_id` + `branches` 等，见 `TccBeginRequest`。\n\n**B. Saga 外呼** — 有 `saga_instance_id` 与 **`payload`（object）** 时解析为 begin：`biz_id` ← `saga_shared.tcc_flow_id`（int，正）或 `payload.biz_id`；`branches` 等在 **`payload`** 内。`tcc_access_token` 仅在 **`saga_shared`** 或需调试时在根上重复（可忽略）。Saga 编排器发出的外呼**仅**在 `saga_shared` 中携带 TCC 公共字段，根级 `flow_id` 为 Saga 流程 ID，**不是** TCC `biz_id`。\n\n**响应 `data.branches`（A/B 相同）**：为以各分支的 **`branch_code`**（与 `TccBranchMeta.code`、begin 入参 `branches[].branch_code` 相同）为键的对象（**禁止**缺 `branch_meta.code` 时用其他占位键；未配置时在查询/列详情会 `errorCode=100`）。值为 `TccBranchSummary`（内含 `branch_code` 字段；`data` 为参与者最近一次成功 HTTP 的 JSON 体，解析结果或 `null`）。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
+        "description": "请求体为 **二选一**。\n\n**A. 经典** — 根上 `biz_id` + `branches` 等，见 `TccBeginRequest`。\n\n**B. Saga 外呼** — 有 `saga_instance_id` 与 **`payload`（object）** 时解析为 begin：`biz_id` ← `saga_shared.tcc_flow_id`（int，正）或 `payload.biz_id`；`branches` 等在 **`payload`** 内。`tcc_access_key`（旧名 `tcc_access_token` 仍兼容）仅在 **`saga_shared`** 或需调试时在根上重复（可忽略）。Saga 编排器发出的外呼**仅**在 `saga_shared` 中携带 TCC 公共字段，根级 `flow_id` 为 Saga 流程 ID，**不是** TCC `biz_id`。\n\n**响应 `data.branches`（A/B 相同）**：为以各分支的 **`branch_code`**（与 `TccBranchMeta.code`、begin 入参 `branches[].branch_code` 相同）为键的对象（**禁止**缺 `branch_meta.code` 时用其他占位键；未配置时在查询/列详情会 `errorCode=100`）。值为 `TccBranchSummary`（内含 `branch_code` 字段；`data` 为参与者最近一次成功 HTTP 的 JSON 体，解析结果或 `null`）。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
         "operationId": "tccTxBegin",
         "requestBody": {
           "required": true,
@@ -111,7 +111,7 @@
                     "phase": "action",
                     "context": {},
                     "saga_shared": {
-                      "tcc_access_token": "tcc-access-or-jwt",
+                      "tcc_access_key": "tcc-access-or-jwt",
                       "tcc_flow_id": 10,
                       "step_payloads": { "0": {} }
                     },
@@ -472,7 +472,7 @@
           "flow_id": { "type": "integer", "description": "Saga 流程 ID（非 TCC `biz_id`）" },
           "saga_shared": {
             "type": "object",
-            "description": "须含 `tcc_flow_id`（TCC 即 `biz_id`）与 `step_payloads`；`tcc_access_token` 可选"
+            "description": "须含 `tcc_flow_id`（TCC 即 `biz_id`）与 `step_payloads`；`tcc_access_key` 可选（旧名 `tcc_access_token` 仍兼容）"
           },
           "payload": {
             "type": "object",

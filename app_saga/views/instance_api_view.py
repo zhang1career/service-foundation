@@ -37,10 +37,10 @@ class SagaInstanceStartView(APIView):
                     idem_key = int(idem_key)
                 except (TypeError, ValueError):
                     return resp_err(code=RET_INVALID_PARAM, message="idem_key must be int")
-            tcc_tok = data.get("tcc_access_token")
+            tcc_tok = data.get("tcc_access_key")
             if tcc_tok is not None and not isinstance(tcc_tok, str):
                 return resp_err(
-                    code=RET_INVALID_PARAM, message="tcc_access_token must be string"
+                    code=RET_INVALID_PARAM, message="tcc_access_key must be string"
                 )
             tcc_fid = data.get("tcc_flow_id")
             if tcc_fid is not None:
@@ -56,7 +56,7 @@ class SagaInstanceStartView(APIView):
                 context=ctx,
                 idem_key=idem_key,
                 step_payloads=step_payloads,
-                tcc_access_token=tcc_tok,
+                tcc_access_key=tcc_tok,
                 tcc_flow_id=tcc_fid,
             )
             return resp_ok(out)
