@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from common.services.service_discovery.expand import (
     expand_service_discovery_url,
+    maybe_expand_service_discovery_url,
     reset_service_discovery_redis_client_for_tests,
 )
 
 __all__ = [
     "expand_service_discovery_url",
+    "maybe_expand_service_discovery_url",
     "reset_service_discovery_redis_client_for_tests",
 ]

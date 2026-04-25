@@ -7,10 +7,18 @@ from typing import Any
 from django.conf import settings
 from django.db import transaction
 
-from app_tcc.enums import BranchStatus, GlobalTxStatus
+from app_tcc.enums import (
+    CANCEL_REASON_VALUES,
+    BranchStatus,
+    CancelReason,
+    GlobalTxStatus,
+)
 from app_tcc.models import TccBranch, TccBranchMeta, TccGlobalTransaction, TccManualReview
 from app_tcc.services import participant_http
-from app_tcc.services.biz_branch_service import load_branch_metas_for_begin
+from app_tcc.services.biz_branch_service import (
+    load_branch_metas_for_begin_by_biz,
+    normalize_branch_code,
+)
 from app_tcc.services.snowflake_id import allocate_snowflake_int
 from common.utils.date_util import get_now_timestamp_ms
 
@@ -56,6 +64,46 @@ def _branch_payload_dict(b: TccBranch) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _encode_participant_response_for_storage(body: Any | None) -> str:
+    if body is None:
+        return ""
+    return json.dumps(body, ensure_ascii=False)
+
+
+def _decode_participant_response_field(raw: str) -> Any | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        return None
+
+
+def _response_branch_key(b: TccBranch) -> str:
+    if not b.branch_meta:
+        raise ValueError("branch is missing branch_meta for serialization")
+    c = (b.branch_meta.code or "").strip()
+    if not c:
+        raise ValueError(
+            f"branch_meta.code is required (branch_meta_id={b.branch_meta_id})"
+        )
+    return c
+
+
+def _branch_entry_for_serialization(b: TccBranch) -> dict[str, Any]:
+    return {
+        "tx_branch_id": int(b.pk),
+        "branch_meta_id": b.branch_meta_id,
+        "branch_index": b.branch_index,
+        "branch_code": (b.branch_meta.code or "").strip() if b.branch_meta else "",
+        "branch_status": b.status,
+        "last_http_status": b.last_http_status,
+        "last_error": (b.last_error or "")[:200],
+        "data": _decode_participant_response_field(b.last_response),
+    }
+
+
 def _call_participant_and_persist_branch(
     *,
     g: TccGlobalTransaction,
@@ -64,14 +112,16 @@ def _call_participant_and_persist_branch(
     phase: str,
     status_on_success: int,
     status_on_failure: int,
+    cancel_reason: int | None = None,
 ) -> tuple[int, str]:
-    st, err = participant_http.call_participant(
+    st, err, body = participant_http.call_participant(
         url=url,
         phase=phase,
         global_tx_id=str(g.pk),
         branch_id=str(b.pk),
         idempotency_key=_participant_idem_key(b),
         payload=_branch_payload_dict(b),
+        cancel_reason=cancel_reason,
     )
     with transaction.atomic(using="tcc_rw"):
         b.refresh_from_db()
@@ -79,9 +129,20 @@ def _call_participant_and_persist_branch(
         b.last_error = err
         if participant_http.is_success_status(st):
             b.status = status_on_success
+            b.last_response = _encode_participant_response_for_storage(body)
         else:
             b.status = status_on_failure
-        b.save(using="tcc_rw", update_fields=["last_http_status", "last_error", "status", "ut"])
+            b.last_response = ""
+        b.save(
+            using="tcc_rw",
+            update_fields=[
+                "last_http_status",
+                "last_error",
+                "status",
+                "last_response",
+                "ut",
+            ],
+        )
     return st, err
 
 
@@ -94,6 +155,7 @@ def _invoke_participant_phase_or_mark_manual(
     status_on_success: int,
     status_on_failure: int,
     manual_reason: str,
+    cancel_reason: int | None = None,
 ) -> bool:
     st, err = _call_participant_and_persist_branch(
         g=g,
@@ -102,14 +164,21 @@ def _invoke_participant_phase_or_mark_manual(
         phase=phase,
         status_on_success=status_on_success,
         status_on_failure=status_on_failure,
+        cancel_reason=cancel_reason,
     )
     if participant_http.is_success_status(st):
         return True
     g.refresh_from_db()
+    code_snap = (b.branch_meta.code or "").strip() if b.branch_meta else ""
     mark_manual_simple(
         g,
         manual_reason,
-        {"branch_index": b.branch_index, "http": st, "err": err[:200]},
+        {
+            "code": code_snap,
+            "branch_index": b.branch_index,
+            "http": st,
+            "err": err[:200],
+        },
     )
     return False
 
@@ -118,23 +187,16 @@ def serialize_transaction(g: TccGlobalTransaction) -> dict[str, Any]:
     branches = list(
         g.branches.select_related("branch_meta").order_by("branch_index")
     )
+    by_code: dict[str, Any] = {}
+    for b in branches:
+        by_code[_response_branch_key(b)] = _branch_entry_for_serialization(b)
     out: dict[str, Any] = {
         "global_tx_id": str(g.pk),
         "idem_key": g.idem_key,
         "status": g.status,
         "auto_confirm": g.auto_confirm,
         "retry_count": g.retry_count,
-        "branches": [
-            {
-                "branch_id": str(b.pk),
-                "branch_meta_id": b.branch_meta_id,
-                "branch_index": b.branch_index,
-                "branch_status": b.status,
-                "last_http_status": b.last_http_status,
-                "last_error": (b.last_error or "")[:200],
-            }
-            for b in branches
-        ],
+        "branches": by_code,
     }
     mr = TccManualReview.objects.using("tcc_rw").filter(global_tx_id=g.pk).first()
     if mr:
@@ -171,26 +233,32 @@ def get_transaction_for_query(
 
 def begin_transaction(
     *,
+    biz_id: int,
     branch_items: list[dict[str, Any]],
     auto_confirm: bool | None = None,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if not isinstance(biz_id, int):
+        raise ValueError("biz_id is required and must be int")
     if not branch_items:
         raise ValueError("branch_items is required")
 
-    payloads: dict[int, dict[str, Any]] = {}
+    payloads: dict[str, dict[str, Any]] = {}
     for raw in branch_items:
-        mid = raw.get("branch_meta_id")
-        if not isinstance(mid, int):
-            raise ValueError("branch_meta_id is required and must be int")
-        if mid in payloads:
-            raise ValueError("duplicate branch_meta_id in branch_items")
+        if not isinstance(raw, dict):
+            raise ValueError("each branch must be an object")
+        code_raw = raw.get("branch_code")
+        if not isinstance(code_raw, str):
+            raise ValueError("branch_code is required and must be a string")
+        ncode = normalize_branch_code(code_raw)
+        if ncode in payloads:
+            raise ValueError("duplicate branch_code in branch_items")
         payload = raw.get("payload")
         if payload is not None and not isinstance(payload, dict):
             raise ValueError("branch payload must be a JSON object when provided")
-        payloads[mid] = payload or {}
+        payloads[ncode] = payload or {}
 
-    ordered_metas = load_branch_metas_for_begin(list(payloads.keys()))
+    ordered_metas = load_branch_metas_for_begin_by_biz(biz_id, list(payloads.keys()))
 
     if auto_confirm is None:
         auto_confirm = _default_auto_confirm()
@@ -199,7 +267,7 @@ def begin_transaction(
     snow_ids = [allocate_snowflake_int() for _ in range(1 + n)]
     tx_idem = snow_ids[0]
     pending: list[tuple[TccBranchMeta, dict[str, Any], int]] = [
-        (meta, payloads[meta.pk], snow_ids[i + 1])
+        (meta, payloads[(meta.code or "").strip()], snow_ids[i + 1])
         for i, meta in enumerate(ordered_metas)
     ]
 
@@ -246,7 +314,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
             .select_related("branch_meta")
             .get(pk=b.pk)
         )
-        st, err = participant_http.call_participant(
+        st, err, body = participant_http.call_participant(
             url=b.branch_meta.try_url,
             phase=participant_http.PHASE_TRY,
             global_tx_id=str(g.pk),
@@ -260,17 +328,40 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
             b.last_error = err
             if participant_http.is_success_status(st):
                 b.status = BranchStatus.TRY_SUCCEEDED
-                b.save(using="tcc_rw", update_fields=["last_http_status", "last_error", "status", "ut"])
+                b.last_response = _encode_participant_response_for_storage(
+                    body
+                )
+                b.save(
+                    using="tcc_rw",
+                    update_fields=[
+                        "last_http_status",
+                        "last_error",
+                        "status",
+                        "last_response",
+                        "ut",
+                    ],
+                )
                 succeeded.append(b)
             else:
                 b.status = BranchStatus.TRY_FAILED
-                b.save(using="tcc_rw", update_fields=["last_http_status", "last_error", "status", "ut"])
+                b.last_response = ""
+                b.save(
+                    using="tcc_rw",
+                    update_fields=[
+                        "last_http_status",
+                        "last_error",
+                        "status",
+                        "last_response",
+                        "ut",
+                    ],
+                )
                 g.refresh_from_db()
                 g.status = GlobalTxStatus.CANCELING
                 t = get_now_timestamp_ms()
                 g.phase_started_at = t
                 g.phase_deadline_at = _plus_ms(t, cancel_phase_timeout_delta(len(succeeded)))
                 g.next_retry_at = t
+                g.last_cancel_reason = CancelReason.UNPAID
                 g.save(
                     using="tcc_rw",
                     update_fields=[
@@ -278,6 +369,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
                         "phase_started_at",
                         "phase_deadline_at",
                         "next_retry_at",
+                        "last_cancel_reason",
                         "ut",
                     ],
                 )
@@ -361,6 +453,8 @@ def _execute_confirm_reverse(g: TccGlobalTransaction, ordered: list[TccBranch]) 
 
 
 def execute_cancel_reverse(g: TccGlobalTransaction, succeeded: list[TccBranch]) -> None:
+    g.refresh_from_db()
+    cr = int(g.last_cancel_reason)
     for b in reversed(succeeded):
         b = (
             TccBranch.objects.using("tcc_rw")
@@ -375,6 +469,7 @@ def execute_cancel_reverse(g: TccGlobalTransaction, succeeded: list[TccBranch]) 
             status_on_success=BranchStatus.CANCEL_SUCCEEDED,
             status_on_failure=BranchStatus.CANCEL_FAILED,
             manual_reason="cancel_failed",
+            cancel_reason=cr,
         ):
             return
 
@@ -416,6 +511,8 @@ def execute_confirm_reverse_partial(g: TccGlobalTransaction, ordered: list[TccBr
 
 
 def execute_cancel_reverse_partial(g: TccGlobalTransaction, succeeded: list[TccBranch]) -> None:
+    g.refresh_from_db()
+    cr = int(g.last_cancel_reason)
     for b in reversed(succeeded):
         b = (
             TccBranch.objects.using("tcc_rw")
@@ -433,6 +530,7 @@ def execute_cancel_reverse_partial(g: TccGlobalTransaction, succeeded: list[TccB
             status_on_success=BranchStatus.CANCEL_SUCCEEDED,
             status_on_failure=BranchStatus.CANCEL_FAILED,
             manual_reason="cancel_failed",
+            cancel_reason=cr,
         ):
             return
 
@@ -460,8 +558,8 @@ def mark_manual_simple(g: TccGlobalTransaction, reason: str, snap: dict[str, Any
         )
 
 
-def confirm_transaction(global_tx_id: str) -> dict[str, Any]:
-    g = get_transaction_by_global_id(global_tx_id)
+def confirm_transaction(idem_key: int) -> dict[str, Any]:
+    g = get_transaction_for_query(global_tx_id=None, idem_key=idem_key)
     if not g:
         raise ValueError("transaction not found")
     if g.status != GlobalTxStatus.AWAIT_CONFIRM:
@@ -497,8 +595,10 @@ def confirm_transaction(global_tx_id: str) -> dict[str, Any]:
     return serialize_transaction(g)
 
 
-def cancel_transaction(global_tx_id: str) -> dict[str, Any]:
-    g = get_transaction_by_global_id(global_tx_id)
+def cancel_transaction(idem_key: int, cancel_reason: int) -> dict[str, Any]:
+    if int(cancel_reason) not in CANCEL_REASON_VALUES:
+        raise ValueError("invalid cancel_reason")
+    g = get_transaction_for_query(global_tx_id=None, idem_key=idem_key)
     if not g:
         raise ValueError("transaction not found")
     if g.status in (
@@ -526,6 +626,7 @@ def cancel_transaction(global_tx_id: str) -> dict[str, Any]:
         g.phase_deadline_at = _plus_ms(t, cancel_phase_timeout_delta(len(succeeded)))
         g.await_confirm_deadline_at = None
         g.next_retry_at = t
+        g.last_cancel_reason = int(cancel_reason)
         g.save(
             using="tcc_rw",
             update_fields=[
@@ -534,6 +635,7 @@ def cancel_transaction(global_tx_id: str) -> dict[str, Any]:
                 "phase_deadline_at",
                 "await_confirm_deadline_at",
                 "next_retry_at",
+                "last_cancel_reason",
                 "ut",
             ],
         )

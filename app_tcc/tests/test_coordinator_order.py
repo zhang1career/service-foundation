@@ -69,7 +69,7 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.TccGlobalTransaction")
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
     @patch("app_tcc.services.coordinator.get_now_timestamp_ms", return_value=1_000_000)
-    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin")
+    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin_by_biz")
     @patch("app_tcc.services.coordinator.allocate_snowflake_int")
     @patch("app_tcc.services.coordinator.participant_http.call_participant")
     def test_try_order_then_confirm_reverse(
@@ -84,17 +84,19 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     ):
         self.assertEqual(mock_now(), 1_000_000)
         mock_snowflake.side_effect = [8000, 9001, 9002]
-        mock_call.return_value = (200, "")
+        mock_call.return_value = (200, "", None)
 
         meta_a = MagicMock()
         meta_a.pk = 10
         meta_a.branch_index = 0
+        meta_a.code = "a"
         meta_a.try_url = "http://a/try"
         meta_a.confirm_url = "http://a/confirm"
         meta_a.cancel_url = "http://a/cancel"
         meta_b = MagicMock()
         meta_b.pk = 11
         meta_b.branch_index = 1
+        meta_b.code = "b"
         meta_b.try_url = "http://b/try"
         meta_b.confirm_url = "http://b/confirm"
         meta_b.cancel_url = "http://b/cancel"
@@ -137,9 +139,10 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         mock_mr_objects.using.return_value.filter.return_value.first.return_value = None
 
         coordinator.begin_transaction(
+            biz_id=1,
             branch_items=[
-                {"branch_meta_id": 10, "payload": {"k": 1}},
-                {"branch_meta_id": 11, "payload": {"k": 2}},
+                {"branch_code": "a", "payload": {"k": 1}},
+                {"branch_code": "b", "payload": {"k": 2}},
             ],
             auto_confirm=True,
         )
@@ -163,7 +166,7 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.TccGlobalTransaction")
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
     @patch("app_tcc.services.coordinator.get_now_timestamp_ms", return_value=1_000_000)
-    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin")
+    @patch("app_tcc.services.coordinator.load_branch_metas_for_begin_by_biz")
     @patch("app_tcc.services.coordinator.allocate_snowflake_int")
     @patch("app_tcc.services.coordinator.participant_http.call_participant")
     def test_try_failure_cancels_reverse_try_order(
@@ -181,20 +184,22 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
 
         def side_effect(**kwargs):
             if kwargs["url"] == "http://b/try":
-                return (500, "fail")
-            return (200, "")
+                return (500, "fail", None)
+            return (200, "", None)
 
         mock_call.side_effect = side_effect
 
         meta_a = MagicMock()
         meta_a.pk = 10
         meta_a.branch_index = 0
+        meta_a.code = "a"
         meta_a.try_url = "http://a/try"
         meta_a.confirm_url = "http://a/confirm"
         meta_a.cancel_url = "http://a/cancel"
         meta_b = MagicMock()
         meta_b.pk = 11
         meta_b.branch_index = 1
+        meta_b.code = "b"
         meta_b.try_url = "http://b/try"
         meta_b.confirm_url = "http://b/confirm"
         meta_b.cancel_url = "http://b/cancel"
@@ -237,9 +242,10 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         mock_mr_objects.using.return_value.filter.return_value.first.return_value = None
 
         coordinator.begin_transaction(
+            biz_id=1,
             branch_items=[
-                {"branch_meta_id": 10},
-                {"branch_meta_id": 11},
+                {"branch_code": "a"},
+                {"branch_code": "b"},
             ],
             auto_confirm=True,
         )
@@ -247,5 +253,6 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         cancel_calls = [c for c in mock_call.call_args_list if c[1]["phase"] == "cancel"]
         self.assertEqual(len(cancel_calls), 1)
         self.assertEqual(cancel_calls[0][1]["url"], "http://a/cancel")
+        self.assertEqual(cancel_calls[0][1]["cancel_reason"], 0)
 
         self.assertEqual(g.status, GlobalTxStatus.ROLLED_BACK)

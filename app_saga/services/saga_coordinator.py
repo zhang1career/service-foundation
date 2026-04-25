@@ -42,6 +42,11 @@ def _next_retry_capped(now_ms: int) -> int:
 
 
 def _payload_for_step(step: SagaFlowStep, payloads: dict[str, Any]) -> dict[str, Any]:
+    code = (getattr(step, "step_code", None) or "").strip()
+    if code:
+        v0 = payloads.get(code)
+        if isinstance(v0, dict):
+            return v0
     k_idx = str(step.step_index)
     v = payloads.get(k_idx)
     if isinstance(v, dict):
@@ -52,6 +57,54 @@ def _payload_for_step(step: SagaFlowStep, payloads: dict[str, Any]) -> dict[str,
         if isinstance(v2, dict):
             return v2
     return {}
+
+
+def _load_start_request(inst: SagaInstance) -> dict[str, Any]:
+    """JSON snapshot of POST /api/saga/instances at creation (`instance.start_body`)."""
+    raw = getattr(inst, "start_body", None)
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        return outbound_http.loads_json_dict(raw)
+    except ValueError:
+        return {}
+
+
+def _saga_shared_for_outbound(inst: SagaInstance) -> dict[str, Any]:
+    """
+    Common fields on every action/compensate call: optional ``tcc_access_key`` and full
+    ``step_payloads`` map. Populated from ``start_body`` and current instance JSON.
+    """
+    out: dict[str, Any] = {
+        "step_payloads": outbound_http.loads_json_dict(inst.step_payloads),
+    }
+    sr = _load_start_request(inst)
+    t = sr.get("tcc_access_key")
+    if isinstance(t, str) and t.strip():
+        out["tcc_access_key"] = t.strip()
+    return out
+
+
+def _participant_post_body(
+        *,
+        inst: SagaInstance,
+        fs: SagaFlowStep,
+        ctx: dict[str, Any],
+        payloads: dict[str, Any],
+        phase: str,
+) -> dict[str, Any]:
+    shared = _saga_shared_for_outbound(inst)
+    return {
+        "saga_instance_id": str(inst.pk),
+        "idem_key": inst.idem_key,
+        "flow_id": inst.flow_id,
+        "step_index": fs.step_index,
+        "phase": phase,
+        "context": ctx,
+        "payload": _payload_for_step(fs, payloads),
+        "start_request": _load_start_request(inst),
+        "saga_shared": shared,
+    }
 
 
 def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
@@ -66,6 +119,17 @@ def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
             "last_error_compensate",
         )
     )
+    ncf_raw = getattr(inst, "need_confirm", None)
+    ncf: list[Any] | None
+    if ncf_raw is None:
+        ncf = None
+    elif isinstance(ncf_raw, str) and not ncf_raw.strip():
+        ncf = None
+    elif isinstance(ncf_raw, str):
+        ncf = outbound_http.loads_json_list(ncf_raw)
+    else:
+        ncf = None
+    saga_shared = _saga_shared_for_outbound(inst)
     return {
         "saga_instance_id": str(inst.pk),
         "idem_key": inst.idem_key,
@@ -75,6 +139,8 @@ def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
         "retry_count": inst.retry_count,
         "last_error": (inst.last_error or "")[:500],
         "context": outbound_http.loads_json_dict(inst.context),
+        "need_confirm": ncf,
+        "saga_shared": saga_shared,
         "step_runs": runs,
     }
 
@@ -104,6 +170,7 @@ def start_instance(
         context: dict[str, Any] | None,
         idem_key: int | None,
         step_payloads: dict[str, Any] | None,
+        tcc_access_key: str | None = None,
 ) -> dict[str, Any]:
     from app_saga.services import participant_reg_service
 
@@ -130,6 +197,12 @@ def start_instance(
     ctx = context if isinstance(context, dict) else {}
     payloads = step_payloads if isinstance(step_payloads, dict) else {}
 
+    tcc_tok: str | None = None
+    if tcc_access_key is not None:
+        if not isinstance(tcc_access_key, str):
+            raise ValueError("tcc_access_key must be str")
+        tcc_tok = tcc_access_key.strip() or None
+
     if idem_key is not None:
         ik = int(idem_key)
         existing = get_instance_by_idem(ik)
@@ -141,6 +214,15 @@ def start_instance(
         except SnowflakeIdError as e:
             raise ValueError(str(e)) from e
 
+    start_request: dict[str, Any] = {
+        "access_key": access_key.strip(),
+        "flow_id": int(flow.pk),
+        "context": ctx,
+        "step_payloads": payloads,
+        "idem_key": int(ik),
+    }
+    if tcc_tok is not None:
+        start_request["tcc_access_key"] = tcc_tok
     now = _now_ms()
     with transaction.atomic(using="saga_rw"):
         inst = SagaInstance(
@@ -150,6 +232,7 @@ def start_instance(
             idem_key=ik,
             context=outbound_http.dumps_json(ctx),
             step_payloads=outbound_http.dumps_json(payloads),
+            start_body=outbound_http.dumps_json(start_request),
             current_step_index=0,
             next_retry_at=now,
             retry_count=0,
@@ -194,19 +277,14 @@ def _run_forward_action(
         sr: SagaStepRun,
         ctx: dict[str, Any],
         payloads: dict[str, Any],
-) -> bool:
-    body = {
-        "saga_instance_id": str(inst.pk),
-        "idem_key": inst.idem_key,
-        "flow_id": inst.flow_id,
-        "step_index": fs.step_index,
-        "phase": "action",
-        "context": ctx,
-        "payload": _payload_for_step(fs, payloads),
-    }
+) -> tuple[bool, dict[str, Any] | None]:
+    body = _participant_post_body(
+        inst=inst, fs=fs, ctx=ctx, payloads=payloads, phase="action"
+    )
+    json_body = outbound_http.prepare_saga_outbound_json_body(body)
     st, err, resp_obj = outbound_http.call_saga_endpoint(
         url=fs.action_url,
-        json_body=body,
+        json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
     )
     sr.last_http_status_action = st if st else None
@@ -226,7 +304,7 @@ def _run_forward_action(
             "ut",
         ],
     )
-    return ok
+    return ok, (resp_obj if ok else None)
 
 
 def _run_compensate(
@@ -237,18 +315,13 @@ def _run_compensate(
         ctx: dict[str, Any],
         payloads: dict[str, Any],
 ) -> bool:
-    body = {
-        "saga_instance_id": str(inst.pk),
-        "idem_key": inst.idem_key,
-        "flow_id": inst.flow_id,
-        "step_index": fs.step_index,
-        "phase": "compensate",
-        "context": ctx,
-        "payload": _payload_for_step(fs, payloads),
-    }
+    body = _participant_post_body(
+        inst=inst, fs=fs, ctx=ctx, payloads=payloads, phase="compensate"
+    )
+    json_body = outbound_http.prepare_saga_outbound_json_body(body)
     st, err, _resp = outbound_http.call_saga_endpoint(
         url=fs.compensate_url,
-        json_body=body,
+        json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
     )
     sr.last_http_status_compensate = st if st else None
@@ -324,8 +397,27 @@ def process_instance(instance_pk: int) -> None:
                 )
                 return
 
-            ok = _run_forward_action(inst=inst, fs=fs, sr=sr, ctx=ctx, payloads=payloads)
+            ok, resp_obj = _run_forward_action(
+                inst=inst, fs=fs, sr=sr, ctx=ctx, payloads=payloads
+            )
             if ok:
+                ncf_touched = False
+                if int(getattr(fs, "is_need_confirm", 0) or 0) == 1 and isinstance(
+                    resp_obj, dict
+                ):
+                    ncf = outbound_http.loads_json_list(
+                        getattr(inst, "need_confirm", None) or "[]"
+                    )
+                    ncf.append(
+                        {
+                            "flow_step_id": int(fs.pk),
+                            "step_index": int(fs.step_index),
+                            "name": (fs.name or "").strip(),
+                            "response": resp_obj.get("data"),
+                        }
+                    )
+                    inst.need_confirm = outbound_http.dumps_json_value(ncf)
+                    ncf_touched = True
                 inst.context = outbound_http.dumps_json(ctx)
                 inst.current_step_index = step_idx + 1
                 inst.retry_count = 0
@@ -333,18 +425,18 @@ def process_instance(instance_pk: int) -> None:
                 if inst.current_step_index >= n:
                     inst.status = SagaInstanceStatus.COMPLETED
                 inst.next_retry_at = now
-                inst.save(
-                    using="saga_rw",
-                    update_fields=[
-                        "context",
-                        "current_step_index",
-                        "retry_count",
-                        "last_error",
-                        "status",
-                        "next_retry_at",
-                        "ut",
-                    ],
-                )
+                uf = [
+                    "context",
+                    "current_step_index",
+                    "retry_count",
+                    "last_error",
+                    "status",
+                    "next_retry_at",
+                    "ut",
+                ]
+                if ncf_touched:
+                    uf.insert(0, "need_confirm")
+                inst.save(using="saga_rw", update_fields=uf)
             else:
                 inst.retry_count += 1
                 max_r = int(fs.max_retries)

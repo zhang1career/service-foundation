@@ -172,22 +172,40 @@ class SagaFlowStepsConsoleView(TemplateView):
         fid = self.flow_id
         try:
             if action == "create_step":
+                ncf = int((request.POST.get("is_need_confirm") or 0) or 0)
+                if ncf not in (0, 1):
+                    ncf = 0
                 flow_admin_service.create_flow_step(
                     flow_id=fid,
+                    step_code=(request.POST.get("step_code") or "").strip(),
                     name=(request.POST.get("name") or "").strip(),
                     action_url=(request.POST.get("action_url") or "").strip(),
                     compensate_url=(request.POST.get("compensate_url") or "").strip(),
                     timeout_sec=int(request.POST.get("timeout_sec") or 30),
                     max_retries=int(request.POST.get("max_retries") or 10),
+                    is_need_confirm=ncf,
                 )
             elif action == "update_step":
+                ncf = int((request.POST.get("is_need_confirm") or 0) or 0)
+                if ncf not in (0, 1):
+                    ncf = 0
                 flow_admin_service.update_flow_step(
                     int(request.POST.get("step_id", 0)),
+                    step_code=(request.POST.get("step_code") or "").strip(),
                     name=(request.POST.get("name") or "").strip(),
                     action_url=(request.POST.get("action_url") or "").strip(),
                     compensate_url=(request.POST.get("compensate_url") or "").strip(),
                     timeout_sec=int(request.POST.get("timeout_sec") or 30),
                     max_retries=int(request.POST.get("max_retries") or 10),
+                    is_need_confirm=ncf,
+                )
+            elif action == "update_step_need_confirm":
+                ncf = int((request.POST.get("is_need_confirm") or 0) or 0)
+                if ncf not in (0, 1):
+                    ncf = 0
+                flow_admin_service.update_flow_step(
+                    int(request.POST.get("step_id", 0)),
+                    is_need_confirm=ncf,
                 )
             elif action == "delete_step":
                 flow_admin_service.delete_flow_step(int(request.POST.get("step_id", 0)))

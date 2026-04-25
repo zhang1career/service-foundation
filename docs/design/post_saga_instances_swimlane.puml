@@ -1,0 +1,130 @@
+@startuml post_saga_instances_swimlane
+title POST /api/saga/instances — instance start (swimlanes)
+
+skinparam ActivityBackgroundColor #FEFEFE
+skinparam ActivityBorderColor #333333
+skinparam ArrowColor #333333
+
+legend right
+  ValueError from saga_coordinator.start_instance is caught
+  in SagaInstanceStartView and mapped to resp_err(RET_INVALID_PARAM).
+  Other exceptions are logged and returned as resp_exception.
+endlegend
+
+|HTTP client|
+start
+:POST /api/saga/instances\n(JSON body);
+
+|#LightBlue|SagaInstanceStartView|
+:post_payload(request);
+
+if (body is dict?) then (no)
+  :resp_err: JSON object required;
+  |HTTP client|
+  stop
+endif
+
+if (access_key non-empty str?) then (no)
+  :resp_err: access_key required;
+  |HTTP client|
+  stop
+endif
+
+if (flow_id int?) then (no)
+  :resp_err: flow_id must be int;
+  |HTTP client|
+  stop
+endif
+
+if (context is null or dict?) then (no)
+  :resp_err: context must be object;
+  |HTTP client|
+  stop
+endif
+
+if (step_payloads is null or dict?) then (no)
+  :resp_err: step_payloads must be object;
+  |HTTP client|
+  stop
+endif
+
+if (idem_key present?) then (yes)
+  if (idem_key int?) then (no)
+    :resp_err: idem_key must be int;
+    |HTTP client|
+    stop
+  endif
+endif
+
+:start_instance(access_key, flow_id,\ncontext, idem_key, step_payloads);
+
+|#LightGreen|saga_coordinator.start_instance|
+:resolve participant by access_key\n(status ENABLED);
+:resolve flow by id + participant\n(status ENABLED);
+:load ordered SagaFlowStep list;
+
+if (at least one step?) then (yes)
+  :continue;
+else (no)
+  #pink:raise ValueError;
+endif
+
+:normalize context / step_payloads to dict;
+
+if (client idem_key provided?) then (yes)
+  |#LightYellow|Database saga_rw|
+  :SELECT instance by idem_key;
+  |#LightGreen|saga_coordinator.start_instance|
+  if (row exists?) then (yes)
+    :serialize_instance(existing);
+    |#LightBlue|SagaInstanceStartView|
+    :resp_ok(...);
+    |HTTP client|
+    stop
+  endif
+else (no)
+  :allocate_snowflake_int() -> idem_key;
+  note right
+    On SnowflakeIdError, raises ValueError.
+  end note
+endif
+
+:build start_request snapshot\n(including assigned idem_key);
+
+|#LightYellow|Database saga_rw|
+:transaction: INSERT SagaInstance\n(RUNNING, JSON fields, step 0);
+:INSERT SagaStepRun per flow step\n(PENDING);
+
+|#LightGreen|saga_coordinator.start_instance|
+note right
+  Sync: for _ in range(SAGA_START_SYNC_STEP_BUDGET):
+  process_instance(pk); reload; stop if terminal
+  or next_retry_at > now or row missing.
+end note
+
+repeat
+  :process_instance(instance.pk);
+  note right
+    Inside: lock row; if due, RUNNING -> POST action_url
+    (outbound_http); merge context on success; advance step
+    or set retry/COMPENSATING; COMPENSATING -> POST compensate_url;
+    all persistence on saga_rw.
+  end note
+  :get_instance_by_id;
+repeat while (another iteration allowed\nby budget and instance state?) is (yes)
+->no;
+
+:serialize_instance(latest);
+
+|#LightBlue|SagaInstanceStartView|
+if (uncaught exception?) then (yes)
+  :resp_exception or log + 500;
+else (no)
+  :resp_ok(serialize_instance);
+endif
+
+|HTTP client|
+:JSON response;
+stop
+
+@enduml

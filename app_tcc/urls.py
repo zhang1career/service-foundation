@@ -14,16 +14,16 @@ urlpatterns = [
     path("xxl-job/beat", XxlJobBeatView.as_view(), name="tcc-xxl-beat"),
     path("xxl-job/run", XxlJobRunView.as_view(), name="tcc-xxl-run"),
     path("xxl-job/kill", XxlJobKillView.as_view(), name="tcc-xxl-kill"),
-    path("transactions/begin", TccTransactionBeginView.as_view(), name="tcc-tx-begin"),
-    path("transactions/detail", TccTransactionDetailView.as_view(), name="tcc-tx-detail"),
     path(
-        "transactions/<str:global_tx_id>/confirm",
+        "tx/<str:idem_key>/confirm",
         TccTransactionConfirmView.as_view(),
         name="tcc-tx-confirm",
     ),
     path(
-        "transactions/<str:global_tx_id>/cancel",
+        "tx/<str:idem_key>/cancel",
         TccTransactionCancelView.as_view(),
         name="tcc-tx-cancel",
     ),
+    path("tx", TccTransactionBeginView.as_view(), name="tcc-tx-begin"),
+    path("tx/<str:idem_key>", TccTransactionDetailView.as_view(), name="tcc-tx-detail"),
 ]

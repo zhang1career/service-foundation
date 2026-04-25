@@ -1,10 +1,10 @@
 """
-Structured access logging for HTTP APIs under caller-configured path prefixes.
+Structured request/response logging for HTTP paths under configured prefixes.
 
-Routes and logger names are **not** hardcoded here. Set
-``settings.XXLJOB_EXECUTOR_ACCESS_LOG`` to a sequence of
-``(path_prefix, access_logger_name)`` (e.g. ``("/api/tcc/", "app_tcc.access")``).
-Longest matching prefix wins when multiple entries apply.
+``settings.PATH_PREFIXED_REQUEST_LOG`` is a sequence of
+``(path_prefix, logger_name)``; only requests whose path starts with a prefix are
+logged to that named logger. Longest prefix wins when multiple entries apply.
+When the setting is empty, this middleware does not log.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from django.utils.deprecation import MiddlewareMixin
 
 _MAX_BODY_JSON_CHARS = 8192
 _MAX_RESPONSE_JSON_CHARS = 4096
-_MAX_DATA_PREVIEW_ITEMS = 5
 _MAX_STR_PREVIEW = 200
 
 
@@ -59,13 +58,7 @@ def _abbreviate_value(value: Any) -> Any:
             return {"_len": len(value), "_head": head}
         return head
     if isinstance(value, dict):
-        keys = list(value.keys())
-        if len(keys) > _MAX_DATA_PREVIEW_ITEMS:
-            return {
-                "_keys_sample": keys[:_MAX_DATA_PREVIEW_ITEMS],
-                "_key_count": len(keys),
-            }
-        return {k: _abbreviate_value(value[k]) for k in keys}
+        return {k: _abbreviate_value(value[k]) for k in value.keys()}
     return repr(value)[:_MAX_STR_PREVIEW]
 
 
@@ -126,7 +119,7 @@ def response_payload_summary(response) -> tuple[Any, Any, Any]:
 
 
 def _log_response(logger_name: str, request, response) -> None:
-    start = getattr(request, "_xxl_job_executor_access_start", None)
+    start = getattr(request, "_path_prefixed_request_log_start", None)
     duration_ms = None
     if start is not None:
         duration_ms = round((time.perf_counter() - start) * 1000, 3)
@@ -150,17 +143,17 @@ def _log_request(logger_name: str, request) -> None:
     )
 
 
-class XxlJobExecutorLogMiddleware(MiddlewareMixin):
+class PathPrefixedRequestLogMiddleware(MiddlewareMixin):
     def __init__(self, get_response):
         super().__init__(get_response)
-        self._routes = _normalize_routes(getattr(settings, "XXLJOB_EXECUTOR_ACCESS_LOG", ()))
+        self._routes = _normalize_routes(getattr(settings, "PATH_PREFIXED_REQUEST_LOG", ()))
 
     def process_request(self, request):
         path = request.path or ""
         logger_name = _match_logger(path, self._routes)
         if logger_name is None:
             return None
-        request._xxl_job_executor_access_start = time.perf_counter()
+        request._path_prefixed_request_log_start = time.perf_counter()
         _log_request(logger_name, request)
         return None
 

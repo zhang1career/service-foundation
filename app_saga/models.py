@@ -71,11 +71,13 @@ class SagaFlowStep(models.Model):
         db_column="fid",
     )
     step_index = models.PositiveIntegerField()
+    step_code = models.CharField(max_length=64, default="")
     name = models.CharField(max_length=255, blank=True, default="")
     action_url = models.CharField(max_length=2048)
     compensate_url = models.CharField(max_length=2048)
     timeout_sec = models.PositiveIntegerField(default=30)
     max_retries = models.PositiveIntegerField(default=10)
+    is_need_confirm = models.SmallIntegerField(default=0)
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)
 
@@ -116,6 +118,8 @@ class SagaInstance(models.Model):
     idem_key = models.BigIntegerField(unique=True)
     context = models.TextField(default="{}")
     step_payloads = models.TextField(default="{}")
+    start_body = models.TextField(default="{}")
+    need_confirm = models.TextField(null=True, blank=True)
     current_step_index = models.IntegerField(default=0)
     next_retry_at = models.BigIntegerField()
     retry_count = models.PositiveIntegerField(default=0)

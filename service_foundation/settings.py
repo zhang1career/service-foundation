@@ -147,17 +147,17 @@ if APP_TCC_ENABLED:
 if APP_SAGA_ENABLED:
     INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 
-# (URL path prefix, access logger name) for XxlJobExecutorLogMiddleware; empty disables its logging.
-XXLJOB_EXECUTOR_ACCESS_LOG: list[tuple[str, str]] = []
+# (URL path prefix, logger name) for PathPrefixedRequestLogMiddleware; empty list disables.
+PATH_PREFIXED_REQUEST_LOG: list[tuple[str, str]] = []
 if APP_TCC_ENABLED:
-    XXLJOB_EXECUTOR_ACCESS_LOG.append(("/api/tcc/", "app_tcc.access"))
+    PATH_PREFIXED_REQUEST_LOG.append(("/api/tcc/", "app_tcc.access"))
 if APP_SAGA_ENABLED:
-    XXLJOB_EXECUTOR_ACCESS_LOG.append(("/api/saga/", "app_saga.access"))
+    PATH_PREFIXED_REQUEST_LOG.append(("/api/saga/", "app_saga.access"))
 
 MIDDLEWARE = [
     "common.middleware.trace_id_header_middleware.TraceIdHeaderNormalizeMiddleware",
     "log_request_id.middleware.RequestIDMiddleware",
-    "common.middleware.xxl_job_executor_middleware.XxlJobExecutorLogMiddleware",
+    "common.middleware.path_prefixed_request_log_middleware.PathPrefixedRequestLogMiddleware",
     "common.middleware.host_validation_middleware.HostValidationMiddleware",  # Must be before SecurityMiddleware
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",

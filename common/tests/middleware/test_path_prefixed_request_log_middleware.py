@@ -1,15 +1,10 @@
 """
-XXL-JOB executor contract vs docker-lab job-executor (PHP reference).
+Path-prefixed HTTP request/response logging middleware (DRF envelope contract).
 
-Reference: job-executor returns JSON object ``{ "code", "msg", "data" }`` from
-``XxlResponse::success()``; admin POST body matches XXL ``/run`` payload shape.
-These tests pin the same contract for this repo and catch regressions in
-response serialization / access-log summary.
+These tests pin response parsing and logging behavior. Run without full project MySQL::
 
-Run without full project MySQL::
-
-  DJANGO_SETTINGS_MODULE=common.tests.middleware.settings_xxl_mw_min \\
-    python -m django test common.tests.middleware.test_xxl_job_executor_middleware
+  DJANGO_SETTINGS_MODULE=common.tests.middleware.settings_path_prefixed_log_mw_min \\
+    python -m django test common.tests.middleware.test_path_prefixed_request_log_middleware
 """
 
 from __future__ import annotations
@@ -22,8 +17,8 @@ from django.test import RequestFactory, SimpleTestCase, override_settings
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 
-from common.middleware.xxl_job_executor_middleware import (
-    XxlJobExecutorLogMiddleware,
+from common.middleware.path_prefixed_request_log_middleware import (
+    PathPrefixedRequestLogMiddleware,
     response_payload_summary,
 )
 from common.services.xxl_job.response import success
@@ -32,7 +27,7 @@ from common.views.xxl_job_view import XxlJobRunView
 
 
 class ResponsePayloadSummaryTests(SimpleTestCase):
-    """How access-log reads bodies (DRF vs raw HttpResponse)."""
+    """How log summary reads bodies (DRF vs raw HttpResponse)."""
 
     def test_drf_response_uses_data_not_bytes(self) -> None:
         resp = Response(success(), status=200)
@@ -49,7 +44,7 @@ class ResponsePayloadSummaryTests(SimpleTestCase):
         self.assertEqual(msg, "")
         self.assertIsNone(data)
 
-    def test_http_response_bytes_parse_as_xxl_object(self) -> None:
+    def test_http_response_bytes_parse_envelope(self) -> None:
         body = json.dumps(success(), separators=(",", ":")).encode("utf-8")
         resp = HttpResponse(body, content_type="application/json", status=200)
         code, msg, data = response_payload_summary(resp)
@@ -105,19 +100,19 @@ class XxlJobRunViewContractTests(SimpleTestCase):
         )
 
 
-class XxlJobExecutorLogMiddlewareTests(SimpleTestCase):
-    def test_process_response_summary_matches_drf_xxl_envelope(self) -> None:
+class PathPrefixedRequestLogMiddlewareTests(SimpleTestCase):
+    def test_process_response_summary_matches_drf_success_envelope(self) -> None:
         mock_log = MagicMock()
         with (
             override_settings(
-                XXLJOB_EXECUTOR_ACCESS_LOG=[("/api/tcc/", "test_xxl_mw.access")],
+                PATH_PREFIXED_REQUEST_LOG=[("/api/tcc/", "test_path_prefixed_log.access")],
             ),
             patch(
-                "common.middleware.xxl_job_executor_middleware.logging.getLogger",
+                "common.middleware.path_prefixed_request_log_middleware.logging.getLogger",
                 return_value=mock_log,
             ),
         ):
-            mw = XxlJobExecutorLogMiddleware(lambda r: HttpResponse())
+            mw = PathPrefixedRequestLogMiddleware(lambda r: HttpResponse())
             rf = RequestFactory()
             request = rf.post("/api/tcc/xxl-job/run")
             request.path = "/api/tcc/xxl-job/run"

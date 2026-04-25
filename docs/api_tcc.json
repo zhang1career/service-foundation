@@ -75,21 +75,54 @@
         }
       }
     },
-    "/api/tcc/transactions/begin": {
+    "/api/tcc/tx": {
       "post": {
         "tags": ["Transactions"],
         "summary": "开启全局事务（Try 阶段及后续）",
-        "description": "请求体为 JSON 对象。\n\n- `branches`：非空数组；每项须含 **`branch_meta_id`（int）**，可选 **`payload`（对象）**。同一请求内 `branch_meta_id` 不可重复。\n- `auto_confirm`：可选布尔；省略时使用服务端 `TCC_DEFAULT_AUTO_CONFIRM`。\n- `context`：可选对象，持久化为全局事务上下文（JSON）。\n\n服务端分配 Snowflake `idem_key` 与各分支幂等键，按分支元数据顺序调用参与者 Try；成功且 `auto_confirm` 为真时进入 Confirm，否则进入 `AWAIT_CONFIRM` 等待显式确认。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
-        "operationId": "tccTransactionBegin",
+        "description": "请求体为 **二选一**。\n\n**A. 经典** — 根上 `biz_id` + `branches` 等，见 `TccBeginRequest`。\n\n**B. Saga 外呼** — 有 `saga_instance_id` 与 **`payload`（object）** 时解析为 begin：`biz_id` ← **`payload.biz_id`**（int，正，必填）；`branches` 等在 **`payload`** 内。`tcc_access_key` 可在 **`saga_shared`** 或根上重复（可忽略）。Saga 编排器外呼**仅**在 `saga_shared` 中携带 `step_payloads` 与可选 `tcc_access_key`；根级 `flow_id` 为 Saga 流程 ID，**不是** TCC `biz_id`。\n\n**响应 `data.branches`（A/B 相同）**：为以各分支的 **`branch_code`**（与 `TccBranchMeta.code`、begin 入参 `branches[].branch_code` 相同）为键的对象（**禁止**缺 `branch_meta.code` 时用其他占位键；未配置时在查询/列详情会 `errorCode=100`）。值为 `TccBranchSummary`（内含 `branch_code` 字段；`data` 为参与者最近一次成功 HTTP 的 JSON 体，解析结果或 `null`）。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
+        "operationId": "tccTxBegin",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/TccBeginRequest" },
-              "example": {
-                "branches": [{ "branch_meta_id": 1, "payload": { "order_id": "a1" } }],
-                "auto_confirm": false,
-                "context": { "biz": "demo" }
+              "schema": {
+                "oneOf": [
+                  { "$ref": "#/components/schemas/TccBeginRequest" },
+                  { "$ref": "#/components/schemas/SagaTccTxCallback" }
+                ]
+              },
+              "examples": {
+                "classic": {
+                  "summary": "经典直连",
+                  "value": {
+                    "biz_id": 1,
+                    "branches": [{ "branch_code": "pay", "payload": { "order_id": "a1" } }],
+                    "auto_confirm": false,
+                    "context": { "biz": "demo" }
+                  }
+                },
+                "fromSaga": {
+                  "summary": "Saga 步骤外呼（`biz_id` 在 `payload`，与编排器 `saga_shared` 一致）",
+                  "value": {
+                    "saga_instance_id": "1001",
+                    "idem_key": 9876543210987654321,
+                    "flow_id": 5,
+                    "step_index": 0,
+                    "phase": "action",
+                    "context": {},
+                    "saga_shared": {
+                      "tcc_access_key": "tcc-access-or-jwt",
+                      "step_payloads": { "pay": {} }
+                    },
+                    "payload": {
+                      "biz_id": 10,
+                      "branches": [{ "branch_code": "pay", "payload": { "order_id": "a1" } }],
+                      "auto_confirm": false,
+                      "context": { "biz": "demo" }
+                    },
+                    "start_request": { "flow_id": 5, "access_key": "saga-key" }
+                  }
+                }
               }
             }
           }
@@ -127,25 +160,18 @@
         }
       }
     },
-    "/api/tcc/transactions/detail": {
+    "/api/tcc/tx/{idem_key}": {
       "get": {
         "tags": ["Transactions"],
         "summary": "查询全局事务详情",
-        "description": "**二选一**查询：`idem_key`（int）或 `global_tx_id`（字符串，与全局事务主键一致的可解析整数）。两者同时提供 → `errorCode=100`；均未提供 → `100`；找不到事务 → `100`（message: `transaction not found`）。成功时 `data` 结构与 `serialize_transaction` 一致。",
-        "operationId": "tccTransactionDetail",
+        "description": "路径参数 `idem_key` 为 `TccGlobalTransaction.idem_key`（开启事务响应体中的 `idem_key` 字段）的十进制字符串，前后空白会被 trim。空字符串或非十进制整数 → `errorCode=100`（`idem_key required` / `idem_key must be a decimal integer string`）；找不到事务 → `100`（`transaction not found`）。成功时 `data` 结构与 `serialize_transaction` 一致（仍含 `global_tx_id` 主键与 `idem_key`）。",
+        "operationId": "tccTxDetail",
         "parameters": [
           {
             "name": "idem_key",
-            "in": "query",
-            "required": false,
-            "description": "开启事务时分配的幂等/全局 idem（Snowflake 整数）。与 `global_tx_id` 互斥。",
-            "schema": { "type": "integer", "format": "int64", "example": 1234567890123456789 }
-          },
-          {
-            "name": "global_tx_id",
-            "in": "query",
-            "required": false,
-            "description": "全局事务 ID（`TccGlobalTransaction` 主键的十进制字符串）。与 `idem_key` 互斥。",
+            "in": "path",
+            "required": true,
+            "description": "全局事务幂等键（`idem_key`，与 `POST /api/tcc/tx` 成功响应中字段一致）。",
             "schema": { "type": "string", "pattern": "^[0-9]+$", "example": "9876543210987654321" }
           }
         ],
@@ -192,18 +218,18 @@
         }
       }
     },
-    "/api/tcc/transactions/{global_tx_id}/confirm": {
+    "/api/tcc/tx/{idem_key}/confirm": {
       "post": {
         "tags": ["Transactions"],
         "summary": "确认全局事务（进入 Confirm 阶段）",
-        "description": "路径参数 `global_tx_id` 为全局事务主键字符串。仅当当前状态为 **`AWAIT_CONFIRM`** 时可确认；否则 `errorCode=100`。成功返回更新后的 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
-        "operationId": "tccTransactionConfirm",
+        "description": "路径参数 `idem_key` 同「查询详情」接口。仅当当前状态为 **`AWAIT_CONFIRM`** 时可确认；否则 `errorCode=100`。路径格式非法时同详情接口。成功返回更新后的 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
+        "operationId": "tccTxConfirm",
         "parameters": [
           {
-            "name": "global_tx_id",
+            "name": "idem_key",
             "in": "path",
             "required": true,
-            "description": "全局事务 ID（可解析为整数的字符串，前后空白会被 trim）。",
+            "description": "全局事务幂等键（与 `POST /api/tcc/tx` 响应中 `idem_key` 一致）。",
             "schema": { "type": "string", "example": "9876543210987654321" }
           }
         ],
@@ -250,21 +276,30 @@
         }
       }
     },
-    "/api/tcc/transactions/{global_tx_id}/cancel": {
+    "/api/tcc/tx/{idem_key}/cancel": {
       "post": {
         "tags": ["Transactions"],
         "summary": "取消全局事务（进入 Cancel 阶段）",
-        "description": "对已 **COMMITTED**、**ROLLED_BACK** 或 **NEEDS_MANUAL** 的事务调用会返回 `errorCode=100`（`transaction is already terminal`）。对其余非终态事务置为取消阶段并对已成功 Try 的分支逆序调用 Cancel。成功返回 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
-        "operationId": "tccTransactionCancel",
+        "description": "路径参数 `idem_key` 同「查询详情」接口。请求体为 JSON 对象，**必填** `cancel_reason`（整型枚举，见 `TccCancelReason` / `app_tcc.enums.CancelReason`）。对已 **COMMITTED**、**ROLLED_BACK** 或 **NEEDS_MANUAL** 的事务调用会返回 `errorCode=100`（`transaction is already terminal`）。对其余非终态事务置为取消阶段并对已成功 Try 的分支逆序调用 Cancel；参与者 `cancel_url` 的 JSON 体会带 `cancel_reason` 与 `last_cancel_reason` 一致。Try 失败或待确认超时等由协调器触发的取消使用内部原因（见 `CancelReason`）。成功返回 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
+        "operationId": "tccTxCancel",
         "parameters": [
           {
-            "name": "global_tx_id",
+            "name": "idem_key",
             "in": "path",
             "required": true,
-            "description": "全局事务 ID（可解析为整数的字符串）。",
+            "description": "全局事务幂等键（与 `POST /api/tcc/tx` 响应中 `idem_key` 一致）。",
             "schema": { "type": "string", "example": "9876543210987654321" }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TccCancelRequest" },
+              "example": { "cancel_reason": 0 }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "成功或错误（HTTP 200）",
@@ -427,13 +462,37 @@
           "service": { "type": "string", "enum": ["tcc"] }
         }
       },
+      "SagaTccTxCallback": {
+        "type": "object",
+        "description": "当 `saga_instance_id` 与 `payload` 同时存在时：``biz_id`` ← **`payload.biz_id`**（正 int，必填）；``branch_items`` ← `payload.branches`；`saga_shared` 含 `step_payloads` 与可选 `tcc_access_key`（编排器不将 TCC `biz_id` 放在 `saga_shared`）",
+        "required": ["saga_instance_id", "payload"],
+        "properties": {
+          "saga_instance_id": { "type": "string", "description": "Saga 实例主键（字符串）" },
+          "idem_key": { "type": "integer", "format": "int64" },
+          "flow_id": { "type": "integer", "description": "Saga 流程 ID（非 TCC `biz_id`）" },
+          "saga_shared": {
+            "type": "object",
+            "description": "须含 `step_payloads`；`tcc_access_key` 可选。TCC `biz_id` 在 **`payload.biz_id`**，不在此对象内"
+          },
+          "payload": {
+            "type": "object",
+            "description": "须含 `biz_id`（正 int，TCC 即 `TccBizMeta.id`）、`branches`（array，必非空）；可选 `auto_confirm`、`context`",
+            "additionalProperties": true
+          },
+          "phase": { "type": "string" },
+          "context": { "type": "object", "additionalProperties": true },
+          "start_request": { "type": "object", "additionalProperties": true }
+        }
+      },
       "TccBeginBranchItem": {
         "type": "object",
-        "required": ["branch_meta_id"],
+        "required": ["branch_code"],
         "properties": {
-          "branch_meta_id": {
-            "type": "integer",
-            "description": "分支元数据主键（`TccBranchMeta.id`），同一 begin 请求内不可重复"
+          "branch_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "与 `TccBranchMeta.code` 一致，同一 `biz_id` 下唯一；begin 请求内不可重复；strip 后非空"
           },
           "payload": {
             "type": "object",
@@ -442,10 +501,27 @@
           }
         }
       },
+      "TccCancelReason": {
+        "type": "integer",
+        "description": "业务取消原因；定义于 `app_tcc.enums.CancelReason`",
+        "enum": [0, 10, 20],
+        "x-enum-varnames": ["UNPAID", "ORDER_CLOSED", "DUPLICATE_CALLBACK"]
+      },
+      "TccCancelRequest": {
+        "type": "object",
+        "required": ["cancel_reason"],
+        "properties": {
+          "cancel_reason": { "$ref": "#/components/schemas/TccCancelReason" }
+        }
+      },
       "TccBeginRequest": {
         "type": "object",
-        "required": ["branches"],
+        "required": ["biz_id", "branches"],
         "properties": {
+          "biz_id": {
+            "type": "integer",
+            "description": "业务元数据主键（`TccBizMeta.id` / `biz_meta.id`）"
+          },
           "branches": {
             "type": "array",
             "minItems": 1,
@@ -465,20 +541,28 @@
       "TccBranchSummary": {
         "type": "object",
         "required": [
-          "branch_id",
+          "tx_branch_id",
           "branch_meta_id",
           "branch_index",
+          "branch_code",
           "branch_status",
           "last_http_status",
-          "last_error"
+          "last_error",
+          "data"
         ],
         "properties": {
-          "branch_id": {
-            "type": "string",
-            "description": "分支行主键（`TccBranch.pk`）的字符串形式"
+          "tx_branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`tx_branch` 表主键（`TccBranch.id` / `pk`），与库中 bigint 一致"
           },
           "branch_meta_id": { "type": "integer" },
           "branch_index": { "type": "integer", "minimum": 0 },
+          "branch_code": {
+            "type": "string",
+            "minLength": 1,
+            "description": "与 `TccBranchMeta.code` 相同；`data.branches` 的**对象键**即该值（与 begin 入参 `branches[].branch_code` 对应）"
+          },
           "branch_status": {
             "type": "integer",
             "description": "分支状态，见 `BranchStatus`（10–70）"
@@ -491,6 +575,10 @@
           "last_error": {
             "type": "string",
             "description": "错误信息截断至约 200 字符"
+          },
+          "data": {
+            "description": "参与者返回体 JSON（最近一次成功 2xx 时解析；空体或非 JSON 为 null）",
+            "nullable": true
           }
         }
       },
@@ -521,8 +609,9 @@
           "auto_confirm": { "type": "boolean" },
           "retry_count": { "type": "integer", "minimum": 0 },
           "branches": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/TccBranchSummary" }
+            "type": "object",
+            "description": "按 `branch_code` 为键的映射（与 begin 的 `branches[].branch_code` 及元数据 `TccBranchMeta.code` 对齐）",
+            "additionalProperties": { "$ref": "#/components/schemas/TccBranchSummary" }
           },
           "review_snapshot": {
             "type": "string",

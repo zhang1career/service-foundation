@@ -49,6 +49,7 @@
                 <tr>
                     <th class="w-10" aria-label="拖拽排序"></th>
                     <th>ID</th>
+                    <th>code</th>
                     <th>名称</th>
                     <th>Try URL</th>
                     <th>操作</th>
@@ -63,12 +64,14 @@
                         </span>
                     </td>
                     <td class="font-mono text-sm align-middle">{{ br.id }}</td>
+                    <td class="font-mono text-sm align-middle">{{ br.code|default:"—" }}</td>
                     <td class="align-middle max-w-xs break-words">{{ br.name|default:"—" }}</td>
                     <td class="text-xs break-all max-w-lg align-middle">{{ br.try_url }}</td>
                     <td class="whitespace-nowrap align-middle">
                         <div class="flex gap-1 items-center flex-wrap">
                             <button type="button" class="btn btn-outline btn-icon tcc-br-edit" title="编辑"
                                     data-id="{{ br.id }}"
+                                    data-code="{{ br.code|default_if_none:''|escape }}"
                                     data-name="{{ br.name|default_if_none:''|escape }}"
                                     data-try="{{ br.try_url|escape }}"
                                     data-confirm="{{ br.confirm_url|escape }}"
@@ -89,7 +92,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="text-gray-500 text-sm py-8 text-center">暂无分支，请点击「新增」添加。</td>
+                    <td colspan="6" class="text-gray-500 text-sm py-8 text-center">暂无分支，请点击「新增」添加。</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -114,6 +117,10 @@
             <input type="hidden" name="action" value="create_branch">
             <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
             <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-create-code">code *</label>
+                    <input id="tcc-br-create-code" name="code" class="form-input w-full" required maxlength="64" placeholder="唯一标识，如 pay / inventory" autocomplete="off">
+                </div>
                 <div class="form-group">
                     <label class="form-label" for="tcc-br-create-name">名称</label>
                     <input id="tcc-br-create-name" name="name" class="form-input w-full" maxlength="255" placeholder="可选" autocomplete="off">
@@ -151,6 +158,10 @@
             <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
             <div class="modal-body">
                 <p class="text-gray-500 text-sm mb-3">执行顺序请在列表中拖拽调整，保存「顺序」后写入 branch_index。</p>
+                <div class="form-group">
+                    <label class="form-label" for="tcc-br-code">code</label>
+                    <input name="code" id="tcc-br-code" class="form-input w-full" maxlength="64" placeholder="留空则不修改" autocomplete="off">
+                </div>
                 <div class="form-group">
                     <label class="form-label" for="tcc-br-name">名称</label>
                     <input name="name" id="tcc-br-name" class="form-input w-full" maxlength="255" placeholder="可选" autocomplete="off">
@@ -244,6 +255,7 @@
         document.querySelectorAll('.tcc-br-edit').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 el('tcc-br-id').value = btn.getAttribute('data-id') || '';
+                el('tcc-br-code').value = btn.getAttribute('data-code') || '';
                 el('tcc-br-name').value = btn.getAttribute('data-name') || '';
                 el('tcc-br-try').value = btn.getAttribute('data-try') || '';
                 el('tcc-br-confirm').value = btn.getAttribute('data-confirm') || '';

@@ -32,3 +32,9 @@ python manage.py createsuperuser
 pip install -r requirements.txt
 python manage.py migrate
 ```
+
+## TCC：开启事务 API（`POST /api/tcc/tx`）
+
+请求体需包含 **`biz_id`**（对应 `biz_meta.id`），`branches[]` 中每一项用 **`branch_code`**（与控制台为该业务登记的分支 **唯一标识** `branch_meta.code` 一致，程序内同 `biz` 唯一、无 DB 唯一索引；无需与内部 `branch_index` 或数组顺序一致）。
+
+**编排说明：** 参与者 Try/Confirm/Cancel 的**调用顺序**仍由服务端按 `branch_index` 升序决定，与 `branches[]` 数组顺序无关。修改分支 URL 时只要 `branch_code` 不变，调用方请求不必随控制台拖拽顺序而改。

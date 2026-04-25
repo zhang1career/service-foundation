@@ -60,6 +60,7 @@
         <table class="data-table">
             <thead>
                 <tr>
+                    <th>code</th>
                     <th>branch_index</th>
                     <th>branch_meta_id</th>
                     <th>status</th>
@@ -70,6 +71,7 @@
             <tbody>
                 {% for b in branches %}
                 <tr>
+                    <td class="font-mono text-xs">{{ b.branch_meta.code|default:"—" }}</td>
                     <td class="font-mono">{{ b.branch_index }}</td>
                     <td class="font-mono">{{ b.branch_meta_id }}</td>
                     <td>
@@ -83,7 +85,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="text-center text-gray-500 py-6">无分支记录</td>
+                    <td colspan="6" class="text-center text-gray-500 py-6">无分支记录</td>
                 </tr>
                 {% endfor %}
             </tbody>

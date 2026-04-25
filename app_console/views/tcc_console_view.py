@@ -162,18 +162,24 @@ class TccBranchMetaConsoleView(TemplateView):
                 biz_branch_service.create_branch_meta(
                     bid,
                     branch_index=next_idx,
+                    code=(request.POST.get("code") or "").strip(),
                     name=(request.POST.get("name") or "").strip(),
                     try_url=(request.POST.get("try_url") or "").strip(),
                     confirm_url=(request.POST.get("confirm_url") or "").strip(),
                     cancel_url=(request.POST.get("cancel_url") or "").strip(),
                 )
             elif action == "update_branch":
+                ukw: dict = {
+                    "name": (request.POST.get("name") or "").strip(),
+                    "try_url": (request.POST.get("try_url") or "").strip(),
+                    "confirm_url": (request.POST.get("confirm_url") or "").strip(),
+                    "cancel_url": (request.POST.get("cancel_url") or "").strip(),
+                }
+                code_raw = (request.POST.get("code") or "").strip()
+                if code_raw:
+                    ukw["code"] = code_raw
                 biz_branch_service.update_branch_meta(
-                    int(request.POST.get("branch_id", 0)),
-                    name=(request.POST.get("name") or "").strip(),
-                    try_url=(request.POST.get("try_url") or "").strip(),
-                    confirm_url=(request.POST.get("confirm_url") or "").strip(),
-                    cancel_url=(request.POST.get("cancel_url") or "").strip(),
+                    int(request.POST.get("branch_id", 0)), **ukw
                 )
             elif action == "delete_branch":
                 biz_branch_service.delete_branch_meta(int(request.POST.get("branch_id", 0)))
