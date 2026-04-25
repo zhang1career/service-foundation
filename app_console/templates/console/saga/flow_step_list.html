@@ -56,6 +56,7 @@
                 <tr>
                     <th class="w-10" aria-label="拖拽排序"></th>
                     <th>ID</th>
+                    <th>code</th>
                     <th>名称</th>
                     <th>是否需确认</th>
                     <th>Action URL</th>
@@ -71,6 +72,7 @@
                         </span>
                     </td>
                     <td class="font-mono text-sm align-middle">{{ br.id }}</td>
+                    <td class="font-mono text-sm align-middle break-all max-w-[10rem]">{{ br.step_code|default:"—" }}</td>
                     <td class="align-middle max-w-xs break-words">{{ br.name|default:"—" }}</td>
                     <td class="align-middle">
                         <label class="inline-flex items-center cursor-pointer shrink-0 select-none" title="是否需确认">
@@ -88,6 +90,7 @@
                         <div class="flex gap-1 items-center flex-wrap">
                             <button type="button" class="btn btn-outline btn-icon saga-step-edit" title="编辑"
                                     data-id="{{ br.id }}"
+                                    data-step-code="{{ br.step_code|default_if_none:''|escape }}"
                                     data-name="{{ br.name|default_if_none:''|escape }}"
                                     data-action="{{ br.action_url|escape }}"
                                     data-compensate="{{ br.compensate_url|escape }}"
@@ -110,7 +113,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-gray-500 text-sm py-8 text-center">暂无步骤，请点击「新增」添加。</td>
+                    <td colspan="7" class="text-gray-500 text-sm py-8 text-center">暂无步骤，请点击「新增」添加。</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -146,8 +149,13 @@
             <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
             <div class="modal-body">
                 <div class="form-group">
+                    <label class="form-label" for="saga-step-create-code">code *</label>
+                    <input id="saga-step-create-code" name="step_code" class="form-input w-full" required maxlength="64"
+                           placeholder="如 pay，同流程唯一，作 step_payloads 键" autocomplete="off">
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="saga-step-create-name">名称</label>
-                    <input id="saga-step-create-name" name="name" class="form-input w-full" maxlength="255" placeholder="可选（可作 step_payloads 键）" autocomplete="off">
+                    <input id="saga-step-create-name" name="name" class="form-input w-full" maxlength="255" placeholder="可选" autocomplete="off">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="saga-step-create-action">Action URL *</label>
@@ -197,6 +205,11 @@
             <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
             <div class="modal-body">
                 <p class="text-gray-500 text-sm mb-3">执行顺序请在列表中拖拽调整，保存「顺序」后写入 step_index。</p>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-code">code *</label>
+                    <input name="step_code" id="saga-step-code" class="form-input w-full" required maxlength="64"
+                           autocomplete="off" placeholder="同流程唯一">
+                </div>
                 <div class="form-group">
                     <label class="form-label" for="saga-step-name">名称</label>
                     <input name="name" id="saga-step-name" class="form-input w-full" maxlength="255" placeholder="可选" autocomplete="off">
@@ -322,6 +335,7 @@
         document.querySelectorAll('.saga-step-edit').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 el('saga-step-id').value = btn.getAttribute('data-id') || '';
+                el('saga-step-code').value = btn.getAttribute('data-step-code') || '';
                 el('saga-step-name').value = btn.getAttribute('data-name') || '';
                 el('saga-step-action').value = btn.getAttribute('data-action') || '';
                 el('saga-step-compensate').value = btn.getAttribute('data-compensate') || '';

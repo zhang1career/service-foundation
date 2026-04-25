@@ -42,6 +42,11 @@ def _next_retry_capped(now_ms: int) -> int:
 
 
 def _payload_for_step(step: SagaFlowStep, payloads: dict[str, Any]) -> dict[str, Any]:
+    code = (getattr(step, "step_code", None) or "").strip()
+    if code:
+        v0 = payloads.get(code)
+        if isinstance(v0, dict):
+            return v0
     k_idx = str(step.step_index)
     v = payloads.get(k_idx)
     if isinstance(v, dict):
@@ -63,6 +68,51 @@ def _load_start_request(inst: SagaInstance) -> dict[str, Any]:
         return outbound_http.loads_json_dict(raw)
     except ValueError:
         return {}
+
+
+def _saga_shared_for_outbound(inst: SagaInstance) -> dict[str, Any]:
+    """
+    Common fields repeated on every action/compensate call: TCC and full step payload map.
+    Populated from ``start_body`` (create-time request) and current ``step_payloads`` JSON.
+    """
+    out: dict[str, Any] = {
+        "step_payloads": outbound_http.loads_json_dict(inst.step_payloads),
+    }
+    sr = _load_start_request(inst)
+    t = sr.get("tcc_access_token")
+    if isinstance(t, str) and t.strip():
+        out["tcc_access_token"] = t.strip()
+    tf = sr.get("tcc_flow_id")
+    if tf is not None:
+        try:
+            tfi = int(tf)
+        except (TypeError, ValueError):
+            tfi = 0
+        if tfi > 0:
+            out["tcc_flow_id"] = tfi
+    return out
+
+
+def _participant_post_body(
+        *,
+        inst: SagaInstance,
+        fs: SagaFlowStep,
+        ctx: dict[str, Any],
+        payloads: dict[str, Any],
+        phase: str,
+) -> dict[str, Any]:
+    shared = _saga_shared_for_outbound(inst)
+    return {
+        "saga_instance_id": str(inst.pk),
+        "idem_key": inst.idem_key,
+        "flow_id": inst.flow_id,
+        "step_index": fs.step_index,
+        "phase": phase,
+        "context": ctx,
+        "payload": _payload_for_step(fs, payloads),
+        "start_request": _load_start_request(inst),
+        "saga_shared": shared,
+    }
 
 
 def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
@@ -87,6 +137,7 @@ def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
         ncf = outbound_http.loads_json_list(ncf_raw)
     else:
         ncf = None
+    saga_shared = _saga_shared_for_outbound(inst)
     return {
         "saga_instance_id": str(inst.pk),
         "idem_key": inst.idem_key,
@@ -97,6 +148,7 @@ def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
         "last_error": (inst.last_error or "")[:500],
         "context": outbound_http.loads_json_dict(inst.context),
         "need_confirm": ncf,
+        "saga_shared": saga_shared,
         "step_runs": runs,
     }
 
@@ -126,6 +178,8 @@ def start_instance(
         context: dict[str, Any] | None,
         idem_key: int | None,
         step_payloads: dict[str, Any] | None,
+        tcc_access_token: str | None = None,
+        tcc_flow_id: int | None = None,
 ) -> dict[str, Any]:
     from app_saga.services import participant_reg_service
 
@@ -152,6 +206,17 @@ def start_instance(
     ctx = context if isinstance(context, dict) else {}
     payloads = step_payloads if isinstance(step_payloads, dict) else {}
 
+    tcc_tok: str | None = None
+    if tcc_access_token is not None:
+        if not isinstance(tcc_access_token, str):
+            raise ValueError("tcc_access_token must be str")
+        tcc_tok = tcc_access_token.strip() or None
+    tcc_f: int | None = None
+    if tcc_flow_id is not None:
+        tcc_f = int(tcc_flow_id)
+        if tcc_f <= 0:
+            raise ValueError("tcc_flow_id must be positive int")
+
     if idem_key is not None:
         ik = int(idem_key)
         existing = get_instance_by_idem(ik)
@@ -170,6 +235,10 @@ def start_instance(
         "step_payloads": payloads,
         "idem_key": int(ik),
     }
+    if tcc_tok is not None:
+        start_request["tcc_access_token"] = tcc_tok
+    if tcc_f is not None:
+        start_request["tcc_flow_id"] = int(tcc_f)
     now = _now_ms()
     with transaction.atomic(using="saga_rw"):
         inst = SagaInstance(
@@ -225,16 +294,9 @@ def _run_forward_action(
         ctx: dict[str, Any],
         payloads: dict[str, Any],
 ) -> tuple[bool, dict[str, Any] | None]:
-    body = {
-        "saga_instance_id": str(inst.pk),
-        "idem_key": inst.idem_key,
-        "flow_id": inst.flow_id,
-        "step_index": fs.step_index,
-        "phase": "action",
-        "context": ctx,
-        "payload": _payload_for_step(fs, payloads),
-        "start_request": _load_start_request(inst),
-    }
+    body = _participant_post_body(
+        inst=inst, fs=fs, ctx=ctx, payloads=payloads, phase="action"
+    )
     json_body = outbound_http.prepare_saga_outbound_json_body(body)
     st, err, resp_obj = outbound_http.call_saga_endpoint(
         url=fs.action_url,
@@ -269,16 +331,9 @@ def _run_compensate(
         ctx: dict[str, Any],
         payloads: dict[str, Any],
 ) -> bool:
-    body = {
-        "saga_instance_id": str(inst.pk),
-        "idem_key": inst.idem_key,
-        "flow_id": inst.flow_id,
-        "step_index": fs.step_index,
-        "phase": "compensate",
-        "context": ctx,
-        "payload": _payload_for_step(fs, payloads),
-        "start_request": _load_start_request(inst),
-    }
+    body = _participant_post_body(
+        inst=inst, fs=fs, ctx=ctx, payloads=payloads, phase="compensate"
+    )
     json_body = outbound_http.prepare_saga_outbound_json_body(body)
     st, err, _resp = outbound_http.call_saga_endpoint(
         url=fs.compensate_url,

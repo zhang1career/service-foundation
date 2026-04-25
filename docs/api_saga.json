@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Saga 编排服务 API (app_saga)",
-    "description": "长事务 Saga 实例：按流程定义顺序调用参与者 action/compensate，并支持查询实例状态。仅在 `APP_SAGA_ENABLED=true` 时挂载；HTTP 前缀：`/api/saga/`（见 `service_foundation/urls.py` → `app_saga/urls.py`）。\n\n**参与者 HTTP（JSON POST）**：编排器对每个 `flow_step` 的 `action_url` / `compensate_url` 发送的 body 在原有 `saga_instance_id`、`idem_key`、`flow_id`、`step_index`、`phase`、`context`（**当前**步骤可见、可被步骤响应合并的上下文）、`payload`（本步骤的 `step_payloads` 项）之外，另含 **`start_request`** 对象，其内容与**创建该实例**时 `POST /api/saga/instances` 的 JSON 体一致（`access_key`、`flow_id`、`context`、`step_payloads`、`idem_key`），其中 `start_request.context` 为**创建时**的初始 `context`（与根级 `context` 可能不同）。`instance` 表需有 `start_body` 列以持久化该副本（见 `docs/schema/sf_saga.sql`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**错误响应**：`resp_err` / `resp_exception` 可能设置 `X-Request-Id`（见 `common.utils.http_util`）。\n\n**鉴权**：当前业务视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**XXL-JOB 执行器**（`/api/saga/xxl-job/*`）：与业务 API **不同**，响应为 `{ code, msg, data }`（`code` 为 200/500），请求头需 `XXL-JOB-ACCESS-TOKEN`（与 `XXL_JOB_TOKEN` 一致）；管理端回调地址见 `XXL_JOB_ADMIN_ADDRESS`。内建任务名 **`sagaScan`**：同步执行与 `manage.py saga_scan` 相同的扫描（`executorParams` 可选为 batch `limit` 的十进制字符串）。\n\n**状态码（整数）**：实例见 `SagaInstanceStatus`（PENDING=10, RUNNING=20, COMPENSATING=30, COMPLETED=40, ROLLED_BACK=50, FAILED=60）；步骤 action 见 `SagaStepActionStatus`（PENDING=10, SUCCEEDED=20, FAILED=30）；补偿见 `SagaStepCompensateStatus`（PENDING=10, SUCCEEDED=20, FAILED=30, SKIPPED=40），定义于 `app_saga/enums.py`。",
+    "description": "长事务 Saga 实例：按流程定义顺序调用参与者 action/compensate，并支持查询实例状态。仅在 `APP_SAGA_ENABLED=true` 时挂载；HTTP 前缀：`/api/saga/`（见 `service_foundation/urls.py` → `app_saga/urls.py`）。\n\n**参与者 HTTP（JSON POST）**：每步 body 含 `saga_instance_id`、`idem_key`、`flow_id`（Saga 流程 ID）、`step_index`、`phase`、`context`（当前步）、`payload`（本步）、**`saga_shared`**（`step_payloads` 全量与可选 `tcc_access_token` / `tcc_flow_id`）、**`start_request`**（与创建时 `POST /api/saga/instances` 一致，含 `start_request.context` 为创建时初始 context）。`instance` 表需有 `start_body` 列以持久化该副本（见 `docs/schema/sf_saga.sql`）。\n\n**响应包络**：`{ errorCode, data, message, ... }`。`errorCode === 0`（`RET_OK`）表示成功；参数与业务错误通常仍返回 **HTTP 200**，以 `errorCode` 区分。\n\n**成功响应**：`resp_ok` 会设置 `Expires` 响应头（约 5 秒后过期）。\n\n**错误响应**：`resp_err` / `resp_exception` 可能设置 `X-Request-Id`（见 `common.utils.http_util`）。\n\n**鉴权**：当前业务视图 `authentication_classes = []`，无会话/Token 校验（若网关层有鉴权需单独配置）。\n\n**XXL-JOB 执行器**（`/api/saga/xxl-job/*`）：与业务 API **不同**，响应为 `{ code, msg, data }`（`code` 为 200/500），请求头需 `XXL-JOB-ACCESS-TOKEN`（与 `XXL_JOB_TOKEN` 一致）；管理端回调地址见 `XXL_JOB_ADMIN_ADDRESS`。内建任务名 **`sagaScan`**：同步执行与 `manage.py saga_scan` 相同的扫描（`executorParams` 可选为 batch `limit` 的十进制字符串）。\n\n**状态码（整数）**：实例见 `SagaInstanceStatus`（PENDING=10, RUNNING=20, COMPENSATING=30, COMPLETED=40, ROLLED_BACK=50, FAILED=60）；步骤 action 见 `SagaStepActionStatus`（PENDING=10, SUCCEEDED=20, FAILED=30）；补偿见 `SagaStepCompensateStatus`（PENDING=10, SUCCEEDED=20, FAILED=30, SKIPPED=40），定义于 `app_saga/enums.py`。",
     "version": "1.0.0"
   },
   "servers": [
@@ -79,7 +79,7 @@
       "post": {
         "tags": ["Instances"],
         "summary": "启动 Saga 实例",
-        "description": "请求体为 JSON 对象。\n\n- **`access_key`**（string，必填）：参与者注册 access key，须为启用状态。\n- **`flow_id`**（int，必填）：该参与者下已启用的流程 ID。\n- **`context`**（object，可选）：持久化为实例上下文（JSON 对象）。\n- **`step_payloads`**（object，可选）：按步骤传入负载；键为 **`step_index` 的十进制字符串** 或（非空时）**步骤 `name`**，值为对象（见 `saga_coordinator._payload_for_step`）。\n- **`idem_key`**（int，可选）：显式幂等键；若已存在同键实例则 **直接返回已有实例序列化结果**（不重复创建）。省略时由 Snowflake 服务分配（依赖 `SAGA_SNOWFLAKE_*` 配置）。\n\n创建后服务端会在 `SAGA_START_SYNC_STEP_BUDGET` 限制内同步推进若干步，响应中的 `status` / `step_runs` 反映当前进度。\n\n**错误**：缺字段/类型错误/业务校验失败 → `errorCode=100`（`RET_INVALID_PARAM`）；未捕获异常（含实例上下文 JSON 损坏导致的解析失败等）→ `errorCode=-1`（`resp_exception`）。极端情况下若实例在处理后丢失，`data` 可能为空对象 `{}`（见 `start_instance` 实现）。",
+        "description": "请求体为 JSON 对象。\n\n- **`access_key`**（string，必填）：参与者注册 access key，须为启用状态。\n- **`flow_id`**（int，必填）：该参与者下已启用的流程 ID。\n- **`context`**（object，可选）：持久化为实例上下文（JSON 对象）。\n- **`step_payloads`**（object，可选）：每步一个键。匹配顺序为 **步骤 `step_code`**（与流程定义中 code 一致、同流程唯一）→ **`step_index` 的十进制字符串** → 非空 **步骤 `name`**；值为该步负载对象（见 `saga_coordinator._payload_for_step`）。\n- **`idem_key`**（int，可选）：显式幂等键；若已存在同键实例则 **直接返回已有实例序列化结果**（不重复创建）。省略时由 Snowflake 服务分配（依赖 `SAGA_SNOWFLAKE_*` 配置）。\n\n创建后服务端会在 `SAGA_START_SYNC_STEP_BUDGET` 限制内同步推进若干步，响应 `data` 与 `SagaInstanceDetail` 一致，含 `status`、`step_runs`、`need_confirm`（未写入过时为 `null`）等。\n\n**错误**：缺字段/类型错误/业务校验失败 → `errorCode=100`（`RET_INVALID_PARAM`）；未捕获异常（含实例上下文 JSON 损坏导致的解析失败等）→ `errorCode=-1`（`resp_exception`）。极端情况下若实例在处理后丢失，`data` 可能为空对象 `{}`（见 `start_instance` 实现）。",
         "operationId": "sagaInstancesCreate",
         "requestBody": {
           "required": true,
@@ -89,9 +89,17 @@
               "example": {
                 "access_key": "participant-access-key-hex",
                 "flow_id": 1,
+                "tcc_access_token": "tcc-service-access-or-jwt",
+                "tcc_flow_id": 10,
                 "context": { "order_id": "o1" },
                 "step_payloads": {
-                  "0": { "amount": 100 }
+                  "pay": {
+                    "biz_id": 10,
+                    "branches": [
+                      { "branch_code": "pay", "payload": { "order_id": "o1" } }
+                    ],
+                    "auto_confirm": false
+                  }
                 },
                 "idem_key": 1234567890123456789
               }
@@ -349,7 +357,16 @@
           "step_payloads": {
             "type": "object",
             "additionalProperties": true,
-            "description": "可选；键为步骤索引字符串或步骤名，值为对象。省略等价于 `{}`"
+            "description": "可选。键：优先 **`step_code`**（与流程步定义一致），或 `step_index` 的十进制字符串，或非空 `name`；值：该步负载对象。省略等价于 `{}`；全量会出现在每步外呼的 `saga_shared.step_payloads` 中"
+          },
+          "tcc_access_token": {
+            "type": "string",
+            "description": "可选。TCC 鉴权用，与 Saga `flow_id` 无关。保存于 `start_body`，每步外呼放在 **`saga_shared.tcc_access_token`**，供 `action_url` 直挂 `POST /api/tcc/tx` 时使用（见 `api_tcc`）"
+          },
+          "tcc_flow_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "可选。TCC 侧即 **`biz_id`**（`TccBizMeta.id`），**不同于** 本 API 的 `flow_id`（Saga 流程 ID）。保存于 `start_body`，每步外呼放在 **`saga_shared.tcc_flow_id`**"
           },
           "idem_key": {
             "type": "integer",
@@ -414,6 +431,7 @@
           "retry_count",
           "last_error",
           "context",
+          "saga_shared",
           "step_runs"
         ],
         "properties": {
@@ -452,6 +470,11 @@
             "type": "array",
             "nullable": true,
             "description": "库内为 NULL 时响应为 `null`（尚未写入过）；一旦有需确认步骤成功则存 JSON 数组；当某 `flow_step` 的 `is_need_confirm` 为 1 且该步 action 成功时，将本次 HTTP 响应体（`errorCode`/`data`/`message` 等）以元素形式追加；元素含 `flow_step_id`、`step_index`、`name`、`response`"
+          },
+          "saga_shared": {
+            "type": "object",
+            "description": "每步与参与者约定一致：含 `step_payloads`（与实例当前一致）及若创建时传入的 TCC 字段。`tcc_flow_id` 为 TCC `biz_id`，与响应中的 saga `flow_id` 不是同一概念",
+            "additionalProperties": true
           },
           "step_runs": {
             "type": "array",

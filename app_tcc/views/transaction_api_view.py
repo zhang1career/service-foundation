@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from app_tcc.enums import CANCEL_REASON_VALUES
 from app_tcc.services import coordinator
 from app_tcc.services.snowflake_id import SnowflakeIdError
+from app_tcc.services.tx_begin_request import parse_tcc_tx_post_json
 from common.consts.response_const import RET_INVALID_PARAM
 from common.utils.http_util import post_payload, resp_err, resp_exception, resp_ok
 
@@ -29,23 +30,12 @@ class TccTransactionBeginView(APIView):
             data = post_payload(request)
             if not isinstance(data, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="JSON object required")
-            biz_id = data.get("biz_id")
-            if not isinstance(biz_id, int):
-                return resp_err(code=RET_INVALID_PARAM, message="biz_id is required and must be int")
-            branches = data.get("branches")
-            if not isinstance(branches, list) or not branches:
-                return resp_err(code=RET_INVALID_PARAM, message="branches[] required")
-            auto_confirm = data.get("auto_confirm")
-            if auto_confirm is not None and not isinstance(auto_confirm, bool):
-                return resp_err(code=RET_INVALID_PARAM, message="auto_confirm must be boolean")
-            ctx = data.get("context")
-            if ctx is not None and not isinstance(ctx, dict):
-                return resp_err(code=RET_INVALID_PARAM, message="context must be object")
+            inp = parse_tcc_tx_post_json(data)
             out = coordinator.begin_transaction(
-                biz_id=biz_id,
-                branch_items=branches,
-                auto_confirm=auto_confirm,
-                context=ctx,
+                biz_id=inp.biz_id,
+                branch_items=inp.branch_items,
+                auto_confirm=inp.auto_confirm,
+                context=inp.context,
             )
             return resp_ok(out)
         except ValueError as e:

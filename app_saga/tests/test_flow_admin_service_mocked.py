@@ -68,6 +68,21 @@ class FlowAdminServiceMockedTests(SimpleTestCase):
         mock_objects.using.return_value.filter.return_value.order_by.return_value = []
         self.assertEqual(flow_admin_service.list_steps_for_flow(1), [])
 
+    @patch("app_saga.services.flow_admin_service.SagaFlowStep.objects")
+    def test_create_rejects_duplicate_step_code(self, mock_objects):
+        chain = MagicMock()
+        mock_objects.using.return_value = chain
+        chain.filter.return_value.exists.return_value = True
+        with self.assertRaises(ValueError) as ctx:
+            flow_admin_service.create_flow_step.__wrapped__(
+                flow_id=1,
+                step_code="dup",
+                name="n",
+                action_url="u",
+                compensate_url="v",
+            )
+        self.assertIn("unique", str(ctx.exception).lower())
+
     @patch.object(SagaFlowStep, "save")
     @patch(
         "app_saga.services.flow_admin_service.list_steps_for_flow",
@@ -76,12 +91,14 @@ class FlowAdminServiceMockedTests(SimpleTestCase):
     def test_create_flow_step_first_index_zero(self, _mock_list, mock_save):
         s = flow_admin_service.create_flow_step.__wrapped__(
             flow_id=1,
+            step_code="a",
             name=" a ",
             action_url=" http://a ",
             compensate_url=" http://c ",
         )
         self.assertEqual(s.step_index, 0)
         self.assertEqual(s.name, "a")
+        self.assertEqual(s.step_code, "a")
         mock_save.assert_called_once_with(using="saga_rw")
 
     @patch.object(SagaFlowStep, "save")
@@ -92,6 +109,7 @@ class FlowAdminServiceMockedTests(SimpleTestCase):
         mock_list.return_value = [prev]
         s = flow_admin_service.create_flow_step.__wrapped__(
             flow_id=1,
+            step_code="b",
             name="b",
             action_url="u",
             compensate_url="v",

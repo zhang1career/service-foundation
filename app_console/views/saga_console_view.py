@@ -177,6 +177,7 @@ class SagaFlowStepsConsoleView(TemplateView):
                     ncf = 0
                 flow_admin_service.create_flow_step(
                     flow_id=fid,
+                    step_code=(request.POST.get("step_code") or "").strip(),
                     name=(request.POST.get("name") or "").strip(),
                     action_url=(request.POST.get("action_url") or "").strip(),
                     compensate_url=(request.POST.get("compensate_url") or "").strip(),
@@ -190,6 +191,7 @@ class SagaFlowStepsConsoleView(TemplateView):
                     ncf = 0
                 flow_admin_service.update_flow_step(
                     int(request.POST.get("step_id", 0)),
+                    step_code=(request.POST.get("step_code") or "").strip(),
                     name=(request.POST.get("name") or "").strip(),
                     action_url=(request.POST.get("action_url") or "").strip(),
                     compensate_url=(request.POST.get("compensate_url") or "").strip(),

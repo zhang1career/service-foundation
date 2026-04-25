@@ -69,6 +69,36 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         self.assertEqual(response.data["errorCode"], 0)
         self.assertEqual(response.data["data"]["global_tx_id"], "1")
 
+    @patch("app_tcc.views.transaction_api_view.coordinator.begin_transaction")
+    def test_saga_envelope_uses_tcc_flow_id_from_root(self, mock_begin):
+        mock_begin.return_value = {"global_tx_id": "9"}
+        factory = APIRequestFactory()
+        body = {
+            "saga_instance_id": "100",
+            "flow_id": 5,
+            "phase": "action",
+            "context": {},
+            "saga_shared": {
+                "tcc_access_token": "tcc-sec-1",
+                "tcc_flow_id": 1,
+                "step_payloads": {"0": {}},
+            },
+            "payload": {
+                "branches": [
+                    {"branch_code": "a", "payload": {}},
+                ],
+            },
+        }
+        request = factory.post("/tcc/tx", body, format="json")
+        response = TccTransactionBeginView.as_view()(request)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["errorCode"], 0)
+        mock_begin.assert_called_once()
+        c = mock_begin.call_args
+        self.assertEqual(c.kwargs["biz_id"], 1)
+        self.assertEqual(len(c.kwargs["branch_items"]), 1)
+        self.assertEqual(c.kwargs["branch_items"][0]["branch_code"], "a")
+
 
 class TccTransactionDetailViewTests(SimpleTestCase):
     def test_blank_idem_key_rejected(self):

@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS flow_step (
   id BIGINT NOT NULL AUTO_INCREMENT,
   fid BIGINT NOT NULL,
   step_index INT UNSIGNED NOT NULL,
+  step_code VARCHAR(64) NOT NULL DEFAULT '',
   name VARCHAR(255) NOT NULL DEFAULT '',
   action_url VARCHAR(2048) NOT NULL,
   compensate_url VARCHAR(2048) NOT NULL,
@@ -118,6 +119,7 @@ CREATE TABLE IF NOT EXISTS step_run (
 -- ALTER TABLE flow_step ADD COLUMN is_need_confirm SMALLINT NOT NULL DEFAULT 0 AFTER max_retries;
 -- ALTER TABLE `instance` ADD COLUMN need_confirm LONGTEXT NULL DEFAULT NULL AFTER start_body;
 -- 若列已存在且为 NOT NULL DEFAULT ('[]')，可改为：ALTER TABLE `instance` MODIFY need_confirm LONGTEXT NULL DEFAULT NULL;
+-- ALTER TABLE flow_step ADD COLUMN step_code VARCHAR(64) NOT NULL DEFAULT '' AFTER step_index;
 
 -- ---------------------------------------------------------------------------
 -- Legacy migration notes (older schema steps; table names may already differ)

@@ -71,6 +71,7 @@ class SagaFlowStep(models.Model):
         db_column="fid",
     )
     step_index = models.PositiveIntegerField()
+    step_code = models.CharField(max_length=64, default="")
     name = models.CharField(max_length=255, blank=True, default="")
     action_url = models.CharField(max_length=2048)
     compensate_url = models.CharField(max_length=2048)

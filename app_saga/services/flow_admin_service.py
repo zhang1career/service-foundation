@@ -68,10 +68,36 @@ def list_steps_for_flow(flow_id: int):
     )
 
 
+def _flow_step_code_key(raw: str) -> str:
+    s = (raw or "").strip()
+    if not s:
+        raise ValueError("step_code is required and must be non-empty")
+    if len(s) > 64:
+        raise ValueError("step_code must be at most 64 characters")
+    return s
+
+
+def _assert_step_code_unique_in_flow(
+        flow_id: int,
+        code: str,
+        *,
+        exclude_step_id: int | None = None,
+) -> None:
+    qs = (
+        SagaFlowStep.objects.using("saga_rw")
+        .filter(flow_id=flow_id, step_code=code)
+    )
+    if exclude_step_id is not None:
+        qs = qs.exclude(pk=exclude_step_id)
+    if qs.exists():
+        raise ValueError("step_code must be unique within the flow")
+
+
 @transaction.atomic(using="saga_rw")
 def create_flow_step(
         *,
         flow_id: int,
+        step_code: str,
         name: str,
         action_url: str,
         compensate_url: str,
@@ -82,12 +108,15 @@ def create_flow_step(
     ncf = int(is_need_confirm)
     if ncf not in (0, 1):
         raise ValueError("is_need_confirm must be 0 or 1")
+    code = _flow_step_code_key(step_code)
+    _assert_step_code_unique_in_flow(flow_id, code)
     brs = list_steps_for_flow(flow_id)
     mx = max((b.step_index for b in brs), default=-1)
     next_idx = mx + 1
     s = SagaFlowStep(
         flow_id=flow_id,
         step_index=next_idx,
+        step_code=code,
         name=(name or "").strip(),
         action_url=(action_url or "").strip(),
         compensate_url=(compensate_url or "").strip(),
@@ -103,6 +132,7 @@ def create_flow_step(
 def update_flow_step(
         step_id: int,
         *,
+        step_code: str | None = None,
         name: str | None = None,
         action_url: str | None = None,
         compensate_url: str | None = None,
@@ -113,6 +143,12 @@ def update_flow_step(
     s = SagaFlowStep.objects.using("saga_rw").filter(pk=step_id).first()
     if not s:
         return None
+    if step_code is not None:
+        code = _flow_step_code_key(step_code)
+        _assert_step_code_unique_in_flow(
+            s.flow_id, code, exclude_step_id=int(s.pk)
+        )
+        s.step_code = code
     if name is not None:
         s.name = name.strip()
     if action_url is not None:
