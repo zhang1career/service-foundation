@@ -54,6 +54,7 @@ def call_saga_endpoint(
         url: str,
         json_body: dict[str, Any],
         timeout_sec: float | None = None,
+        extra_headers: dict[str, str] | None = None,
 ) -> tuple[int, str, dict[str, Any] | None]:
     """
     POST JSON. Returns (http_status, error_snippet, parsed_json_or_none).
@@ -70,6 +71,7 @@ def call_saga_endpoint(
         resp = request_sync(
             method="POST",
             url=url,
+            headers=extra_headers,
             json_body=json_body,
             pool_name=HttpClientPool.THIRD_PARTY,
             timeout_sec=timeout,

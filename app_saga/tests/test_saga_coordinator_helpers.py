@@ -70,6 +70,29 @@ class SagaCoordinatorHelperTests(SimpleTestCase):
         inst.start_body = "not-json"
         self.assertEqual(saga_coordinator._load_start_request(inst), {})
 
+    def test_participant_outbound_headers_none_when_missing(self):
+        inst = MagicMock()
+        inst.start_body = "{}"
+        self.assertIsNone(saga_coordinator._participant_outbound_headers(inst))
+
+    def test_participant_outbound_headers_from_x_request_id(self):
+        inst = MagicMock()
+        inst.start_body = '{"x_request_id":"  abc  "}'
+        self.assertEqual(
+            saga_coordinator._participant_outbound_headers(inst),
+            {"X-Request-Id": "abc"},
+        )
+
+    def test_start_request_for_participant_payload_strips_x_request_id(self):
+        inst = MagicMock()
+        inst.start_body = (
+            '{"access_key":"k","flow_id":1,"context":{},"step_payloads":{},'
+            '"idem_key":9,"x_request_id":"hdr"}'
+        )
+        out = saga_coordinator._start_request_for_participant_payload(inst)
+        self.assertEqual(out["idem_key"], 9)
+        self.assertNotIn("x_request_id", out)
+
     def test_payload_for_step_prefers_step_code(self):
         st = MagicMock()
         st.step_index = 0

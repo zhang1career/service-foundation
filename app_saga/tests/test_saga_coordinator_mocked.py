@@ -1,5 +1,6 @@
 """saga_coordinator — mocks only, no ``saga_rw`` (aligned with ``app_tcc`` lifecycle tests)."""
 
+import json
 from contextlib import nullcontext
 from unittest.mock import MagicMock, patch
 
@@ -132,6 +133,54 @@ class SagaCoordinatorStartMockedTests(SimpleTestCase):
         called_with = mock_serialize.call_args[0][0]
         self.assertIs(called_with, mock_get_by_id.return_value)
         self.assertEqual(out, {"ok": True})
+
+    @override_settings(SAGA_START_SYNC_STEP_BUDGET=0)
+    @patch("app_saga.services.saga_coordinator.serialize_instance", return_value={"ok": True})
+    @patch("app_saga.services.saga_coordinator.get_instance_by_id")
+    @patch(
+        "app_saga.services.saga_coordinator.get_instance_by_idem",
+        return_value=None,
+    )
+    @patch("app_saga.services.saga_coordinator.process_instance")
+    @patch("app_saga.services.saga_coordinator.SagaStepRun")
+    @patch("app_saga.services.saga_coordinator.SagaInstance")
+    @patch("app_saga.services.saga_coordinator._ordered_steps")
+    @patch("django.db.transaction.atomic", lambda *a, **k: nullcontext())
+    @patch("app_saga.services.saga_coordinator.SagaFlow.objects.using")
+    @patch("app_saga.services.participant_reg_service.get_participant_by_access_key")
+    def test_start_instance_persists_x_request_id_in_start_body(
+        self,
+        mock_gp,
+        mock_flow_using,
+        mock_ordered,
+        mock_si_cls,
+        mock_sr_cls,
+        mock_process,
+        _mock_by_idem,
+        mock_get_by_id,
+        mock_serialize,
+    ):
+        mock_gp.return_value = MagicMock(pk=1, status=ServiceRegStatus.ENABLED.value)
+        chain = MagicMock()
+        mock_flow_using.return_value = chain
+        chain.filter.return_value = chain
+        chain.first.return_value = MagicMock(pk=9, status=ServiceRegStatus.ENABLED.value)
+        mock_ordered.return_value = [MagicMock(pk=100, step_index=0)]
+        inst = MagicMock(pk=555)
+        mock_si_cls.return_value = inst
+        mock_get_by_id.return_value = inst
+
+        saga_coordinator.start_instance(
+            access_key="k",
+            flow_id=9,
+            context={},
+            idem_key=8001,
+            step_payloads=None,
+            x_request_id_header="trace-xyz",
+        )
+
+        start_body = mock_si_cls.call_args.kwargs["start_body"]
+        self.assertEqual(json.loads(start_body).get("x_request_id"), "trace-xyz")
 
 
 class SagaCoordinatorProcessInstanceMockedTests(SimpleTestCase):

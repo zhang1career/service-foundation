@@ -53,6 +53,7 @@ class SagaInstanceStartView(APIView):
                 return resp_err(
                     code=RET_INVALID_PARAM, message="tcc_access_key must be string"
                 )
+            x_req_hdr = (request.headers.get("X-Request-Id") or "").strip() or None
             out = saga_coordinator.start_instance(
                 access_key=access_key.strip(),
                 flow_id=flow_id,
@@ -60,6 +61,7 @@ class SagaInstanceStartView(APIView):
                 idem_key=idem_key,
                 step_payloads=step_payloads,
                 tcc_access_key=tcc_tok,
+                x_request_id_header=x_req_hdr,
             )
             return resp_ok(out)
         except ValueError as e:

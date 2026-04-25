@@ -69,6 +69,22 @@ def _load_start_request(inst: SagaInstance) -> dict[str, Any]:
         return {}
 
 
+def _participant_outbound_headers(inst: SagaInstance) -> dict[str, str] | None:
+    """Forward ``X-Request-Id`` from the start API request to participant HTTP calls."""
+    sr = _load_start_request(inst)
+    v = sr.get("x_request_id")
+    if isinstance(v, str) and v.strip():
+        return {"X-Request-Id": v.strip()}
+    return None
+
+
+def _start_request_for_participant_payload(inst: SagaInstance) -> dict[str, Any]:
+    """``start_request`` for participant JSON: same as stored snapshot minus transport-only keys."""
+    sr = dict(_load_start_request(inst))
+    sr.pop("x_request_id", None)
+    return sr
+
+
 def _saga_shared_for_outbound(inst: SagaInstance) -> dict[str, Any]:
     """
     Common fields on every action/compensate call: optional ``tcc_access_key`` and full
@@ -101,7 +117,7 @@ def _participant_post_body(
         "phase": phase,
         "context": ctx,
         "payload": _payload_for_step(fs, payloads),
-        "start_request": _load_start_request(inst),
+        "start_request": _start_request_for_participant_payload(inst),
         "saga_shared": shared,
     }
 
@@ -170,6 +186,7 @@ def start_instance(
         idem_key: int,
         step_payloads: dict[str, Any] | None,
         tcc_access_key: str | None = None,
+        x_request_id_header: str | None = None,
 ) -> dict[str, Any]:
     from app_saga.services import participant_reg_service
 
@@ -221,6 +238,8 @@ def start_instance(
     }
     if tcc_tok is not None:
         start_request["tcc_access_key"] = tcc_tok
+    if isinstance(x_request_id_header, str) and x_request_id_header.strip():
+        start_request["x_request_id"] = x_request_id_header.strip()
     now = _now_ms()
     with transaction.atomic(using="saga_rw"):
         inst = SagaInstance(
@@ -284,6 +303,7 @@ def _run_forward_action(
         url=fs.action_url,
         json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
+        extra_headers=_participant_outbound_headers(inst),
     )
     sr.last_http_status_action = st if st else None
     sr.last_error_action = err
@@ -321,6 +341,7 @@ def _run_compensate(
         url=fs.compensate_url,
         json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
+        extra_headers=_participant_outbound_headers(inst),
     )
     sr.last_http_status_compensate = st if st else None
     sr.last_error_compensate = err
