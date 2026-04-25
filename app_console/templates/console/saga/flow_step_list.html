@@ -73,14 +73,15 @@
                     <td class="font-mono text-sm align-middle">{{ br.id }}</td>
                     <td class="align-middle max-w-xs break-words">{{ br.name|default:"—" }}</td>
                     <td class="align-middle">
-                        <div class="flex items-center">
-                            <span class="console-toggle-wrap" title="是否需确认">
-                                <input type="checkbox" class="console-toggle-input" disabled
+                        <label class="inline-flex items-center cursor-pointer shrink-0 select-none" title="是否需确认">
+                            <span class="console-toggle-wrap">
+                                <input type="checkbox" class="console-toggle-input"
                                        {% if br.is_need_confirm == 1 %}checked{% endif %}
-                                       aria-label="是否需确认，{% if br.is_need_confirm == 1 %}是{% else %}否{% endif %}（在编辑中修改）">
+                                       onchange="sagaStepSubmitNeedConfirm({{ br.id }}, this.checked)"
+                                       aria-label="是否需确认">
                                 <span class="console-toggle-track" aria-hidden="true"></span>
                             </span>
-                        </div>
+                        </label>
                     </td>
                     <td class="text-xs break-all max-w-lg align-middle">{{ br.action_url }}</td>
                     <td class="whitespace-nowrap align-middle">
@@ -116,6 +117,16 @@
         </table>
     </div>
 </div>
+
+{% for br in steps %}
+<form id="saga-step-ncf-{{ br.id }}" method="post" class="hidden">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="update_step_need_confirm">
+    <input type="hidden" name="step_id" value="{{ br.id }}">
+    <input type="hidden" name="participant_id" value="{{ filter_participant_id|default:'' }}">
+    <input type="hidden" name="is_need_confirm" id="saga-step-ncf-val-{{ br.id }}" value="{% if br.is_need_confirm == 1 %}1{% else %}0{% endif %}">
+</form>
+{% endfor %}
 
 <form id="saga-reorder-form" method="post" class="hidden">
     {% csrf_token %}
@@ -229,6 +240,13 @@
 <script>
 (function () {
     function el(id) { return document.getElementById(id); }
+
+    window.sagaStepSubmitNeedConfirm = function (stepId, checked) {
+        var h = el('saga-step-ncf-val-' + stepId);
+        var f = el('saga-step-ncf-' + stepId);
+        if (h) h.value = checked ? '1' : '0';
+        if (f) f.submit();
+    };
 
     function sagaSyncHiddenNeedConfirm(toggleId, hiddenId) {
         var t = el(toggleId);

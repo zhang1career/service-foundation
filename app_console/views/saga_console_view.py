@@ -197,6 +197,14 @@ class SagaFlowStepsConsoleView(TemplateView):
                     max_retries=int(request.POST.get("max_retries") or 10),
                     is_need_confirm=ncf,
                 )
+            elif action == "update_step_need_confirm":
+                ncf = int((request.POST.get("is_need_confirm") or 0) or 0)
+                if ncf not in (0, 1):
+                    ncf = 0
+                flow_admin_service.update_flow_step(
+                    int(request.POST.get("step_id", 0)),
+                    is_need_confirm=ncf,
+                )
             elif action == "delete_step":
                 flow_admin_service.delete_flow_step(int(request.POST.get("step_id", 0)))
             elif action == "reorder_steps":
