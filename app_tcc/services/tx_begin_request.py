@@ -29,25 +29,13 @@ def parse_tcc_tx_post_json(data: dict[str, Any]) -> TccTxBeginInput:
 def _from_saga(data: dict[str, Any]) -> TccTxBeginInput:
     shared = _as_shared(data)
     pld: dict[str, Any] = data["payload"]
-    token = (
-        shared.get("tcc_access_key")
-        or shared.get("tcc_access_token")
-        or data.get("tcc_access_key")
-        or data.get("tcc_access_token")
-    )
-    if isinstance(token, str) and token.strip():
-        logger.debug("TCC begin (Saga): tcc access key present, len=%s", len(token.strip()))
+    key = shared.get("tcc_access_key") or data.get("tcc_access_key")
+    if isinstance(key, str) and key.strip():
+        logger.debug("TCC begin (Saga): tcc_access_key present, len=%s", len(key.strip()))
 
-    biz: int | None = None
-    c = shared.get("tcc_flow_id")
-    if isinstance(c, int) and c > 0:
-        biz = c
-    if biz is None and isinstance(pld.get("biz_id"), int) and pld["biz_id"] > 0:
-        biz = pld["biz_id"]
-    if not isinstance(biz, int) or biz <= 0:
-        raise ValueError(
-            "Saga TCC: saga_shared.tcc_flow_id (positive int) or payload.biz_id is required"
-        )
+    bi = pld.get("biz_id")
+    if not isinstance(bi, int) or bi <= 0:
+        raise ValueError("Saga TCC: payload.biz_id (positive int) is required")
 
     br = pld.get("branches")
     if not isinstance(br, list) or not br:
@@ -59,7 +47,7 @@ def _from_saga(data: dict[str, Any]) -> TccTxBeginInput:
     if ctx is not None and not isinstance(ctx, dict):
         raise ValueError("Saga TCC: context must be object when present")
     return TccTxBeginInput(
-        biz_id=biz,
+        biz_id=bi,
         branch_items=br,
         auto_confirm=ac,
         context=ctx,

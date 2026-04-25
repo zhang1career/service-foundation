@@ -72,26 +72,16 @@ def _load_start_request(inst: SagaInstance) -> dict[str, Any]:
 
 def _saga_shared_for_outbound(inst: SagaInstance) -> dict[str, Any]:
     """
-    Common fields repeated on every action/compensate call: TCC and full step payload map.
-    Populated from ``start_body`` (create-time request) and current ``step_payloads`` JSON.
+    Common fields on every action/compensate call: optional ``tcc_access_key`` and full
+    ``step_payloads`` map. Populated from ``start_body`` and current instance JSON.
     """
     out: dict[str, Any] = {
         "step_payloads": outbound_http.loads_json_dict(inst.step_payloads),
     }
     sr = _load_start_request(inst)
     t = sr.get("tcc_access_key")
-    if t is None:
-        t = sr.get("tcc_access_token")
     if isinstance(t, str) and t.strip():
         out["tcc_access_key"] = t.strip()
-    tf = sr.get("tcc_flow_id")
-    if tf is not None:
-        try:
-            tfi = int(tf)
-        except (TypeError, ValueError):
-            tfi = 0
-        if tfi > 0:
-            out["tcc_flow_id"] = tfi
     return out
 
 
@@ -181,7 +171,6 @@ def start_instance(
         idem_key: int | None,
         step_payloads: dict[str, Any] | None,
         tcc_access_key: str | None = None,
-        tcc_flow_id: int | None = None,
 ) -> dict[str, Any]:
     from app_saga.services import participant_reg_service
 
@@ -213,11 +202,6 @@ def start_instance(
         if not isinstance(tcc_access_key, str):
             raise ValueError("tcc_access_key must be str")
         tcc_tok = tcc_access_key.strip() or None
-    tcc_f: int | None = None
-    if tcc_flow_id is not None:
-        tcc_f = int(tcc_flow_id)
-        if tcc_f <= 0:
-            raise ValueError("tcc_flow_id must be positive int")
 
     if idem_key is not None:
         ik = int(idem_key)
@@ -239,8 +223,6 @@ def start_instance(
     }
     if tcc_tok is not None:
         start_request["tcc_access_key"] = tcc_tok
-    if tcc_f is not None:
-        start_request["tcc_flow_id"] = int(tcc_f)
     now = _now_ms()
     with transaction.atomic(using="saga_rw"):
         inst = SagaInstance(
@@ -431,7 +413,7 @@ def process_instance(instance_pk: int) -> None:
                             "flow_step_id": int(fs.pk),
                             "step_index": int(fs.step_index),
                             "name": (fs.name or "").strip(),
-                            "response": resp_obj,
+                            "response": resp_obj.get("data"),
                         }
                     )
                     inst.need_confirm = outbound_http.dumps_json_value(ncf)

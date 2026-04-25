@@ -70,7 +70,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         self.assertEqual(response.data["data"]["global_tx_id"], "1")
 
     @patch("app_tcc.views.transaction_api_view.coordinator.begin_transaction")
-    def test_saga_envelope_uses_tcc_flow_id_from_root(self, mock_begin):
+    def test_saga_envelope_uses_biz_id_from_payload(self, mock_begin):
         mock_begin.return_value = {"global_tx_id": "9"}
         factory = APIRequestFactory()
         body = {
@@ -80,10 +80,10 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "context": {},
             "saga_shared": {
                 "tcc_access_key": "tcc-sec-1",
-                "tcc_flow_id": 1,
                 "step_payloads": {"0": {}},
             },
             "payload": {
+                "biz_id": 1,
                 "branches": [
                     {"branch_code": "a", "payload": {}},
                 ],
@@ -99,10 +99,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         self.assertEqual(len(c.kwargs["branch_items"]), 1)
         self.assertEqual(c.kwargs["branch_items"][0]["branch_code"], "a")
 
-    @patch("app_tcc.views.transaction_api_view.coordinator.begin_transaction")
-    def test_saga_envelope_legacy_tcc_access_token_in_shared(self, mock_begin):
-        """Old saga_shared key tcc_access_token still accepted (compat)."""
-        mock_begin.return_value = {"global_tx_id": "9"}
+    def test_saga_envelope_requires_payload_biz_id(self):
         factory = APIRequestFactory()
         body = {
             "saga_instance_id": "100",
@@ -110,9 +107,8 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "phase": "action",
             "context": {},
             "saga_shared": {
-                "tcc_access_token": "legacy-tok",
-                "tcc_flow_id": 1,
-                "step_payloads": {"0": {}},
+                "tcc_access_key": "k",
+                "step_payloads": {},
             },
             "payload": {
                 "branches": [
@@ -123,7 +119,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         request = factory.post("/tcc/tx", body, format="json")
         response = TccTransactionBeginView.as_view()(request)
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data["errorCode"], 0)
+        self.assertNotEqual(response.data["errorCode"], 0)
 
 
 class TccTransactionDetailViewTests(SimpleTestCase):
