@@ -56,9 +56,8 @@
                 <tr>
                     <th class="w-10" aria-label="拖拽排序"></th>
                     <th>ID</th>
-                    <th>#</th>
                     <th>名称</th>
-                    <th>需确认</th>
+                    <th>是否需确认</th>
                     <th>Action URL</th>
                     <th>操作</th>
                 </tr>
@@ -72,9 +71,17 @@
                         </span>
                     </td>
                     <td class="font-mono text-sm align-middle">{{ br.id }}</td>
-                    <td class="font-mono text-sm align-middle">{{ br.step_index }}</td>
                     <td class="align-middle max-w-xs break-words">{{ br.name|default:"—" }}</td>
-                    <td class="text-sm align-middle font-mono">{{ br.is_need_confirm|default:0 }}</td>
+                    <td class="align-middle">
+                        <div class="flex items-center">
+                            <span class="console-toggle-wrap" title="是否需确认">
+                                <input type="checkbox" class="console-toggle-input" disabled
+                                       {% if br.is_need_confirm == 1 %}checked{% endif %}
+                                       aria-label="是否需确认，{% if br.is_need_confirm == 1 %}是{% else %}否{% endif %}（在编辑中修改）">
+                                <span class="console-toggle-track" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                    </td>
                     <td class="text-xs break-all max-w-lg align-middle">{{ br.action_url }}</td>
                     <td class="whitespace-nowrap align-middle">
                         <div class="flex gap-1 items-center flex-wrap">
@@ -102,7 +109,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-gray-500 text-sm py-8 text-center">暂无步骤，请点击「新增」添加。</td>
+                    <td colspan="6" class="text-gray-500 text-sm py-8 text-center">暂无步骤，请点击「新增」添加。</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -148,11 +155,15 @@
                     <input id="saga-step-create-retries" name="max_retries" type="number" min="0" class="form-input w-full" value="10">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="saga-step-create-need-confirm">需确认 (is_need_confirm)</label>
-                    <select id="saga-step-create-need-confirm" name="is_need_confirm" class="form-input w-full">
-                        <option value="0" selected>0 — 否</option>
-                        <option value="1">1 — 是（响应用于 need_confirm 列表）</option>
-                    </select>
+                    <span class="form-label block">是否需确认</span>
+                    <input type="hidden" name="is_need_confirm" id="saga-step-create-need-confirm-value" value="0">
+                    <label class="inline-flex items-center gap-2 cursor-pointer select-none mt-1" for="saga-step-create-need-confirm-toggle">
+                        <span class="console-toggle-wrap">
+                            <input type="checkbox" class="console-toggle-input" id="saga-step-create-need-confirm-toggle" role="switch" aria-label="是否需确认">
+                            <span class="console-toggle-track" aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <p class="text-gray-500 text-xs mt-1.5">开启后，该步成功时的 HTTP 响应会写入 <span class="font-mono">need_confirm</span> 列表。</p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -196,11 +207,15 @@
                     <input name="max_retries" id="saga-step-retries" type="number" min="0" class="form-input w-full" value="10">
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="saga-step-need-confirm">需确认 (is_need_confirm)</label>
-                    <select name="is_need_confirm" id="saga-step-need-confirm" class="form-input w-full">
-                        <option value="0">0 — 否</option>
-                        <option value="1">1 — 是（响应用于 need_confirm 列表）</option>
-                    </select>
+                    <span class="form-label block">是否需确认</span>
+                    <input type="hidden" name="is_need_confirm" id="saga-step-need-confirm-value" value="0">
+                    <label class="inline-flex items-center gap-2 cursor-pointer select-none mt-1" for="saga-step-need-confirm-toggle">
+                        <span class="console-toggle-wrap">
+                            <input type="checkbox" class="console-toggle-input" id="saga-step-need-confirm-toggle" role="switch" aria-label="是否需确认">
+                            <span class="console-toggle-track" aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <p class="text-gray-500 text-xs mt-1.5">开启后，该步成功时的 HTTP 响应会写入 <span class="font-mono">need_confirm</span> 列表。</p>
                 </div>
             </div>
             <div class="modal-footer">
@@ -215,10 +230,20 @@
 (function () {
     function el(id) { return document.getElementById(id); }
 
+    function sagaSyncHiddenNeedConfirm(toggleId, hiddenId) {
+        var t = el(toggleId);
+        var h = el(hiddenId);
+        if (t && h) h.value = t.checked ? '1' : '0';
+    }
+
     window.openSagaStepCreateModal = function () {
         var m = el('saga-step-create-modal');
         var f = el('saga-step-create-form');
         if (f) f.reset();
+        var ctf = el('saga-step-create-need-confirm-toggle');
+        var cv = el('saga-step-create-need-confirm-value');
+        if (ctf) ctf.checked = false;
+        if (cv) cv.value = '0';
         m.classList.remove('hidden');
         m.setAttribute('aria-hidden', 'false');
     };
@@ -286,12 +311,28 @@
                 el('saga-step-retries').value = btn.getAttribute('data-retries') || '10';
                 var ncf = (btn.getAttribute('data-need-confirm') || '0').trim();
                 if (ncf !== '0' && ncf !== '1') ncf = '0';
-                el('saga-step-need-confirm').value = ncf;
+                var et = el('saga-step-need-confirm-toggle');
+                var ev = el('saga-step-need-confirm-value');
+                if (et) et.checked = ncf === '1';
+                if (ev) ev.value = ncf;
                 var m = el('saga-step-edit-modal');
                 m.classList.remove('hidden');
                 m.setAttribute('aria-hidden', 'false');
             });
         });
+
+        var ctt = el('saga-step-create-need-confirm-toggle');
+        if (ctt) {
+            ctt.addEventListener('change', function () {
+                sagaSyncHiddenNeedConfirm('saga-step-create-need-confirm-toggle', 'saga-step-create-need-confirm-value');
+            });
+        }
+        var ett = el('saga-step-need-confirm-toggle');
+        if (ett) {
+            ett.addEventListener('change', function () {
+                sagaSyncHiddenNeedConfirm('saga-step-need-confirm-toggle', 'saga-step-need-confirm-value');
+            });
+        }
 
         if (typeof attachModalBackdropClose === 'function') {
             attachModalBackdropClose(el('saga-step-create-modal'), closeSagaStepCreateModal);
