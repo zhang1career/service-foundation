@@ -166,7 +166,7 @@ class TccBranch(models.Model):
     payload = models.TextField(default="{}", blank=True)
     last_http_status = models.PositiveSmallIntegerField(null=True, blank=True)
     last_error = models.TextField(blank=True, default="")
-    participant_last_response = models.TextField(blank=True, default="")
+    last_response = models.TextField(blank=True, default="")
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)
 

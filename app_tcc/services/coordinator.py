@@ -100,7 +100,7 @@ def _branch_entry_for_serialization(b: TccBranch) -> dict[str, Any]:
         "branch_status": b.status,
         "last_http_status": b.last_http_status,
         "last_error": (b.last_error or "")[:200],
-        "data": _decode_participant_response_field(b.participant_last_response),
+        "data": _decode_participant_response_field(b.last_response),
     }
 
 
@@ -129,17 +129,17 @@ def _call_participant_and_persist_branch(
         b.last_error = err
         if participant_http.is_success_status(st):
             b.status = status_on_success
-            b.participant_last_response = _encode_participant_response_for_storage(body)
+            b.last_response = _encode_participant_response_for_storage(body)
         else:
             b.status = status_on_failure
-            b.participant_last_response = ""
+            b.last_response = ""
         b.save(
             using="tcc_rw",
             update_fields=[
                 "last_http_status",
                 "last_error",
                 "status",
-                "participant_last_response",
+                "last_response",
                 "ut",
             ],
         )
@@ -328,7 +328,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
             b.last_error = err
             if participant_http.is_success_status(st):
                 b.status = BranchStatus.TRY_SUCCEEDED
-                b.participant_last_response = _encode_participant_response_for_storage(
+                b.last_response = _encode_participant_response_for_storage(
                     body
                 )
                 b.save(
@@ -337,21 +337,21 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
                         "last_http_status",
                         "last_error",
                         "status",
-                        "participant_last_response",
+                        "last_response",
                         "ut",
                     ],
                 )
                 succeeded.append(b)
             else:
                 b.status = BranchStatus.TRY_FAILED
-                b.participant_last_response = ""
+                b.last_response = ""
                 b.save(
                     using="tcc_rw",
                     update_fields=[
                         "last_http_status",
                         "last_error",
                         "status",
-                        "participant_last_response",
+                        "last_response",
                         "ut",
                     ],
                 )
