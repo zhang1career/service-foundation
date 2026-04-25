@@ -26,7 +26,7 @@ class LoadBranchMetasByBizValidationTests(SimpleTestCase):
             load_branch_metas_for_begin_by_biz(1, [])
         self.assertIn("required", str(ctx.exception).lower())
 
-    def test_duplicate_branch_indices_raises_before_query(self):
+    def test_duplicate_branch_codes_raises_before_query(self):
         with self.assertRaises(ValueError) as ctx:
-            load_branch_metas_for_begin_by_biz(1, [0, 0])
+            load_branch_metas_for_begin_by_biz(1, ["a", "a"])
         self.assertIn("duplicate", str(ctx.exception).lower())

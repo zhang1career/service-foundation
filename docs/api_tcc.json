@@ -79,7 +79,7 @@
       "post": {
         "tags": ["Transactions"],
         "summary": "开启全局事务（Try 阶段及后续）",
-        "description": "请求体为 JSON 对象。\n\n- **`biz_id`（int，必填）**：`biz_meta.id`，用于限定分支元数据查询范围。\n- `branches`：非空数组；每项须含 **`branch_index`（int）**（与 `branch_meta.branch_index` 一致），可选 **`payload`（对象）**。同一请求内 `branch_index` 不可重复。\n- `auto_confirm`：可选布尔；省略时使用服务端 `TCC_DEFAULT_AUTO_CONFIRM`。\n- `context`：可选对象，持久化为全局事务上下文（JSON）。\n\n服务端分配 Snowflake `idem_key` 与各分支幂等键，按该业务下分支元数据的 **`branch_index` 升序**调用参与者 Try（与请求数组顺序无关）；成功且 `auto_confirm` 为真时进入 Confirm，否则进入 `AWAIT_CONFIRM` 等待显式确认。\n\n若在控制台调整分支顺序或 `branch_index` 而调用方仍按旧序号组请求，可能命中错误参与方；见仓库根目录 README「TCC」小节。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
+        "description": "请求体为 JSON 对象。\n\n- **`biz_id`（int，必填）**：`biz_meta.id`，用于限定分支元数据查询范围。\n- `branches`：非空数组；每项须含 **`branch_code`（string）**，与 `branch_meta.code` 一致；可选 **`payload`（对象）**。同一 begin 请求内 `branch_code` 不可重复（在控制台上登记，同一 `biz` 下程序内唯一、无 DB 唯一索引）。\n- `auto_confirm`：可选布尔；省略时使用服务端 `TCC_DEFAULT_AUTO_CONFIRM`。\n- `context`：可选对象，持久化为全局事务上下文（JSON）。\n\n服务端分配 Snowflake `idem_key` 与各分支幂等键，**按该业务下分支元数据的 `branch_index` 升序**调用参与者 Try（与请求数组顺序无关，调用方无需关心 `branch_index`）。成功且 `auto_confirm` 为真时进入 Confirm，否则进入 `AWAIT_CONFIRM` 等待显式确认。\n\n**响应 `data.branches`**：为以各分支的 **`branch_code`**（与 `TccBranchMeta.code`、begin 入参 `branches[].branch_code` 相同）为键的对象（**禁止**缺 `branch_meta.code` 时用其他占位键；未配置时在查询/列详情会 `errorCode=100`）。值为 `TccBranchSummary`（内含 `branch_code` 字段；`data` 为参与者最近一次成功 HTTP 的 JSON 体，解析结果或 `null`）。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
         "operationId": "tccTxBegin",
         "requestBody": {
           "required": true,
@@ -88,7 +88,7 @@
               "schema": { "$ref": "#/components/schemas/TccBeginRequest" },
               "example": {
                 "biz_id": 1,
-                "branches": [{ "branch_index": 0, "payload": { "order_id": "a1" } }],
+                "branches": [{ "branch_code": "pay", "payload": { "order_id": "a1" } }],
                 "auto_confirm": false,
                 "context": { "biz": "demo" }
               }
@@ -432,12 +432,13 @@
       },
       "TccBeginBranchItem": {
         "type": "object",
-        "required": ["branch_index"],
+        "required": ["branch_code"],
         "properties": {
-          "branch_index": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "分支序号，对应 `TccBranchMeta.branch_index`（与 `biz_id` 联用）；同一 begin 请求内不可重复"
+          "branch_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "与 `TccBranchMeta.code` 一致，同一 `biz_id` 下唯一；begin 请求内不可重复；strip 后非空"
           },
           "payload": {
             "type": "object",
@@ -486,20 +487,28 @@
       "TccBranchSummary": {
         "type": "object",
         "required": [
-          "branch_id",
+          "tx_branch_id",
           "branch_meta_id",
           "branch_index",
+          "branch_code",
           "branch_status",
           "last_http_status",
-          "last_error"
+          "last_error",
+          "data"
         ],
         "properties": {
-          "branch_id": {
-            "type": "string",
-            "description": "分支行主键（`TccBranch.pk`）的字符串形式"
+          "tx_branch_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`tx_branch` 表主键（`TccBranch.id` / `pk`），与库中 bigint 一致"
           },
           "branch_meta_id": { "type": "integer" },
           "branch_index": { "type": "integer", "minimum": 0 },
+          "branch_code": {
+            "type": "string",
+            "minLength": 1,
+            "description": "与 `TccBranchMeta.code` 相同；`data.branches` 的**对象键**即该值（与 begin 入参 `branches[].branch_code` 对应）"
+          },
           "branch_status": {
             "type": "integer",
             "description": "分支状态，见 `BranchStatus`（10–70）"
@@ -512,6 +521,10 @@
           "last_error": {
             "type": "string",
             "description": "错误信息截断至约 200 字符"
+          },
+          "data": {
+            "description": "参与者返回体 JSON（最近一次成功 2xx 时解析；空体或非 JSON 为 null）",
+            "nullable": true
           }
         }
       },
@@ -542,8 +555,9 @@
           "auto_confirm": { "type": "boolean" },
           "retry_count": { "type": "integer", "minimum": 0 },
           "branches": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/TccBranchSummary" }
+            "type": "object",
+            "description": "按 `branch_code` 为键的映射（与 begin 的 `branches[].branch_code` 及元数据 `TccBranchMeta.code` 对齐）",
+            "additionalProperties": { "$ref": "#/components/schemas/TccBranchSummary" }
           },
           "review_snapshot": {
             "type": "string",

@@ -15,25 +15,25 @@ class BeginTransactionValidationTests(SimpleTestCase):
         with self.assertRaises(ValueError) as ctx:
             coordinator.begin_transaction(
                 biz_id="1",  # type: ignore[arg-type]
-                branch_items=[{"branch_index": 0}],
+                branch_items=[{"branch_code": "a"}],
             )
         self.assertIn("biz_id", str(ctx.exception).lower())
 
-    def test_branch_index_must_be_int(self):
+    def test_code_must_be_string(self):
         with self.assertRaises(ValueError) as ctx:
             coordinator.begin_transaction(
                 biz_id=1,
-                branch_items=[{"branch_index": "0"}],
+                branch_items=[{"branch_code": 0}],  # type: ignore[dict-item]
             )
-        self.assertIn("int", str(ctx.exception))
+        self.assertIn("string", str(ctx.exception).lower())
 
-    def test_duplicate_branch_index_in_request(self):
+    def test_duplicate_code_in_request(self):
         with self.assertRaises(ValueError) as ctx:
             coordinator.begin_transaction(
                 biz_id=1,
                 branch_items=[
-                    {"branch_index": 0},
-                    {"branch_index": 0},
+                    {"branch_code": "a"},
+                    {"branch_code": "a"},
                 ],
             )
         self.assertIn("duplicate", str(ctx.exception).lower())
@@ -42,6 +42,6 @@ class BeginTransactionValidationTests(SimpleTestCase):
         with self.assertRaises(ValueError) as ctx:
             coordinator.begin_transaction(
                 biz_id=1,
-                branch_items=[{"branch_index": 0, "payload": [1, 2]}],
+                branch_items=[{"branch_code": "a", "payload": [1, 2]}],
             )
         self.assertIn("payload", str(ctx.exception).lower())

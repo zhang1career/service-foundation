@@ -84,17 +84,19 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     ):
         self.assertEqual(mock_now(), 1_000_000)
         mock_snowflake.side_effect = [8000, 9001, 9002]
-        mock_call.return_value = (200, "")
+        mock_call.return_value = (200, "", None)
 
         meta_a = MagicMock()
         meta_a.pk = 10
         meta_a.branch_index = 0
+        meta_a.code = "a"
         meta_a.try_url = "http://a/try"
         meta_a.confirm_url = "http://a/confirm"
         meta_a.cancel_url = "http://a/cancel"
         meta_b = MagicMock()
         meta_b.pk = 11
         meta_b.branch_index = 1
+        meta_b.code = "b"
         meta_b.try_url = "http://b/try"
         meta_b.confirm_url = "http://b/confirm"
         meta_b.cancel_url = "http://b/cancel"
@@ -139,8 +141,8 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         coordinator.begin_transaction(
             biz_id=1,
             branch_items=[
-                {"branch_index": 0, "payload": {"k": 1}},
-                {"branch_index": 1, "payload": {"k": 2}},
+                {"branch_code": "a", "payload": {"k": 1}},
+                {"branch_code": "b", "payload": {"k": 2}},
             ],
             auto_confirm=True,
         )
@@ -182,20 +184,22 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
 
         def side_effect(**kwargs):
             if kwargs["url"] == "http://b/try":
-                return (500, "fail")
-            return (200, "")
+                return (500, "fail", None)
+            return (200, "", None)
 
         mock_call.side_effect = side_effect
 
         meta_a = MagicMock()
         meta_a.pk = 10
         meta_a.branch_index = 0
+        meta_a.code = "a"
         meta_a.try_url = "http://a/try"
         meta_a.confirm_url = "http://a/confirm"
         meta_a.cancel_url = "http://a/cancel"
         meta_b = MagicMock()
         meta_b.pk = 11
         meta_b.branch_index = 1
+        meta_b.code = "b"
         meta_b.try_url = "http://b/try"
         meta_b.confirm_url = "http://b/confirm"
         meta_b.cancel_url = "http://b/cancel"
@@ -240,8 +244,8 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         coordinator.begin_transaction(
             biz_id=1,
             branch_items=[
-                {"branch_index": 0},
-                {"branch_index": 1},
+                {"branch_code": "a"},
+                {"branch_code": "b"},
             ],
             auto_confirm=True,
         )

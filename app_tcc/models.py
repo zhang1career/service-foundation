@@ -59,6 +59,7 @@ class TccBranchMeta(models.Model):
         db_column="biz_id",
     )
     branch_index = models.PositiveIntegerField()
+    code = models.CharField(max_length=64, default="")
     name = models.CharField(max_length=255, blank=True, default="")
     try_url = models.CharField(max_length=2048)
     confirm_url = models.CharField(max_length=2048)
@@ -165,6 +166,7 @@ class TccBranch(models.Model):
     payload = models.TextField(default="{}", blank=True)
     last_http_status = models.PositiveSmallIntegerField(null=True, blank=True)
     last_error = models.TextField(blank=True, default="")
+    participant_last_response = models.TextField(blank=True, default="")
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)
 

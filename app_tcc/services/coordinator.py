@@ -15,7 +15,10 @@ from app_tcc.enums import (
 )
 from app_tcc.models import TccBranch, TccBranchMeta, TccGlobalTransaction, TccManualReview
 from app_tcc.services import participant_http
-from app_tcc.services.biz_branch_service import load_branch_metas_for_begin_by_biz
+from app_tcc.services.biz_branch_service import (
+    load_branch_metas_for_begin_by_biz,
+    normalize_branch_code,
+)
 from app_tcc.services.snowflake_id import allocate_snowflake_int
 from common.utils.date_util import get_now_timestamp_ms
 
@@ -61,6 +64,46 @@ def _branch_payload_dict(b: TccBranch) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _encode_participant_response_for_storage(body: Any | None) -> str:
+    if body is None:
+        return ""
+    return json.dumps(body, ensure_ascii=False)
+
+
+def _decode_participant_response_field(raw: str) -> Any | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        return None
+
+
+def _response_branch_key(b: TccBranch) -> str:
+    if not b.branch_meta:
+        raise ValueError("branch is missing branch_meta for serialization")
+    c = (b.branch_meta.code or "").strip()
+    if not c:
+        raise ValueError(
+            f"branch_meta.code is required (branch_meta_id={b.branch_meta_id})"
+        )
+    return c
+
+
+def _branch_entry_for_serialization(b: TccBranch) -> dict[str, Any]:
+    return {
+        "tx_branch_id": int(b.pk),
+        "branch_meta_id": b.branch_meta_id,
+        "branch_index": b.branch_index,
+        "branch_code": (b.branch_meta.code or "").strip() if b.branch_meta else "",
+        "branch_status": b.status,
+        "last_http_status": b.last_http_status,
+        "last_error": (b.last_error or "")[:200],
+        "data": _decode_participant_response_field(b.participant_last_response),
+    }
+
+
 def _call_participant_and_persist_branch(
     *,
     g: TccGlobalTransaction,
@@ -71,7 +114,7 @@ def _call_participant_and_persist_branch(
     status_on_failure: int,
     cancel_reason: int | None = None,
 ) -> tuple[int, str]:
-    st, err = participant_http.call_participant(
+    st, err, body = participant_http.call_participant(
         url=url,
         phase=phase,
         global_tx_id=str(g.pk),
@@ -86,9 +129,20 @@ def _call_participant_and_persist_branch(
         b.last_error = err
         if participant_http.is_success_status(st):
             b.status = status_on_success
+            b.participant_last_response = _encode_participant_response_for_storage(body)
         else:
             b.status = status_on_failure
-        b.save(using="tcc_rw", update_fields=["last_http_status", "last_error", "status", "ut"])
+            b.participant_last_response = ""
+        b.save(
+            using="tcc_rw",
+            update_fields=[
+                "last_http_status",
+                "last_error",
+                "status",
+                "participant_last_response",
+                "ut",
+            ],
+        )
     return st, err
 
 
@@ -115,10 +169,16 @@ def _invoke_participant_phase_or_mark_manual(
     if participant_http.is_success_status(st):
         return True
     g.refresh_from_db()
+    code_snap = (b.branch_meta.code or "").strip() if b.branch_meta else ""
     mark_manual_simple(
         g,
         manual_reason,
-        {"branch_index": b.branch_index, "http": st, "err": err[:200]},
+        {
+            "code": code_snap,
+            "branch_index": b.branch_index,
+            "http": st,
+            "err": err[:200],
+        },
     )
     return False
 
@@ -127,23 +187,16 @@ def serialize_transaction(g: TccGlobalTransaction) -> dict[str, Any]:
     branches = list(
         g.branches.select_related("branch_meta").order_by("branch_index")
     )
+    by_code: dict[str, Any] = {}
+    for b in branches:
+        by_code[_response_branch_key(b)] = _branch_entry_for_serialization(b)
     out: dict[str, Any] = {
         "global_tx_id": str(g.pk),
         "idem_key": g.idem_key,
         "status": g.status,
         "auto_confirm": g.auto_confirm,
         "retry_count": g.retry_count,
-        "branches": [
-            {
-                "branch_id": str(b.pk),
-                "branch_meta_id": b.branch_meta_id,
-                "branch_index": b.branch_index,
-                "branch_status": b.status,
-                "last_http_status": b.last_http_status,
-                "last_error": (b.last_error or "")[:200],
-            }
-            for b in branches
-        ],
+        "branches": by_code,
     }
     mr = TccManualReview.objects.using("tcc_rw").filter(global_tx_id=g.pk).first()
     if mr:
@@ -190,17 +243,20 @@ def begin_transaction(
     if not branch_items:
         raise ValueError("branch_items is required")
 
-    payloads: dict[int, dict[str, Any]] = {}
+    payloads: dict[str, dict[str, Any]] = {}
     for raw in branch_items:
-        bidx = raw.get("branch_index")
-        if not isinstance(bidx, int):
-            raise ValueError("branch_index is required and must be int")
-        if bidx in payloads:
-            raise ValueError("duplicate branch_index in branch_items")
+        if not isinstance(raw, dict):
+            raise ValueError("each branch must be an object")
+        code_raw = raw.get("branch_code")
+        if not isinstance(code_raw, str):
+            raise ValueError("branch_code is required and must be a string")
+        ncode = normalize_branch_code(code_raw)
+        if ncode in payloads:
+            raise ValueError("duplicate branch_code in branch_items")
         payload = raw.get("payload")
         if payload is not None and not isinstance(payload, dict):
             raise ValueError("branch payload must be a JSON object when provided")
-        payloads[bidx] = payload or {}
+        payloads[ncode] = payload or {}
 
     ordered_metas = load_branch_metas_for_begin_by_biz(biz_id, list(payloads.keys()))
 
@@ -211,7 +267,7 @@ def begin_transaction(
     snow_ids = [allocate_snowflake_int() for _ in range(1 + n)]
     tx_idem = snow_ids[0]
     pending: list[tuple[TccBranchMeta, dict[str, Any], int]] = [
-        (meta, payloads[meta.branch_index], snow_ids[i + 1])
+        (meta, payloads[(meta.code or "").strip()], snow_ids[i + 1])
         for i, meta in enumerate(ordered_metas)
     ]
 
@@ -258,7 +314,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
             .select_related("branch_meta")
             .get(pk=b.pk)
         )
-        st, err = participant_http.call_participant(
+        st, err, body = participant_http.call_participant(
             url=b.branch_meta.try_url,
             phase=participant_http.PHASE_TRY,
             global_tx_id=str(g.pk),
@@ -272,11 +328,33 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
             b.last_error = err
             if participant_http.is_success_status(st):
                 b.status = BranchStatus.TRY_SUCCEEDED
-                b.save(using="tcc_rw", update_fields=["last_http_status", "last_error", "status", "ut"])
+                b.participant_last_response = _encode_participant_response_for_storage(
+                    body
+                )
+                b.save(
+                    using="tcc_rw",
+                    update_fields=[
+                        "last_http_status",
+                        "last_error",
+                        "status",
+                        "participant_last_response",
+                        "ut",
+                    ],
+                )
                 succeeded.append(b)
             else:
                 b.status = BranchStatus.TRY_FAILED
-                b.save(using="tcc_rw", update_fields=["last_http_status", "last_error", "status", "ut"])
+                b.participant_last_response = ""
+                b.save(
+                    using="tcc_rw",
+                    update_fields=[
+                        "last_http_status",
+                        "last_error",
+                        "status",
+                        "participant_last_response",
+                        "ut",
+                    ],
+                )
                 g.refresh_from_db()
                 g.status = GlobalTxStatus.CANCELING
                 t = get_now_timestamp_ms()

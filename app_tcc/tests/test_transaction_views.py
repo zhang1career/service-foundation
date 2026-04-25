@@ -27,7 +27,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         factory = APIRequestFactory()
         request = factory.post(
             "/tcc/tx",
-            {"branches": [{"branch_index": 0}]},
+            {"branches": [{"branch_code": "a"}]},
             format="json",
         )
         response = TccTransactionBeginView.as_view()(request)
@@ -47,7 +47,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "/tcc/tx",
             {
                 "biz_id": 1,
-                "branches": [{"branch_index": 0}],
+                "branches": [{"branch_code": "a"}],
                 "auto_confirm": "yes",
             },
             format="json",
@@ -61,7 +61,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         factory = APIRequestFactory()
         request = factory.post(
             "/tcc/tx",
-            {"biz_id": 1, "branches": [{"branch_index": 0, "payload": {}}]},
+            {"biz_id": 1, "branches": [{"branch_code": "a", "payload": {}}]},
             format="json",
         )
         response = TccTransactionBeginView.as_view()(request)

@@ -5,6 +5,36 @@ from django.db import transaction
 from app_tcc.models import TccBizMeta, TccBranchMeta, TccParticipant
 from common.enums.service_reg_status_enum import ServiceRegStatus
 
+BRANCH_CODE_MAX_LEN = 64
+
+
+def normalize_branch_code(raw: str) -> str:
+    if not isinstance(raw, str):
+        raise TypeError("branch code must be str")
+    s = raw.strip()
+    if not s:
+        raise ValueError("branch code is required")
+    if len(s) > BRANCH_CODE_MAX_LEN:
+        raise ValueError("branch code too long")
+    return s
+
+
+def _require_branch_meta_code_set(m: TccBranchMeta) -> None:
+    if not (m.code or "").strip():
+        raise ValueError(
+            f"branch_meta.code is required (branch_meta_id={m.pk})"
+        )
+
+
+def _assert_branch_code_unique_for_biz(
+    biz_id: int, code: str, *, exclude_meta_pk: int | None = None
+) -> None:
+    q = TccBranchMeta.objects.using("tcc_rw").filter(biz_id=biz_id, code=code)
+    if exclude_meta_pk is not None:
+        q = q.exclude(pk=exclude_meta_pk)
+    if q.exists():
+        raise ValueError("branch code already used for this biz")
+
 
 def list_biz_for_participant(participant_id: int) -> list[TccBizMeta]:
     return list(
@@ -86,6 +116,7 @@ def create_branch_meta(
     biz_id: int,
     *,
     branch_index: int,
+    code: str,
     name: str = "",
     try_url: str,
     confirm_url: str,
@@ -93,9 +124,12 @@ def create_branch_meta(
 ) -> TccBranchMeta:
     if not TccBizMeta.objects.using("tcc_rw").filter(pk=biz_id).exists():
         raise ValueError("biz_meta not found")
+    code_s = normalize_branch_code(code)
+    _assert_branch_code_unique_for_biz(biz_id, code_s)
     m = TccBranchMeta(
         biz_id=biz_id,
         branch_index=int(branch_index),
+        code=code_s,
         name=(name or "").strip(),
         try_url=(try_url or "").strip(),
         confirm_url=(confirm_url or "").strip(),
@@ -110,6 +144,7 @@ def update_branch_meta(
     pk: int,
     *,
     branch_index: int | None = None,
+    code: str | None = None,
     name: str | None = None,
     try_url: str | None = None,
     confirm_url: str | None = None,
@@ -120,6 +155,13 @@ def update_branch_meta(
         return None
     if branch_index is not None:
         m.branch_index = int(branch_index)
+    if code is not None:
+        code_s = normalize_branch_code(code)
+        if code_s != m.code:
+            _assert_branch_code_unique_for_biz(
+                m.biz_id, code_s, exclude_meta_pk=m.pk
+            )
+            m.code = code_s
     if name is not None:
         m.name = name.strip()
     if try_url is not None:
@@ -214,26 +256,36 @@ def load_branch_metas_for_begin(branch_meta_ids: list[int]) -> list[TccBranchMet
     p = metas[0].biz.participant
     if p.status != ServiceRegStatus.ENABLED.value:
         raise ValueError("participant is disabled")
+    for m in metas:
+        _require_branch_meta_code_set(m)
     return sorted(metas, key=lambda m: m.branch_index)
 
 
 def load_branch_metas_for_begin_by_biz(
-    biz_id: int, branch_indices: list[int]
+    biz_id: int, branch_codes: list[str]
 ) -> list[TccBranchMeta]:
-    if not branch_indices:
-        raise ValueError("branch_indices is required")
-    if len(set(branch_indices)) != len(branch_indices):
-        raise ValueError("duplicate branch_index")
+    if not branch_codes:
+        raise ValueError("branch_codes is required")
     if not TccBizMeta.objects.using("tcc_rw").filter(pk=biz_id).exists():
         raise ValueError("biz_meta not found")
+    seen: set[str] = set()
+    norm_codes: list[str] = []
+    for c in branch_codes:
+        n = normalize_branch_code(c)
+        if n in seen:
+            raise ValueError("duplicate code in branch_codes")
+        seen.add(n)
+        norm_codes.append(n)
     metas = list(
         TccBranchMeta.objects.using("tcc_rw")
-        .filter(biz_id=biz_id, branch_index__in=branch_indices)
+        .filter(biz_id=biz_id, code__in=norm_codes)
         .select_related("biz", "biz__participant")
     )
-    if len(metas) != len(branch_indices):
-        raise ValueError("unknown branch_index for this biz")
+    if len(metas) != len(norm_codes):
+        raise ValueError("unknown branch code for this biz")
     p = metas[0].biz.participant
     if p.status != ServiceRegStatus.ENABLED.value:
         raise ValueError("participant is disabled")
+    for m in metas:
+        _require_branch_meta_code_set(m)
     return sorted(metas, key=lambda m: m.branch_index)

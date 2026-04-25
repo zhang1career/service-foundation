@@ -109,4 +109,7 @@ class TccTransactionDetailView(APIView):
         g = coordinator.get_transaction_for_query(global_tx_id=None, idem_key=ik)
         if not g:
             return resp_err(code=RET_INVALID_PARAM, message="transaction not found")
-        return resp_ok(coordinator.serialize_transaction(g))
+        try:
+            return resp_ok(coordinator.serialize_transaction(g))
+        except ValueError as e:
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
