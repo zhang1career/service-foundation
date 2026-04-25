@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS flow_step (
   compensate_url VARCHAR(2048) NOT NULL,
   timeout_sec INT UNSIGNED NOT NULL DEFAULT 30,
   max_retries INT UNSIGNED NOT NULL DEFAULT 10,
+  is_need_confirm SMALLINT NOT NULL DEFAULT 0,
   ct BIGINT UNSIGNED NOT NULL DEFAULT 0,
   ut BIGINT UNSIGNED NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS `instance` (
   context LONGTEXT NOT NULL,
   step_payloads LONGTEXT NOT NULL,
   start_body LONGTEXT NOT NULL,
+  need_confirm LONGTEXT NULL DEFAULT NULL,
   current_step_index INT NOT NULL DEFAULT 0,
   next_retry_at BIGINT NOT NULL,
   retry_count INT UNSIGNED NOT NULL DEFAULT 0,
@@ -109,6 +111,13 @@ CREATE TABLE IF NOT EXISTS step_run (
 -- ALTER TABLE step_run ADD CONSTRAINT step_run_instance_fk FOREIGN KEY (ins_id) REFERENCES `instance` (id) ON DELETE CASCADE;
 -- ALTER TABLE step_run ADD CONSTRAINT step_run_flow_step_fk FOREIGN KEY (fsid) REFERENCES flow_step (id) ON DELETE CASCADE;
 -- Optional: rename indexes to match new names (MySQL 8+ RENAME INDEX or drop/add).
+
+-- ---------------------------------------------------------------------------
+-- 2026-04: flow_step.is_need_confirm, instance.need_confirm (apply on existing DB)
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE flow_step ADD COLUMN is_need_confirm SMALLINT NOT NULL DEFAULT 0 AFTER max_retries;
+-- ALTER TABLE `instance` ADD COLUMN need_confirm LONGTEXT NULL DEFAULT NULL AFTER start_body;
+-- 若列已存在且为 NOT NULL DEFAULT ('[]')，可改为：ALTER TABLE `instance` MODIFY need_confirm LONGTEXT NULL DEFAULT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Legacy migration notes (older schema steps; table names may already differ)

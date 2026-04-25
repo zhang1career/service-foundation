@@ -77,7 +77,11 @@ def create_flow_step(
         compensate_url: str,
         timeout_sec: int = 30,
         max_retries: int = 10,
+        is_need_confirm: int = 0,
 ) -> SagaFlowStep:
+    ncf = int(is_need_confirm)
+    if ncf not in (0, 1):
+        raise ValueError("is_need_confirm must be 0 or 1")
     brs = list_steps_for_flow(flow_id)
     mx = max((b.step_index for b in brs), default=-1)
     next_idx = mx + 1
@@ -89,6 +93,7 @@ def create_flow_step(
         compensate_url=(compensate_url or "").strip(),
         timeout_sec=int(timeout_sec),
         max_retries=int(max_retries),
+        is_need_confirm=ncf,
     )
     s.save(using="saga_rw")
     return s
@@ -103,6 +108,7 @@ def update_flow_step(
         compensate_url: str | None = None,
         timeout_sec: int | None = None,
         max_retries: int | None = None,
+        is_need_confirm: int | None = None,
 ):
     s = SagaFlowStep.objects.using("saga_rw").filter(pk=step_id).first()
     if not s:
@@ -117,6 +123,11 @@ def update_flow_step(
         s.timeout_sec = int(timeout_sec)
     if max_retries is not None:
         s.max_retries = int(max_retries)
+    if is_need_confirm is not None:
+        ncf = int(is_need_confirm)
+        if ncf not in (0, 1):
+            raise ValueError("is_need_confirm must be 0 or 1")
+        s.is_need_confirm = ncf
     s.save(using="saga_rw")
     return s
 

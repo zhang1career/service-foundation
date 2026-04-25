@@ -448,6 +448,11 @@
             "additionalProperties": true,
             "description": "由持久化 JSON 解析得到的对象"
           },
+          "need_confirm": {
+            "type": "array",
+            "nullable": true,
+            "description": "库内为 NULL 时响应为 `null`（尚未写入过）；一旦有需确认步骤成功则存 JSON 数组；当某 `flow_step` 的 `is_need_confirm` 为 1 且该步 action 成功时，将本次 HTTP 响应体（`errorCode`/`data`/`message` 等）以元素形式追加；元素含 `flow_step_id`、`step_index`、`name`、`response`"
+          },
           "step_runs": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/SagaStepRunRow" }

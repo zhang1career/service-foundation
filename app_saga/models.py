@@ -76,6 +76,7 @@ class SagaFlowStep(models.Model):
     compensate_url = models.CharField(max_length=2048)
     timeout_sec = models.PositiveIntegerField(default=30)
     max_retries = models.PositiveIntegerField(default=10)
+    is_need_confirm = models.SmallIntegerField(default=0)
     ct = models.PositiveBigIntegerField(default=0)
     ut = models.PositiveBigIntegerField(default=0)
 
@@ -117,6 +118,7 @@ class SagaInstance(models.Model):
     context = models.TextField(default="{}")
     step_payloads = models.TextField(default="{}")
     start_body = models.TextField(default="{}")
+    need_confirm = models.TextField(null=True, blank=True)
     current_step_index = models.IntegerField(default=0)
     next_retry_at = models.BigIntegerField()
     retry_count = models.PositiveIntegerField(default=0)

@@ -19,6 +19,7 @@ class SagaCoordinatorHelperTests(SimpleTestCase):
         inst.retry_count = 0
         inst.last_error = "x" * 600
         inst.context = '{"k":1}'
+        inst.need_confirm = None
         ordered = MagicMock()
         row = {
             "step_index": 0,
@@ -38,6 +39,7 @@ class SagaCoordinatorHelperTests(SimpleTestCase):
         self.assertEqual(out["flow_id"], 3)
         self.assertEqual(len(out["last_error"]), 500)
         self.assertEqual(out["context"], {"k": 1})
+        self.assertIsNone(out["need_confirm"])
         self.assertEqual(len(out["step_runs"]), 1)
         self.assertEqual(out["step_runs"][0]["step_index"], 0)
 

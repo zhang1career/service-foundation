@@ -58,6 +58,7 @@
                     <th>ID</th>
                     <th>#</th>
                     <th>名称</th>
+                    <th>需确认</th>
                     <th>Action URL</th>
                     <th>操作</th>
                 </tr>
@@ -73,6 +74,7 @@
                     <td class="font-mono text-sm align-middle">{{ br.id }}</td>
                     <td class="font-mono text-sm align-middle">{{ br.step_index }}</td>
                     <td class="align-middle max-w-xs break-words">{{ br.name|default:"—" }}</td>
+                    <td class="text-sm align-middle font-mono">{{ br.is_need_confirm|default:0 }}</td>
                     <td class="text-xs break-all max-w-lg align-middle">{{ br.action_url }}</td>
                     <td class="whitespace-nowrap align-middle">
                         <div class="flex gap-1 items-center flex-wrap">
@@ -82,7 +84,8 @@
                                     data-action="{{ br.action_url|escape }}"
                                     data-compensate="{{ br.compensate_url|escape }}"
                                     data-timeout="{{ br.timeout_sec }}"
-                                    data-retries="{{ br.max_retries }}">
+                                    data-retries="{{ br.max_retries }}"
+                                    data-need-confirm="{{ br.is_need_confirm|default:0 }}">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                             </button>
                             <form method="post" class="inline" onsubmit="return confirm('删除该步骤？');">
@@ -99,7 +102,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-gray-500 text-sm py-8 text-center">暂无步骤，请点击「新增」添加。</td>
+                    <td colspan="7" class="text-gray-500 text-sm py-8 text-center">暂无步骤，请点击「新增」添加。</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -144,6 +147,13 @@
                     <label class="form-label" for="saga-step-create-retries">最大重试</label>
                     <input id="saga-step-create-retries" name="max_retries" type="number" min="0" class="form-input w-full" value="10">
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-create-need-confirm">需确认 (is_need_confirm)</label>
+                    <select id="saga-step-create-need-confirm" name="is_need_confirm" class="form-input w-full">
+                        <option value="0" selected>0 — 否</option>
+                        <option value="1">1 — 是（响应用于 need_confirm 列表）</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeSagaStepCreateModal()">取消</button>
@@ -184,6 +194,13 @@
                 <div class="form-group">
                     <label class="form-label" for="saga-step-retries">最大重试</label>
                     <input name="max_retries" id="saga-step-retries" type="number" min="0" class="form-input w-full" value="10">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-need-confirm">需确认 (is_need_confirm)</label>
+                    <select name="is_need_confirm" id="saga-step-need-confirm" class="form-input w-full">
+                        <option value="0">0 — 否</option>
+                        <option value="1">1 — 是（响应用于 need_confirm 列表）</option>
+                    </select>
                 </div>
             </div>
             <div class="modal-footer">
@@ -267,6 +284,9 @@
                 el('saga-step-compensate').value = btn.getAttribute('data-compensate') || '';
                 el('saga-step-timeout').value = btn.getAttribute('data-timeout') || '30';
                 el('saga-step-retries').value = btn.getAttribute('data-retries') || '10';
+                var ncf = (btn.getAttribute('data-need-confirm') || '0').trim();
+                if (ncf !== '0' && ncf !== '1') ncf = '0';
+                el('saga-step-need-confirm').value = ncf;
                 var m = el('saga-step-edit-modal');
                 m.classList.remove('hidden');
                 m.setAttribute('aria-hidden', 'false');

@@ -77,6 +77,16 @@ def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
             "last_error_compensate",
         )
     )
+    ncf_raw = getattr(inst, "need_confirm", None)
+    ncf: list[Any] | None
+    if ncf_raw is None:
+        ncf = None
+    elif isinstance(ncf_raw, str) and not ncf_raw.strip():
+        ncf = None
+    elif isinstance(ncf_raw, str):
+        ncf = outbound_http.loads_json_list(ncf_raw)
+    else:
+        ncf = None
     return {
         "saga_instance_id": str(inst.pk),
         "idem_key": inst.idem_key,
@@ -86,6 +96,7 @@ def serialize_instance(inst: SagaInstance) -> dict[str, Any]:
         "retry_count": inst.retry_count,
         "last_error": (inst.last_error or "")[:500],
         "context": outbound_http.loads_json_dict(inst.context),
+        "need_confirm": ncf,
         "step_runs": runs,
     }
 
@@ -213,7 +224,7 @@ def _run_forward_action(
         sr: SagaStepRun,
         ctx: dict[str, Any],
         payloads: dict[str, Any],
-) -> bool:
+) -> tuple[bool, dict[str, Any] | None]:
     body = {
         "saga_instance_id": str(inst.pk),
         "idem_key": inst.idem_key,
@@ -224,9 +235,10 @@ def _run_forward_action(
         "payload": _payload_for_step(fs, payloads),
         "start_request": _load_start_request(inst),
     }
+    json_body = outbound_http.prepare_saga_outbound_json_body(body)
     st, err, resp_obj = outbound_http.call_saga_endpoint(
         url=fs.action_url,
-        json_body=body,
+        json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
     )
     sr.last_http_status_action = st if st else None
@@ -246,7 +258,7 @@ def _run_forward_action(
             "ut",
         ],
     )
-    return ok
+    return ok, (resp_obj if ok else None)
 
 
 def _run_compensate(
@@ -267,9 +279,10 @@ def _run_compensate(
         "payload": _payload_for_step(fs, payloads),
         "start_request": _load_start_request(inst),
     }
+    json_body = outbound_http.prepare_saga_outbound_json_body(body)
     st, err, _resp = outbound_http.call_saga_endpoint(
         url=fs.compensate_url,
-        json_body=body,
+        json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
     )
     sr.last_http_status_compensate = st if st else None
@@ -345,8 +358,27 @@ def process_instance(instance_pk: int) -> None:
                 )
                 return
 
-            ok = _run_forward_action(inst=inst, fs=fs, sr=sr, ctx=ctx, payloads=payloads)
+            ok, resp_obj = _run_forward_action(
+                inst=inst, fs=fs, sr=sr, ctx=ctx, payloads=payloads
+            )
             if ok:
+                ncf_touched = False
+                if int(getattr(fs, "is_need_confirm", 0) or 0) == 1 and isinstance(
+                    resp_obj, dict
+                ):
+                    ncf = outbound_http.loads_json_list(
+                        getattr(inst, "need_confirm", None) or "[]"
+                    )
+                    ncf.append(
+                        {
+                            "flow_step_id": int(fs.pk),
+                            "step_index": int(fs.step_index),
+                            "name": (fs.name or "").strip(),
+                            "response": resp_obj,
+                        }
+                    )
+                    inst.need_confirm = outbound_http.dumps_json_value(ncf)
+                    ncf_touched = True
                 inst.context = outbound_http.dumps_json(ctx)
                 inst.current_step_index = step_idx + 1
                 inst.retry_count = 0
@@ -354,18 +386,18 @@ def process_instance(instance_pk: int) -> None:
                 if inst.current_step_index >= n:
                     inst.status = SagaInstanceStatus.COMPLETED
                 inst.next_retry_at = now
-                inst.save(
-                    using="saga_rw",
-                    update_fields=[
-                        "context",
-                        "current_step_index",
-                        "retry_count",
-                        "last_error",
-                        "status",
-                        "next_retry_at",
-                        "ut",
-                    ],
-                )
+                uf = [
+                    "context",
+                    "current_step_index",
+                    "retry_count",
+                    "last_error",
+                    "status",
+                    "next_retry_at",
+                    "ut",
+                ]
+                if ncf_touched:
+                    uf.insert(0, "need_confirm")
+                inst.save(using="saga_rw", update_fields=uf)
             else:
                 inst.retry_count += 1
                 max_r = int(fs.max_retries)
