@@ -16,6 +16,8 @@ from django.db import connections
 from django.test import RequestFactory
 from django.utils import timezone
 
+from common.utils.django_util import setting_str
+
 logger = logging.getLogger(__name__)
 
 _APP_TO_DB_ALIAS: dict[str, str] = {
@@ -90,8 +92,8 @@ def _ping_neo4j() -> dict[str, Any]:
 
 
 def _ping_mongo_atlas() -> dict[str, Any]:
-    user = (getattr(settings, "MONGO_ATLAS_USER", "") or "").strip()
-    password = (getattr(settings, "MONGO_ATLAS_PASS", "") or "").strip()
+    user = setting_str("MONGO_ATLAS_USER", "")
+    password = setting_str("MONGO_ATLAS_PASS", "")
     if not user or not password:
         return {"ok": False, "skipped": True, "reason": "mongo credentials not configured"}
 
@@ -101,9 +103,9 @@ def _ping_mongo_atlas() -> dict[str, Any]:
         from pymongo import MongoClient
         from urllib.parse import quote_plus
 
-        host = getattr(settings, "MONGO_ATLAS_HOST", "cluster.mongodb.net")
-        cluster = getattr(settings, "MONGO_ATLAS_CLUSTER", "cluster0")
-        db_name = getattr(settings, "MONGO_ATLAS_DB", "know")
+        host = setting_str("MONGO_ATLAS_HOST", "cluster.mongodb.net")
+        cluster = setting_str("MONGO_ATLAS_CLUSTER", "cluster0")
+        db_name = setting_str("MONGO_ATLAS_DB", "know")
         u = quote_plus(user)
         p = quote_plus(password)
         uri = f"mongodb+srv://{u}:{p}@{cluster}.{host}/?retryWrites=true&w=majority&appName=sf_monitoring"
@@ -148,7 +150,7 @@ def _probe_drf_view(view_cls, path: str) -> dict[str, Any]:
 
 
 def _aibroker_metrics_if_configured() -> dict[str, Any] | None:
-    raw_key = (getattr(settings, "CONSOLE_AIBROKER_ACCESS_KEY", "") or "").strip()
+    raw_key = setting_str("CONSOLE_AIBROKER_ACCESS_KEY", "")
     if not raw_key:
         return None
     try:

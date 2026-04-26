@@ -1,7 +1,5 @@
 import json
 
-from django.conf import settings
-
 from app_user.enums.event_status_enum import EventStatusEnum
 from app_user.repos import (
     create_event,
@@ -9,6 +7,7 @@ from app_user.repos import (
     update_event_after_code,
     update_event_status,
 )
+from common.utils.django_util import setting_str
 from common.utils.http_util import post
 
 
@@ -51,8 +50,8 @@ def create_verify_event_and_send_notice(
 
 
 def load_verify_notice_access_keys() -> tuple[str, str]:
-    verify_access_key = (getattr(settings, "USER_VERIFY_ACCESS_KEY", "") or "").strip()
-    notice_access_key = (getattr(settings, "USER_NOTICE_ACCESS_KEY", "") or "").strip()
+    verify_access_key = setting_str("USER_VERIFY_ACCESS_KEY", "")
+    notice_access_key = setting_str("USER_NOTICE_ACCESS_KEY", "")
     if not verify_access_key:
         raise ValueError("USER_VERIFY_ACCESS_KEY is required")
     if not notice_access_key:
@@ -61,24 +60,24 @@ def load_verify_notice_access_keys() -> tuple[str, str]:
 
 
 def _verify_request_url() -> str:
-    raw = getattr(settings, "VERIFY_REQUEST_URL", None)
-    if raw is None or not str(raw).strip():
+    raw = setting_str("VERIFY_REQUEST_URL", "")
+    if not raw:
         raise ValueError("VERIFY_REQUEST_URL is not configured")
-    return str(raw).strip()
+    return raw
 
 
 def _verify_check_url() -> str:
-    raw = getattr(settings, "VERIFY_CHECK_URL", None)
-    if raw is None or not str(raw).strip():
+    raw = setting_str("VERIFY_CHECK_URL", "")
+    if not raw:
         raise ValueError("VERIFY_CHECK_URL is not configured")
-    return str(raw).strip()
+    return raw
 
 
 def _notice_service_url() -> str:
-    raw = getattr(settings, "NOTICE_SERVICE_URL", None)
-    if raw is None or not str(raw).strip():
+    raw = setting_str("NOTICE_SERVICE_URL", "")
+    if not raw:
         raise ValueError("NOTICE_SERVICE_URL is not configured")
-    return str(raw).strip()
+    return raw
 
 
 def request_verify_code_for_event(

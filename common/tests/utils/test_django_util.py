@@ -7,7 +7,33 @@ from common.utils.django_util import (
     effective_setting_str,
     post_like_mapping_to_dict,
     schedule_on_commit,
+    setting_str,
 )
+
+
+class SettingStrTests(SimpleTestCase):
+    @override_settings(DJANGO_UTIL_SETTING_STR_TEST="ok")
+    def test_present_non_empty(self):
+        self.assertEqual(setting_str("DJANGO_UTIL_SETTING_STR_TEST", "fallback"), "ok")
+
+    def test_missing_uses_default(self):
+        self.assertEqual(setting_str("DJANGO_UTIL_SETTING_STR_MISSING_ABC", "fallback"), "fallback")
+
+    @override_settings(DJANGO_UTIL_SETTING_STR_TEST="")
+    def test_empty_string_uses_default(self):
+        self.assertEqual(setting_str("DJANGO_UTIL_SETTING_STR_TEST", "fallback"), "fallback")
+
+    @override_settings(DJANGO_UTIL_SETTING_STR_TEST="  \t  ")
+    def test_whitespace_only_uses_default(self):
+        self.assertEqual(setting_str("DJANGO_UTIL_SETTING_STR_TEST", "fallback"), "fallback")
+
+    @override_settings(DJANGO_UTIL_SETTING_STR_TEST=None)
+    def test_none_uses_default(self):
+        self.assertEqual(setting_str("DJANGO_UTIL_SETTING_STR_TEST", "fallback"), "fallback")
+
+    @override_settings(DJANGO_UTIL_SETTING_STR_TEST="  trimmed  ")
+    def test_strips_value(self):
+        self.assertEqual(setting_str("DJANGO_UTIL_SETTING_STR_TEST", "fallback"), "trimmed")
 
 
 class EffectiveSettingStrTests(SimpleTestCase):

@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, cast, Optional
 
 from django.conf import settings
 
+from common.utils.django_util import setting_str
+
 if TYPE_CHECKING:
     from redis.client import Redis
 
@@ -38,10 +40,10 @@ def reset_service_discovery_redis_client_for_tests() -> None:
 
 
 def _service_discovery_redis_url() -> str:
-    explicit = (getattr(settings, "SERVICE_DISCOVERY_REDIS_URL", "") or "").strip()
+    explicit = setting_str("SERVICE_DISCOVERY_REDIS_URL", "")
     if explicit:
         return explicit
-    base = getattr(settings, "REDIS_URL", "") or "redis://127.0.0.1:6379"
+    base = setting_str("REDIS_URL", "redis://127.0.0.1:6379")
     db = int(getattr(settings, "SERVICE_DISCOVERY_REDIS_DB", 0))
     return redis_location_with_db(base, db)
 
@@ -59,7 +61,7 @@ def _get_redis_client() -> Redis:
 
 
 def _redis_resolve_host(service_key: str, index: int | None) -> str:
-    prefix = getattr(settings, "SERVICE_DISCOVERY_KEY_PREFIX", "")
+    prefix = setting_str("SERVICE_DISCOVERY_KEY_PREFIX", "")
     rkey = prefix + service_key
     try:
         client = _get_redis_client()

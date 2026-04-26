@@ -13,6 +13,7 @@ from rest_framework.response import Response as DRFResponse
 from rest_framework.views import exception_handler as drf_exception_handler
 
 from common.consts.response_const import RET_INVALID_PARAM, RET_OK, RET_UNKNOWN, RET_ERR
+from common.utils.django_util import setting_str
 from common.exceptions.base_exception import CheckedException, UncheckedException, generic_message_for_ret
 from common.exceptions.checked.upstream_http_error import UpstreamHttpError
 from common.pojo.response import Response
@@ -103,7 +104,7 @@ def resolve_request_id(request) -> str:
 def attach_request_id_header(response: HttpResponseBase, request_id: str) -> None:
     if not request_id:
         return
-    header = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+    header = setting_str("REQUEST_ID_RESPONSE_HEADER", "X-Request-Id")
     response[header] = request_id
 
 

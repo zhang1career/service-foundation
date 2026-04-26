@@ -1,8 +1,7 @@
 import logging
 
-from django.conf import settings
-
 from common.services.http import HttpCallError, HttpClientPool, request_sync
+from common.utils.django_util import setting_str
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,7 @@ class SmsNoticeService:
         if not content:
             raise ValueError("SMS content is required")
 
-        provider = getattr(settings, "SMS_PROVIDER", "").strip().lower()
+        provider = setting_str("SMS_PROVIDER", "").lower()
         if not provider:
             raise ValueError("SMS_PROVIDER is not configured")
 
@@ -24,8 +23,8 @@ class SmsNoticeService:
             return True
 
         if provider == "http":
-            endpoint = getattr(settings, "SMS_HTTP_ENDPOINT", "").strip()
-            api_key = getattr(settings, "SMS_HTTP_API_KEY", "").strip()
+            endpoint = setting_str("SMS_HTTP_ENDPOINT", "")
+            api_key = setting_str("SMS_HTTP_API_KEY", "")
             if not endpoint:
                 raise ValueError("SMS_HTTP_ENDPOINT is required when SMS_PROVIDER=http")
             payload = {"phone": phone, "content": content}

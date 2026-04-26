@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from common.dict_catalog.registry import warm_dict_catalog_bundled
 from common.services.http.pools import HttpClientPool
 from common.utils.env_util import load_env
 from common.utils.redis_url_util import redis_location_with_db
@@ -147,8 +148,8 @@ if APP_TCC_ENABLED:
 if APP_SAGA_ENABLED:
     INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 
-# Logger name for HttpRequestLogMiddleware (all HTTP; configure in LOGGING).
-HTTP_REQUEST_LOG_LOGGER = "http.request"
+# HttpRequestLogMiddleware: URL not in URLconf, or view under django.* / rest_framework.*.
+HTTP_REQUEST_LOG_FALLBACK_LOGGER = env("HTTP_REQUEST_LOG_FALLBACK_LOGGER", default="service_foundation")
 
 MIDDLEWARE = [
     "common.middleware.trace_id_header_middleware.TraceIdHeaderNormalizeMiddleware",
@@ -174,6 +175,7 @@ if APP_CONSOLE_ENABLED:
     MIDDLEWARE.insert(_insert_at, "app_console.middleware.ConsoleStaffRequiredMiddleware")
 
 REST_FRAMEWORK: dict[str, Any] = {
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "EXCEPTION_HANDLER": "common.utils.http_util.drf_unified_exception_handler",
     # Match compact JSON from API_JSON_DUMPS_PARAMS (no decorative whitespace in separators).
     "COMPACT_JSON": True,
@@ -610,7 +612,6 @@ if _log_handler == "logfile":
     for _name in (
             "django.request",
             "django.db.backends",
-            "http.request",
             "service_foundation",
             "app_aibroker",
             "app_cdn",
@@ -682,11 +683,6 @@ LOGGING = {
         "django.db.backends": {
             "level": env("LOG_LEVEL_DJANGO_DB", default="INFO"),
             "handlers": _logger_handlers("django.db.backends"),
-        },
-        "http.request": {
-            "level": env("LOG_LEVEL_HTTP_REQUEST", default="INFO"),
-            "handlers": _logger_handlers("http.request"),
-            "propagate": False,
         },
         "service_foundation": {
             "level": env("LOG_LEVEL_APP_SERV_FD", default="INFO"),
@@ -916,6 +912,4 @@ NEO4J_PASS = env("NEO4J_PASS", default="")
 NEO4J_DATABASE = env("NEO4J_DATABASE", default="neo4j")
 
 # Warm bundled dict catalog at import (reduces first-request latency on /api/*/dict).
-from common.dict_catalog.registry import warm_dict_catalog_bundled
-
 warm_dict_catalog_bundled()

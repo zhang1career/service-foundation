@@ -2,11 +2,11 @@
 
 import json
 
-from django.conf import settings
 from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.views import View
 
 from app_console.services.monitoring_snapshot import get_snapshot_payload
+from common.utils.django_util import setting_str
 from common.utils.json_util import API_JSON_DUMPS_PARAMS
 
 
@@ -24,7 +24,7 @@ class MonitoringJsonView(View):
     """GET /console/api/monitoring.json — requires CONSOLE_MONITORING_JSON_TOKEN."""
 
     def get(self, request, *args, **kwargs):
-        token = (getattr(settings, "CONSOLE_MONITORING_JSON_TOKEN", "") or "").strip()
+        token = setting_str("CONSOLE_MONITORING_JSON_TOKEN", "")
         if not token:
             return HttpResponseForbidden("CONSOLE_MONITORING_JSON_TOKEN is not configured")
         given = (request.GET.get("token") or "").strip()

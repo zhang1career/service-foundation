@@ -1,24 +1,79 @@
 """
 Structured request/response logging for all HTTP traffic.
 
-Uses ``settings.HTTP_REQUEST_LOG_LOGGER`` (logger name). Configure the logger
-in ``LOGGING`` (e.g. level and handlers).
+Uses the same top-level loggers as the rest of the project: the resolved view’s
+``__module__`` yields the logger name (e.g. ``app_user.views.x`` → ``app_user``,
+``common.views.x`` → ``common``). That matches ``LOGGING`` handlers for each
+``app_*`` / ``common`` / ``service_foundation``. Unresolvable paths and views
+under ``django.*`` / ``rest_framework.*`` use ``HTTP_REQUEST_LOG_FALLBACK_LOGGER``.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import time
 from typing import Any
 
-from django.conf import settings
 from django.template.response import ContentNotRenderedError
+from django.urls import Resolver404, resolve
 from django.utils.deprecation import MiddlewareMixin
+
+from common.utils.django_util import setting_str
 
 _MAX_BODY_JSON_CHARS = 8192
 _MAX_RESPONSE_JSON_CHARS = 4096
 _MAX_STR_PREVIEW = 200
+
+
+def _fallback_logger_name() -> str:
+    return setting_str("HTTP_REQUEST_LOG_FALLBACK_LOGGER", "service_foundation")
+
+
+def _callable_module_name(callable_obj: Any) -> str:
+    inner: Any = callable_obj
+    while isinstance(inner, functools.partial):
+        inner = inner.func
+    return (getattr(inner, "__module__", None) or "").strip()
+
+
+def _logger_name_from_view_module(module_name: str) -> str | None:
+    if not module_name or module_name.startswith("django.") or module_name.startswith("rest_framework."):
+        return None
+    head = module_name.split(".", 1)[0]
+    if head == "common" or head.startswith("app_") or head == "service_foundation":
+        return head
+    return None
+
+
+def _logger_name_from_resolver_match(match) -> str:
+    mod = _callable_module_name(match.func)
+    resolved = _logger_name_from_view_module(mod)
+    if resolved is not None:
+        return resolved
+    return _fallback_logger_name()
+
+
+def resolve_http_request_log_logger(path_info: str, *, urlconf: str | None = None) -> str:
+    """
+    Map *path_info* to a configured project logger via ``django.urls.resolve``,
+    or return ``HTTP_REQUEST_LOG_FALLBACK_LOGGER``.
+    """
+    p = (path_info or "/").strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    try:
+        match = resolve(p, urlconf=urlconf)
+    except Resolver404:
+        return _fallback_logger_name()
+    return _logger_name_from_resolver_match(match)
+
+
+def resolve_http_request_log_logger_for_request(request) -> str:
+    path_info = getattr(request, "path_info", None) or getattr(request, "path", "") or "/"
+    urlconf = getattr(request, "urlconf", None)
+    return resolve_http_request_log_logger(path_info, urlconf=urlconf)
 
 
 def _abbreviate_value(value: Any) -> Any:
@@ -122,15 +177,16 @@ def _log_request(logger_name: str, request) -> None:
 
 
 class HttpRequestLogMiddleware(MiddlewareMixin):
-    def __init__(self, get_response):
-        super().__init__(get_response)
-        self._logger_name = (getattr(settings, "HTTP_REQUEST_LOG_LOGGER", None) or "").strip() or "http.request"
-
     def process_request(self, request):
         request._http_request_log_start = time.perf_counter()
-        _log_request(self._logger_name, request)
+        name = resolve_http_request_log_logger_for_request(request)
+        request._http_request_log_logger = name
+        _log_request(name, request)
         return None
 
     def process_response(self, request, response):
-        _log_response(self._logger_name, request, response)
+        name = getattr(request, "_http_request_log_logger", None) or resolve_http_request_log_logger_for_request(
+            request
+        )
+        _log_response(name, request, response)
         return response

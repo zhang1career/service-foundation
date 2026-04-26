@@ -17,6 +17,6 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 XXL_JOB_TOKEN = "ref-token"
 XXL_JOB_ADMIN_ADDRESS = ""
-HTTP_REQUEST_LOG_LOGGER = "test_http_request_log.access"
+HTTP_REQUEST_LOG_FALLBACK_LOGGER = "service_foundation"
 REST_FRAMEWORK: dict = {}
 LOGGING_CONFIG = None

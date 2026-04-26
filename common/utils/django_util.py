@@ -8,6 +8,8 @@ from django.db import connection, transaction
 from django.db.models import QuerySet
 from django.http import QueryDict
 
+_MISSING = object()
+
 
 def select_for_update_skip_locked(queryset: QuerySet) -> QuerySet:
     """Row lock for concurrent scanners; uses ``SKIP LOCKED`` only if the DB supports it."""
@@ -35,13 +37,22 @@ def post_like_mapping_to_dict(raw: Any) -> dict[str, Any]:
     return dict(raw)
 
 
+def setting_str(name: str, default: str) -> str:
+    """Django setting *name* as a non-empty string: strip; missing, ``None``, or blank → *default*."""
+    raw = getattr(settings, name, _MISSING)
+    if raw is _MISSING or raw is None:
+        return default
+    s = str(raw).strip()
+    return s or default
+
+
 def effective_setting_str(override: str | None, setting_attr: str) -> str:
-    """Non-empty stripped override wins; otherwise getattr(settings, attr, '') as str, stripped."""
+    """Non-empty stripped *override* wins; else :func:`setting_str` for *setting_attr* with default ``""``."""
     if override is not None:
         s = str(override).strip()
         if s:
             return s
-    return str(getattr(settings, setting_attr, "")).strip()
+    return setting_str(setting_attr, "")
 
 
 def post_to_dict(request):

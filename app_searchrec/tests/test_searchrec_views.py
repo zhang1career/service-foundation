@@ -1,7 +1,6 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from django.conf import settings
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
@@ -13,6 +12,11 @@ from app_searchrec.views.searchrec_view import (
     SearchRecSearchView,
 )
 from common.consts.response_const import RET_INVALID_PARAM, RET_OK
+from common.utils.django_util import setting_str
+
+
+def _request_id_response_header() -> str:
+    return setting_str("REQUEST_ID_RESPONSE_HEADER", "X-Request-Id")
 
 
 def _active_reg_mock():
@@ -34,7 +38,7 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         self.assertEqual(payload["data"]["status"], "ok")
 
     def test_health_response_includes_request_id_header(self):
-        header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+        header_name = _request_id_response_header()
         request = self.factory.get("/api/searchrec/health")
         response = SearchRecHealthView.as_view()(request)
         response.render()
@@ -42,7 +46,7 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
         self.assertEqual(len(response[header_name]), 16)
 
     def test_health_echoes_client_x_request_id(self):
-        header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+        header_name = _request_id_response_header()
         request = self.factory.get("/api/searchrec/health", HTTP_X_REQUEST_ID="client-rid-9")
         response = SearchRecHealthView.as_view()(request)
         response.render()
@@ -143,7 +147,7 @@ class SearchRecViewsFunctionalTest(SimpleTestCase):
     @patch("app_searchrec.views.searchrec_view.get_reg_by_access_key_and_status")
     def test_index_upsert_empty_documents_returns_invalid_param(self, get_reg):
         get_reg.return_value = _active_reg_mock()
-        header_name = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+        header_name = _request_id_response_header()
         request = self.factory.post(
             "/api/searchrec/index",
             data={"access_key": "k", "documents": []},

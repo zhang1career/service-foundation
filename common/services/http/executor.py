@@ -4,12 +4,14 @@ import httpx
 import json
 import logging
 import time
-from django.conf import settings
 from typing import Any, Dict, Optional
+
+from django.conf import settings
 
 from common.services.http.client import get_http_client
 from common.services.http.errors import HttpCallError
 from common.services.http.pools import HttpClientPool, pool_id
+from common.utils.django_util import setting_str
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +114,7 @@ def _queue_for_pool(pool_key: str) -> str:
     mapping = getattr(settings, "HTTPX_POOL_CELERY_QUEUE", None) or {}
     return mapping.get(
         pool_key,
-        getattr(settings, "CELERY_TASK_DEFAULT_QUEUE", "default"),
+        setting_str("CELERY_TASK_DEFAULT_QUEUE", "default"),
     )
 
 
