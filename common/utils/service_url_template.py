@@ -7,16 +7,29 @@ Production code resolves placeholders via Redis — see
 
 :func:`expand_service_url_from_env` remains for **tests and local tooling** only: it replaces
 ``{{service_key}}`` using ``SERVICE_HOST_<KEY>`` (``-`` → ``_``, uppercased).
+
+:func:`substitute_url_context_placeholders` mirrors Fusio ``ArgumentHelper::specifyPath`` for
+remaining ``{{name}}`` segments using a caller-supplied mapping (e.g. saga ``idem_key``).
+
+**Convention:** the token immediately after ``://{{`` is always a **service registry key** (host
+placeholders), not a path/context key. Path/context values belong in other ``{{name}}`` segments
+after the host, e.g. ``http://{{order-svc}}/api/sagas/{{idem_key}}/action``.
+
+Call :func:`ensure_url_has_no_unresolved_placeholders` after host + context substitution
+before HTTP, so unresolved or malformed ``{{...}}`` never leaves the process as a request URL.
 """
 
 from __future__ import annotations
 
 import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 # paganini ServiceUrlSpecifier: first ://{{key}} only; key charset matches PHP.
 _SERVICE_HOST_IN_URL = re.compile(r"://\{\{([a-zA-Z0-9_-]*)\}\}")
+
+# Fusio ArgumentHelper::specifyPath-compatible ``{{name}}`` keys (path / query segments).
+_CONTEXT_PLACEHOLDER_IN_URL = re.compile(r"\{\{([a-zA-Z0-9_-]*)\}\}")
 
 
 class ServiceUrlResolutionError(RuntimeError):
@@ -51,6 +64,9 @@ def specify_service_host(
     """
     Replace ``{{service_key}}`` in ``url`` when the URL contains ``://{{service_key}}``.
 
+    *service_key* must be a service-registry name (Paganini / Redis), not a path or context
+    variable; use a separate ``{{name}}`` after the host for path template values.
+
     Mirrors ``Paganini\\ServiceDiscovery\\ServiceUrlSpecifier::specifyHost``:
     only the first ``://{{...}}`` match selects the key; then every ``{{key}}`` in ``url`` is
     replaced with the resolved host (typically ``host:port``).
@@ -65,6 +81,48 @@ def specify_service_host(
     key = match.group(1)
     host = resolve(key, index)
     return url.replace("{{" + key + "}}", host)
+
+
+def substitute_url_context_placeholders(
+    url: str,
+    variables: Mapping[str, str] | None,
+) -> str:
+    """
+    Replace ``{{name}}`` segments when *name* is a key in *variables* (Fusio-style path args).
+
+    Unknown placeholders are left unchanged; callers that forbid stale templates should call
+    :func:`ensure_url_has_no_unresolved_placeholders` after this step. Run after
+    :func:`specify_service_host` / service-discovery expansion.
+    """
+    if not url or not variables:
+        return url or ""
+
+    def _replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key in variables:
+            return variables[key]
+        return match.group(0)
+
+    return _CONTEXT_PLACEHOLDER_IN_URL.sub(_replace, url)
+
+
+def ensure_url_has_no_unresolved_placeholders(url: str) -> None:
+    """
+    Require that *url* contains no ``{{name}}`` placeholders (name: ``[a-zA-Z0-9_-]*``) and no
+    stray ``{{`` after template processing. Raises :class:`ServiceUrlResolutionError` otherwise.
+    """
+    if not url or "{{" not in url:
+        return
+    m = _CONTEXT_PLACEHOLDER_IN_URL.search(url)
+    if m is not None:
+        name = m.group(1) or "?"
+        token = "{{" + name + "}}"
+        raise ServiceUrlResolutionError(
+            f"Unresolved URL placeholder {token!r}; add it to the template context or fix the URL"
+        )
+    raise ServiceUrlResolutionError(
+        "Invalid or incomplete {{...}} in URL (use {{name}} with characters [a-zA-Z0-9_-] only)"
+    )
 
 
 def expand_service_url_from_env(url: str, index: int | None = None) -> str:

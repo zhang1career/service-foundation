@@ -12,7 +12,11 @@ from common.consts.response_const import RET_OK
 from common.services.http import HttpClientPool, request_sync
 from common.services.service_discovery import maybe_expand_service_discovery_url
 from common.utils.json_util import API_JSON_DUMPS_PARAMS, json_decode
-from common.utils.service_url_template import ServiceUrlResolutionError
+from common.utils.service_url_template import (
+    ServiceUrlResolutionError,
+    ensure_url_has_no_unresolved_placeholders,
+    substitute_url_context_placeholders,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +59,26 @@ def call_saga_endpoint(
         json_body: dict[str, Any],
         timeout_sec: float | None = None,
         extra_headers: dict[str, str] | None = None,
+        url_template_variables: dict[str, str] | None = None,
 ) -> tuple[int, str, dict[str, Any] | None]:
     """
     POST JSON. Returns (http_status, error_snippet, parsed_json_or_none).
     On HTTP success, if body is JSON object with errorCode, requires RET_OK for logical success.
+
+    After service-discovery and *url_template_variables* substitution, any remaining
+    ``{{...}}`` causes failure (``http_status == 0``) without sending the request.
     """
     try:
         url = maybe_expand_service_discovery_url(url)
     except ServiceUrlResolutionError as e:
         logger.warning("saga service URL unresolved: %s", e)
+        return 0, str(e)[:500], None
+
+    url = substitute_url_context_placeholders(url, url_template_variables)
+    try:
+        ensure_url_has_no_unresolved_placeholders(url)
+    except ServiceUrlResolutionError as e:
+        logger.warning("saga participant URL has unresolved template: %s", e)
         return 0, str(e)[:500], None
 
     timeout = float(timeout_sec if timeout_sec is not None else settings.SAGA_OUTBOUND_TIMEOUT_SEC)

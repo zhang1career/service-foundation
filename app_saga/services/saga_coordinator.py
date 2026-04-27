@@ -69,6 +69,11 @@ def _load_start_request(inst: SagaInstance) -> dict[str, Any]:
         return {}
 
 
+def _participant_url_template_variables(inst: SagaInstance) -> dict[str, str]:
+    """Placeholders for action/compensate URLs after service-discovery host expansion."""
+    return {"idem_key": str(inst.idem_key)}
+
+
 def _participant_outbound_headers(inst: SagaInstance) -> dict[str, str] | None:
     """Forward ``X-Request-Id`` from the start API request to participant HTTP calls."""
     sr = _load_start_request(inst)
@@ -304,6 +309,7 @@ def _run_forward_action(
         json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
         extra_headers=_participant_outbound_headers(inst),
+        url_template_variables=_participant_url_template_variables(inst),
     )
     sr.last_http_status_action = st if st else None
     sr.last_error_action = err
@@ -342,6 +348,7 @@ def _run_compensate(
         json_body=json_body,
         timeout_sec=float(fs.timeout_sec),
         extra_headers=_participant_outbound_headers(inst),
+        url_template_variables=_participant_url_template_variables(inst),
     )
     sr.last_http_status_compensate = st if st else None
     sr.last_error_compensate = err

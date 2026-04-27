@@ -97,6 +97,9 @@ def maybe_expand_service_discovery_url(url: str, index: int | None = None) -> st
     **host:port** from the service registry in Redis — same as
     :func:`expand_service_discovery_url`.
 
+    The name right after ``://{{`` is always the **service key**; path/context slots must
+    not use that position (e.g. use ``http://{{svc-host}}/r/{{context_key}}``).
+
     Otherwise return the value stripped of leading/trailing whitespace, **without**
     stripping trailing path slashes. Use this for participant/outbound request URLs
     that should stay literal when no placeholder is present.
