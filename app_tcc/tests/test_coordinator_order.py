@@ -33,7 +33,6 @@ class _FakeGlobalTx:
 
 
 @override_settings(
-    TCC_SNOWFLAKE_ACCESS_KEY="k",
     TCC_PHASE_TRY_TIMEOUT_SECONDS=120,
     TCC_PHASE_CONFIRM_TIMEOUT_SECONDS=120,
     TCC_PHASE_CANCEL_TIMEOUT_SECONDS=120,
@@ -70,12 +69,10 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
     @patch("app_tcc.services.coordinator.get_now_timestamp_ms", return_value=1_000_000)
     @patch("app_tcc.services.coordinator.load_branch_metas_for_begin_by_biz")
-    @patch("app_tcc.services.coordinator.allocate_snowflake_int")
     @patch("app_tcc.services.coordinator.participant_http.call_participant")
     def test_try_order_then_confirm_reverse(
         self,
         mock_call,
-        mock_snowflake,
         mock_load,
         mock_now,
         mock_gtx_class,
@@ -83,7 +80,6 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         mock_mr_objects,
     ):
         self.assertEqual(mock_now(), 1_000_000)
-        mock_snowflake.side_effect = [8000]
         mock_call.return_value = (200, "", None)
 
         meta_a = MagicMock()
@@ -145,6 +141,7 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
                 {"branch_code": "b", "payload": {"k": 2}},
             ],
             auto_confirm=True,
+            x_request_id=8000,
         )
 
         try_calls = [c for c in mock_call.call_args_list if c[1]["phase"] == "try"]
@@ -174,12 +171,10 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
     @patch("app_tcc.services.coordinator.get_now_timestamp_ms", return_value=1_000_000)
     @patch("app_tcc.services.coordinator.load_branch_metas_for_begin_by_biz")
-    @patch("app_tcc.services.coordinator.allocate_snowflake_int")
     @patch("app_tcc.services.coordinator.participant_http.call_participant")
     def test_try_failure_cancels_reverse_try_order(
         self,
         mock_call,
-        mock_snowflake,
         mock_load,
         mock_now,
         mock_gtx_class,
@@ -187,7 +182,6 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
         mock_mr_objects,
     ):
         self.assertEqual(mock_now(), 1_000_000)
-        mock_snowflake.side_effect = [8000]
 
         def side_effect(**kwargs):
             if kwargs["url"] == "http://b/try":
@@ -255,6 +249,7 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
                 {"branch_code": "b"},
             ],
             auto_confirm=True,
+            x_request_id=8000,
         )
 
         cancel_calls = [c for c in mock_call.call_args_list if c[1]["phase"] == "cancel"]
@@ -271,19 +266,16 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
     @patch("app_tcc.services.coordinator.get_now_timestamp_ms", return_value=1_000_000)
     @patch("app_tcc.services.coordinator.load_branch_metas_for_begin_by_biz")
-    @patch("app_tcc.services.coordinator.allocate_snowflake_int")
     @patch("app_tcc.services.coordinator.participant_http.call_participant")
     def test_x_request_id_prefixes_branch_idem(
         self,
         mock_call,
-        mock_snowflake,
         mock_load,
         mock_now,
         mock_gtx_class,
         mock_branch_class,
         mock_mr_objects,
     ):
-        mock_snowflake.side_effect = [7000]
         mock_call.return_value = (200, "", None)
         meta_a = MagicMock()
         meta_a.pk = 10
@@ -337,10 +329,10 @@ class CoordinatorOrderMockedTests(SimpleTestCase):
             biz_id=1,
             branch_items=[{"branch_code": "a"}, {"branch_code": "b"}],
             auto_confirm=True,
-            x_request_id="client-tx-99",
+            x_request_id=99,
         )
         try_calls = [c for c in mock_call.call_args_list if c[1]["phase"] == "try"]
-        self.assertEqual(try_calls[0][1]["x_request_id"], "client-tx-99-0")
-        self.assertEqual(try_calls[1][1]["x_request_id"], "client-tx-99-1")
-        self.assertEqual(branch_by_pk[301].idem_key, "client-tx-99-0")
-        self.assertEqual(g.idem_key, 7000)
+        self.assertEqual(try_calls[0][1]["x_request_id"], "99-0")
+        self.assertEqual(try_calls[1][1]["x_request_id"], "99-1")
+        self.assertEqual(branch_by_pk[301].idem_key, "99-0")
+        self.assertEqual(g.idem_key, 99)

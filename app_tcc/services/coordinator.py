@@ -19,7 +19,6 @@ from app_tcc.services.biz_branch_service import (
     load_branch_metas_for_begin_by_biz,
     normalize_branch_code,
 )
-from app_tcc.services.snowflake_id import allocate_snowflake_int
 from common.utils.date_util import get_now_timestamp_ms
 
 
@@ -246,12 +245,14 @@ def begin_transaction(
     *,
     biz_id: int,
     branch_items: list[dict[str, Any]],
+    x_request_id: int,
     auto_confirm: bool | None = None,
     context: dict[str, Any] | None = None,
-    x_request_id: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(biz_id, int):
         raise ValueError("biz_id is required and must be int")
+    if type(x_request_id) is not int:
+        raise ValueError("x_request_id is required and must be int")
     if not branch_items:
         raise ValueError("branch_items is required")
 
@@ -275,10 +276,7 @@ def begin_transaction(
     if auto_confirm is None:
         auto_confirm = _default_auto_confirm()
 
-    tx_idem = allocate_snowflake_int()
-    base = (x_request_id or "").strip()
-    if not base:
-        base = str(tx_idem)
+    base = str(x_request_id)
     pending: list[tuple[TccBranchMeta, dict[str, Any], str]] = []
     for meta in ordered_metas:
         code = (meta.code or "").strip()
@@ -300,7 +298,7 @@ def begin_transaction(
             phase_deadline_at=phase_deadline_ms,
             next_retry_at=now_ms,
             auto_confirm=auto_confirm,
-            idem_key=tx_idem,
+            idem_key=x_request_id,
             context=json.dumps(context or {}, ensure_ascii=False),
         )
         branch_rows: list[TccBranch] = []
