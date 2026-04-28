@@ -100,7 +100,6 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "phase": "action",
             "context": {},
             "saga_shared": {
-                "tcc_access_key": "tcc-sec-1",
                 "step_payloads": {"0": {}},
             },
             "payload": {
@@ -149,7 +148,6 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "phase": "action",
             "context": {},
             "saga_shared": {
-                "tcc_access_key": "k",
                 "step_payloads": {},
             },
             "payload": {

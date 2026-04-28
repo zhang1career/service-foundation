@@ -51,18 +51,12 @@ class SagaInstanceStartView(APIView):
             step_payloads = data.get("step_payloads")
             if step_payloads is not None and not isinstance(step_payloads, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="step_payloads must be object")
-            tcc_tok = data.get("tcc_access_key")
-            if tcc_tok is not None and not isinstance(tcc_tok, str):
-                return resp_err(
-                    code=RET_INVALID_PARAM, message="tcc_access_key must be string"
-                )
             out = saga_coordinator.start_instance(
                 access_key=access_key.strip(),
                 flow_id=flow_id,
                 context=ctx,
                 idem_key=idem_key,
                 step_payloads=step_payloads,
-                tcc_access_key=tcc_tok,
             )
             return resp_ok(out)
         except ValueError as e:

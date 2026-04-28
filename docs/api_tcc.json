@@ -79,8 +79,17 @@
       "post": {
         "tags": ["Transactions"],
         "summary": "开启全局事务（Try 阶段及后续）",
-        "description": "请求体为 **二选一**。\n\n**A. 经典** — 根上 `biz_id` + `branches` 等，见 `TccBeginRequest`。\n\n**B. Saga 外呼** — 有 `saga_instance_id` 与 **`payload`（object）** 时解析为 begin：`biz_id` ← **`payload.biz_id`**（int，正，必填）；`branches` 等在 **`payload`** 内。`tcc_access_key` 可在 **`saga_shared`** 或根上重复（可忽略）。Saga 编排器外呼**仅**在 `saga_shared` 中携带 `step_payloads` 与可选 `tcc_access_key`；根级 `flow_id` 为 Saga 流程 ID，**不是** TCC `biz_id`。\n\n**响应 `data.branches`（A/B 相同）**：为以各分支的 **`branch_code`**（与 `TccBranchMeta.code`、begin 入参 `branches[].branch_code` 相同）为键的对象（**禁止**缺 `branch_meta.code` 时用其他占位键；未配置时在查询/列详情会 `errorCode=100`）。值为 `TccBranchSummary`（内含 `branch_code` 字段；`data` 为参与者最近一次成功 HTTP 的 JSON 体，解析结果或 `null`）。\n\n**错误**：非法 JSON/缺字段/类型错误 → `errorCode=100`（`RET_INVALID_PARAM`）；Snowflake 分配失败 → `100`；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
+        "description": "**请求头 `X-Request-Id`（必填）**：有符号 **int64** 十进制字符串，作为全局事务幂等键（`TccGlobalTransaction.idem_key`），**不得为 0**。\n\n请求体为 **二选一**。\n\n**A. 经典** — 根上 `biz_id` + `branches` 等，见 `TccBeginRequest`。\n\n**B. Saga 外呼** — 有 `saga_instance_id` 与 **`payload`（object）** 时解析为 begin：`biz_id` ← **`payload.biz_id`**（int，正，必填）；`branches` 等在 **`payload`** 内。Saga 编排器在 `saga_shared` 中**仅**携带 `step_payloads`；根级 `flow_id` 为 Saga 流程 ID，**不是** TCC `biz_id`。\n\n**响应 `data.branches`（A/B 相同）**：为 **`TccBranchSummary` 的数组**，按 **`branch_index` 升序**。每项含 `branch_code`、`idem_key`（分支幂等串，格式如 `{global_idem}-{branch_index}`）及参与者摘要等。\n\n**错误**：非法 JSON/缺字段/类型错误/`X-Request-Id` 非法 → `errorCode=100`（`RET_INVALID_PARAM`）；未捕获异常 → `errorCode=-1`（`resp_exception`）。",
         "operationId": "tccTxBegin",
+        "parameters": [
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": true,
+            "description": "全局幂等键：与 `TccGlobalTransaction.idem_key` 一致的有符号 int64 十进制字符串。",
+            "schema": { "type": "string", "example": "9876543210987654321" }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -102,16 +111,14 @@
                   }
                 },
                 "fromSaga": {
-                  "summary": "Saga 步骤外呼（`biz_id` 在 `payload`，与编排器 `saga_shared` 一致）",
+                  "summary": "Saga 步骤外呼（`biz_id` 在 `payload`，`saga_shared` 仅 `step_payloads`）",
                   "value": {
                     "saga_instance_id": "1001",
-                    "idem_key": 9876543210987654321,
                     "flow_id": 5,
                     "step_index": 0,
                     "phase": "action",
                     "context": {},
                     "saga_shared": {
-                      "tcc_access_key": "tcc-access-or-jwt",
                       "step_payloads": { "pay": {} }
                     },
                     "payload": {
@@ -464,15 +471,14 @@
       },
       "SagaTccTxCallback": {
         "type": "object",
-        "description": "当 `saga_instance_id` 与 `payload` 同时存在时：``biz_id`` ← **`payload.biz_id`**（正 int，必填）；``branch_items`` ← `payload.branches`；`saga_shared` 含 `step_payloads` 与可选 `tcc_access_key`（编排器不将 TCC `biz_id` 放在 `saga_shared`）",
+        "description": "当 `saga_instance_id` 与 `payload` 同时存在时：`biz_id` ← **`payload.biz_id`**（正 int，必填）；分支列表 ← `payload.branches`；`saga_shared` **仅**含 `step_payloads`（编排器不把 TCC `biz_id` 放在 `saga_shared`）。幂等键以请求头 **`X-Request-Id`** 为准。",
         "required": ["saga_instance_id", "payload"],
         "properties": {
           "saga_instance_id": { "type": "string", "description": "Saga 实例主键（字符串）" },
-          "idem_key": { "type": "integer", "format": "int64" },
           "flow_id": { "type": "integer", "description": "Saga 流程 ID（非 TCC `biz_id`）" },
           "saga_shared": {
             "type": "object",
-            "description": "须含 `step_payloads`；`tcc_access_key` 可选。TCC `biz_id` 在 **`payload.biz_id`**，不在此对象内"
+            "description": "须含 `step_payloads`。TCC `biz_id` 在 **`payload.biz_id`**。"
           },
           "payload": {
             "type": "object",
@@ -545,6 +551,7 @@
           "branch_meta_id",
           "branch_index",
           "branch_code",
+          "idem_key",
           "branch_status",
           "last_http_status",
           "last_error",
@@ -561,7 +568,11 @@
           "branch_code": {
             "type": "string",
             "minLength": 1,
-            "description": "与 `TccBranchMeta.code` 相同；`data.branches` 的**对象键**即该值（与 begin 入参 `branches[].branch_code` 对应）"
+            "description": "与 `TccBranchMeta.code`、begin 入参 `branches[].branch_code` 一致"
+          },
+          "idem_key": {
+            "type": "string",
+            "description": "分支幂等串（如 `{全局X-Request-Id 数值}-{branch_index}`），与参与者出站 `idempotency_key` / `X-Request-Id` 对齐"
           },
           "branch_status": {
             "type": "integer",
@@ -600,7 +611,7 @@
           "idem_key": {
             "type": "integer",
             "format": "int64",
-            "description": "开启时分配的 Snowflake 幂等键"
+            "description": "与请求头 `X-Request-Id` 一致的全局幂等键（`TccGlobalTransaction.idem_key`）"
           },
           "status": {
             "type": "integer",
@@ -609,9 +620,9 @@
           "auto_confirm": { "type": "boolean" },
           "retry_count": { "type": "integer", "minimum": 0 },
           "branches": {
-            "type": "object",
-            "description": "按 `branch_code` 为键的映射（与 begin 的 `branches[].branch_code` 及元数据 `TccBranchMeta.code` 对齐）",
-            "additionalProperties": { "$ref": "#/components/schemas/TccBranchSummary" }
+            "type": "array",
+            "description": "分支摘要列表，按 `branch_index` 升序；每项见 `TccBranchSummary`",
+            "items": { "$ref": "#/components/schemas/TccBranchSummary" }
           },
           "review_snapshot": {
             "type": "string",

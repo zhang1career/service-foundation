@@ -89,23 +89,13 @@ def _decode_participant_response_field(raw: str) -> Any | None:
         return None
 
 
-def _response_branch_key(b: TccBranch) -> str:
-    if not b.branch_meta:
-        raise ValueError("branch is missing branch_meta for serialization")
-    c = (b.branch_meta.code or "").strip()
-    if not c:
-        raise ValueError(
-            f"branch_meta.code is required (branch_meta_id={b.branch_meta_id})"
-        )
-    return c
-
-
 def _branch_entry_for_serialization(b: TccBranch) -> dict[str, Any]:
     return {
         "tx_branch_id": int(b.pk),
         "branch_meta_id": b.branch_meta_id,
         "branch_index": b.branch_index,
         "branch_code": (b.branch_meta.code or "").strip() if b.branch_meta else "",
+        "idem_key": _participant_idem_key(b),
         "branch_status": b.status,
         "last_http_status": b.last_http_status,
         "last_error": (b.last_error or "")[:200],
@@ -197,16 +187,14 @@ def serialize_transaction(g: TccGlobalTransaction) -> dict[str, Any]:
     branches = list(
         g.branches.select_related("branch_meta").order_by("branch_index")
     )
-    by_code: dict[str, Any] = {}
-    for b in branches:
-        by_code[_response_branch_key(b)] = _branch_entry_for_serialization(b)
+    branch_list = [_branch_entry_for_serialization(b) for b in branches]
     out: dict[str, Any] = {
         "global_tx_id": str(g.pk),
         "idem_key": g.idem_key,
         "status": g.status,
         "auto_confirm": g.auto_confirm,
         "retry_count": g.retry_count,
-        "branches": by_code,
+        "branches": branch_list,
     }
     mr = TccManualReview.objects.using("tcc_rw").filter(global_tx_id=g.pk).first()
     if mr:
