@@ -613,30 +613,30 @@ def confirm_transaction(idem_key: int) -> dict[str, Any]:
 def cancel_transaction(idem_key: int, cancel_reason: int) -> dict[str, Any]:
     if int(cancel_reason) not in CANCEL_REASON_VALUES:
         raise ValueError("invalid cancel_reason")
-    g = get_transaction_for_query(global_tx_id=None, idem_key=idem_key)
-    if not g:
-        raise ValueError("transaction not found")
-    if g.status in (
-        GlobalTxStatus.COMMITTED,
-        GlobalTxStatus.ROLLED_BACK,
-        GlobalTxStatus.NEEDS_MANUAL,
-    ):
-        raise ValueError("transaction is already terminal")
-
-    ordered = list(
-        g.branches.select_related("branch_meta").order_by("branch_index")
-    )
-    succeeded = [b for b in ordered if b.status == BranchStatus.TRY_SUCCEEDED]
+    ik = int(idem_key)
     with transaction.atomic(using="tcc_rw"):
-        g.refresh_from_db()
+        g = (
+            TccGlobalTransaction.objects.using("tcc_rw")
+            .select_for_update()
+            .filter(idem_key=ik)
+            .first()
+        )
+        if not g:
+            raise ValueError("transaction not found")
         if g.status in (
             GlobalTxStatus.COMMITTED,
             GlobalTxStatus.ROLLED_BACK,
             GlobalTxStatus.NEEDS_MANUAL,
         ):
             raise ValueError("transaction is already terminal")
-        g.status = GlobalTxStatus.CANCELING
+
+        ordered = list(
+            g.branches.select_related("branch_meta").order_by("branch_index")
+        )
+        succeeded = [b for b in ordered if b.status == BranchStatus.TRY_SUCCEEDED]
+
         t = get_now_timestamp_ms()
+        g.status = GlobalTxStatus.CANCELING
         g.phase_started_at = t
         g.phase_deadline_at = _plus_ms(t, cancel_phase_timeout_delta(len(succeeded)))
         g.await_confirm_deadline_at = None

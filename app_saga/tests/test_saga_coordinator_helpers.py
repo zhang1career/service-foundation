@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
 from app_saga.services import saga_coordinator
 from common.consts.response_const import RET_OK
@@ -104,3 +104,45 @@ class SagaCoordinatorHelperTests(SimpleTestCase):
         }
         out = saga_coordinator._payload_for_step(st, p)
         self.assertEqual(out, {"k": 1})
+
+    @override_settings(SAGA_COMPENSATE_CANCEL_REASON_DEFAULT=10)
+    def test_participant_post_body_adds_cancel_reason_for_compensate_phase(self):
+        inst = MagicMock()
+        inst.pk = 36
+        inst.idem_key = 704206251592036352
+        inst.flow_id = 10000001
+        inst.start_body = "{}"
+        inst.step_payloads = "{}"
+        fs = MagicMock()
+        fs.step_index = 2
+        fs.step_code = "pay"
+        fs.name = ""
+        body = saga_coordinator._participant_post_body(
+            inst=inst,
+            fs=fs,
+            ctx={"uid": 1},
+            payloads={},
+            phase="compensate",
+        )
+        self.assertEqual(body["cancel_reason"], 10)
+        self.assertEqual(body["phase"], "compensate")
+
+    def test_participant_post_body_no_cancel_reason_when_not_compensate(self):
+        inst = MagicMock()
+        inst.pk = 1
+        inst.idem_key = 1
+        inst.flow_id = 1
+        inst.start_body = "{}"
+        inst.step_payloads = "{}"
+        fs = MagicMock()
+        fs.step_index = 0
+        fs.step_code = "a"
+        fs.name = ""
+        body = saga_coordinator._participant_post_body(
+            inst=inst,
+            fs=fs,
+            ctx={},
+            payloads={},
+            phase="action",
+        )
+        self.assertNotIn("cancel_reason", body)

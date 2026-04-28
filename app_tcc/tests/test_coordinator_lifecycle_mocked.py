@@ -30,18 +30,23 @@ class CoordinatorLifecycleMockedTests(SimpleTestCase):
             coordinator.confirm_transaction(1)
         self.assertIn("await", str(ctx.exception).lower())
 
-    @patch("app_tcc.services.coordinator.get_transaction_for_query", return_value=None)
-    def test_cancel_transaction_not_found(self, _mock_get):
+    @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
+    @patch("app_tcc.services.coordinator.TccGlobalTransaction.objects")
+    def test_cancel_transaction_not_found(self, mock_objects):
+        mock_objects.using.return_value.select_for_update.return_value.filter.return_value.first.return_value = (
+            None
+        )
         with self.assertRaises(ValueError) as ctx:
             coordinator.cancel_transaction(999999999, CancelReason.UNPAID)
         self.assertIn("not found", str(ctx.exception).lower())
 
-    @patch("app_tcc.services.coordinator.get_transaction_for_query")
-    def test_cancel_transaction_already_terminal(self, mock_get):
+    @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
+    @patch("app_tcc.services.coordinator.TccGlobalTransaction.objects")
+    def test_cancel_transaction_already_terminal(self, mock_objects):
         g = MagicMock()
         g.status = GlobalTxStatus.COMMITTED
         g.pk = 1
-        mock_get.return_value = g
+        mock_objects.using.return_value.select_for_update.return_value.filter.return_value.first.return_value = g
         with self.assertRaises(ValueError) as ctx:
             coordinator.cancel_transaction(1, CancelReason.UNPAID)
         self.assertIn("terminal", str(ctx.exception).lower())
@@ -49,10 +54,10 @@ class CoordinatorLifecycleMockedTests(SimpleTestCase):
     @patch("app_tcc.services.coordinator.serialize_transaction", return_value={"ok": True})
     @patch("app_tcc.services.coordinator.execute_cancel_reverse")
     @patch("app_tcc.services.coordinator.transaction.atomic", lambda *a, **k: nullcontext())
-    @patch("app_tcc.services.coordinator.get_transaction_for_query")
+    @patch("app_tcc.services.coordinator.TccGlobalTransaction.objects")
     def test_cancel_transaction_invokes_cancel_reverse(
         self,
-        mock_get,
+        mock_objects,
         mock_exec_cancel,
         mock_serialize,
     ):
@@ -62,7 +67,9 @@ class CoordinatorLifecycleMockedTests(SimpleTestCase):
         b1 = MagicMock()
         b1.status = BranchStatus.TRY_SUCCEEDED
         g.branches.select_related.return_value.order_by.return_value = [b1]
-        mock_get.return_value = g
+        mock_objects.using.return_value.select_for_update.return_value.filter.return_value.first.return_value = (
+            g
+        )
 
         out = coordinator.cancel_transaction(7, CancelReason.ORDER_CLOSED)
 

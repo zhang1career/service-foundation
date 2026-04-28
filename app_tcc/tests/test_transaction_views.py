@@ -6,8 +6,10 @@ from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
 from app_tcc.views.tcc_health_view import TccHealthView
+from app_tcc.enums import CancelReason
 from app_tcc.views.transaction_api_view import (
     TccTransactionBeginView,
+    TccTransactionCancelView,
     TccTransactionDetailView,
 )
 
@@ -196,3 +198,31 @@ class TccTransactionDetailViewTests(SimpleTestCase):
         self.assertEqual(response.data["errorCode"], 0)
         self.assertEqual(response.data["data"]["global_tx_id"], "1")
         mock_ser.assert_called_once_with(found)
+
+
+class TccTransactionCancelViewTests(SimpleTestCase):
+    @patch("app_tcc.views.transaction_api_view.coordinator.cancel_transaction")
+    def test_cancel_omitted_reason_defaults_to_unpaid(self, mock_cancel):
+        mock_cancel.return_value = {}
+        factory = APIRequestFactory()
+        request = factory.post("/tcc/tx/704206251592036352/cancel", {}, format="json")
+        response = TccTransactionCancelView.as_view()(
+            request, idem_key="704206251592036352"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errorCode"], 0)
+        mock_cancel.assert_called_once_with(704206251592036352, int(CancelReason.UNPAID))
+
+    @patch("app_tcc.views.transaction_api_view.coordinator.cancel_transaction")
+    def test_cancel_explicit_reason_passed_through(self, mock_cancel):
+        mock_cancel.return_value = {}
+        factory = APIRequestFactory()
+        request = factory.post(
+            "/tcc/tx/1/cancel",
+            {"cancel_reason": 10},
+            format="json",
+        )
+        response = TccTransactionCancelView.as_view()(request, idem_key="1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errorCode"], 0)
+        mock_cancel.assert_called_once_with(1, 10)

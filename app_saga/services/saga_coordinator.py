@@ -123,7 +123,7 @@ def _participant_post_body(
         phase: str,
 ) -> dict[str, Any]:
     shared = _saga_shared_for_outbound(inst)
-    return {
+    out: dict[str, Any] = {
         "saga_instance_id": str(inst.pk),
         "idem_key": inst.idem_key,
         "flow_id": inst.flow_id,
@@ -134,6 +134,9 @@ def _participant_post_body(
         "start_request": _start_request_for_participant_payload(inst),
         "saga_shared": shared,
     }
+    if phase == "compensate":
+        out["cancel_reason"] = int(settings.SAGA_COMPENSATE_CANCEL_REASON_DEFAULT)
+    return out
 
 
 def serialize_instance(inst: SagaInstance) -> dict[str, Any]:

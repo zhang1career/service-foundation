@@ -805,6 +805,8 @@ SAGA_SCAN_BACKOFF_STEP_MS = env.int("SAGA_SCAN_BACKOFF_STEP_MS", default=1500)
 SAGA_SCAN_BACKOFF_CAP_MS = env.int("SAGA_SCAN_BACKOFF_CAP_MS", default=60000)
 # Awaiting human/API confirm (CONFIRMING): scan transitions to COMPENSATING after this delay (default 15 minutes).
 SAGA_CONFIRMING_TIMEOUT_MS = env.int("SAGA_CONFIRMING_TIMEOUT_MS", default=900000)
+# Root JSON `cancel_reason` on outbound POST to compensate_url (aligns with TCC CancelReason int).
+SAGA_COMPENSATE_CANCEL_REASON_DEFAULT = env.int("SAGA_COMPENSATE_CANCEL_REASON_DEFAULT", default=0)
 # XXL-JOB
 XXL_JOB_TOKEN = env("XXL_JOB_TOKEN", default="").strip()
 # Admin base URL (no trailing slash), e.g. http://host:8080/xxl-job-admin — required for executor → admin /api/callback.

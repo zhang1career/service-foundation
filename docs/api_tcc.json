@@ -280,7 +280,7 @@
       "post": {
         "tags": ["Transactions"],
         "summary": "取消全局事务（进入 Cancel 阶段）",
-        "description": "路径参数 `idem_key` 同「查询详情」接口。请求体为 JSON 对象，**必填** `cancel_reason`（整型枚举，见 `TccCancelReason` / `app_tcc.enums.CancelReason`）。对已 **COMMITTED**、**ROLLED_BACK** 或 **NEEDS_MANUAL** 的事务调用会返回 `errorCode=100`（`transaction is already terminal`）。对其余非终态事务置为取消阶段并对已成功 Try 的分支逆序调用 Cancel；参与者 `cancel_url` 的 JSON 体会带 `cancel_reason` 与 `last_cancel_reason` 一致。Try 失败或待确认超时等由协调器触发的取消使用内部原因（见 `CancelReason`）。成功返回 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
+        "description": "路径参数 `idem_key` 同「查询详情」接口。请求体为 JSON 对象；**`cancel_reason` 可选**，省略时按 **`UNPAID`（0）** 处理（与 `app_tcc.enums.CancelReason` 一致）。对已 **COMMITTED**、**ROLLED_BACK** 或 **NEEDS_MANUAL** 的事务调用会返回 `errorCode=100`（`transaction is already terminal`）。对其余非终态事务置为取消阶段并对已成功 Try 的分支逆序调用 Cancel；参与者 `cancel_url` 的 JSON 体会带 `cancel_reason` 与 `last_cancel_reason` 一致。Try 失败或待确认超时等由协调器触发的取消使用内部原因（见 `CancelReason`）。成功返回 `TccTransactionDetail`。未捕获异常 → `errorCode=-1`。",
         "operationId": "tccTxCancel",
         "parameters": [
           {
@@ -509,7 +509,7 @@
       },
       "TccCancelRequest": {
         "type": "object",
-        "required": ["cancel_reason"],
+        "description": "可传空对象 `{}`；`cancel_reason` 省略时服务端使用 `UNPAID`（0）。",
         "properties": {
           "cancel_reason": { "$ref": "#/components/schemas/TccCancelReason" }
         }
