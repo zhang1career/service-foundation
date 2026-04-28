@@ -1,5 +1,24 @@
 from unittest import TestCase
 
+from django.http import HttpRequest
+
+
+class TestParseXRequestIdInt64(TestCase):
+    def test_parses_decimal_int64(self):
+        from common.utils.http_util import parse_x_request_id_int64
+
+        r = HttpRequest()
+        r.META["HTTP_X_REQUEST_ID"] = "  9223372036854775807 "
+        self.assertEqual(parse_x_request_id_int64(r), 9223372036854775807)
+
+    def test_missing_raises(self):
+        from common.utils.http_util import parse_x_request_id_int64
+
+        r = HttpRequest()
+        with self.assertRaises(ValueError) as ctx:
+            parse_x_request_id_int64(r)
+        self.assertIn("required", str(ctx.exception).lower())
+
 
 class TestParseHttpTarget(TestCase):
     def test_https_default_port_and_tls(self):

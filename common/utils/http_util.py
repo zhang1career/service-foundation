@@ -87,6 +87,27 @@ def post_payload(request):
     return request.POST
 
 
+_INT64_MIN = -(2**63)
+_INT64_MAX = 2**63 - 1
+
+
+def parse_x_request_id_int64(request: HttpRequest) -> int:
+    """Parse required ``X-Request-Id`` header as a signed 64-bit integer (Saga / TCC idempotency)."""
+    raw = request.META.get("HTTP_X_REQUEST_ID")
+    if raw is None:
+        raise ValueError("X-Request-Id required")
+    s = str(raw).strip()
+    if not s:
+        raise ValueError("X-Request-Id required")
+    try:
+        n = int(s)
+    except ValueError as e:
+        raise ValueError("X-Request-Id must be a signed 64-bit integer") from e
+    if n < _INT64_MIN or n > _INT64_MAX:
+        raise ValueError("X-Request-Id out of range for int64")
+    return n
+
+
 def resolve_request_id(request) -> str:
     if request is None:
         return uuid.uuid4().hex[:16]

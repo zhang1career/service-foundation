@@ -176,11 +176,10 @@ class SagaCoordinatorStartMockedTests(SimpleTestCase):
             context={},
             idem_key=8001,
             step_payloads=None,
-            x_request_id_header="trace-xyz",
         )
 
         start_body = mock_si_cls.call_args.kwargs["start_body"]
-        self.assertEqual(json.loads(start_body).get("x_request_id"), "trace-xyz")
+        self.assertEqual(json.loads(start_body).get("x_request_id"), "8001")
 
 
 class SagaCoordinatorProcessInstanceMockedTests(SimpleTestCase):

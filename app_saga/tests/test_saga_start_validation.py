@@ -116,4 +116,4 @@ class SagaStartValidationTests(SimpleTestCase):
                 idem_key=0,
                 step_payloads=None,
             )
-        self.assertIn("idem_key or x-request-id", str(ctx.exception).lower())
+        self.assertIn("non-zero", str(ctx.exception).lower())

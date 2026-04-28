@@ -198,7 +198,6 @@ def start_instance(
         idem_key: int,
         step_payloads: dict[str, Any] | None,
         tcc_access_key: str | None = None,
-        x_request_id_header: str | None = None,
 ) -> dict[str, Any]:
     from app_saga.services import participant_reg_service
 
@@ -236,7 +235,7 @@ def start_instance(
     except (TypeError, ValueError):
         raise ValueError("idem_key must be int") from None
     if ik == 0:
-        raise ValueError("idem_key or X-Request-Id required")
+        raise ValueError("idem_key must be non-zero")
     existing = get_instance_by_idem(ik)
     if existing:
         return serialize_instance(existing)
@@ -247,11 +246,10 @@ def start_instance(
         "context": ctx,
         "step_payloads": payloads,
         "idem_key": int(ik),
+        "x_request_id": str(int(ik)),
     }
     if tcc_tok is not None:
         start_request["tcc_access_key"] = tcc_tok
-    if isinstance(x_request_id_header, str) and x_request_id_header.strip():
-        start_request["x_request_id"] = x_request_id_header.strip()
     now = _now_ms()
     with transaction.atomic(using="saga_rw"):
         inst = SagaInstance(
