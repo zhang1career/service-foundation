@@ -6,47 +6,25 @@ import math
 from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.views.generic import TemplateView
 
-from app_saga.enums import (
-    SagaInstanceStatus,
-    SagaStepActionStatus,
-    SagaStepCompensateStatus,
-)
 from app_saga.services import flow_admin_service, participant_reg_service
 from app_console.services import saga_console_query
+from app_console.services.dict_options import (
+    CODE_SAGA_INSTANCE_STATUS,
+    CODE_SAGA_STEP_ACTION_STATUS,
+    CODE_SAGA_STEP_COMPENSATE_STATUS,
+    bundled_int_kv,
+)
 from common.enums.service_reg_status_enum import ServiceRegStatus
 
 _PAGE = 50
 
-_INSTANCE_STATUS_LABELS = {
-    SagaInstanceStatus.PENDING: "PENDING",
-    SagaInstanceStatus.RUNNING: "RUNNING",
-    SagaInstanceStatus.CONFIRMING: "CONFIRMING",
-    SagaInstanceStatus.COMPENSATING: "COMPENSATING",
-    SagaInstanceStatus.COMPLETED: "COMPLETED",
-    SagaInstanceStatus.ROLLED_BACK: "ROLLED_BACK",
-    SagaInstanceStatus.FAILED: "FAILED",
-}
 
-_ACTION_STATUS_LABELS = {
-    SagaStepActionStatus.PENDING: "PENDING",
-    SagaStepActionStatus.SUCCEEDED: "SUCCEEDED",
-    SagaStepActionStatus.FAILED: "FAILED",
-}
-
-_COMPENSATE_STATUS_LABELS = {
-    SagaStepCompensateStatus.PENDING: "PENDING",
-    SagaStepCompensateStatus.SUCCEEDED: "SUCCEEDED",
-    SagaStepCompensateStatus.FAILED: "FAILED",
-    SagaStepCompensateStatus.SKIPPED: "SKIPPED",
-}
-
-
-def _saga_common_ctx():
-    return {
-        "instance_status_labels": _INSTANCE_STATUS_LABELS,
-        "action_status_labels": _ACTION_STATUS_LABELS,
-        "compensate_status_labels": _COMPENSATE_STATUS_LABELS,
-    }
+def _saga_instance_detail_dicts() -> dict[str, list[tuple[int, str]]]:
+    return bundled_int_kv(
+        CODE_SAGA_INSTANCE_STATUS,
+        CODE_SAGA_STEP_ACTION_STATUS,
+        CODE_SAGA_STEP_COMPENSATE_STATUS,
+    )
 
 
 class SagaParticipantConsoleView(TemplateView):
@@ -54,7 +32,6 @@ class SagaParticipantConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_saga_common_ctx())
         ctx["participants"] = participant_reg_service.list_participants()
         ctx["reg_status_enabled"] = ServiceRegStatus.ENABLED.value
         ctx["reg_status_disabled"] = ServiceRegStatus.DISABLED.value
@@ -93,7 +70,6 @@ class SagaFlowListConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_saga_common_ctx())
         ctx["participants"] = participant_reg_service.list_participants()
         pid = (self.request.GET.get("participant_id") or "").strip()
         ctx["filter_participant_id"] = int(pid) if pid.isdigit() else None
@@ -160,7 +136,6 @@ class SagaFlowStepsConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_saga_common_ctx())
         ctx["flow"] = self.flow
         ctx["participant"] = self.flow.participant
         ctx["steps"] = flow_admin_service.list_steps_for_flow(self.flow_id)
@@ -230,7 +205,6 @@ class SagaInstanceListConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_saga_common_ctx())
         raw_page = (self.request.GET.get("page") or "1").strip()
         page = int(raw_page) if raw_page.isdigit() else 1
         raw_st = (self.request.GET.get("status") or "").strip()
@@ -264,18 +238,12 @@ class SagaInstanceDetailConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_saga_common_ctx())
         ctx["inst"] = self.inst
         ctx["step_runs"] = saga_console_query.list_step_runs(self.instance_id)
-        ctx["status_options"] = saga_console_query.list_status_options()
-        ctx["action_status_options"] = sorted(
-            [(k.value, v) for k, v in _ACTION_STATUS_LABELS.items()],
-            key=lambda x: x[0],
-        )
-        ctx["compensate_status_options"] = sorted(
-            [(k.value, v) for k, v in _COMPENSATE_STATUS_LABELS.items()],
-            key=lambda x: x[0],
-        )
+        b = _saga_instance_detail_dicts()
+        ctx["status_options"] = b[CODE_SAGA_INSTANCE_STATUS]
+        ctx["action_status_options"] = b[CODE_SAGA_STEP_ACTION_STATUS]
+        ctx["compensate_status_options"] = b[CODE_SAGA_STEP_COMPENSATE_STATUS]
         try:
             ctx["context_pretty"] = json.dumps(
                 json.loads((self.inst.context or "{}").strip() or "{}"),

@@ -6,40 +6,20 @@ import math
 from django.http import Http404, HttpRequest, HttpResponseRedirect
 from django.views.generic import TemplateView
 
-from app_tcc.enums import BranchStatus, GlobalTxStatus
 from app_tcc.services import biz_branch_service, participant_reg_service
 from app_console.services import tcc_console_query
+from app_console.services.dict_options import (
+    CODE_TCC_BRANCH_STATUS,
+    CODE_TCC_GLOBAL_TX_STATUS,
+    bundled_int_kv,
+)
 from common.enums.service_reg_status_enum import ServiceRegStatus
 
 _PAGE = 50
 
-_GLOBAL_TX_LABELS = {
-    GlobalTxStatus.INIT: "INIT",
-    GlobalTxStatus.TRYING: "TRYING",
-    GlobalTxStatus.AWAIT_CONFIRM: "AWAIT_CONFIRM",
-    GlobalTxStatus.CONFIRMING: "CONFIRMING",
-    GlobalTxStatus.CANCELING: "CANCELING",
-    GlobalTxStatus.COMMITTED: "COMMITTED",
-    GlobalTxStatus.ROLLED_BACK: "ROLLED_BACK",
-    GlobalTxStatus.NEEDS_MANUAL: "NEEDS_MANUAL",
-}
 
-_BRANCH_STATUS_LABELS = {
-    BranchStatus.PENDING_TRY: "PENDING_TRY",
-    BranchStatus.TRY_SUCCEEDED: "TRY_SUCCEEDED",
-    BranchStatus.TRY_FAILED: "TRY_FAILED",
-    BranchStatus.CONFIRM_SUCCEEDED: "CONFIRM_SUCCEEDED",
-    BranchStatus.CONFIRM_FAILED: "CONFIRM_FAILED",
-    BranchStatus.CANCEL_SUCCEEDED: "CANCEL_SUCCEEDED",
-    BranchStatus.CANCEL_FAILED: "CANCEL_FAILED",
-}
-
-
-def _tcc_common_ctx():
-    return {
-        "global_tx_labels": _GLOBAL_TX_LABELS,
-        "branch_status_labels": _BRANCH_STATUS_LABELS,
-    }
+def _tcc_tx_status_bundle():
+    return bundled_int_kv(CODE_TCC_GLOBAL_TX_STATUS, CODE_TCC_BRANCH_STATUS)
 
 
 class TccParticipantConsoleView(TemplateView):
@@ -47,7 +27,6 @@ class TccParticipantConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_tcc_common_ctx())
         ctx["participants"] = participant_reg_service.list_participants()
         # Do not pass the Enum class: Django calls callables during dotted lookup.
         ctx["reg_status_enabled"] = ServiceRegStatus.ENABLED.value
@@ -87,7 +66,6 @@ class TccBizListConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_tcc_common_ctx())
         ctx["participants"] = participant_reg_service.list_participants()
         pid = (self.request.GET.get("participant_id") or "").strip()
         ctx["filter_participant_id"] = int(pid) if pid.isdigit() else None
@@ -143,7 +121,6 @@ class TccBranchMetaConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_tcc_common_ctx())
         ctx["biz"] = self.biz
         ctx["participant"] = self.biz.participant
         ctx["branches"] = biz_branch_service.list_branch_meta_for_biz(self.biz_id)
@@ -201,7 +178,6 @@ class TccTxListConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_tcc_common_ctx())
         raw_page = (self.request.GET.get("page") or "1").strip()
         page = int(raw_page) if raw_page.isdigit() else 1
         raw_st = (self.request.GET.get("status") or "").strip()
@@ -213,7 +189,8 @@ class TccTxListConsoleView(TemplateView):
         ctx["page_size"] = _PAGE
         ctx["total_pages"] = max(1, math.ceil(total / _PAGE) if total else 1)
         ctx["filter_status"] = status
-        ctx["status_options"] = sorted(_GLOBAL_TX_LABELS.items(), key=lambda x: x[0])
+        tb = _tcc_tx_status_bundle()
+        ctx["status_options"] = tb[CODE_TCC_GLOBAL_TX_STATUS]
         if status is not None:
             ctx["status_query_suffix"] = f"&status={status}"
         else:
@@ -233,9 +210,9 @@ class TccTxDetailConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_tcc_common_ctx())
-        ctx["status_options"] = sorted(_GLOBAL_TX_LABELS.items(), key=lambda x: x[0])
-        ctx["branch_status_options"] = sorted(_BRANCH_STATUS_LABELS.items(), key=lambda x: x[0])
+        tb = _tcc_tx_status_bundle()
+        ctx["status_options"] = tb[CODE_TCC_GLOBAL_TX_STATUS]
+        ctx["branch_status_options"] = tb[CODE_TCC_BRANCH_STATUS]
         ctx["tx"] = self.tx
         ctx["branches"] = tcc_console_query.list_tx_branches(self.tx_id)
         ctx["manual_review"] = tcc_console_query.get_manual_review(self.tx_id)
@@ -255,7 +232,6 @@ class TccManualConsoleView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx.update(_tcc_common_ctx())
         raw_page = (self.request.GET.get("page") or "1").strip()
         page = int(raw_page) if raw_page.isdigit() else 1
         total, rows = tcc_console_query.list_needs_manual(page=page, page_size=_PAGE)

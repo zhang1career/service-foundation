@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from app_saga.enums import SagaInstanceStatus
 from app_saga.models import SagaFlow, SagaInstance, SagaStepRun
+
+from app_console.services.dict_options import CODE_SAGA_INSTANCE_STATUS, int_kv
 
 
 def list_instances(*, status: int | None, page: int, page_size: int) -> tuple[int, list[SagaInstance]]:
@@ -42,7 +43,4 @@ def get_flow_for_console(flow_id: int) -> SagaFlow | None:
 
 
 def list_status_options():
-    return sorted(
-        [(s.value, s.name) for s in SagaInstanceStatus],
-        key=lambda x: x[0],
-    )
+    return int_kv(CODE_SAGA_INSTANCE_STATUS)

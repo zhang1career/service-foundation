@@ -6,6 +6,7 @@ from django.views.generic import TemplateView
 
 from app_config.enums import ConfigEntryPublic
 from app_config.services.condition_field_service import ConfigConditionFieldService
+from app_console.services.dict_options import CODE_CONFIG_ENTRY_PUBLIC, str_kv
 from app_config.services.config_entry_service import ConfigEntryService
 from app_config.services.reg_service import ConfigRegService
 from app_console.views.reg_console_view import RegConsoleView
@@ -25,6 +26,7 @@ class ConfigEntriesConsoleView(TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx["entries"] = ConfigEntryService.list_all()
         ctx["regs"] = ConfigRegService.list_all()
+        ctx["public_options"] = str_kv(CODE_CONFIG_ENTRY_PUBLIC)
         return ctx
 
     def post(self, request, *args, **kwargs):
