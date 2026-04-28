@@ -803,6 +803,8 @@ SAGA_SCAN_NEXT_RETRY_CAP_MS = env.int("SAGA_SCAN_NEXT_RETRY_CAP_MS", default=150
 SAGA_SCAN_BACKOFF_BASE_MS = env.int("SAGA_SCAN_BACKOFF_BASE_MS", default=500)
 SAGA_SCAN_BACKOFF_STEP_MS = env.int("SAGA_SCAN_BACKOFF_STEP_MS", default=1500)
 SAGA_SCAN_BACKOFF_CAP_MS = env.int("SAGA_SCAN_BACKOFF_CAP_MS", default=60000)
+# Awaiting human/API confirm (CONFIRMING): scan transitions to COMPENSATING after this delay (default 15 minutes).
+SAGA_CONFIRMING_TIMEOUT_MS = env.int("SAGA_CONFIRMING_TIMEOUT_MS", default=900000)
 # XXL-JOB
 XXL_JOB_TOKEN = env("XXL_JOB_TOKEN", default="").strip()
 # Admin base URL (no trailing slash), e.g. http://host:8080/xxl-job-admin — required for executor → admin /api/callback.

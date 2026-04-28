@@ -6,6 +6,7 @@ from enum import IntEnum
 class SagaInstanceStatus(IntEnum):
     PENDING = 10
     RUNNING = 20
+    CONFIRMING = 21
     COMPENSATING = 30
     COMPLETED = 40
     ROLLED_BACK = 50

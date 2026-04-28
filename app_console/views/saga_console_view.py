@@ -20,6 +20,7 @@ _PAGE = 50
 _INSTANCE_STATUS_LABELS = {
     SagaInstanceStatus.PENDING: "PENDING",
     SagaInstanceStatus.RUNNING: "RUNNING",
+    SagaInstanceStatus.CONFIRMING: "CONFIRMING",
     SagaInstanceStatus.COMPENSATING: "COMPENSATING",
     SagaInstanceStatus.COMPLETED: "COMPLETED",
     SagaInstanceStatus.ROLLED_BACK: "ROLLED_BACK",
@@ -184,6 +185,7 @@ class SagaFlowStepsConsoleView(TemplateView):
                     timeout_sec=int(request.POST.get("timeout_sec") or 30),
                     max_retries=int(request.POST.get("max_retries") or 10),
                     is_need_confirm=ncf,
+                    confirm_url=(request.POST.get("confirm_url") or "").strip(),
                 )
             elif action == "update_step":
                 ncf = int((request.POST.get("is_need_confirm") or 0) or 0)
@@ -198,6 +200,7 @@ class SagaFlowStepsConsoleView(TemplateView):
                     timeout_sec=int(request.POST.get("timeout_sec") or 30),
                     max_retries=int(request.POST.get("max_retries") or 10),
                     is_need_confirm=ncf,
+                    confirm_url=(request.POST.get("confirm_url") or "").strip(),
                 )
             elif action == "update_step_need_confirm":
                 ncf = int((request.POST.get("is_need_confirm") or 0) or 0)

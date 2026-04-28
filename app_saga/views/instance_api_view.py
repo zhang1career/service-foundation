@@ -9,6 +9,16 @@ from common.utils.http_util import post_payload, resp_err, resp_exception, resp_
 logger = logging.getLogger(__name__)
 
 
+def _parse_instance_id(raw: str | None) -> int:
+    s = (raw or "").strip()
+    if not s:
+        raise ValueError("instance_id required")
+    try:
+        return int(s)
+    except (TypeError, ValueError):
+        raise ValueError("instance_id must be int") from None
+
+
 class SagaInstanceStartView(APIView):
     authentication_classes = []
 
@@ -75,14 +85,37 @@ class SagaInstanceDetailView(APIView):
     authentication_classes = []
 
     def get(self, request, instance_id: str, *args, **kwargs):
-        raw = (instance_id or "").strip()
-        if not raw:
-            return resp_err(code=RET_INVALID_PARAM, message="instance_id required")
         try:
-            pk = int(raw)
-        except (TypeError, ValueError):
-            return resp_err(code=RET_INVALID_PARAM, message="instance_id must be int")
+            pk = _parse_instance_id(instance_id)
+        except ValueError as e:
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
         inst = saga_coordinator.get_instance_by_id(pk)
         if not inst:
             return resp_err(code=RET_INVALID_PARAM, message="instance not found")
         return resp_ok(saga_coordinator.serialize_instance(inst))
+
+    def patch(self, request, instance_id: str, *args, **kwargs):
+        try:
+            pk = _parse_instance_id(instance_id)
+            data = post_payload(request)
+            if not isinstance(data, dict):
+                return resp_err(code=RET_INVALID_PARAM, message="JSON object required")
+            st = data.get("status")
+            if st is None:
+                return resp_err(code=RET_INVALID_PARAM, message="status required")
+            try:
+                target = int(st)
+            except (TypeError, ValueError):
+                return resp_err(code=RET_INVALID_PARAM, message="status must be int")
+            msg = data.get("message")
+            if msg is not None and not isinstance(msg, str):
+                return resp_err(code=RET_INVALID_PARAM, message="message must be string")
+            out = saga_coordinator.apply_terminal_transition(
+                pk, target, message=msg
+            )
+            return resp_ok(out)
+        except ValueError as e:
+            return resp_err(code=RET_INVALID_PARAM, message=str(e))
+        except Exception as e:
+            logger.exception(e)
+            return resp_exception(e)
