@@ -19,6 +19,7 @@ def claim_batch(*, limit: int = 20) -> list[SagaInstance]:
     active = Q(
         status__in=[
             SagaInstanceStatus.RUNNING,
+            SagaInstanceStatus.CONFIRMING,
             SagaInstanceStatus.COMPENSATING,
         ]
     )

@@ -1,24 +1,25 @@
 """
-Path-prefixed HTTP request/response logging middleware (DRF envelope contract).
+HTTP request/response logging middleware (DRF envelope contract).
 
-These tests pin response parsing and logging behavior. Run without full project MySQL::
+Run without full project MySQL::
 
-  DJANGO_SETTINGS_MODULE=common.tests.middleware.settings_path_prefixed_log_mw_min \\
-    python -m django test common.tests.middleware.test_path_prefixed_request_log_middleware
+  DJANGO_SETTINGS_MODULE=common.tests.middleware.settings_http_request_log_mw_min \\
+    python -m django test common.tests.middleware.test_http_request_log_middleware
 """
 
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from django.http import HttpResponse, JsonResponse
 from django.test import RequestFactory, SimpleTestCase, override_settings
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 
-from common.middleware.path_prefixed_request_log_middleware import (
-    PathPrefixedRequestLogMiddleware,
+from common.middleware.http_request_log_middleware import (
+    HttpRequestLogMiddleware,
+    resolve_http_request_log_logger,
     response_payload_summary,
 )
 from common.services.xxl_job.response import success
@@ -100,30 +101,31 @@ class XxlJobRunViewContractTests(SimpleTestCase):
         )
 
 
-class PathPrefixedRequestLogMiddlewareTests(SimpleTestCase):
+class HttpRequestLogMiddlewareTests(SimpleTestCase):
+    @override_settings(HTTP_REQUEST_LOG_FALLBACK_LOGGER="service_foundation")
     def test_process_response_summary_matches_drf_success_envelope(self) -> None:
         mock_log = MagicMock()
-        with (
-            override_settings(
-                PATH_PREFIXED_REQUEST_LOG=[("/api/tcc/", "test_path_prefixed_log.access")],
-            ),
-            patch(
-                "common.middleware.path_prefixed_request_log_middleware.logging.getLogger",
-                return_value=mock_log,
-            ),
-        ):
-            mw = PathPrefixedRequestLogMiddleware(lambda r: HttpResponse())
+        with patch(
+            "common.middleware.http_request_log_middleware.logging.getLogger",
+            return_value=mock_log,
+        ) as get_logger:
+            mw = HttpRequestLogMiddleware(lambda r: HttpResponse())
             rf = RequestFactory()
-            request = rf.post("/api/tcc/xxl-job/run")
-            request.path = "/api/tcc/xxl-job/run"
+            request = rf.post("/api/user/stub/")
             mw.process_request(request)
             response = JsonResponse(
                 success(), status=200, json_dumps_params=API_JSON_DUMPS_PARAMS
             )
             mw.process_response(request, response)
+        get_logger.assert_has_calls([call("app_user"), call("app_user")])
         self.assertEqual(mock_log.info.call_count, 2)
         _fmt, status, code, msg, data, _dur = mock_log.info.call_args_list[1].args
         self.assertEqual(status, 200)
         self.assertEqual(code, 200)
         self.assertEqual(msg, "")
         self.assertIsNone(data)
+
+    @override_settings(HTTP_REQUEST_LOG_FALLBACK_LOGGER="service_foundation")
+    def test_resolve_unmapped_path_to_fallback(self) -> None:
+        self.assertEqual(resolve_http_request_log_logger("/admin/"), "service_foundation")
+        self.assertEqual(resolve_http_request_log_logger("admin/"), "service_foundation")

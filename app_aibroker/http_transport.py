@@ -7,8 +7,6 @@ Not in ``common``: avoids ``common`` depending on AIBroker URLs, credentials, or
 import uuid
 from typing import Any, Dict, Optional
 
-from django.conf import settings
-
 from common.consts.response_const import RET_OK
 from common.services.http import HttpClientPool, request_sync
 
@@ -18,8 +16,8 @@ DEFAULT_TIMEOUT_SEC = 120
 
 
 def _resolve_root_and_key() -> tuple[str, str]:
-    root = str(getattr(settings, "AIBROKER_SERVICE_URL", "")).rstrip("/")
-    key = str(getattr(settings, "KNOW_AIBROKER_ACCESS_KEY", ""))
+    root = setting_str("AIBROKER_SERVICE_URL", "").rstrip("/")
+    key = setting_str("KNOW_AIBROKER_ACCESS_KEY", "")
     if not root or not key:
         raise RuntimeError("AIBROKER_SERVICE_URL and KNOW_AIBROKER_ACCESS_KEY must be set")
     return root, key

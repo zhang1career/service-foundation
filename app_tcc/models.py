@@ -162,7 +162,7 @@ class TccBranch(models.Model):
     )
     branch_index = models.PositiveIntegerField()
     status = models.PositiveSmallIntegerField(default=BranchStatus.PENDING_TRY)
-    idem_key = models.BigIntegerField()
+    idem_key = models.CharField(max_length=256)
     payload = models.TextField(default="{}", blank=True)
     last_http_status = models.PositiveSmallIntegerField(null=True, blank=True)
     last_error = models.TextField(blank=True, default="")

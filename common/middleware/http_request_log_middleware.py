@@ -1,46 +1,79 @@
 """
-Structured request/response logging for HTTP paths under configured prefixes.
+Structured request/response logging for all HTTP traffic.
 
-``settings.PATH_PREFIXED_REQUEST_LOG`` is a sequence of
-``(path_prefix, logger_name)``; only requests whose path starts with a prefix are
-logged to that named logger. Longest prefix wins when multiple entries apply.
-When the setting is empty, this middleware does not log.
+Uses the same top-level loggers as the rest of the project: the resolved view’s
+``__module__`` yields the logger name (e.g. ``app_user.views.x`` → ``app_user``,
+``common.views.x`` → ``common``). That matches ``LOGGING`` handlers for each
+``app_*`` / ``common`` / ``service_foundation``. Unresolvable paths and views
+under ``django.*`` / ``rest_framework.*`` use ``HTTP_REQUEST_LOG_FALLBACK_LOGGER``.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import time
 from typing import Any
 
-from django.conf import settings
 from django.template.response import ContentNotRenderedError
+from django.urls import Resolver404, resolve
 from django.utils.deprecation import MiddlewareMixin
+
+from common.utils.django_util import setting_str
 
 _MAX_BODY_JSON_CHARS = 8192
 _MAX_RESPONSE_JSON_CHARS = 4096
 _MAX_STR_PREVIEW = 200
 
 
-def _normalize_routes(raw: Any) -> list[tuple[str, str]]:
-    if not raw:
-        return []
-    out: list[tuple[str, str]] = []
-    for item in raw:
-        if isinstance(item, (list, tuple)) and len(item) == 2:
-            prefix, name = str(item[0]).strip(), str(item[1]).strip()
-            if prefix and name:
-                out.append((prefix, name))
-    out.sort(key=lambda x: len(x[0]), reverse=True)
-    return out
+def _fallback_logger_name() -> str:
+    return setting_str("HTTP_REQUEST_LOG_FALLBACK_LOGGER", "service_foundation")
 
 
-def _match_logger(path: str, routes: list[tuple[str, str]]) -> str | None:
-    for prefix, logger_name in routes:
-        if path.startswith(prefix):
-            return logger_name
+def _callable_module_name(callable_obj: Any) -> str:
+    inner: Any = callable_obj
+    while isinstance(inner, functools.partial):
+        inner = inner.func
+    return (getattr(inner, "__module__", None) or "").strip()
+
+
+def _logger_name_from_view_module(module_name: str) -> str | None:
+    if not module_name or module_name.startswith("django.") or module_name.startswith("rest_framework."):
+        return None
+    head = module_name.split(".", 1)[0]
+    if head == "common" or head.startswith("app_") or head == "service_foundation":
+        return head
     return None
+
+
+def _logger_name_from_resolver_match(match) -> str:
+    mod = _callable_module_name(match.func)
+    resolved = _logger_name_from_view_module(mod)
+    if resolved is not None:
+        return resolved
+    return _fallback_logger_name()
+
+
+def resolve_http_request_log_logger(path_info: str, *, urlconf: str | None = None) -> str:
+    """
+    Map *path_info* to a configured project logger via ``django.urls.resolve``,
+    or return ``HTTP_REQUEST_LOG_FALLBACK_LOGGER``.
+    """
+    p = (path_info or "/").strip()
+    if not p.startswith("/"):
+        p = "/" + p
+    try:
+        match = resolve(p, urlconf=urlconf)
+    except Resolver404:
+        return _fallback_logger_name()
+    return _logger_name_from_resolver_match(match)
+
+
+def resolve_http_request_log_logger_for_request(request) -> str:
+    path_info = getattr(request, "path_info", None) or getattr(request, "path", "") or "/"
+    urlconf = getattr(request, "urlconf", None)
+    return resolve_http_request_log_logger(path_info, urlconf=urlconf)
 
 
 def _abbreviate_value(value: Any) -> Any:
@@ -119,7 +152,7 @@ def response_payload_summary(response) -> tuple[Any, Any, Any]:
 
 
 def _log_response(logger_name: str, request, response) -> None:
-    start = getattr(request, "_path_prefixed_request_log_start", None)
+    start = getattr(request, "_http_request_log_start", None)
     duration_ms = None
     if start is not None:
         duration_ms = round((time.perf_counter() - start) * 1000, 3)
@@ -143,24 +176,17 @@ def _log_request(logger_name: str, request) -> None:
     )
 
 
-class PathPrefixedRequestLogMiddleware(MiddlewareMixin):
-    def __init__(self, get_response):
-        super().__init__(get_response)
-        self._routes = _normalize_routes(getattr(settings, "PATH_PREFIXED_REQUEST_LOG", ()))
-
+class HttpRequestLogMiddleware(MiddlewareMixin):
     def process_request(self, request):
-        path = request.path or ""
-        logger_name = _match_logger(path, self._routes)
-        if logger_name is None:
-            return None
-        request._path_prefixed_request_log_start = time.perf_counter()
-        _log_request(logger_name, request)
+        request._http_request_log_start = time.perf_counter()
+        name = resolve_http_request_log_logger_for_request(request)
+        request._http_request_log_logger = name
+        _log_request(name, request)
         return None
 
     def process_response(self, request, response):
-        path = request.path or ""
-        logger_name = _match_logger(path, self._routes)
-        if logger_name is None:
-            return response
-        _log_response(logger_name, request, response)
+        name = getattr(request, "_http_request_log_logger", None) or resolve_http_request_log_logger_for_request(
+            request
+        )
+        _log_response(name, request, response)
         return response

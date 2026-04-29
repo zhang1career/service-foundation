@@ -28,6 +28,7 @@ def call_participant(
         idempotency_key: str,
         payload: dict[str, Any] | None,
         cancel_reason: int | None = None,
+        x_request_id: str | None = None,
 ) -> tuple[int, str, Any | None]:
     """
     POST JSON to participant. Returns (http_status, error_or_body_snippet, response_json).
@@ -36,6 +37,9 @@ def call_participant(
 
     For ``phase == \"cancel\"``, ``cancel_reason`` is required (int enum); omitted uses
     :data:`CancelReason.UNPAID`.
+
+    When ``x_request_id`` is non-blank after strip, the outbound request sets header
+    ``X-Request-Id`` to that value (Try / Confirm / Cancel).
     """
     try:
         url = maybe_expand_service_discovery_url(url)
@@ -54,11 +58,17 @@ def call_participant(
         body["cancel_reason"] = (
             int(cancel_reason) if cancel_reason is not None else CancelReason.UNPAID
         )
+    out_headers: dict[str, str] | None = None
+    if x_request_id is not None:
+        xr = x_request_id.strip()
+        if xr:
+            out_headers = {"X-Request-Id": xr}
     timeout = float(settings.TCC_OUTBOUND_TIMEOUT_SEC)
     try:
         resp = request_sync(
             method="POST",
             url=url,
+            headers=out_headers,
             json_body=body,
             pool_name=HttpClientPool.THIRD_PARTY,
             timeout_sec=timeout,

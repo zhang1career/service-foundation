@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 
-from django.conf import settings
 from django.http import JsonResponse
 from rest_framework.request import Request
 from rest_framework.views import APIView
@@ -23,6 +22,7 @@ from common.services.xxl_job import (
     validate_token,
 )
 from common.services.xxl_job.response import fail, success
+from common.utils.django_util import setting_str
 from common.utils.json_util import API_JSON_DUMPS_PARAMS
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ def _xxl_json(payload: dict) -> JsonResponse:
 
 
 def _deny(request: Request) -> JsonResponse | None:
-    exp = (getattr(settings, "XXL_JOB_TOKEN", "") or "").strip()
+    exp = setting_str("XXL_JOB_TOKEN", "")
     if not exp:
         logger.error("[xxl_job] XXL_JOB_TOKEN missing")
         return _xxl_json(fail("XXL_JOB_TOKEN is not configured"))

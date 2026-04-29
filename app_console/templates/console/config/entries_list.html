@@ -1,4 +1,5 @@
 {% extends 'console/base.html' %}
+{% load dict_tags %}
 
 {% block title %}配置中心-配置项{% endblock %}
 {% block page_title %}配置中心{% endblock %}
@@ -44,7 +45,7 @@
                         <td class="font-mono text-sm">{{ e.id }}</td>
                         <td>{{ e.reg_name }}</td>
                         <td class="font-medium">{{ e.config_key }}</td>
-                        <td class="text-sm">{% if e.public == 1 %}公开{% else %}按条件{% endif %}</td>
+                        <td class="text-sm">{{ e.public|dict_label:"config_entry_public" }}</td>
                         <td class="text-xs font-mono max-w-xs truncate" title="{{ e.condition }}">{{ e.condition }}</td>
                         <td class="text-xs font-mono max-w-xs truncate" title="{{ e.value }}">{{ e.value }}</td>
                         <td>
@@ -102,7 +103,7 @@
                     <label class="form-label" for="entry-c-key">config_key *</label>
                     <input type="text" id="entry-c-key" name="config_key" class="form-input" required maxlength="191" placeholder="例如 app.feature.flags" autocomplete="off">
                 </div>
-                {% include 'console/includes/config_entry_public_field.html' with field_id='entry-c-public' selected='0' only %}
+                {% include 'console/includes/config_entry_public_field.html' with field_id='entry-c-public' selected='0' public_options=public_options %}
                 <div class="form-group">
                     <label class="form-label" for="entry-c-condition">condition（JSON 对象）</label>
                     <textarea id="entry-c-condition" name="condition" class="form-input font-mono text-sm" rows="3" placeholder="空 或 JSON 对象，例如 {&quot;env&quot;:&quot;prod&quot;}"></textarea>
@@ -134,7 +135,7 @@
                     <label class="form-label" for="entry-e-key">config_key *</label>
                     <input type="text" id="entry-e-key" name="config_key" class="form-input" required maxlength="191" autocomplete="off">
                 </div>
-                {% include 'console/includes/config_entry_public_field.html' with field_id='entry-e-public' only %}
+                {% include 'console/includes/config_entry_public_field.html' with field_id='entry-e-public' public_options=public_options %}
                 <div class="form-group">
                     <label class="form-label" for="entry-e-condition">condition（JSON 对象）</label>
                     <textarea id="entry-e-condition" name="condition" class="form-input font-mono text-sm" rows="3"></textarea>

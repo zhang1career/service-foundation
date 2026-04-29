@@ -8,6 +8,8 @@ class AppTccConfig(AppConfig):
     verbose_name = "TCC"
 
     def ready(self) -> None:
+        import app_tcc.dict_registration  # noqa: F401
+
         from app_tcc.services import xxl_job_handlers
 
         xxl_job_handlers.register_tcc_jobs()

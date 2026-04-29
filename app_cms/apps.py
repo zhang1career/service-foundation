@@ -7,4 +7,5 @@ class CmsConfig(AppConfig):
     verbose_name = "CMS"
 
     def ready(self) -> None:
+        import app_cms.dict_registration  # noqa: F401
         import app_cms.signals  # noqa: F401

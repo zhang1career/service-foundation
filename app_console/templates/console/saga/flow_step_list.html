@@ -94,6 +94,7 @@
                                     data-name="{{ br.name|default_if_none:''|escape }}"
                                     data-action="{{ br.action_url|escape }}"
                                     data-compensate="{{ br.compensate_url|escape }}"
+                                    data-confirm-url="{{ br.confirm_url|default_if_none:''|escape }}"
                                     data-timeout="{{ br.timeout_sec }}"
                                     data-retries="{{ br.max_retries }}"
                                     data-need-confirm="{{ br.is_need_confirm|default:0 }}">
@@ -162,6 +163,10 @@
                     <input id="saga-step-create-action" name="action_url" class="form-input w-full" required maxlength="2048" autocomplete="off">
                 </div>
                 <div class="form-group">
+                    <label class="form-label" for="saga-step-create-confirm-url">Confirm URL</label>
+                    <input id="saga-step-create-confirm-url" name="confirm_url" class="form-input w-full" maxlength="2048" autocomplete="off" placeholder="需确认时必填">
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="saga-step-create-compensate">Compensate URL *</label>
                     <input id="saga-step-create-compensate" name="compensate_url" class="form-input w-full" required maxlength="2048" autocomplete="off">
                 </div>
@@ -217,6 +222,10 @@
                 <div class="form-group">
                     <label class="form-label" for="saga-step-action">Action URL *</label>
                     <input name="action_url" id="saga-step-action" class="form-input w-full" required maxlength="2048" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="saga-step-confirm-url">Confirm URL</label>
+                    <input name="confirm_url" id="saga-step-confirm-url" class="form-input w-full" maxlength="2048" autocomplete="off" placeholder="需确认时必填">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="saga-step-compensate">Compensate URL *</label>
@@ -339,6 +348,9 @@
                 el('saga-step-name').value = btn.getAttribute('data-name') || '';
                 el('saga-step-action').value = btn.getAttribute('data-action') || '';
                 el('saga-step-compensate').value = btn.getAttribute('data-compensate') || '';
+                if (el('saga-step-confirm-url')) {
+                    el('saga-step-confirm-url').value = btn.getAttribute('data-confirm-url') || '';
+                }
                 el('saga-step-timeout').value = btn.getAttribute('data-timeout') || '30';
                 el('saga-step-retries').value = btn.getAttribute('data-retries') || '10';
                 var ncf = (btn.getAttribute('data-need-confirm') || '0').trim();

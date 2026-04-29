@@ -13,11 +13,10 @@ def prime_http_dict_cache() -> None:
 
     Call from the last app(s) that load ``dict_registration`` (e.g. ``app_verify``).
     """
-    from django.conf import settings
-
     from common.dict_catalog.registry import get_dict_by_codes
+    from common.utils.django_util import setting_str
 
-    raw = getattr(settings, "DICT_HTTP_PRIME_CODES", "aibroker_nested_param_type")
+    raw = setting_str("DICT_HTTP_PRIME_CODES", "aibroker_nested_param_type")
     for part in str(raw).split(","):
         codes = part.strip()
         if not codes:

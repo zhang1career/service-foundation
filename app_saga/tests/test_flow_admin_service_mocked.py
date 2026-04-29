@@ -83,6 +83,23 @@ class FlowAdminServiceMockedTests(SimpleTestCase):
             )
         self.assertIn("unique", str(ctx.exception).lower())
 
+    @patch(
+        "app_saga.services.flow_admin_service.list_steps_for_flow",
+        return_value=[],
+    )
+    def test_create_rejects_need_confirm_without_confirm_url(self, _mock_list):
+        with self.assertRaises(ValueError) as ctx:
+            flow_admin_service.create_flow_step.__wrapped__(
+                flow_id=1,
+                step_code="a",
+                name="x",
+                action_url="u",
+                compensate_url="v",
+                is_need_confirm=1,
+                confirm_url="",
+            )
+        self.assertIn("confirm_url", str(ctx.exception).lower())
+
     @patch.object(SagaFlowStep, "save")
     @patch(
         "app_saga.services.flow_admin_service.list_steps_for_flow",

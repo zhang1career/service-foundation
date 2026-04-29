@@ -5,3 +5,6 @@ class KeepconConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "app_keepcon"
     verbose_name = "长连接"
+
+    def ready(self) -> None:
+        import app_keepcon.dict_registration  # noqa: F401

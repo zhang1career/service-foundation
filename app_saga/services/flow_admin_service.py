@@ -77,6 +77,11 @@ def _flow_step_code_key(raw: str) -> str:
     return s
 
 
+def _assert_confirm_url_if_need_confirm(*, is_need_confirm: int, confirm_url: str) -> None:
+    if int(is_need_confirm) == 1 and not (confirm_url or "").strip():
+        raise ValueError("confirm_url is required when is_need_confirm is 1")
+
+
 def _assert_step_code_unique_in_flow(
         flow_id: int,
         code: str,
@@ -104,10 +109,13 @@ def create_flow_step(
         timeout_sec: int = 30,
         max_retries: int = 10,
         is_need_confirm: int = 0,
+        confirm_url: str = "",
 ) -> SagaFlowStep:
     ncf = int(is_need_confirm)
     if ncf not in (0, 1):
         raise ValueError("is_need_confirm must be 0 or 1")
+    cu = (confirm_url or "").strip()
+    _assert_confirm_url_if_need_confirm(is_need_confirm=ncf, confirm_url=cu)
     code = _flow_step_code_key(step_code)
     _assert_step_code_unique_in_flow(flow_id, code)
     brs = list_steps_for_flow(flow_id)
@@ -120,6 +128,7 @@ def create_flow_step(
         name=(name or "").strip(),
         action_url=(action_url or "").strip(),
         compensate_url=(compensate_url or "").strip(),
+        confirm_url=cu,
         timeout_sec=int(timeout_sec),
         max_retries=int(max_retries),
         is_need_confirm=ncf,
@@ -139,6 +148,7 @@ def update_flow_step(
         timeout_sec: int | None = None,
         max_retries: int | None = None,
         is_need_confirm: int | None = None,
+        confirm_url: str | None = None,
 ):
     s = SagaFlowStep.objects.using("saga_rw").filter(pk=step_id).first()
     if not s:
@@ -155,6 +165,8 @@ def update_flow_step(
         s.action_url = action_url.strip()
     if compensate_url is not None:
         s.compensate_url = compensate_url.strip()
+    if confirm_url is not None:
+        s.confirm_url = confirm_url.strip()
     if timeout_sec is not None:
         s.timeout_sec = int(timeout_sec)
     if max_retries is not None:
@@ -164,6 +176,10 @@ def update_flow_step(
         if ncf not in (0, 1):
             raise ValueError("is_need_confirm must be 0 or 1")
         s.is_need_confirm = ncf
+    _assert_confirm_url_if_need_confirm(
+        is_need_confirm=int(s.is_need_confirm),
+        confirm_url=s.confirm_url or "",
+    )
     s.save(using="saga_rw")
     return s
 

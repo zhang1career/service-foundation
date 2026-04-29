@@ -4,10 +4,10 @@
 
 ## 架构说明
 
-本Docker配置使用Django内置的开发服务器（`runserver`）运行应用。负载均衡、健康检查、限流和熔断等功能由外部网关处理。这种架构适合：
-- 已有外部网关/API网关（如Kong、Nginx、Envoy等）
+本 Docker 配置在 `docker-entrypoint.sh` 中使用 **Gunicorn**，并以 **`uvicorn.workers.UvicornWorker`** 运行 **`service_foundation.asgi:application`（ASGI）**，与宿主机上的 `run_asgi.sh` 技术栈一致。负载均衡、健康检查、限流和熔断等仍由**外部网关**处理。这种架构适合：
+- 已有外部网关/API 网关（如 Kong、Nginx、Envoy 等）
 - 网关负责负载均衡、探活、限流和熔断
-- 容器内只需运行单个Django实例
+- 容器内为单 Gunicorn master；Worker 数由 `GUNICORN_WORKERS` 控制（默认 `1`），多实例时通常通过编排起多个容器副本配合网关
 
 ## 目录结构
 
@@ -63,13 +63,15 @@ DB_DEFAULT_PORT=3306
 
 数据库配置通过 `.env.prod` 文件或环境变量设置。确保在 `docker/.env.prod` 文件中配置正确的数据库连接信息。
 
-#### Django服务器配置
+#### HTTP 服务（Gunicorn ASGI）
 
-容器内使用Django的开发服务器运行，可通过环境变量配置：
-- `HOST`: 监听地址（默认：0.0.0.0）
-- `PORT`: 监听端口（默认：8000）
+`docker-entrypoint.sh` 在启动 Gunicorn 前通过 `common.utils.env_util.load_env` 读取与 Django 一致的分层 `.env` / `.env.<RUN_ENV>`。监听地址与 Worker 数可通过环境变量或上述文件配置：
 
-**注意**：Django开发服务器是单线程的，适合配合外部网关使用。外部网关负责：
+- `HOST`：监听地址（未设置时，容器内默认 `0.0.0.0`）
+- `PORT`：监听端口（默认 `8000`）
+- `GUNICORN_WORKERS`：Gunicorn worker 数（默认 `1`；多 worker 时涉及各应用自身的进程级假设，请自行规划）
+
+**注意**：Gunicorn 负责在容器内服务 HTTP/ASGI，适合配合外部网关使用。外部网关负责：
 - 负载均衡：将请求分发到多个容器实例
 - 健康检查：定期检查容器健康状态
 - 限流：控制请求速率
@@ -179,7 +181,7 @@ docker stop <容器名>
    - 根据业务需求配置限流和熔断策略
 
 5. **日志**：
-   - Django 的日志会输出到 stdout/stderr，可通过 `docker logs` 查看
+   - Gunicorn 与应用日志会输出到 stdout/stderr，可通过 `docker logs` 查看
    - 日志目录 `./docker/log/` 用于其他日志文件
 
 6. **网络**：
@@ -191,9 +193,9 @@ docker stop <容器名>
    - 如需创建超级用户：`docker exec <容器名> python manage.py createsuperuser`
 
 8. **性能考虑**：
-   - Django开发服务器是单线程的，不适合高并发场景
-   - 通过外部网关的负载均衡，可以启动多个容器实例来提升性能
-   - 如果需要更高性能，可以考虑使用Gunicorn（需要修改 `docker-entrypoint.sh`）
+   - 高并发时优先通过**外部网关**对**多个容器副本**做负载均衡
+   - 单容器内可提高 `GUNICORN_WORKERS`（需评估各应用多进程影响）
+   - 开发调试仍可在宿主机用 `python manage.py runserver` 或 `run.sh`，与镜像内 Gunicorn 路径无关
 
 9. **邮件服务器注意事项**：
    - 邮件服务器（SMTP/IMAP）在容器启动时自动后台运行

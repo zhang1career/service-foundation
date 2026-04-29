@@ -2,6 +2,8 @@ import time
 
 from django.conf import settings
 
+from common.utils.django_util import setting_str
+
 # 进程内唯一静态版本号（首次请求时确定，用于缓存破坏）
 _static_version = None
 
@@ -17,7 +19,7 @@ def console_context(request):
     """Provide app status and static cache-bust version to all console templates."""
     return {
         'static_version': _get_static_version(),
-        'console_snowflake_access_key': getattr(settings, 'CONSOLE_SNOWFLAKE_ACCESS_KEY', '') or '',
+        'console_snowflake_access_key': setting_str('CONSOLE_SNOWFLAKE_ACCESS_KEY', ''),
         'apps': {
             'know': {
                 'name': '知识管理',

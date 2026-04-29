@@ -6,6 +6,7 @@ Content delivery: /d/{distribution_id}/{path}
 """
 from django.urls import path
 
+from common.views.dict_codes_view import DictCodesView
 from app_cdn.views.content_delivery_view import ContentDeliveryView
 from app_cdn.views.cdn_view import (
     DistributionConfigView,
@@ -17,6 +18,7 @@ from app_cdn.views.cdn_view import (
 
 # CloudFront API style paths
 urlpatterns = [
+    path("dict", DictCodesView.as_view(), name="cdn-dict"),
     # Content delivery (proxy + cache)
     path(
         "d/<str:distribution_id>/",

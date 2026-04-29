@@ -5,7 +5,6 @@ Must use HTTP to OSS; do not call app_oss Python APIs from here (service boundar
 """
 
 import logging
-from django.conf import settings
 from typing import Any
 from urllib.parse import quote
 
@@ -40,8 +39,8 @@ def put_object_http(object_key: str, body: bytes, content_type: str) -> str:
     """
     PUT object to app_oss. Returns absolute URL of the object (same path used for GET).
     """
-    base = str(getattr(settings, "AIBROKER_OSS_ENDPOINT", "") or "").rstrip("/")
-    bucket = str(getattr(settings, "AIBROKER_OSS_BUCKET", "") or "").strip()
+    base = setting_str("AIBROKER_OSS_ENDPOINT", "").rstrip("/")
+    bucket = setting_str("AIBROKER_OSS_BUCKET", "")
     if not base or not bucket:
         raise RuntimeError("AIBROKER_OSS_ENDPOINT and AIBROKER_OSS_BUCKET must be configured")
 

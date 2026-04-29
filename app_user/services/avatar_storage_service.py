@@ -7,10 +7,9 @@ from datetime import datetime
 from typing import Optional, Tuple
 from urllib.parse import quote
 
-from django.conf import settings
-
 from common.exceptions import InvalidArgumentError, ObjectStorageError
 from common.services.http import HttpCallError, HttpClientPool, request_sync
+from common.utils.django_util import setting_str
 
 logger = logging.getLogger(__name__)
 
@@ -81,17 +80,11 @@ def _http_put_object(*, url: str, data: bytes, content_type: str, timeout: int):
 
 
 def _oss_base_url() -> str:
-    raw = getattr(settings, "USER_OSS_ENDPOINT", None)
-    if raw is None or not str(raw).strip():
-        return "http://127.0.0.1:8000/api/oss"
-    return str(raw).strip().rstrip("/")
+    return setting_str("USER_OSS_ENDPOINT", "http://127.0.0.1:8000/api/oss").rstrip("/")
 
 
 def _oss_bucket_name() -> str:
-    raw = getattr(settings, "USER_OSS_BUCKET", None)
-    if raw is None or not str(raw).strip():
-        return "user-avatar"
-    return str(raw).strip()
+    return setting_str("USER_OSS_BUCKET", "user-avatar")
 
 
 def upload_avatar(avatar) -> str:

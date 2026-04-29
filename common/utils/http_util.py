@@ -13,6 +13,7 @@ from rest_framework.response import Response as DRFResponse
 from rest_framework.views import exception_handler as drf_exception_handler
 
 from common.consts.response_const import RET_INVALID_PARAM, RET_OK, RET_UNKNOWN, RET_ERR
+from common.utils.django_util import setting_str
 from common.exceptions.base_exception import CheckedException, UncheckedException, generic_message_for_ret
 from common.exceptions.checked.upstream_http_error import UpstreamHttpError
 from common.pojo.response import Response
@@ -86,6 +87,27 @@ def post_payload(request):
     return request.POST
 
 
+_INT64_MIN = -(2**63)
+_INT64_MAX = 2**63 - 1
+
+
+def parse_x_request_id_int64(request: HttpRequest) -> int:
+    """Parse required ``X-Request-Id`` header as a signed 64-bit integer (Saga / TCC idempotency)."""
+    raw = request.META.get("HTTP_X_REQUEST_ID")
+    if raw is None:
+        raise ValueError("X-Request-Id required")
+    s = str(raw).strip()
+    if not s:
+        raise ValueError("X-Request-Id required")
+    try:
+        n = int(s)
+    except ValueError as e:
+        raise ValueError("X-Request-Id must be a signed 64-bit integer") from e
+    if n < _INT64_MIN or n > _INT64_MAX:
+        raise ValueError("X-Request-Id out of range for int64")
+    return n
+
+
 def resolve_request_id(request) -> str:
     if request is None:
         return uuid.uuid4().hex[:16]
@@ -103,7 +125,7 @@ def resolve_request_id(request) -> str:
 def attach_request_id_header(response: HttpResponseBase, request_id: str) -> None:
     if not request_id:
         return
-    header = getattr(settings, "REQUEST_ID_RESPONSE_HEADER", None) or "X-Request-Id"
+    header = setting_str("REQUEST_ID_RESPONSE_HEADER", "X-Request-Id")
     response[header] = request_id
 
 

@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,11 +12,6 @@ class TccTxBeginInput:
     context: dict[str, Any] | None
 
 
-def _as_shared(data: dict[str, Any]) -> dict[str, Any]:
-    s = data.get("saga_shared")
-    return s if isinstance(s, dict) else {}
-
-
 def parse_tcc_tx_post_json(data: dict[str, Any]) -> TccTxBeginInput:
     if "saga_instance_id" in data and isinstance(data.get("payload"), dict):
         return _from_saga(data)
@@ -27,12 +19,7 @@ def parse_tcc_tx_post_json(data: dict[str, Any]) -> TccTxBeginInput:
 
 
 def _from_saga(data: dict[str, Any]) -> TccTxBeginInput:
-    shared = _as_shared(data)
     pld: dict[str, Any] = data["payload"]
-    key = shared.get("tcc_access_key") or data.get("tcc_access_key")
-    if isinstance(key, str) and key.strip():
-        logger.debug("TCC begin (Saga): tcc_access_key present, len=%s", len(key.strip()))
-
     bi = pld.get("biz_id")
     if not isinstance(bi, int) or bi <= 0:
         raise ValueError("Saga TCC: payload.biz_id (positive int) is required")

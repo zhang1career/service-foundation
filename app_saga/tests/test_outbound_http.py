@@ -33,6 +33,29 @@ class OutboundHttpTests(SimpleTestCase):
         self.assertIsInstance(data, dict)
         mock_req.assert_called_once()
         self.assertEqual(mock_req.call_args.kwargs["timeout_sec"], 12.0)
+        self.assertIsNone(mock_req.call_args.kwargs.get("headers"))
+
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
+    @patch("app_saga.services.outbound_http.request_sync")
+    def test_call_saga_endpoint_forwards_extra_headers(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = ""
+        mock_resp.json.return_value = {"errorCode": RET_OK}
+        mock_req.return_value = mock_resp
+        outbound_http.call_saga_endpoint(
+            url="http://example.test/x",
+            json_body={},
+            timeout_sec=1.0,
+            extra_headers={"X-Request-Id": "rid-42"},
+        )
+        self.assertEqual(
+            mock_req.call_args.kwargs["headers"],
+            {"X-Request-Id": "rid-42"},
+        )
 
     @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")
@@ -54,6 +77,42 @@ class OutboundHttpTests(SimpleTestCase):
         self.assertEqual(err, "")
         mock_expand.assert_called_once_with("http://{{order-svc}}/action")
         self.assertEqual(mock_req.call_args.kwargs["url"], "http://host:1/action")
+
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
+    @patch("app_saga.services.outbound_http.request_sync")
+    def test_call_saga_substitutes_context_placeholders_after_expand(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.return_value = "http://host:1/s/{{idem_key}}"
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = ""
+        mock_resp.json.return_value = {"errorCode": RET_OK}
+        mock_req.return_value = mock_resp
+        outbound_http.call_saga_endpoint(
+            url="http://{{svc}}/s/{{idem_key}}",
+            json_body={},
+            timeout_sec=1.0,
+            url_template_variables={"idem_key": "777"},
+        )
+        self.assertEqual(mock_req.call_args.kwargs["url"], "http://host:1/s/777")
+
+    @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
+    @patch("app_saga.services.outbound_http.request_sync")
+    def test_call_saga_unresolved_placeholder_does_not_request(
+        self, mock_req, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
+        st, err, data = outbound_http.call_saga_endpoint(
+            url="http://host/p/{{other_key}}",
+            json_body={},
+            timeout_sec=1.0,
+            url_template_variables={"idem_key": "1"},
+        )
+        self.assertEqual(st, 0)
+        self.assertIn("other_key", err)
+        self.assertIsNone(data)
+        mock_req.assert_not_called()
 
     @patch("app_saga.services.outbound_http.maybe_expand_service_discovery_url")
     @patch("app_saga.services.outbound_http.request_sync")

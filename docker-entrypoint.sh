@@ -55,11 +55,11 @@ cleanup() {
         fi
         wait $MAIL_SERVER_PID 2>/dev/null || true
     fi
-    # Send SIGTERM to Django server if it's running
-    if [ ! -z "$DJANGO_PID" ] && kill -0 $DJANGO_PID 2>/dev/null; then
-        echo "Stopping Django server (PID: $DJANGO_PID)..."
-        kill -TERM $DJANGO_PID 2>/dev/null || true
-        wait $DJANGO_PID 2>/dev/null || true
+    # Send SIGTERM to Gunicorn (ASGI) if it's running
+    if [ ! -z "$GUNICORN_PID" ] && kill -0 $GUNICORN_PID 2>/dev/null; then
+        echo "Stopping Gunicorn (PID: $GUNICORN_PID)..."
+        kill -TERM $GUNICORN_PID 2>/dev/null || true
+        wait $GUNICORN_PID 2>/dev/null || true
     fi
     exit 0
 }
@@ -68,14 +68,34 @@ cleanup() {
 # When Docker sends SIGTERM, this will handle cleanup before exit
 trap cleanup SIGTERM SIGINT
 
-# Start Django development server in background (so we can manage it)
-# Note: Using Django's runserver for container deployment
-# Default: no autoreload (one process). Set DJANGO_RUNSERVER_NORELOAD=false for dev reload inside the container.
-export DJANGO_RUNSERVER_NORELOAD="${DJANGO_RUNSERVER_NORELOAD:-true}"
-echo "Starting Django development server on ${HOST:-0.0.0.0}:${PORT:-8000}..."
-python manage.py runserver ${HOST:-0.0.0.0}:${PORT:-8000} &
-DJANGO_PID=$!
+# HTTP: Gunicorn + UvicornWorker (ASGI), same stack as run_asgi.sh
+# Bind and GUNICORN_WORKERS from .env / .env.<RUN_ENV> via load_env (precedence matches Django)
+# Default HOST/PORT: 0.0.0.0:8000 (container listen), default workers: 1
+{
+  IFS= read -r ASGI_BIND
+  IFS= read -r GUNICORN_WORKERS
+} < <(python -c "
+from pathlib import Path
+import os
+import sys
+root = Path('/app')
+sys.path.insert(0, str(root))
+from common.utils.env_util import load_env
+load_env(root)
+h = os.environ.get('HOST', '0.0.0.0')
+p = os.environ.get('PORT', '8000')
+w = os.environ.get('GUNICORN_WORKERS', '1')
+print(h + ':' + p)
+print(w)
+")
+echo "Starting Gunicorn (ASGI, UvicornWorker) on ${ASGI_BIND}, workers=${GUNICORN_WORKERS}..."
+gunicorn service_foundation.asgi:application \
+  -k uvicorn.workers.UvicornWorker \
+  -w "${GUNICORN_WORKERS}" \
+  -b "${ASGI_BIND}" \
+  --chdir /app \
+  &
+GUNICORN_PID=$!
 
-# Wait for Django server process (this will block until it exits)
-# When Django exits, the cleanup function will be called via trap
-wait $DJANGO_PID
+# Wait for Gunicorn (this will block until it exits; trap handles SIGTERM to mail + Gunicorn)
+wait $GUNICORN_PID

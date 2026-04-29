@@ -2,12 +2,17 @@ import logging
 
 from rest_framework.views import APIView
 
-from app_tcc.enums import CANCEL_REASON_VALUES
+from app_tcc.enums import CANCEL_REASON_VALUES, CancelReason
 from app_tcc.services import coordinator
-from app_tcc.services.snowflake_id import SnowflakeIdError
 from app_tcc.services.tx_begin_request import parse_tcc_tx_post_json
 from common.consts.response_const import RET_INVALID_PARAM
-from common.utils.http_util import post_payload, resp_err, resp_exception, resp_ok
+from common.utils.http_util import (
+    parse_x_request_id_int64,
+    post_payload,
+    resp_err,
+    resp_exception,
+    resp_ok,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,7 @@ class TccTransactionBeginView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
+            x_request_id = parse_x_request_id_int64(request)
             data = post_payload(request)
             if not isinstance(data, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="JSON object required")
@@ -36,11 +42,10 @@ class TccTransactionBeginView(APIView):
                 branch_items=inp.branch_items,
                 auto_confirm=inp.auto_confirm,
                 context=inp.context,
+                x_request_id=x_request_id,
             )
             return resp_ok(out)
         except ValueError as e:
-            return resp_err(code=RET_INVALID_PARAM, message=str(e))
-        except SnowflakeIdError as e:
             return resp_err(code=RET_INVALID_PARAM, message=str(e))
         except Exception as e:
             logger.exception(e)
@@ -71,14 +76,16 @@ class TccTransactionCancelView(APIView):
             data = post_payload(request)
             if not isinstance(data, dict):
                 return resp_err(code=RET_INVALID_PARAM, message="JSON object required")
-            if "cancel_reason" not in data:
-                return resp_err(code=RET_INVALID_PARAM, message="cancel_reason required")
-            try:
-                cancel_reason = int(data.get("cancel_reason"))
-            except (TypeError, ValueError):
-                return resp_err(code=RET_INVALID_PARAM, message="cancel_reason must be int")
-            if cancel_reason not in CANCEL_REASON_VALUES:
-                return resp_err(code=RET_INVALID_PARAM, message="invalid cancel_reason")
+            raw_cr = data.get("cancel_reason")
+            if raw_cr is None:
+                cancel_reason = int(CancelReason.UNPAID)
+            else:
+                try:
+                    cancel_reason = int(raw_cr)
+                except (TypeError, ValueError):
+                    return resp_err(code=RET_INVALID_PARAM, message="cancel_reason must be int")
+                if cancel_reason not in CANCEL_REASON_VALUES:
+                    return resp_err(code=RET_INVALID_PARAM, message="invalid cancel_reason")
             out = coordinator.cancel_transaction(ik, cancel_reason)
             return resp_ok(out)
         except ValueError as e:

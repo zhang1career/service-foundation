@@ -75,6 +75,7 @@ class SagaFlowStep(models.Model):
     name = models.CharField(max_length=255, blank=True, default="")
     action_url = models.CharField(max_length=2048)
     compensate_url = models.CharField(max_length=2048)
+    confirm_url = models.CharField(max_length=2048, blank=True, default="")
     timeout_sec = models.PositiveIntegerField(default=30)
     max_retries = models.PositiveIntegerField(default=10)
     is_need_confirm = models.SmallIntegerField(default=0)

@@ -44,6 +44,30 @@ class ParticipantHttpTests(SimpleTestCase):
 
     @patch("app_tcc.services.participant_http.maybe_expand_service_discovery_url")
     @patch("app_tcc.services.participant_http.request_sync")
+    def test_call_participant_sets_x_request_id_header(
+        self, mock_sync, mock_expand
+    ):
+        mock_expand.side_effect = lambda u: u
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = ""
+        mock_sync.return_value = mock_resp
+        participant_http.call_participant(
+            url="http://p/h",
+            phase=participant_http.PHASE_TRY,
+            global_tx_id="1",
+            branch_id="2",
+            idempotency_key="k",
+            payload={},
+            x_request_id="ik-0",
+        )
+        self.assertEqual(
+            mock_sync.call_args.kwargs["headers"],
+            {"X-Request-Id": "ik-0"},
+        )
+
+    @patch("app_tcc.services.participant_http.maybe_expand_service_discovery_url")
+    @patch("app_tcc.services.participant_http.request_sync")
     def test_call_participant_expands_templated_url(self, mock_sync, mock_expand):
         mock_expand.return_value = "http://h:1/tcc/try"
         mock_resp = MagicMock()

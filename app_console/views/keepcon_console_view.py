@@ -3,8 +3,8 @@
 from django.http import HttpResponseRedirect
 from django.views.generic import TemplateView
 
-from app_keepcon.enums.device_type_enum import KeepconDeviceType
 from app_keepcon.services.device_service import KeepconDeviceService, KeepconMessageService
+from app_console.services.dict_options import CODE_KEEPCON_DEVICE_TYPE, str_kv
 from app_keepcon.services.reg_service import KeepconRegService
 from app_console.views.reg_console_view import RegConsoleView
 
@@ -22,16 +22,18 @@ class KeepconDevicesConsoleView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["devices"] = KeepconDeviceService.list_all()
+        ctx["device_type_options"] = str_kv(CODE_KEEPCON_DEVICE_TYPE)
         return ctx
 
     def post(self, request, *args, **kwargs):
         action = (request.POST.get("action") or "").strip()
         try:
             if action == "create":
+                opts = str_kv(CODE_KEEPCON_DEVICE_TYPE)
+                default_dt = opts[0][0] if opts else "1"
                 KeepconDeviceService.create(
                     device_key=(request.POST.get("device_key") or "").strip(),
-                    device_type=request.POST.get("device_type")
-                    or str(int(KeepconDeviceType.MOBILE)),
+                    device_type=request.POST.get("device_type") or default_dt,
                     name=(request.POST.get("name") or "").strip(),
                 )
             elif action == "delete":

@@ -19,7 +19,6 @@ from app_tcc.services.biz_branch_service import (
     load_branch_metas_for_begin_by_biz,
     normalize_branch_code,
 )
-from app_tcc.services.snowflake_id import allocate_snowflake_int
 from common.utils.date_util import get_now_timestamp_ms
 
 
@@ -51,8 +50,18 @@ def _plus_ms(base_ms: int, delta: timedelta) -> int:
     return base_ms + int(delta.total_seconds() * 1000)
 
 
+_BRANCH_IDEM_MAX_LEN = 256
+
+
+def _branch_idem_string(*, base: str, branch_index: int) -> str:
+    s = f"{base}-{int(branch_index)}"
+    if len(s) > _BRANCH_IDEM_MAX_LEN:
+        raise ValueError("X-Request-Id yields branch idempotency value too long")
+    return s
+
+
 def _participant_idem_key(b: TccBranch) -> str:
-    return str(b.idem_key)
+    return b.idem_key
 
 
 def _branch_payload_dict(b: TccBranch) -> dict[str, Any]:
@@ -80,23 +89,13 @@ def _decode_participant_response_field(raw: str) -> Any | None:
         return None
 
 
-def _response_branch_key(b: TccBranch) -> str:
-    if not b.branch_meta:
-        raise ValueError("branch is missing branch_meta for serialization")
-    c = (b.branch_meta.code or "").strip()
-    if not c:
-        raise ValueError(
-            f"branch_meta.code is required (branch_meta_id={b.branch_meta_id})"
-        )
-    return c
-
-
 def _branch_entry_for_serialization(b: TccBranch) -> dict[str, Any]:
     return {
         "tx_branch_id": int(b.pk),
         "branch_meta_id": b.branch_meta_id,
         "branch_index": b.branch_index,
         "branch_code": (b.branch_meta.code or "").strip() if b.branch_meta else "",
+        "idem_key": _participant_idem_key(b),
         "branch_status": b.status,
         "last_http_status": b.last_http_status,
         "last_error": (b.last_error or "")[:200],
@@ -122,6 +121,7 @@ def _call_participant_and_persist_branch(
         idempotency_key=_participant_idem_key(b),
         payload=_branch_payload_dict(b),
         cancel_reason=cancel_reason,
+        x_request_id=_participant_idem_key(b),
     )
     with transaction.atomic(using="tcc_rw"):
         b.refresh_from_db()
@@ -187,16 +187,14 @@ def serialize_transaction(g: TccGlobalTransaction) -> dict[str, Any]:
     branches = list(
         g.branches.select_related("branch_meta").order_by("branch_index")
     )
-    by_code: dict[str, Any] = {}
-    for b in branches:
-        by_code[_response_branch_key(b)] = _branch_entry_for_serialization(b)
+    branch_list = [_branch_entry_for_serialization(b) for b in branches]
     out: dict[str, Any] = {
         "global_tx_id": str(g.pk),
         "idem_key": g.idem_key,
         "status": g.status,
         "auto_confirm": g.auto_confirm,
         "retry_count": g.retry_count,
-        "branches": by_code,
+        "branches": branch_list,
     }
     mr = TccManualReview.objects.using("tcc_rw").filter(global_tx_id=g.pk).first()
     if mr:
@@ -235,11 +233,14 @@ def begin_transaction(
     *,
     biz_id: int,
     branch_items: list[dict[str, Any]],
+    x_request_id: int,
     auto_confirm: bool | None = None,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(biz_id, int):
         raise ValueError("biz_id is required and must be int")
+    if type(x_request_id) is not int:
+        raise ValueError("x_request_id is required and must be int")
     if not branch_items:
         raise ValueError("branch_items is required")
 
@@ -263,18 +264,19 @@ def begin_transaction(
     if auto_confirm is None:
         auto_confirm = _default_auto_confirm()
 
-    n = len(ordered_metas)
-    snow_ids = [allocate_snowflake_int() for _ in range(1 + n)]
-    tx_idem = snow_ids[0]
-    pending: list[tuple[TccBranchMeta, dict[str, Any], int]] = [
-        (meta, payloads[(meta.code or "").strip()], snow_ids[i + 1])
-        for i, meta in enumerate(ordered_metas)
-    ]
+    base = str(x_request_id)
+    pending: list[tuple[TccBranchMeta, dict[str, Any], str]] = []
+    for meta in ordered_metas:
+        code = (meta.code or "").strip()
+        bi = int(meta.branch_index)
+        branch_idem = _branch_idem_string(base=base, branch_index=bi)
+        pending.append((meta, payloads[code], branch_idem))
 
     now_ms = get_now_timestamp_ms()
+    n_branches = len(pending)
     phase_deadline_ms = _plus_ms(
         now_ms,
-        _try_phase_timeout_delta() * max(1, len(pending)),
+        _try_phase_timeout_delta() * max(1, n_branches),
     )
 
     with transaction.atomic(using="tcc_rw"):
@@ -284,12 +286,12 @@ def begin_transaction(
             phase_deadline_at=phase_deadline_ms,
             next_retry_at=now_ms,
             auto_confirm=auto_confirm,
-            idem_key=tx_idem,
+            idem_key=x_request_id,
             context=json.dumps(context or {}, ensure_ascii=False),
         )
         branch_rows: list[TccBranch] = []
-        for meta, payload, branch_idem in pending:
-            payload_text = json.dumps(payload, ensure_ascii=False)
+        for meta, pl, branch_idem in pending:
+            payload_text = json.dumps(pl, ensure_ascii=False)
             b = TccBranch.objects.create(
                 global_tx=g,
                 branch_meta=meta,
@@ -321,6 +323,7 @@ def _execute_try_sequence(g: TccGlobalTransaction, ordered: list[TccBranch]) -> 
             branch_id=str(b.pk),
             idempotency_key=_participant_idem_key(b),
             payload=_branch_payload_dict(b),
+            x_request_id=_participant_idem_key(b),
         )
         with transaction.atomic(using="tcc_rw"):
             b.refresh_from_db()
@@ -598,30 +601,30 @@ def confirm_transaction(idem_key: int) -> dict[str, Any]:
 def cancel_transaction(idem_key: int, cancel_reason: int) -> dict[str, Any]:
     if int(cancel_reason) not in CANCEL_REASON_VALUES:
         raise ValueError("invalid cancel_reason")
-    g = get_transaction_for_query(global_tx_id=None, idem_key=idem_key)
-    if not g:
-        raise ValueError("transaction not found")
-    if g.status in (
-        GlobalTxStatus.COMMITTED,
-        GlobalTxStatus.ROLLED_BACK,
-        GlobalTxStatus.NEEDS_MANUAL,
-    ):
-        raise ValueError("transaction is already terminal")
-
-    ordered = list(
-        g.branches.select_related("branch_meta").order_by("branch_index")
-    )
-    succeeded = [b for b in ordered if b.status == BranchStatus.TRY_SUCCEEDED]
+    ik = int(idem_key)
     with transaction.atomic(using="tcc_rw"):
-        g.refresh_from_db()
+        g = (
+            TccGlobalTransaction.objects.using("tcc_rw")
+            .select_for_update()
+            .filter(idem_key=ik)
+            .first()
+        )
+        if not g:
+            raise ValueError("transaction not found")
         if g.status in (
             GlobalTxStatus.COMMITTED,
             GlobalTxStatus.ROLLED_BACK,
             GlobalTxStatus.NEEDS_MANUAL,
         ):
             raise ValueError("transaction is already terminal")
-        g.status = GlobalTxStatus.CANCELING
+
+        ordered = list(
+            g.branches.select_related("branch_meta").order_by("branch_index")
+        )
+        succeeded = [b for b in ordered if b.status == BranchStatus.TRY_SUCCEEDED]
+
         t = get_now_timestamp_ms()
+        g.status = GlobalTxStatus.CANCELING
         g.phase_started_at = t
         g.phase_deadline_at = _plus_ms(t, cancel_phase_timeout_delta(len(succeeded)))
         g.await_confirm_deadline_at = None

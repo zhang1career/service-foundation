@@ -6,8 +6,10 @@ from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
 from app_tcc.views.tcc_health_view import TccHealthView
+from app_tcc.enums import CancelReason
 from app_tcc.views.transaction_api_view import (
     TccTransactionBeginView,
+    TccTransactionCancelView,
     TccTransactionDetailView,
 )
 
@@ -23,12 +25,24 @@ class TccHealthViewTests(SimpleTestCase):
 
 
 class TccTransactionBeginViewTests(SimpleTestCase):
+    def test_x_request_id_required(self):
+        factory = APIRequestFactory()
+        request = factory.post(
+            "/tcc/tx",
+            {"biz_id": 1, "branches": [{"branch_code": "a"}]},
+            format="json",
+        )
+        response = TccTransactionBeginView.as_view()(request)
+        self.assertNotEqual(response.data["errorCode"], 0)
+        self.assertIn("X-Request-Id", response.data.get("message", ""))
+
     def test_biz_id_required(self):
         factory = APIRequestFactory()
         request = factory.post(
             "/tcc/tx",
             {"branches": [{"branch_code": "a"}]},
             format="json",
+            HTTP_X_REQUEST_ID="1",
         )
         response = TccTransactionBeginView.as_view()(request)
         self.assertEqual(response.status_code, 200)
@@ -36,7 +50,12 @@ class TccTransactionBeginViewTests(SimpleTestCase):
 
     def test_branches_required(self):
         factory = APIRequestFactory()
-        request = factory.post("/tcc/tx", {"biz_id": 1}, format="json")
+        request = factory.post(
+            "/tcc/tx",
+            {"biz_id": 1},
+            format="json",
+            HTTP_X_REQUEST_ID="1",
+        )
         response = TccTransactionBeginView.as_view()(request)
         self.assertEqual(response.status_code, 200)
         self.assertNotEqual(response.data["errorCode"], 0)
@@ -51,6 +70,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
                 "auto_confirm": "yes",
             },
             format="json",
+            HTTP_X_REQUEST_ID="1",
         )
         response = TccTransactionBeginView.as_view()(request)
         self.assertNotEqual(response.data["errorCode"], 0)
@@ -63,6 +83,7 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "/tcc/tx",
             {"biz_id": 1, "branches": [{"branch_code": "a", "payload": {}}]},
             format="json",
+            HTTP_X_REQUEST_ID="1",
         )
         response = TccTransactionBeginView.as_view()(request)
         self.assertEqual(response.status_code, 200)
@@ -79,7 +100,6 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "phase": "action",
             "context": {},
             "saga_shared": {
-                "tcc_access_key": "tcc-sec-1",
                 "step_payloads": {"0": {}},
             },
             "payload": {
@@ -89,7 +109,12 @@ class TccTransactionBeginViewTests(SimpleTestCase):
                 ],
             },
         }
-        request = factory.post("/tcc/tx", body, format="json")
+        request = factory.post(
+            "/tcc/tx",
+            body,
+            format="json",
+            HTTP_X_REQUEST_ID="1",
+        )
         response = TccTransactionBeginView.as_view()(request)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["errorCode"], 0)
@@ -99,6 +124,22 @@ class TccTransactionBeginViewTests(SimpleTestCase):
         self.assertEqual(len(c.kwargs["branch_items"]), 1)
         self.assertEqual(c.kwargs["branch_items"][0]["branch_code"], "a")
 
+    @patch("app_tcc.views.transaction_api_view.coordinator.begin_transaction")
+    def test_x_request_id_header_passed_to_coordinator(self, mock_begin):
+        mock_begin.return_value = {"global_tx_id": "1"}
+        factory = APIRequestFactory()
+        request = factory.post(
+            "/tcc/tx",
+            {"biz_id": 1, "branches": [{"branch_code": "a", "payload": {}}]},
+            format="json",
+            HTTP_X_REQUEST_ID="9223372036854775807",
+        )
+        response = TccTransactionBeginView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errorCode"], 0)
+        mock_begin.assert_called_once()
+        self.assertEqual(mock_begin.call_args.kwargs["x_request_id"], 9223372036854775807)
+
     def test_saga_envelope_requires_payload_biz_id(self):
         factory = APIRequestFactory()
         body = {
@@ -107,7 +148,6 @@ class TccTransactionBeginViewTests(SimpleTestCase):
             "phase": "action",
             "context": {},
             "saga_shared": {
-                "tcc_access_key": "k",
                 "step_payloads": {},
             },
             "payload": {
@@ -116,7 +156,12 @@ class TccTransactionBeginViewTests(SimpleTestCase):
                 ],
             },
         }
-        request = factory.post("/tcc/tx", body, format="json")
+        request = factory.post(
+            "/tcc/tx",
+            body,
+            format="json",
+            HTTP_X_REQUEST_ID="1",
+        )
         response = TccTransactionBeginView.as_view()(request)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertNotEqual(response.data["errorCode"], 0)
@@ -151,3 +196,31 @@ class TccTransactionDetailViewTests(SimpleTestCase):
         self.assertEqual(response.data["errorCode"], 0)
         self.assertEqual(response.data["data"]["global_tx_id"], "1")
         mock_ser.assert_called_once_with(found)
+
+
+class TccTransactionCancelViewTests(SimpleTestCase):
+    @patch("app_tcc.views.transaction_api_view.coordinator.cancel_transaction")
+    def test_cancel_omitted_reason_defaults_to_unpaid(self, mock_cancel):
+        mock_cancel.return_value = {}
+        factory = APIRequestFactory()
+        request = factory.post("/tcc/tx/704206251592036352/cancel", {}, format="json")
+        response = TccTransactionCancelView.as_view()(
+            request, idem_key="704206251592036352"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errorCode"], 0)
+        mock_cancel.assert_called_once_with(704206251592036352, int(CancelReason.UNPAID))
+
+    @patch("app_tcc.views.transaction_api_view.coordinator.cancel_transaction")
+    def test_cancel_explicit_reason_passed_through(self, mock_cancel):
+        mock_cancel.return_value = {}
+        factory = APIRequestFactory()
+        request = factory.post(
+            "/tcc/tx/1/cancel",
+            {"cancel_reason": 10},
+            format="json",
+        )
+        response = TccTransactionCancelView.as_view()(request, idem_key="1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["errorCode"], 0)
+        mock_cancel.assert_called_once_with(1, 10)

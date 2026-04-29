@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from common.dict_catalog.registry import warm_dict_catalog_bundled
 from common.services.http.pools import HttpClientPool
 from common.utils.env_util import load_env
 from common.utils.redis_url_util import redis_location_with_db
@@ -147,17 +148,13 @@ if APP_TCC_ENABLED:
 if APP_SAGA_ENABLED:
     INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 
-# (URL path prefix, logger name) for PathPrefixedRequestLogMiddleware; empty list disables.
-PATH_PREFIXED_REQUEST_LOG: list[tuple[str, str]] = []
-if APP_TCC_ENABLED:
-    PATH_PREFIXED_REQUEST_LOG.append(("/api/tcc/", "app_tcc.access"))
-if APP_SAGA_ENABLED:
-    PATH_PREFIXED_REQUEST_LOG.append(("/api/saga/", "app_saga.access"))
+# HttpRequestLogMiddleware: URL not in URLconf, or view under django.* / rest_framework.*.
+HTTP_REQUEST_LOG_FALLBACK_LOGGER = env("HTTP_REQUEST_LOG_FALLBACK_LOGGER", default="service_foundation")
 
 MIDDLEWARE = [
     "common.middleware.trace_id_header_middleware.TraceIdHeaderNormalizeMiddleware",
     "log_request_id.middleware.RequestIDMiddleware",
-    "common.middleware.path_prefixed_request_log_middleware.PathPrefixedRequestLogMiddleware",
+    "common.middleware.http_request_log_middleware.HttpRequestLogMiddleware",
     "common.middleware.host_validation_middleware.HostValidationMiddleware",  # Must be before SecurityMiddleware
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -178,6 +175,7 @@ if APP_CONSOLE_ENABLED:
     MIDDLEWARE.insert(_insert_at, "app_console.middleware.ConsoleStaffRequiredMiddleware")
 
 REST_FRAMEWORK: dict[str, Any] = {
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "EXCEPTION_HANDLER": "common.utils.http_util.drf_unified_exception_handler",
     # Match compact JSON from API_JSON_DUMPS_PARAMS (no decorative whitespace in separators).
     "COMPACT_JSON": True,
@@ -763,7 +761,7 @@ LOGGING = {
 
 # traceid (Django META key; optional client header X-Trace-Id is copied in TraceIdHeaderNormalizeMiddleware)
 LOG_REQUEST_ID_HEADER = "HTTP_X_REQUEST_ID"
-GENERATE_REQUEST_ID_IF_NOT_IN_HEADER = True
+GENERATE_REQUEST_ID_IF_NOT_IN_HEADER = False
 REQUEST_ID_RESPONSE_HEADER = "X-Request-Id"
 
 # Internal HTTP integration
@@ -781,10 +779,6 @@ NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", defau
 # Console SearchRec「API 调试」页示例 JSON 中的 access_key；未设置环境变量时为空字符串
 CONSOLE_SEARCHREC_ACCESS_KEY = env("CONSOLE_SEARCHREC_ACCESS_KEY", default="")
 CONSOLE_SNOWFLAKE_ACCESS_KEY = env("CONSOLE_SNOWFLAKE_ACCESS_KEY", default="")
-# app_tcc: snowflake id allocation (POST JSON {access_key})；完整 URL，例如 https://api.example.com/api/snowflake/id
-TCC_SNOWFLAKE_ACCESS_KEY = env("TCC_SNOWFLAKE_ACCESS_KEY", default="")
-TCC_SNOWFLAKE_ID_URL = env("TCC_SNOWFLAKE_ID_URL", default="")
-TCC_SNOWFLAKE_HTTP_TIMEOUT_SEC = env.float("TCC_SNOWFLAKE_HTTP_TIMEOUT_SEC", default=10.0)
 TCC_OUTBOUND_TIMEOUT_SEC = env.float("TCC_OUTBOUND_TIMEOUT_SEC", default=30.0)
 TCC_PHASE_TRY_TIMEOUT_SECONDS = env.int("TCC_PHASE_TRY_TIMEOUT_SECONDS", default=120)
 TCC_PHASE_CONFIRM_TIMEOUT_SECONDS = env.int("TCC_PHASE_CONFIRM_TIMEOUT_SECONDS", default=120)
@@ -795,16 +789,16 @@ TCC_DEFAULT_AUTO_CONFIRM = env.bool("TCC_DEFAULT_AUTO_CONFIRM", default=True)
 # app_tcc scan: when phase_deadline_at is missing, next_retry cap (see scan_service.process_one)
 TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS = env.int("TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS", default=60000)
 TCC_SCAN_NEXT_RETRY_CAP_MS = env.int("TCC_SCAN_NEXT_RETRY_CAP_MS", default=15000)
-# app_saga: snowflake id for idem_key when omitted (POST JSON {access_key})
-SAGA_SNOWFLAKE_ACCESS_KEY = env("SAGA_SNOWFLAKE_ACCESS_KEY", default="")
-SAGA_SNOWFLAKE_ID_URL = env("SAGA_SNOWFLAKE_ID_URL", default="")
-SAGA_SNOWFLAKE_HTTP_TIMEOUT_SEC = env.float("SAGA_SNOWFLAKE_HTTP_TIMEOUT_SEC", default=10.0)
 SAGA_OUTBOUND_TIMEOUT_SEC = env.float("SAGA_OUTBOUND_TIMEOUT_SEC", default=30.0)
 SAGA_START_SYNC_STEP_BUDGET = env.int("SAGA_START_SYNC_STEP_BUDGET", default=32)
 SAGA_SCAN_NEXT_RETRY_CAP_MS = env.int("SAGA_SCAN_NEXT_RETRY_CAP_MS", default=15000)
 SAGA_SCAN_BACKOFF_BASE_MS = env.int("SAGA_SCAN_BACKOFF_BASE_MS", default=500)
 SAGA_SCAN_BACKOFF_STEP_MS = env.int("SAGA_SCAN_BACKOFF_STEP_MS", default=1500)
 SAGA_SCAN_BACKOFF_CAP_MS = env.int("SAGA_SCAN_BACKOFF_CAP_MS", default=60000)
+# Awaiting human/API confirm (CONFIRMING): scan transitions to COMPENSATING after this delay (default 15 minutes).
+SAGA_CONFIRMING_TIMEOUT_MS = env.int("SAGA_CONFIRMING_TIMEOUT_MS", default=900000)
+# Root JSON `cancel_reason` on outbound POST to compensate_url (aligns with TCC CancelReason int).
+SAGA_COMPENSATE_CANCEL_REASON_DEFAULT = env.int("SAGA_COMPENSATE_CANCEL_REASON_DEFAULT", default=0)
 # XXL-JOB
 XXL_JOB_TOKEN = env("XXL_JOB_TOKEN", default="").strip()
 # Admin base URL (no trailing slash), e.g. http://host:8080/xxl-job-admin — required for executor → admin /api/callback.
@@ -914,6 +908,4 @@ NEO4J_PASS = env("NEO4J_PASS", default="")
 NEO4J_DATABASE = env("NEO4J_DATABASE", default="neo4j")
 
 # Warm bundled dict catalog at import (reduces first-request latency on /api/*/dict).
-from common.dict_catalog.registry import warm_dict_catalog_bundled
-
 warm_dict_catalog_bundled()

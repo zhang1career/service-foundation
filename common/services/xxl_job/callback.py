@@ -6,12 +6,13 @@ import json
 import logging
 from typing import Any
 
-from django.conf import settings
-
 from common.services.http.errors import HttpCallError
 from common.services.http.executor import request_sync
 from common.services.http.pools import HttpClientPool
 from common.services.service_discovery import maybe_expand_service_discovery_url
+from django.conf import settings
+
+from common.utils.django_util import setting_str
 from common.utils.service_url_template import ServiceUrlResolutionError
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ _RETURN_T_SUCCESS = 200
 
 
 def _admin_base() -> str:
-    raw = (getattr(settings, "XXL_JOB_ADMIN_ADDRESS", "") or "").strip()
+    raw = setting_str("XXL_JOB_ADMIN_ADDRESS", "")
     if not raw:
         return ""
     try:
@@ -43,7 +44,7 @@ def send_callback(
     if not base:
         logger.warning("[xxl_job] no admin address; skip callback log_id=%s", log_id)
         return False
-    token = (getattr(settings, "XXL_JOB_TOKEN", "") or "").strip()
+    token = setting_str("XXL_JOB_TOKEN", "")
     if not token:
         logger.warning("[xxl_job] no token; skip callback log_id=%s", log_id)
         return False
