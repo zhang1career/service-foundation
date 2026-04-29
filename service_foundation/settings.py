@@ -761,7 +761,7 @@ LOGGING = {
 
 # traceid (Django META key; optional client header X-Trace-Id is copied in TraceIdHeaderNormalizeMiddleware)
 LOG_REQUEST_ID_HEADER = "HTTP_X_REQUEST_ID"
-GENERATE_REQUEST_ID_IF_NOT_IN_HEADER = True
+GENERATE_REQUEST_ID_IF_NOT_IN_HEADER = False
 REQUEST_ID_RESPONSE_HEADER = "X-Request-Id"
 
 # Internal HTTP integration
