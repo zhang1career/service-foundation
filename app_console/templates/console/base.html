@@ -34,185 +34,275 @@
                         </a>
                     </li>
 
-                    {% if apps.aibroker.enabled %}
                     <li>
-                        <a href="{% url 'console:aibroker-regs' %}"
+                        {% if apps.aibroker.console_href %}
+                        <a href="{{ apps.aibroker.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/aibroker/' in request.path %}bg-gray-700{% endif %}" title="AI Broker">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">AI Broker</span>
+                        {% if apps.aibroker.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.cdn.enabled %}
                     <li>
-                        <a href="{% url 'console:cdn-distributions' %}"
+                        {% if apps.cdn.console_href %}
+                        <a href="{{ apps.cdn.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if 'cdn' in request.path %}bg-gray-700{% endif %}" title="CDN 分发">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0h.5a2.5 2.5 0 002.5-2.5V8m-6.5 12.06V16.5a2.5 2.5 0 002.5-2.5V12M20.945 13H19a2 2 0 00-2 2v1a2 2 0 01-2 2 2 2 0 01-2-2v-2.945M16 20.065V19a2 2 0 012-2h2a2 2 0 012 2v1.065"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">CDN 分发</span>
+                        {% if apps.cdn.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.cms.enabled %}
                     <li>
-                        <a href="{% url 'console:cms-dashboard' %}"
+                        {% if apps.cms.console_href %}
+                        <a href="{{ apps.cms.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/cms/' in request.path %}bg-gray-700{% endif %}" title="CMS">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">CMS</span>
+                        {% if apps.cms.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.config.enabled %}
                     <li>
-                        <a href="{% url 'console:config-callers' %}"
+                        {% if apps.config.console_href %}
+                        <a href="{{ apps.config.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/config/' in request.path %}bg-gray-700{% endif %}" title="配置中心">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">配置中心</span>
+                        {% if apps.config.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.keepcon.enabled %}
                     <li>
-                        <a href="{% url 'console:keepcon-devices' %}"
+                        {% if apps.keepcon.console_href %}
+                        <a href="{{ apps.keepcon.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/keepcon/' in request.path %}bg-gray-700{% endif %}" title="长连接">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">长连接</span>
+                        {% if apps.keepcon.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.know.enabled %}
                     <li>
-                        <a href="{% url 'console:know-batch-list' %}" 
+                        {% if apps.know.console_href %}
+                        <a href="{{ apps.know.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if 'know' in request.path %}bg-gray-700{% endif %}" title="知识管理">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">知识管理</span>
+                        {% if apps.know.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
-                    
-                    {% if apps.mail.enabled %}
+
                     <li>
-                        <a href="{% url 'console:mail-accounts' %}" 
+                        {% if apps.mail.console_href %}
+                        <a href="{{ apps.mail.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if 'mail' in request.path %}bg-gray-700{% endif %}" title="邮件服务">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">邮件服务</span>
+                        {% if apps.mail.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.notice.enabled %}
                     <li>
-                        <a href="{% url 'console:notice-callers' %}"
+                        {% if apps.notice.console_href %}
+                        <a href="{{ apps.notice.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/notice/' in request.path %}bg-gray-700{% endif %}" title="通知中心">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">通知中心</span>
+                        {% if apps.notice.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.oss.enabled %}
                     <li>
-                        <a href="{% url 'console:oss-browser' %}" 
+                        {% if apps.oss.console_href %}
+                        <a href="{{ apps.oss.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if 'oss' in request.path %}bg-gray-700{% endif %}" title="对象存储">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">对象存储</span>
+                        {% if apps.oss.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.searchrec.enabled %}
                     <li>
-                        <a href="{% url 'console:searchrec-console' %}"
+                        {% if apps.searchrec.console_href %}
+                        <a href="{{ apps.searchrec.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/searchrec/' in request.path %}bg-gray-700{% endif %}" title="搜索推荐">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">搜索推荐</span>
+                        {% if apps.searchrec.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.snowflake.enabled %}
                     <li>
-                        <a href="{% url 'console:snowflake-callers' %}" 
+                        {% if apps.snowflake.console_href %}
+                        <a href="{{ apps.snowflake.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if 'snowflake' in request.path %}bg-gray-700{% endif %}" title="ID 生成">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">ID 生成</span>
+                        {% if apps.snowflake.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.tcc.enabled %}
                     <li>
-                        <a href="{% url 'console:tcc-callers' %}"
+                        {% if apps.tcc.console_href %}
+                        <a href="{{ apps.tcc.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/tcc/' in request.path %}bg-gray-700{% endif %}" title="TCC">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">TCC</span>
+                        {% if apps.tcc.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.saga.enabled %}
                     <li>
-                        <a href="{% url 'console:saga-callers' %}"
+                        {% if apps.saga.console_href %}
+                        <a href="{{ apps.saga.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/saga/' in request.path %}bg-gray-700{% endif %}" title="SAGA">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">SAGA</span>
+                        {% if apps.saga.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.user.enabled %}
                     <li>
-                        <a href="{% url 'console:user-list' %}"
+                        {% if apps.user.console_href %}
+                        <a href="{{ apps.user.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/user/' in request.path %}bg-gray-700{% endif %}" title="用户中心">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A9.953 9.953 0 0112 15c2.154 0 4.149.68 5.879 1.835M15 8a3 3 0 11-6 0 3 3 0 016 0z"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">用户中心</span>
+                        {% if apps.user.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
 
-                    {% if apps.verify.enabled %}
                     <li>
-                        <a href="{% url 'console:verify-callers' %}"
+                        {% if apps.verify.console_href %}
+                        <a href="{{ apps.verify.console_href }}"
                            class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/verify/' in request.path %}bg-gray-700{% endif %}" title="校验中心">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
                             <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3l7 4v5c0 5-3.5 8.5-7 9-3.5-.5-7-4-7-9V7l7-4z"></path>
                             </svg>
                             <span class="sidebar-text ml-3 whitespace-nowrap">校验中心</span>
+                        {% if apps.verify.console_href %}
                         </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
                     </li>
-                    {% endif %}
                 </ul>
             </nav>
 
