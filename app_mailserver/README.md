@@ -74,18 +74,26 @@ MAIL_SERVER_HOST=0.0.0.0
 
 ### Start Mail Servers
 
+When `APP_MAILSERVER_ENABLED=true`, **SMTP and IMAP start automatically** with:
+
+- `./run.sh start` or `./run_asgi.sh start`
+
+They run as a background subprocess (`python -m app_mailserver`). The PID is stored in `/var/run/<APP_NAME>/mail_server.pid` next to `app.pid`; subprocess stdout/stderr go to `${LOG_DIR}/mail_server.log`.
+
+Set `APP_MAILSERVER_ENABLED=false` to disable the mail app entirely (no `/api/mail/` and no SMTP/IMAP subprocess).
+
+Manual run (debug):
+
 ```bash
-python manage.py start_mail_server
+python -m app_mailserver
+python -m app_mailserver --smtp-only
+python -m app_mailserver --imap-only
 ```
 
-This will start both SMTP and IMAP servers. You can also start only one:
+The management command still works and calls the same runtime:
 
 ```bash
-# Start only SMTP server
-python manage.py start_mail_server --smtp-only
-
-# Start only IMAP server
-python manage.py start_mail_server --imap-only
+python manage.py start_mail_server
 ```
 
 ### Send Email (SMTP)

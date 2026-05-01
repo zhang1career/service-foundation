@@ -162,7 +162,7 @@
           (mt.imap_143
             ? '<span class="text-green-600">开</span>'
             : '<span class="text-red-600">不可达</span>') +
-          '</span></td><td class="text-sm monitoring-cell-detail">需单独进程 <code class="monitoring-inline-code">start_mail_server</code></td></tr>'
+          '</span></td><td class="text-sm monitoring-cell-detail">SMTP/IMAP：run.sh / run_asgi.sh 或 <code class="monitoring-inline-code">python -m app_mailserver</code></td></tr>'
       );
     }
 

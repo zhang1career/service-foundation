@@ -74,10 +74,10 @@ class ValidateItemPayloadTest(SimpleTestCase):
             validate_item_payload(meta, {}, partial=False)
         self.assertIn("title", ctx.exception.message_dict)
 
-    def test_full_nullable_omitted_field_omitted_from_output(self):
+    def test_full_nullable_omitted_optional_string_gets_empty_str(self):
         meta = self._meta_one_string(required=False)
         out = validate_item_payload(meta, {}, partial=False)
-        self.assertEqual(out, {})
+        self.assertEqual(out, {"title": ""})
 
     def test_partial_sometimes_missing_field_skipped(self):
         meta = _meta_items(
@@ -90,12 +90,19 @@ class ValidateItemPayloadTest(SimpleTestCase):
         out = validate_item_payload(meta, {}, partial=True)
         self.assertEqual(out, {})
 
+    def test_partial_nullable_omitted_optional_string_skipped(self):
+        meta = self._meta_one_string(required=False)
+        self.assertEqual(validate_item_payload(meta, {}, partial=True), {})
+
+    def test_partial_nullable_explicit_empty_string_stored_empty_for_string(self):
+        meta = self._meta_one_string(required=False)
+        out = validate_item_payload(meta, {"title": ""}, partial=True)
+        self.assertEqual(out, {"title": ""})
+
     def test_integer_coercion(self):
         meta = _meta_items({"name": "n", "type": "integer", "required": True})
         out = validate_item_payload(meta, {"n": "42"}, partial=False)
         self.assertEqual(out, {"n": 42})
-
-    def test_integer_invalid_raises(self):
         meta = _meta_items({"name": "n", "type": "integer", "required": True})
         with self.assertRaises(ValidationError) as ctx:
             validate_item_payload(meta, {"n": "x"}, partial=False)
@@ -133,10 +140,10 @@ class ValidateItemPayloadTest(SimpleTestCase):
         with self.assertRaises(ValidationError):
             validate_item_payload(meta, {"d": 123}, partial=False)
 
-    def test_empty_string_nullable_becomes_none(self):
+    def test_empty_string_nullable_optional_string_becomes_empty_str(self):
         meta = _meta_items({"name": "title", "type": "string", "required": False})
         out = validate_item_payload(meta, {"title": ""}, partial=False)
-        self.assertEqual(out, {"title": None})
+        self.assertEqual(out, {"title": ""})
 
 
 class MergeJsonStringFieldsTest(SimpleTestCase):

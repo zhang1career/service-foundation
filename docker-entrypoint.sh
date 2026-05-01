@@ -16,26 +16,30 @@ fi
 echo "Running database migrations..."
 python manage.py migrate --noinput || echo "Warning: migrations failed"
 
-# Start mail servers (SMTP and IMAP) in background if enabled
-if [ "${START_MAIL_SERVER:-true}" = "true" ]; then
+# Start SMTP+IMAP when APP_MAILSERVER_ENABLED=true (same as run.sh / run_asgi.sh).
+if python -c "
+import os, sys
+os.chdir('/app')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'service_foundation.settings')
+import django
+django.setup()
+from django.conf import settings
+sys.exit(0 if settings.APP_MAILSERVER_ENABLED else 1)
+" 2>/dev/null; then
     echo "Starting mail servers (SMTP/IMAP)..."
-    # Start mail server in background
-    # Use nohup and redirect output to log file
-    nohup python manage.py start_mail_server >> ${LOG_DIR}/mail_server.log 2>&1 &
+    nohup python -m app_mailserver >> ${LOG_DIR}/mail_server.log 2>&1 &
     MAIL_SERVER_PID=$!
     echo "Mail servers started with PID: $MAIL_SERVER_PID"
-    
-    # Wait a moment for mail servers to start
+
     sleep 2
-    
-    # Check if mail server process is still running
+
     if ! kill -0 $MAIL_SERVER_PID 2>/dev/null; then
         echo "Warning: Mail server process exited early. Check logs in ${LOG_DIR}/mail_server.log"
     else
         echo "Mail servers are running (SMTP: ${MAIL_SMTP_PORT:-25}, IMAP: ${MAIL_IMAP_PORT:-143})"
     fi
 else
-    echo "Mail servers disabled (START_MAIL_SERVER=false)"
+    echo "Mail servers skipped (APP_MAILSERVER_ENABLED=false)"
     MAIL_SERVER_PID=""
 fi
 

@@ -72,7 +72,7 @@ def validate_item_payload(
         present = field_name in raw
         val = raw.get(field_name)
         try:
-            coerced = _validate_field(field_name, val, rule_list, present)
+            coerced = _validate_field(field_name, val, rule_list, present, partial)
             if coerced is not _OMIT:
                 cleaned[field_name] = coerced
         except ValidationError as e:
@@ -87,7 +87,26 @@ def validate_item_payload(
 _OMIT = object()
 
 
-def _validate_field(name: str, val: Any, rule_list: list[str], present: bool) -> Any:
+_STRING_LIKE = frozenset({"string", "text"})
+
+
+def _type_token(rule_list: list[str]) -> str | None:
+    for r in rule_list:
+        if r.startswith("type:"):
+            return r.split(":", 1)[1]
+    return None
+
+
+def _is_string_text(rule_list: list[str]) -> bool:
+    return _type_token(rule_list) in _STRING_LIKE
+
+
+def _optional_cleared_value(rule_list: list[str]) -> Any:
+    """How to persist an optional field when the client clears it (null / \"\")."""
+    return "" if _is_string_text(rule_list) else None
+
+
+def _validate_field(name: str, val: Any, rule_list: list[str], present: bool, partial: bool) -> Any:
     sometimes = "sometimes" in rule_list
     required = "required" in rule_list
 
@@ -97,12 +116,14 @@ def _validate_field(name: str, val: Any, rule_list: list[str], present: bool) ->
     if not present:
         if required:
             raise ValidationError(f"{name} is required")
+        if not partial and _is_string_text(rule_list):
+            return _optional_cleared_value(rule_list)
         return _OMIT
 
     if val in (None, ""):
-        if not required:
-            return None
-        raise ValidationError(f"{name} is required")
+        if required:
+            raise ValidationError(f"{name} is required")
+        return _optional_cleared_value(rule_list)
 
     current: Any = val
     for r in rule_list:

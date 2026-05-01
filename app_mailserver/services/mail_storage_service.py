@@ -74,7 +74,7 @@ class MailStorageService(Singleton):
             email_size = len(email_data)
 
             # Create mail message in database
-            with transaction.atomic():
+            with transaction.atomic(using="mailserver_rw"):
                 # Convert datetime to UNIX timestamp (milliseconds)
                 mt = int(parsed['date'].timestamp() * 1000) if isinstance(parsed['date'], datetime) else int(
                     time.time() * 1000)
@@ -280,7 +280,7 @@ class MailStorageService(Singleton):
             True if successful, False otherwise
         """
         try:
-            with transaction.atomic():
+            with transaction.atomic(using="mailserver_rw"):
                 mail_message = get_mail_message_by_id(message_id)
                 if not mail_message:
                     logger.warning(f"[delete_mail] Message not found: id={message_id}")
@@ -302,8 +302,11 @@ class MailStorageService(Singleton):
                 mailbox = get_mailbox_by_id(mailbox_id)
                 if mailbox:
                     message_count = count_messages_by_mailbox(mailbox_id)
-
-                update_mailbox(mailbox, message_count=message_count, ut=int(time.time() * 1000))
+                    update_mailbox(
+                        mailbox,
+                        message_count=message_count,
+                        ut=int(time.time() * 1000),
+                    )
 
             logger.info(f"[delete_mail] Deleted email: id={message_id}")
             return True

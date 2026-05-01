@@ -8,7 +8,7 @@ This file records **comparable** load-test settings so a second run can be diffe
 |-------|--------|
 | Date | 2026-04-10 |
 | Target | `http://127.0.0.1:18041` (Docker: `serv-fd`, image `service_foundation:latest`, host port **18041** → container **8000**) |
-| HTTP stack | Django `runserver` via [`docker-entrypoint.sh`](../../docker-entrypoint.sh) (dev server; not gunicorn multi-worker). Optional same-container SMTP/IMAP if `START_MAIL_SERVER=true`. |
+| HTTP stack | Django `runserver` via [`docker-entrypoint.sh`](../../docker-entrypoint.sh) (dev server; not gunicorn multi-worker). Optional same-container SMTP/IMAP when `APP_MAILSERVER_ENABLED=true`. |
 | Locust file | [`perf/locustfile.py`](../../perf/locustfile.py) |
 | `DICT_CODES` | `aibroker_nested_param_type` (default in locustfile; override via env) |
 

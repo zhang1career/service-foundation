@@ -199,13 +199,24 @@ class IMAPHandler:
                 logger.warning(f"[handle_login] Account not found: {username}")
                 return
 
-            # Check password: account.password must exist and match
-            if not account.password:
-                await self.send_response(f'{tag} NO Login failed: account has no password set')
-                logger.warning(f"[handle_login] Account has no password: {username}")
-                return
+            cfg = get_app_config()
+            allow_empty = cfg.get("imap_allow_login_without_password", True)
+            stored_pw = account.password or ""
 
-            if account.password == password:
+            if stored_pw:
+                password_ok = stored_pw == password
+            elif allow_empty:
+                # SMTP-provisioned accounts may have no password; accept any client password.
+                password_ok = True
+                logger.info(
+                    "[handle_login] Account %s has empty password; IMAP login allowed "
+                    "(MAIL_IMAP_ALLOW_LOGIN_WITHOUT_PASSWORD=true). Set a password via API for production.",
+                    username,
+                )
+            else:
+                password_ok = password == ""
+
+            if password_ok:
                 self.account = account
                 self.authenticated = True
                 await self.send_response(f'{tag} OK Login successful')
