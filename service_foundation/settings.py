@@ -470,6 +470,8 @@ if APP_TCC_ENABLED:
     DATABASE_ROUTERS.append("app_tcc.db_routers.ReadWriteRouter")
 if APP_SAGA_ENABLED:
     DATABASE_ROUTERS.append("app_saga.db_routers.ReadWriteRouter")
+if APP_MAILSERVER_ENABLED:
+    DATABASE_ROUTERS.append("app_mailserver.db_routers.ReadWriteRouter")
 
 # Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
 REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379")

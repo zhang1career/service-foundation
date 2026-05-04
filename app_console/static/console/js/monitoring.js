@@ -40,6 +40,12 @@
         '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>',
       connect:
         '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>',
+      layers:
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path>',
+      bolt:
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>',
+      adjustments:
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>',
     };
     var p = paths[icon] || paths.globe;
     return "<svg" + common + ">" + p + "</svg>";
@@ -156,7 +162,7 @@
           (mt.imap_143
             ? '<span class="text-green-600">开</span>'
             : '<span class="text-red-600">不可达</span>') +
-          '</span></td><td class="text-sm monitoring-cell-detail">需单独进程 <code class="monitoring-inline-code">start_mail_server</code></td></tr>'
+          '</span></td><td class="text-sm monitoring-cell-detail">SMTP/IMAP：run.sh / run_asgi.sh 或 <code class="monitoring-inline-code">python -m app_mailserver</code></td></tr>'
       );
     }
 
@@ -174,7 +180,7 @@
       var hp = hpKey ? probes[hpKey] : null;
       var row = adb[app.key] || {};
       var dbHtml = "";
-      if (app.enabled && row.enabled) {
+      if (row.enabled) {
         dbHtml =
           '<div class="flex flex-wrap gap-x-2 gap-y-1"><dt class="text-gray-500 shrink-0">MySQL</dt><dd class="text-gray-600 min-w-0">' +
           (row.db_ok
@@ -187,21 +193,19 @@
           "</dd></div>";
       }
       var btn;
-      if (!app.enabled) {
-        btn = '<button type="button" class="btn btn-outline btn-sm w-full" disabled>未启用</button>';
-      } else if (app.href) {
+      if (app.href) {
         btn =
           '<a href="' +
           escapeHtml(app.href) +
           '" class="btn btn-primary btn-sm w-full">进入管理</a>';
       } else {
-        btn = '<button type="button" class="btn btn-outline btn-sm w-full" disabled>未配置入口</button>';
+        btn =
+          '<button type="button" class="btn btn-outline btn-sm w-full" disabled title="本机未注册该应用的控制台路由">无本机入口</button>';
       }
 
       return (
-        '<div class="card ' +
-        (app.enabled ? "" : "opacity-60") +
-        '"><div class="card-body">' +
+        '<div class="card">' +
+        '<div class="card-body">' +
         '<div class="flex items-start gap-3 mb-3">' +
         '<div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">' +
         iconSvg(app.icon) +
@@ -210,9 +214,9 @@
         '<h3 class="text-base font-semibold text-gray-800">' +
         escapeHtml(app.name) +
         "</h3>" +
-        (app.enabled
-          ? '<span class="badge badge-success">已启用</span>'
-          : '<span class="badge badge-warning">未启用</span>') +
+        (app.local_enabled
+          ? '<span class="badge badge-success">本机已挂载</span>'
+          : '<span class="badge badge-warning">本机未挂载</span>') +
         "</div></div>" +
         '<dl class="space-y-2 text-sm mb-3">' +
         '<div class="flex flex-wrap gap-x-2 gap-y-1"><dt class="text-gray-500 shrink-0">HTTP</dt><dd class="text-gray-600 min-w-0">' +

@@ -40,11 +40,11 @@ class ConsoleViewsFunctionalTest(SimpleTestCase):
         context = view.get_context_data()
         cfg = json.loads(context["apps_config_json"])
         cdn = next(x for x in cfg if x["key"] == "cdn")
-        self.assertTrue(cdn["enabled"])
+        self.assertTrue(cdn["local_enabled"])
         sr = next(x for x in cfg if x["key"] == "searchrec")
-        self.assertFalse(sr["enabled"])
+        self.assertFalse(sr["local_enabled"])
         kc = next(x for x in cfg if x["key"] == "keepcon")
-        self.assertFalse(kc["enabled"])
+        self.assertFalse(kc["local_enabled"])
         self.assertIn("monitoring_refresh_ms", context)
 
     @override_settings(APP_CDN_ENABLED=True, APP_KEEPCON_ENABLED=True)
@@ -53,7 +53,7 @@ class ConsoleViewsFunctionalTest(SimpleTestCase):
         context = view.get_context_data()
         cfg = json.loads(context["apps_config_json"])
         kc = next(x for x in cfg if x["key"] == "keepcon")
-        self.assertTrue(kc["enabled"])
+        self.assertTrue(kc["local_enabled"])
         self.assertEqual(kc["httpProbeKey"], "keepcon_health")
 
     @override_settings(APP_CDN_ENABLED=True)

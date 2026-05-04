@@ -66,13 +66,21 @@ def get_app_config() -> Dict:
         
         # Server host configuration
         server_host = env("MAIL_SERVER_HOST", default="0.0.0.0")
-        
+
+        # When True, IMAP accepts any password if the account has no password set (e.g. SMTP-created).
+        # Disable in production and set passwords via API.
+        imap_allow_login_without_password = env.bool(
+            "MAIL_IMAP_ALLOW_LOGIN_WITHOUT_PASSWORD",
+            default=True,
+        )
+
         return {
             "smtp_port": smtp_port,
             "imap_port": imap_port,
             "oss_bucket": oss_bucket,
             "oss_endpoint": oss_endpoint,
             "server_host": server_host,
+            "imap_allow_login_without_password": imap_allow_login_without_password,
         }
     except Exception as e:
         raise ConfigurationError(

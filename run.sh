@@ -18,6 +18,71 @@ load_app_name() {
     LOG_DIR=${LOG_DIR:-/var/log/serv-fd}
 }
 
+_get_mail_server_pid_file() {
+    load_app_name
+    echo "/var/run/${APP_NAME}/mail_server.pid"
+}
+
+_should_start_mail_subprocess() {
+    python -c "
+from pathlib import Path
+import sys
+root = Path(r'''${SCRIPT_DIR}''').resolve()
+sys.path.insert(0, str(root))
+from common.utils.env_util import load_env
+e = load_env(root)
+if not e.bool('APP_MAILSERVER_ENABLED', default=False):
+    sys.exit(1)
+sys.exit(0)
+" 2>/dev/null
+}
+
+_maybe_start_mail_server_subprocess() {
+    load_app_name
+    local mail_pid_file mail_log mpid old
+    mail_pid_file=$(_get_mail_server_pid_file)
+    mail_log="${LOG_DIR}/mail_server.log"
+    mkdir -p "$(dirname "$mail_log")" || true
+    if ! _should_start_mail_subprocess; then
+        return 0
+    fi
+    if [ -f "$mail_pid_file" ]; then
+        old=$(cat "$mail_pid_file" 2>/dev/null || echo "")
+        if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then
+            echo "Mail servers already running (PID: $old)"
+            return 0
+        fi
+        rm -f "$mail_pid_file"
+    fi
+    echo "Starting mail servers (SMTP/IMAP) via python -m app_mailserver…"
+    nohup python -m app_mailserver >> "$mail_log" 2>&1 &
+    mpid=$!
+    echo "$mpid" > "$mail_pid_file"
+    echo "Mail servers subprocess started (PID: $mpid, log: $mail_log)"
+}
+
+_stop_mail_server_subprocess() {
+    load_app_name
+    local mail_pid_file mpid count
+    mail_pid_file=$(_get_mail_server_pid_file)
+    [ ! -f "$mail_pid_file" ] && return 0
+    mpid=$(cat "$mail_pid_file" 2>/dev/null || echo "")
+    rm -f "$mail_pid_file"
+    [ -z "$mpid" ] && return 0
+    if kill -0 "$mpid" 2>/dev/null; then
+        echo "Stopping mail servers (PID: $mpid)..."
+        kill -TERM "$mpid" 2>/dev/null || true
+        count=0
+        while kill -0 "$mpid" 2>/dev/null && [ $count -lt 10 ]; do
+            sleep 1
+            count=$((count + 1))
+        done
+        if kill -0 "$mpid" 2>/dev/null; then
+            kill -KILL "$mpid" 2>/dev/null || true
+        fi
+    fi
+}
+
 # PID file path: /var/run/<APP_NAME>/app.pid
 get_pid_file() {
     load_app_name
@@ -89,6 +154,8 @@ start() {
 
     maybe_collectstatic
 
+    _maybe_start_mail_server_subprocess
+
     echo "Starting app (HOST/PORT/logging from .env via manage.py)..."
     echo "Django runserver output: $django_log_path"
     nohup python manage.py runserver >> "$django_log_path" 2>&1 &
@@ -106,12 +173,14 @@ stop() {
     if [ -z "$pid" ]; then
         echo "App is not running (no PID file or empty)"
         [ -f "$pid_file" ] && rm -f "$pid_file"
+        _stop_mail_server_subprocess
         exit 0
     fi
 
     if ! kill -0 "$pid" 2>/dev/null; then
         echo "App process $pid not found (stale PID file), removing"
         rm -f "$pid_file"
+        _stop_mail_server_subprocess
         exit 0
     fi
 
@@ -127,6 +196,7 @@ stop() {
         kill -KILL "$pid" 2>/dev/null || true
     fi
     rm -f "$pid_file"
+    _stop_mail_server_subprocess
     echo "App stopped"
 }
 

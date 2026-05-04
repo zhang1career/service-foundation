@@ -31,14 +31,14 @@ class TestUserService(SimpleTestCase):
     def test_list_users_clamps_limit_to_limit_list(self, mock_ser, mock_list):
         mock_list.return_value = ([1, 2], 2)
         UserService.list_users(offset=0, limit=999_999)
-        mock_list.assert_called_once_with(offset=0, limit=LIMIT_LIST)
+        mock_list.assert_called_once_with(offset=0, limit=LIMIT_LIST, user_ids=None)
 
     @patch("app_user.services.user_service.list_users")
     @patch("app_user.services.user_service.user_to_public_dict", side_effect=lambda u: {"id": u})
     def test_list_users_non_positive_limit_uses_limit_page(self, mock_ser, mock_list):
         mock_list.return_value = ([], 0)
         UserService.list_users(offset=0, limit=0)
-        mock_list.assert_called_once_with(offset=0, limit=LIMIT_PAGE)
+        mock_list.assert_called_once_with(offset=0, limit=LIMIT_PAGE, user_ids=None)
 
     @patch("app_user.services.user_service.user_to_public_dict")
     @patch("app_user.services.user_service.update_user_status")
@@ -147,7 +147,15 @@ class TestUserServiceListUsers(SimpleTestCase):
         page = UserService.list_users(offset=0, limit=10)
         self.assertEqual(page["total_num"], 1)
         self.assertEqual(len(page["data"]), 1)
+        mock_list.assert_called_once_with(offset=0, limit=10, user_ids=None)
 
+    @patch("app_user.services.user_service.list_users")
+    @patch("app_user.services.user_service.user_to_public_dict", side_effect=lambda u: {"id": getattr(u, "id", u)})
+    def test_list_users_forwards_user_ids(self, mock_ser, mock_list):
+        u = MagicMock(id=55)
+        mock_list.return_value = ([u], 1)
+        UserService.list_users(offset=5, limit=15, user_ids=[3, 1])
+        mock_list.assert_called_once_with(offset=5, limit=15, user_ids=[3, 1])
 
 class TestUserServiceConsoleVerify(SimpleTestCase):
     @patch("app_user.services.user_service.user_to_console_dict")

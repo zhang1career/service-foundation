@@ -11,8 +11,8 @@ from app_mailserver.views.mailbox_view import (
 )
 
 # URL patterns for mail server REST API
-# SMTP/IMAP protocols are handled separately via start_mail_server command
-# These REST API endpoints are for mail account and mailbox management
+# SMTP/IMAP run in a sibling process: ``python -m app_mailserver`` (see run.sh / run_asgi.sh)
+# These REST endpoints manage accounts and mailboxes
 
 urlpatterns = [
     path("dict", DictCodesView.as_view(), name="mail-dict"),

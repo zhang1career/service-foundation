@@ -79,10 +79,9 @@ DB_DEFAULT_PORT=3306
 
 #### 邮件服务器配置（SMTP/IMAP）
 
-容器会在后台自动启动邮件服务器（SMTP 和 IMAP），可通过环境变量配置：
+容器会在 **`APP_MAILSERVER_ENABLED=true`** 时在后台自动启动邮件服务器（SMTP 和 IMAP），可通过环境变量配置端口与 OSS：
 
 **邮件服务器环境变量**：
-- `START_MAIL_SERVER`: 是否启动邮件服务器（默认：`true`，设置为 `false` 可禁用）
 - `MAIL_SMTP_PORT`: SMTP 服务器端口（默认：25，用于接收邮件）
 - `MAIL_IMAP_PORT`: IMAP 服务器端口（默认：143，用于访问邮件）
 - `MAIL_SERVER_HOST`: 邮件服务器绑定地址（默认：0.0.0.0）
@@ -147,10 +146,10 @@ docker exec <容器名> python manage.py migrate
 docker exec <容器名> python manage.py createsuperuser
 docker exec <容器名> python manage.py collectstatic
 
-# 邮件服务器管理命令（如需在容器内手动启动）
-docker exec <容器名> python manage.py start_mail_server
-docker exec <容器名> python manage.py start_mail_server --smtp-only
-docker exec <容器名> python manage.py start_mail_server --imap-only
+# 邮件服务器（需 APP_MAILSERVER_ENABLED=true；容器入口会自动拉起）
+docker exec <容器名> python -m app_mailserver
+docker exec <容器名> python -m app_mailserver --smtp-only
+docker exec <容器名> python -m app_mailserver --imap-only
 
 # 查看邮件服务器日志
 docker exec <容器名> tail -f ${LOG_DIR:-/var/log/serv-fd}/mail_server.log
@@ -198,9 +197,9 @@ docker stop <容器名>
    - 开发调试仍可在宿主机用 `python manage.py runserver` 或 `run.sh`，与镜像内 Gunicorn 路径无关
 
 9. **邮件服务器注意事项**：
-   - 邮件服务器（SMTP/IMAP）在容器启动时自动后台运行
+   - 当 `APP_MAILSERVER_ENABLED=true` 时，SMTP/IMAP 在容器启动时自动后台运行
    - 邮件服务器的生命周期与主容器绑定，容器停止时邮件服务器也会停止
-   - 如果需要单独管理邮件服务器，可以设置 `START_MAIL_SERVER=false`，然后手动启动
+   - 不需要邮件功能时设置 `APP_MAILSERVER_ENABLED=false`
    - 生产环境建议配置 TLS/SSL 加密（当前版本未实现，需要额外配置）
    - 端口 25 和 143 可能需要防火墙配置才能从外部访问
    - 邮件附件存储在 OSS（Object Storage Service）中，确保 OSS 配置正确
