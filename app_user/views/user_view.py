@@ -1,10 +1,12 @@
+from typing import Optional
+
 from rest_framework.views import APIView
 
 from app_user.enums import UserStatusEnum
 from app_user.services import AuthService, EventService, UserService
 from app_user.utils.auth_context import bearer_user_id_from_request, user_access_token_from_request
 from app_user.utils.jwt_util import decode_access_token_light
-from common.consts.query_const import LIMIT_PAGE
+from common.consts.query_const import LIMIT_LIST, LIMIT_PAGE
 from common.consts.response_const import (
     RET_INVALID_PARAM,
     RET_LOGIN_REQUIRED,
@@ -13,6 +15,37 @@ from common.consts.response_const import (
     RET_TOKEN_INVALID,
 )
 from common.utils.http_util import resp_ok, resp_err, with_type
+
+
+def _optional_user_ids_param(query) -> tuple[Optional[list[int]], Optional[str]]:
+    """Parses GET ``user_ids`` (comma-separated). Absent or blank → ``(None, None)``."""
+    if "user_ids" not in query:
+        return None, None
+    raw = query.get("user_ids")
+    if raw is None or not str(raw).strip():
+        return None, None
+    stripped = str(raw).strip()
+    ids: list[int] = []
+    seen: set[int] = set()
+    for token in stripped.split(","):
+        part = token.strip()
+        if not part:
+            continue
+        try:
+            uid = int(part)
+        except ValueError:
+            return None, "user_ids must be comma-separated positive integers"
+        if uid < 1:
+            return None, "user_ids must be comma-separated positive integers"
+        if uid in seen:
+            continue
+        seen.add(uid)
+        ids.append(uid)
+        if len(ids) > LIMIT_LIST:
+            return None, f"user_ids must contain at most {LIMIT_LIST} distinct ids"
+    if not ids:
+        return None, None
+    return ids, None
 
 
 class UserJwtValidateView(APIView):
@@ -97,7 +130,10 @@ class UserListView(APIView):
     def get(self, request, *args, **kwargs):
         offset = with_type(request.GET.get("offset", 0))
         limit = with_type(request.GET.get("limit", LIMIT_PAGE))
-        page = UserService.list_users(offset=offset, limit=limit)
+        user_ids, uid_err = _optional_user_ids_param(request.GET)
+        if uid_err:
+            return resp_err(code=RET_INVALID_PARAM, message=uid_err)
+        page = UserService.list_users(offset=offset, limit=limit, user_ids=user_ids)
         return resp_ok(page)
 
 

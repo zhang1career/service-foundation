@@ -255,7 +255,31 @@ class UserViewsTest(SimpleTestCase):
         body = _json_response(response)
         self.assertEqual(body["errorCode"], RET_OK)
         self.assertEqual(body["data"]["total_num"], 1)
-        mock_list.assert_called_once()
+        mock_list.assert_called_once_with(offset=0, limit=10, user_ids=None)
+
+    @patch("app_user.views.user_view.UserService.list_users")
+    def test_user_list_forwards_user_ids(self, mock_list):
+        mock_list.return_value = {
+            "data": [],
+            "next_offset": None,
+            "total_num": 0,
+        }
+        request = self.factory.get(
+            "/api/user/users",
+            {"offset": 0, "limit": 10, "user_ids": "3,1, 3"},
+        )
+        response = UserListView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_OK)
+        mock_list.assert_called_once_with(offset=0, limit=10, user_ids=[3, 1])
+
+    @patch("app_user.views.user_view.UserService.list_users")
+    def test_user_list_invalid_user_ids_not_integer(self, mock_list):
+        request = self.factory.get("/api/user/users", {"user_ids": "1,x"})
+        response = UserListView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_INVALID_PARAM)
+        mock_list.assert_not_called()
 
     @patch("app_user.views.user_view.UserService.get_me")
     def test_user_detail_get_not_found(self, mock_get):

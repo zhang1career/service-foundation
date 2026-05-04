@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Optional, Sequence
 
 from app_user.enums import UserDispositionEnum, UserStatusEnum
 from app_user.models import User
@@ -90,8 +90,10 @@ def update_user_password(user_id: int, password_hash: str) -> bool:
     return True
 
 
-def list_users(offset: int, limit: int):
+def list_users(offset: int, limit: int, user_ids: Optional[Sequence[int]] = None):
     query = User.objects.using("user_rw").all()
+    if user_ids is not None:
+        query = query.filter(id__in=list(user_ids))
     total = query.count()
     data = list(query.order_by("-ct")[offset:offset + limit])
     return data, total

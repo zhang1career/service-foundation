@@ -1,5 +1,5 @@
 import json
-from typing import Optional
+from typing import Optional, Sequence
 
 from app_user.enums import EventBizTypeEnum, EventStatusEnum
 from app_user.repos import (
@@ -87,12 +87,17 @@ class UserService:
         return user_to_public_dict(user) if user else None
 
     @staticmethod
-    def list_users(offset: int = 0, limit: int = LIMIT_PAGE) -> dict:
+    def list_users(
+        offset: int = 0,
+        limit: int = LIMIT_PAGE,
+        *,
+        user_ids: Optional[Sequence[int]] = None,
+    ) -> dict:
         if limit <= 0:
             limit = LIMIT_PAGE
         if limit > LIMIT_LIST:
             limit = LIMIT_LIST
-        users, total = list_users(offset=offset, limit=limit)
+        users, total = list_users(offset=offset, limit=limit, user_ids=user_ids)
         data = [user_to_public_dict(item) for item in users]
         next_offset = offset + limit if offset + limit < total else None
         return build_page(data_list=data, next_offset=next_offset, total_num=total)

@@ -536,7 +536,7 @@
       "get": {
         "tags": ["Users"],
         "summary": "用户分页列表",
-        "description": "无需 JWT；生产环境应自行限制访问。默认 limit=20，最大 1000。",
+        "description": "无需 JWT；生产环境应自行限制访问。默认 limit=20，最大 1000。可选 `user_ids`：逗号分隔的用户主键，仅返回所列 id（去重后与分页 `offset`/`limit` 一并生效）；键缺失或为空字符串视同未筛选；非法数字或不大于 0 返 errorCode 参数错误；至多 1000 个互不重复 id。",
         "operationId": "userList",
         "parameters": [
           {
@@ -548,6 +548,13 @@
             "name": "limit",
             "in": "query",
             "schema": { "type": "integer", "default": 20, "maximum": 1000 }
+          },
+          {
+            "name": "user_ids",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "example": "1,5,42" },
+            "description": "逗号分隔的 user.id 批量过滤；与白名单等价，仍按创建时间倒序分页。"
           }
         ],
         "responses": {
