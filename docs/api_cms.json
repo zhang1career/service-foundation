@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "CMS 内容 API (app_cms)",
-    "description": "基于动态内容类型（`CmsContentMeta`）的 REST API。路径段 `content_route` 对应已注册类型的路由名；每条记录的字段由该类型的 `fields.columns` 定义，列表/详情响应中除固定字段外包含各业务列。成功与参数错误均可能返回 HTTP 200，业务结果以响应体 `errorCode`（0 成功，100 为参数校验失败等）为准；未注册类型或记录不存在时返回 HTTP 404。\n\n批量查询：`GET /{content_route}/batch?ids=1,2,3`（`ids` 为逗号分隔的主键，省略或空则 `data.items` 为 `[]`）。返回存在的记录（与单条 GET 详情同形），顺序与请求中各 id 首次出现一致；上限见 `CMS_BATCH_DETAIL_MAX_IDS`（默认 200）。注意 GET 查询串长度上限，极大批量时请控制 id 数量或拆分请求。",
-    "version": "1.1.2"
+    "description": "基于动态内容类型（`CmsContentMeta`）的 REST API。路径段 `content_route` 对应已注册类型的路由名；每条记录的字段由该类型的 `fields.columns` 定义，列表/详情响应中除固定字段外包含各业务列。成功与参数错误均可能返回 HTTP 200，业务结果以响应体 `errorCode`（0 成功，100 为参数校验失败等）为准；未注册类型或记录不存在时返回 HTTP 404。\n\n**批量查询**与分页列表共用 `GET /{content_route}`：当查询参数中出现 **`ids`**（逗号分隔主键，如 `ids=1,2,3`）时返回 `data.items`（详情同形、`ids` 首次出现顺序、去重、不存在的 id 跳过）；`ids=` 空值时 `items` 为 `[]`。未带 `ids` 参数时使用 `page` / `per_page` 分页列表。批量 id 个数上限见 `CMS_BATCH_DETAIL_MAX_IDS`（默认 200）；注意 GET 查询串长度。",
+    "version": "1.2.0"
   },
   "servers": [
     {
@@ -34,29 +34,42 @@
       ],
       "get": {
         "tags": ["Content"],
-        "summary": "分页列表",
-        "description": "返回该类型下已发布/全部行（按 `ContentReadService.paginate_published`：优先 `-published_at`，否则 `-id`）。",
+        "summary": "分页列表或按 id 批量查询",
+        "description": "若查询字符串中**未**出现参数 `ids`：分页返回该类型下已发布行（`ContentReadService.paginate_published`，优先 `-published_at`，否则 `-id`）。若出现 **`ids`**（可为空）：按主键批量返回详情形记录（行为同原批量接口：`ids` 逗号分隔、顺序、去重、跳过不存在、`CMS_BATCH_DETAIL_MAX_IDS` 上限）；`page`/`per_page` 在批量模式下被忽略。",
         "operationId": "cmsContentList",
         "parameters": [
           {
             "name": "page",
             "in": "query",
             "schema": { "type": "integer", "minimum": 1, "default": 1 },
-            "description": "页码，从 1 开始"
+            "description": "页码（仅在不带 `ids` 时生效）"
           },
           {
             "name": "per_page",
             "in": "query",
             "schema": { "type": "integer", "minimum": 1, "default": 15 },
-            "description": "每页条数；默认取自设置 `CMS_LIST_PER_PAGE`，上限 `CMS_LIST_PER_PAGE_MAX`（默认 50）"
+            "description": "每页条数；默认 `CMS_LIST_PER_PAGE`，上限 `CMS_LIST_PER_PAGE_MAX`（仅在不带 `ids` 时生效）"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "example": "1,2,3" },
+            "description": "出现该参数（含空值）时进入批量查询：逗号分隔正整数；空则 `items: []`。与分页参数互斥语义见 summary。"
           }
         ],
         "responses": {
           "200": {
-            "description": "成功：`errorCode` 为 0，`data` 含 `items` 与 `pagination`。",
+            "description": "`errorCode`=0 时：`data` 为分页 `{ items, pagination }`，或批量 `{ items }`；或校验失败 `{ errorCode: 100 }`（见批量规则）。",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CmsListEnvelope" },
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/CmsListEnvelope" },
+                    { "$ref": "#/components/schemas/CmsBatchDetailEnvelope" },
+                    { "$ref": "#/components/schemas/CmsErrorEnvelope" }
+                  ]
+                },
                 "examples": {
                   "ok": {
                     "summary": "列表示例",
@@ -124,57 +137,6 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/CmsErrorEnvelope" }
-              }
-            }
-          },
-          "404": {
-            "description": "不存在该内容类型。"
-          }
-        }
-      }
-    },
-    "/{content_route}/batch": {
-      "parameters": [
-        {
-          "name": "content_route",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]*$",
-            "example": "articles"
-          },
-          "description": "内容类型路由段"
-        }
-      ],
-      "get": {
-        "tags": ["Content"],
-        "summary": "按主键批量查询",
-        "description": "查询参数 `ids`：逗号分隔的主键列表，如 `1,2,3`。返回**存在**的记录，形状与 `GET /{content_route}/{record_id}` 的 `data` 相同；顺序与各 id **首次出现**一致；不存在的 id 跳过；重复 id 会去重。`ids` 省略或为空字符串时返回 `items: []`。最大 id 个数受 `CMS_BATCH_DETAIL_MAX_IDS` 限制（默认 200）。",
-        "operationId": "cmsContentBatch",
-        "parameters": [
-          {
-            "name": "ids",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "example": "1,2,3"
-            },
-            "description": "逗号分隔的正整数主键；首尾空格分段会被 trim"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功（`errorCode`=0，`data.items` 为数组）；或参数错误（`errorCode`=100）。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "oneOf": [
-                    { "$ref": "#/components/schemas/CmsBatchDetailEnvelope" },
-                    { "$ref": "#/components/schemas/CmsErrorEnvelope" }
-                  ]
-                }
               }
             }
           },
@@ -408,7 +370,7 @@
         "additionalProperties": true,
         "example": { "title": "x", "count": 1 }
       },
-      "CmsContentWriteBody": {
+      "CmsBatchDetailData": {
         "type": "object",
         "required": ["items"],
         "properties": {

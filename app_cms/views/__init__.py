@@ -1,5 +1,4 @@
 from app_cms.views.content_api_view import (
-    CmsContentBatchDetailApiView,
     CmsContentDetailApiView,
     CmsContentListApiView,
 )
@@ -7,5 +6,4 @@ from app_cms.views.content_api_view import (
 __all__ = [
     "CmsContentListApiView",
     "CmsContentDetailApiView",
-    "CmsContentBatchDetailApiView",
 ]

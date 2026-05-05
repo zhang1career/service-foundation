@@ -44,11 +44,48 @@ def _batch_detail_max_ids() -> int:
     return int(getattr(settings, "CMS_BATCH_DETAIL_MAX_IDS", 200))
 
 
+def _batch_detail_response_if_ids_param(meta, request):
+    """
+    When query string contains ``ids`` (even empty), return batch detail payload
+    for ``GET /{content_route}`` instead of paged list.
+    """
+    if "ids" not in request.query_params:
+        return None
+    raw = (request.query_params.get("ids") or "").strip()
+    if raw == "":
+        return resp_ok({"items": []})
+    parts = [p.strip() for p in raw.split(",") if p.strip() != ""]
+    try:
+        ids = [int(x) for x in parts]
+    except ValueError:
+        return resp_err(code=RET_INVALID_PARAM, message="ids must be comma-separated integers")
+    if any(i < 1 for i in ids):
+        return resp_err(code=RET_INVALID_PARAM, message="ids must be positive")
+    max_n = _batch_detail_max_ids()
+    if len(ids) > max_n:
+        return resp_err(
+            code=RET_INVALID_PARAM,
+            message=f"at most {max_n} ids allowed",
+        )
+    seen: set[int] = set()
+    ordered_unique: list[int] = []
+    for i in ids:
+        if i not in seen:
+            seen.add(i)
+            ordered_unique.append(i)
+    svc = ContentReadService()
+    items = svc.detail_by_pks(meta, ordered_unique)
+    return resp_ok({"items": items})
+
+
 class CmsContentListApiView(APIView):
     def get(self, request, content_route: str, *args, **kwargs):
         meta = CmsContentMeta.find_by_route_segment(content_route)
         if meta is None:
             raise Http404()
+        batch = _batch_detail_response_if_ids_param(meta, request)
+        if batch is not None:
+            return batch
         page = max(1, int(request.query_params.get("page") or 1))
         max_pp = _list_per_page_max()
         default_pp = _list_per_page()
@@ -80,40 +117,6 @@ class CmsContentListApiView(APIView):
             return resp_ok(data, status=status.HTTP_201_CREATED)
         except ValidationError as e:
             return _validation_error_response(e)
-
-
-class CmsContentBatchDetailApiView(APIView):
-    """GET ``?ids=1,2,3`` (comma-separated) → detail-shaped rows that exist, in request order."""
-
-    def get(self, request, content_route: str, *args, **kwargs):
-        meta = CmsContentMeta.find_by_route_segment(content_route)
-        if meta is None:
-            raise Http404()
-        raw = (request.query_params.get("ids") or "").strip()
-        if raw == "":
-            return resp_ok({"items": []})
-        parts = [p.strip() for p in raw.split(",") if p.strip() != ""]
-        try:
-            ids = [int(x) for x in parts]
-        except ValueError:
-            return resp_err(code=RET_INVALID_PARAM, message="ids must be comma-separated integers")
-        if any(i < 1 for i in ids):
-            return resp_err(code=RET_INVALID_PARAM, message="ids must be positive")
-        max_n = _batch_detail_max_ids()
-        if len(ids) > max_n:
-            return resp_err(
-                code=RET_INVALID_PARAM,
-                message=f"at most {max_n} ids allowed",
-            )
-        seen: set[int] = set()
-        ordered_unique: list[int] = []
-        for i in ids:
-            if i not in seen:
-                seen.add(i)
-                ordered_unique.append(i)
-        svc = ContentReadService()
-        items = svc.detail_by_pks(meta, ordered_unique)
-        return resp_ok({"items": items})
 
 
 class CmsContentDetailApiView(APIView):
