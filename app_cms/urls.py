@@ -15,9 +15,9 @@ urlpatterns = [
     path("dict", DictCodesView.as_view(), name="cms-dict"),
     path("health", CmsHealthView.as_view(), name="cms-health"),
     re_path(
-        rf"^{CONTENT_ROUTE}/batch-detail$",
+        rf"^{CONTENT_ROUTE}/batch$",
         CmsContentBatchDetailApiView.as_view(),
-        name="cms-content-batch-detail",
+        name="cms-content-batch",
     ),
     re_path(
         rf"^{CONTENT_ROUTE}/{RECORD_ID_RE}$",

@@ -121,7 +121,7 @@ class CmsContentApiViewFunctionalTest(TestCase):
     @patch("app_cms.views.content_api_view.CmsContentMeta.find_by_route_segment")
     def test_batch_detail_unknown_route_returns_404(self, find_meta):
         find_meta.return_value = None
-        request = self.factory.get("/api/cms/missing/batch-detail?ids=1")
+        request = self.factory.get("/api/cms/missing/batch?ids=1")
         response = CmsContentBatchDetailApiView.as_view()(request, content_route="missing")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -131,7 +131,7 @@ class CmsContentApiViewFunctionalTest(TestCase):
         find_meta.return_value = MagicMock()
         read_cls.return_value.detail_by_pks.return_value = [{"id": 1, "title": "a"}]
 
-        request = self.factory.get("/api/cms/articles/batch-detail?ids=1,2")
+        request = self.factory.get("/api/cms/articles/batch?ids=1,2")
         response = CmsContentBatchDetailApiView.as_view()(request, content_route="articles")
         response.render()
         payload = json.loads(response.content)
@@ -143,7 +143,7 @@ class CmsContentApiViewFunctionalTest(TestCase):
     @patch("app_cms.views.content_api_view.CmsContentMeta.find_by_route_segment")
     def test_batch_detail_omitted_ids_returns_empty_items(self, find_meta):
         find_meta.return_value = MagicMock()
-        request = self.factory.get("/api/cms/articles/batch-detail")
+        request = self.factory.get("/api/cms/articles/batch")
         response = CmsContentBatchDetailApiView.as_view()(request, content_route="articles")
         response.render()
         payload = json.loads(response.content)
@@ -156,7 +156,7 @@ class CmsContentApiViewFunctionalTest(TestCase):
     @patch("app_cms.views.content_api_view.CmsContentMeta.find_by_route_segment")
     def test_batch_detail_enforces_max_ids(self, find_meta, read_cls, _max):
         find_meta.return_value = MagicMock()
-        request = self.factory.get("/api/cms/articles/batch-detail?ids=1,2,3")
+        request = self.factory.get("/api/cms/articles/batch?ids=1,2,3")
         response = CmsContentBatchDetailApiView.as_view()(request, content_route="articles")
         response.render()
         payload = json.loads(response.content)
