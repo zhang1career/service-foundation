@@ -534,6 +534,7 @@ DICT_HTTP_PRIME_CODES = env("DICT_HTTP_PRIME_CODES", default="aibroker_nested_pa
 CMS_PROFILE = env("CMS_PROFILE", default="commerce")
 CMS_LIST_PER_PAGE = env.int("CMS_LIST_PER_PAGE", default=15)
 CMS_LIST_PER_PAGE_MAX = env.int("CMS_LIST_PER_PAGE_MAX", default=50)
+CMS_BATCH_DETAIL_MAX_IDS = env.int("CMS_BATCH_DETAIL_MAX_IDS", default=200)
 CMS_EXPOSE_META = env.bool("CMS_EXPOSE_META", default=True)
 
 # app_user: login brute-force counters (separate limits for login key vs client IP).

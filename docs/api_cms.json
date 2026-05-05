@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "CMS 内容 API (app_cms)",
-    "description": "基于动态内容类型（`CmsContentMeta`）的 REST API。路径段 `content_route` 对应已注册类型的路由名；每条记录的字段由该类型的 `fields.columns` 定义，列表/详情响应中除固定字段外包含各业务列。成功与参数错误均可能返回 HTTP 200，业务结果以响应体 `errorCode`（0 成功，100 为参数校验失败等）为准；未注册类型或记录不存在时返回 HTTP 404。",
-    "version": "1.0.0"
+    "description": "基于动态内容类型（`CmsContentMeta`）的 REST API。路径段 `content_route` 对应已注册类型的路由名；每条记录的字段由该类型的 `fields.columns` 定义，列表/详情响应中除固定字段外包含各业务列。成功与参数错误均可能返回 HTTP 200，业务结果以响应体 `errorCode`（0 成功，100 为参数校验失败等）为准；未注册类型或记录不存在时返回 HTTP 404。\n\n批量详情：`GET /{content_route}/batch-detail?ids=1,2,3`（`ids` 为逗号分隔的主键，省略或空则 `data.items` 为 `[]`）。返回存在的记录（与单条 GET 详情同形），顺序与请求中各 id 首次出现一致；上限见 `CMS_BATCH_DETAIL_MAX_IDS`（默认 200）。注意 GET 查询串长度上限，极大批量时请控制 id 数量或拆分请求。",
+    "version": "1.1.1"
   },
   "servers": [
     {
@@ -124,6 +124,57 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/CmsErrorEnvelope" }
+              }
+            }
+          },
+          "404": {
+            "description": "不存在该内容类型。"
+          }
+        }
+      }
+    },
+    "/{content_route}/batch-detail": {
+      "parameters": [
+        {
+          "name": "content_route",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "example": "articles"
+          },
+          "description": "内容类型路由段"
+        }
+      ],
+      "get": {
+        "tags": ["Content"],
+        "summary": "按主键批量查询详情",
+        "description": "查询参数 `ids`：逗号分隔的主键列表，如 `1,2,3`。返回**存在**的记录，形状与 `GET /{content_route}/{record_id}` 的 `data` 相同；顺序与各 id **首次出现**一致；不存在的 id 跳过；重复 id 会去重。`ids` 省略或为空字符串时返回 `items: []`。最大 id 个数受 `CMS_BATCH_DETAIL_MAX_IDS` 限制（默认 200）。",
+        "operationId": "cmsContentBatchDetail",
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "1,2,3"
+            },
+            "description": "逗号分隔的正整数主键；首尾空格分段会被 trim"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功（`errorCode`=0，`data.items` 为数组）；或参数错误（`errorCode`=100）。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/CmsBatchDetailEnvelope" },
+                    { "$ref": "#/components/schemas/CmsErrorEnvelope" }
+                  ]
+                }
               }
             }
           },
@@ -356,6 +407,28 @@
         "description": "动态字段：键为列名，类型需与该列 `validation.type`（string/text/integer/date/json）一致。",
         "additionalProperties": true,
         "example": { "title": "x", "count": 1 }
+      },
+      "CmsContentWriteBody": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CmsContentItem" }
+          }
+        }
+      },
+      "CmsBatchDetailEnvelope": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StdResponse" },
+          {
+            "type": "object",
+            "properties": {
+              "errorCode": { "type": "integer", "enum": [0] },
+              "data": { "$ref": "#/components/schemas/CmsBatchDetailData" }
+            }
+          }
+        ]
       }
     }
   }

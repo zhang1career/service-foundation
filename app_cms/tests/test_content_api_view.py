@@ -12,7 +12,11 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory
 
-from app_cms.views.content_api_view import CmsContentDetailApiView, CmsContentListApiView
+from app_cms.views.content_api_view import (
+    CmsContentBatchDetailApiView,
+    CmsContentDetailApiView,
+    CmsContentListApiView,
+)
 from common.consts.response_const import RET_INVALID_PARAM, RET_OK
 
 
@@ -113,6 +117,51 @@ class CmsContentApiViewFunctionalTest(TestCase):
             request, content_route="articles", record_id="999"
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("app_cms.views.content_api_view.CmsContentMeta.find_by_route_segment")
+    def test_batch_detail_unknown_route_returns_404(self, find_meta):
+        find_meta.return_value = None
+        request = self.factory.get("/api/cms/missing/batch-detail?ids=1")
+        response = CmsContentBatchDetailApiView.as_view()(request, content_route="missing")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("app_cms.views.content_api_view.ContentReadService")
+    @patch("app_cms.views.content_api_view.CmsContentMeta.find_by_route_segment")
+    def test_batch_detail_success(self, find_meta, read_cls):
+        find_meta.return_value = MagicMock()
+        read_cls.return_value.detail_by_pks.return_value = [{"id": 1, "title": "a"}]
+
+        request = self.factory.get("/api/cms/articles/batch-detail?ids=1,2")
+        response = CmsContentBatchDetailApiView.as_view()(request, content_route="articles")
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(payload["errorCode"], RET_OK)
+        self.assertEqual(payload["data"]["items"], [{"id": 1, "title": "a"}])
+        read_cls.return_value.detail_by_pks.assert_called_once_with(find_meta.return_value, [1, 2])
+
+    @patch("app_cms.views.content_api_view.CmsContentMeta.find_by_route_segment")
+    def test_batch_detail_omitted_ids_returns_empty_items(self, find_meta):
+        find_meta.return_value = MagicMock()
+        request = self.factory.get("/api/cms/articles/batch-detail")
+        response = CmsContentBatchDetailApiView.as_view()(request, content_route="articles")
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(payload["errorCode"], RET_OK)
+        self.assertEqual(payload["data"]["items"], [])
+
+    @patch("app_cms.views.content_api_view._batch_detail_max_ids", return_value=2)
+    @patch("app_cms.views.content_api_view.ContentReadService")
+    @patch("app_cms.views.content_api_view.CmsContentMeta.find_by_route_segment")
+    def test_batch_detail_enforces_max_ids(self, find_meta, read_cls, _max):
+        find_meta.return_value = MagicMock()
+        request = self.factory.get("/api/cms/articles/batch-detail?ids=1,2,3")
+        response = CmsContentBatchDetailApiView.as_view()(request, content_route="articles")
+        response.render()
+        payload = json.loads(response.content)
+        self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
+        read_cls.return_value.detail_by_pks.assert_not_called()
 
     @patch("app_cms.views.content_api_view.ContentPayloadSerializer")
     @patch("app_cms.views.content_api_view.ContentWriteService")

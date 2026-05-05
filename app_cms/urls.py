@@ -2,7 +2,11 @@ from django.urls import path, re_path
 
 from common.views.dict_codes_view import DictCodesView
 from app_cms.views.cms_health_view import CmsHealthView
-from app_cms.views.content_api_view import CmsContentDetailApiView, CmsContentListApiView
+from app_cms.views.content_api_view import (
+    CmsContentBatchDetailApiView,
+    CmsContentDetailApiView,
+    CmsContentListApiView,
+)
 
 CONTENT_ROUTE = r"(?P<content_route>[a-z0-9][a-z0-9_-]*)"
 RECORD_ID_RE = r"(?P<record_id>[0-9]+)"
@@ -10,6 +14,11 @@ RECORD_ID_RE = r"(?P<record_id>[0-9]+)"
 urlpatterns = [
     path("dict", DictCodesView.as_view(), name="cms-dict"),
     path("health", CmsHealthView.as_view(), name="cms-health"),
+    re_path(
+        rf"^{CONTENT_ROUTE}/batch-detail$",
+        CmsContentBatchDetailApiView.as_view(),
+        name="cms-content-batch-detail",
+    ),
     re_path(
         rf"^{CONTENT_ROUTE}/{RECORD_ID_RE}$",
         CmsContentDetailApiView.as_view(),
