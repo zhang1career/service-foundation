@@ -16,9 +16,14 @@ def jwt_signing_secret() -> str:
     return settings.SECRET_KEY
 
 
-def create_access_token(user_id: int, username: str) -> str:
+def create_access_token(user_id: int, username: str, auth_status: int) -> str:
     claims = claims_with_expiry(
-        {"type": "access", "user_id": user_id, "username": username},
+        {
+            "type": "access",
+            "user_id": user_id,
+            "username": username,
+            "auth_status": auth_status,
+        },
         ACCESS_TOKEN_TTL_SECONDS,
     )
     return encode_hs256_token(claims, jwt_signing_secret())
@@ -47,6 +52,8 @@ def decode_access_token_light(token: str) -> tuple[Optional[dict[str, Any]], Opt
     except jwt.InvalidTokenError:
         return None, "invalid"
     if claims.get("type") != "access" or not claims.get("user_id"):
+        return None, "invalid"
+    if not isinstance(claims.get("auth_status"), int):
         return None, "invalid"
     return claims, None
 

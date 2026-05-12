@@ -25,6 +25,7 @@ class TestUserSerialization(SimpleTestCase):
         self.assertEqual(data["id"], 10)
         self.assertEqual(data["ext"], {"role": "admin"})
         self.assertEqual(data["auth_status"], 0)
+        self.assertEqual(data["auth_status_detail"], {"console": False, "email": False})
         self.assertEqual(data["ctrl_status"], 0)
 
     def test_user_to_public_dict_malformed_ext_becomes_empty_dict(self):
@@ -35,7 +36,7 @@ class TestUserSerialization(SimpleTestCase):
             phone="",
             avatar="",
             status=0,
-            auth_status=None,
+            auth_status=0,
             ctrl_status=0,
             ctrl_reason="",
             ext="{",
@@ -45,6 +46,7 @@ class TestUserSerialization(SimpleTestCase):
         data = user_to_public_dict(user)
         self.assertEqual(data["ext"], {})
         self.assertEqual(data["auth_status"], 0)
+        self.assertEqual(data["auth_status_detail"], {"console": False, "email": False})
 
     def test_public_dict_never_exposes_ctrl_reason(self):
         user = SimpleNamespace(
@@ -63,3 +65,39 @@ class TestUserSerialization(SimpleTestCase):
         )
         self.assertEqual(user_to_public_dict(user)["ctrl_reason"], "")
         self.assertEqual(user_to_console_dict(user)["ctrl_reason"], "内部风控细节")
+
+    def test_auth_status_detail_reflects_bits(self):
+        user = SimpleNamespace(
+            id=1,
+            username="n",
+            email="",
+            phone="",
+            avatar="",
+            status=1,
+            auth_status=3,
+            ctrl_status=0,
+            ctrl_reason="",
+            ext="{}",
+            ct=0,
+            ut=0,
+        )
+        data = user_to_public_dict(user)
+        self.assertEqual(data["auth_status_detail"], {"console": True, "email": True})
+
+    def test_auth_status_detail_phone_bit_not_in_email_key(self):
+        user = SimpleNamespace(
+            id=1,
+            username="n",
+            email="",
+            phone="",
+            avatar="",
+            status=1,
+            auth_status=4,
+            ctrl_status=0,
+            ctrl_reason="",
+            ext="{}",
+            ct=0,
+            ut=0,
+        )
+        data = user_to_public_dict(user)
+        self.assertEqual(data["auth_status_detail"], {"console": False, "email": False})

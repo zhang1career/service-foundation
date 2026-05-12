@@ -61,10 +61,26 @@ function escapeHtml(s) {
 
 function renderAuthStatus(mask) {
   const m = Number(mask || 0);
-  const passed = (m & 1) === 1;
-  return passed
-    ? '<span class="badge badge-success">验证码认证：已通过</span>'
-    : '<span class="badge badge-warning">验证码认证：未通过</span>';
+  const consoleOk = (m & 1) === 1;
+  const emailOk = (m & 2) === 2;
+  const phoneOk = (m & 4) === 4;
+  const parts = [];
+  parts.push(
+    consoleOk
+      ? '<span class="badge badge-success">控制台验证：已通过</span>'
+      : '<span class="badge badge-warning">控制台验证：未通过</span>',
+  );
+  parts.push(
+    emailOk
+      ? '<span class="badge badge-success">邮箱验证：已通过</span>'
+      : '<span class="badge badge-warning">邮箱验证：未通过</span>',
+  );
+  parts.push(
+    phoneOk
+      ? '<span class="badge badge-success">手机注册验证：已通过</span>'
+      : '<span class="badge badge-warning">手机注册验证：未通过</span>',
+  );
+  return parts.join(' ');
 }
 
 function renderDispositionStatus(ds) {

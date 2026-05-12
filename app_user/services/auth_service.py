@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 
+from app_user.auth_status_bits import registration_bit_for_notice_channel
 from app_user.enums import (
     EventBizTypeEnum,
     EventStatusEnum,
@@ -170,7 +171,9 @@ class AuthService:
                 http_status=200,
             )
 
-        new_access = create_access_token(user_id=user_id, username=username)
+        new_access = create_access_token(
+            user_id, username, int(user.auth_status),
+        )
         new_refresh = create_refresh_token(user_id=user_id, username=username)
         exp_ms = access_expires_at_ms_from_token(new_access)
         ok = rotate_refresh_row(
@@ -386,7 +389,8 @@ class AuthService:
                 ext=data.get("ext") if isinstance(data.get("ext"), dict) else {},
             )
             user.status = UserStatusEnum.ENABLED.value
-            user.save(using="user_rw", update_fields=["status"])
+            user.auth_status = registration_bit_for_notice_channel(event.notice_channel)
+            user.save(using="user_rw", update_fields=["status", "auth_status"])
             update_event_status(
                 event.id,
                 status=EventStatusEnum.COMPLETED.value,
@@ -396,7 +400,9 @@ class AuthService:
 
     @staticmethod
     def _issue_session_tokens(user) -> dict:
-        access = create_access_token(user_id=user.id, username=user.username)
+        access = create_access_token(
+            user.id, user.username, int(user.auth_status),
+        )
         refresh = create_refresh_token(user_id=user.id, username=user.username)
         exp_ms = access_expires_at_ms_from_token(access)
         replace_session_tokens(

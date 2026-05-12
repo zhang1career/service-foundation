@@ -2,7 +2,6 @@ from typing import Optional
 
 from rest_framework.views import APIView
 
-from app_user.enums import UserStatusEnum
 from app_user.services import AuthService, EventService, UserService
 from app_user.utils.auth_context import bearer_user_id_from_request, user_access_token_from_request
 from app_user.utils.jwt_util import decode_access_token_light
@@ -49,7 +48,7 @@ def _optional_user_ids_param(query) -> tuple[Optional[list[int]], Optional[str]]
 
 
 class UserJwtValidateView(APIView):
-    """JWT-only access check (no ``token`` table). ``permissions`` reserved, always empty."""
+    """校验 access JWT（须含 user_id、auth_status）；不查 token 表。"""
 
     def get(self, request, *args, **kwargs):
         token = user_access_token_from_request(request)
@@ -65,6 +64,7 @@ class UserJwtValidateView(APIView):
                 "user_id": claims["user_id"],
                 "username": claims.get("username"),
                 "permissions": [],
+                "auth_status": claims["auth_status"],
             }
         )
 
@@ -140,18 +140,6 @@ class UserListView(APIView):
 class UserDetailView(APIView):
     def get(self, request, user_id, *args, **kwargs):
         user = UserService.get_me(user_id=with_type(user_id))
-        if not user:
-            return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
-        return resp_ok(user)
-
-    def patch(self, request, user_id, *args, **kwargs):
-        data = request.data if hasattr(request, "data") else request.POST
-        if "status" not in data:
-            return resp_err(code=RET_INVALID_PARAM, message="status is required")
-        status = with_type(data.get("status"))
-        if status not in UserStatusEnum.values():
-            return resp_err(code=RET_INVALID_PARAM, message=f"status must be one of {UserStatusEnum.values()}")
-        user = UserService.set_status(user_id=with_type(user_id), status=status)
         if not user:
             return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)

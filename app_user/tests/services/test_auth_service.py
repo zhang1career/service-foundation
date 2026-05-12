@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth.hashers import make_password
 from django.test import SimpleTestCase, override_settings
 
+from app_user.auth_status_bits import AUTH_BIT_EMAIL
 from app_user.enums import UserStatusEnum
 from app_user.services.auth_service import AuthService
 from app_user.utils.jwt_util import create_refresh_token, decode_token
@@ -111,9 +112,28 @@ class TestAuthServiceRefresh(SimpleTestCase):
         acc = decode_token(out["access_token"])
         self.assertEqual(acc.get("type"), "access")
         self.assertEqual(acc.get("user_id"), 99)
+        self.assertEqual(acc.get("auth_status"), 0)
         ref = decode_token(out["refresh_token"])
         self.assertEqual(ref.get("type"), "refresh")
         self.assertEqual(ref.get("user_id"), 99)
+
+    @patch("app_user.services.auth_service.rotate_refresh_row", return_value=True)
+    @patch("app_user.services.auth_service.refresh_token_in_use", return_value=True)
+    @patch("app_user.services.auth_service.error_for_user_disposition", return_value=None)
+    @patch("app_user.services.auth_service.get_user_by_id")
+    def test_refresh_access_token_includes_auth_status_from_user(
+            self, mock_get_user, *_mocks,
+    ):
+        mock_get_user.return_value = _login_user_stub(
+            id=99,
+            username="token_user",
+            status=UserStatusEnum.ENABLED.value,
+            auth_status=3,
+        )
+        rt = create_refresh_token(user_id=99, username="token_user")
+        out = AuthService.refresh(refresh_token=rt)
+        acc = decode_token(out["access_token"])
+        self.assertEqual(acc.get("auth_status"), 3)
 
     @patch("app_user.services.auth_service.decode_token")
     def test_refresh_rejects_non_refresh_type(self, mock_decode):
@@ -312,7 +332,7 @@ class TestAuthServiceRegister(SimpleTestCase):
     def test_register_verify_returns_tokens(
             self, mock_v, mock_create, mock_ev, mock_replace, mock_atomic,
     ):
-        ev = SimpleNamespace(id=1)
+        ev = SimpleNamespace(id=1, notice_channel=0)
         mock_v.return_value = (
             ev,
             {
@@ -333,6 +353,7 @@ class TestAuthServiceRegister(SimpleTestCase):
         out = AuthService.register_verify_by_payload({"event_id": 1, "code": "ok"})
         self.assertIn("access_token", out)
         self.assertIn("user", out)
+        self.assertEqual(user.auth_status, AUTH_BIT_EMAIL)
         user.save.assert_called_once()
         mock_ev.assert_called_once()
         mock_replace.assert_called_once()

@@ -1,5 +1,7 @@
 import json
 
+from app_user.auth_status_bits import auth_status_detail_public
+
 
 def _user_payload(
     user,
@@ -10,6 +12,7 @@ def _user_payload(
         ext_data = json.loads(user.ext or "{}")
     except (TypeError, ValueError):
         ext_data = {}
+    mask = user.auth_status
     return {
         "id": user.id,
         "username": user.username,
@@ -17,7 +20,8 @@ def _user_payload(
         "phone": user.phone or "",
         "avatar": user.avatar,
         "status": user.status,
-        "auth_status": user.auth_status or 0,
+        "auth_status": mask,
+        "auth_status_detail": auth_status_detail_public(mask),
         "ctrl_status": user.ctrl_status,
         "ctrl_reason": ctrl_reason,
         "ext": ext_data,

@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase
 
 from app_user.enums import EventBizTypeEnum
-from app_user.services.user_service import UserService, AUTH_BIT_VERIFY_CODE
+from app_user.auth_status_bits import AUTH_BIT_CONSOLE
+from app_user.services.user_service import UserService
 from common.consts.query_const import LIMIT_LIST, LIMIT_PAGE
 
 
@@ -180,7 +181,7 @@ class TestUserServiceConsoleVerify(SimpleTestCase):
         mock_auth.return_value = updated
         mock_pub.return_value = {"id": 5}
         out = UserService.console_verify_user_by_code(5, " 123 ")
-        self.assertEqual(out["auth_status"], AUTH_BIT_VERIFY_CODE)
+        self.assertEqual(out["auth_status"], AUTH_BIT_CONSOLE)
         mock_auth.assert_called_once()
 
     @patch("app_user.services.user_service.get_user_by_id")

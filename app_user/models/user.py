@@ -15,7 +15,7 @@ class User(models.Model):
         default=UserStatusEnum.DISABLED.value,
         db_index=True,
     )
-    # 认证状态：bitmask。0 表示未通过任何认证；各 bit 的含义由业务层定义。
+    # auth_status：bit0 控制台；bit1 邮箱注册；bit2 短信注册。
     auth_status = models.PositiveSmallIntegerField(default=0, db_index=True, db_column="auth_status")
     ctrl_status = models.SmallIntegerField(
         choices=UserDispositionEnum.choices(),
