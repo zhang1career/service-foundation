@@ -39,6 +39,7 @@ from app_user.utils.jwt_util import (
     create_refresh_token,
     decode_token,
 )
+from app_user.utils.user_serialization import user_to_public_dict
 from app_user.services.login_attempt_service import (
     bump_disposition_login_throttle,
     clear_on_success,
