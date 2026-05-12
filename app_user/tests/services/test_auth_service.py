@@ -13,6 +13,7 @@ from common.consts.response_const import (
     RET_ACCOUNT_RESTRICTED,
     RET_DUPLICATE_REQUEST,
     RET_RATE_LIMITED,
+    RET_REGISTRATION_INCOMPLETE,
     RET_TOKEN_REVOKED,
 )
 from common.exceptions.base_exception import CheckedException
@@ -178,6 +179,21 @@ class TestAuthServiceRequestPasswordResetBranches(SimpleTestCase):
         mock_cancel.assert_not_called()
         mock_create.assert_not_called()
 
+    @patch("app_user.services.auth_service.get_user_by_email")
+    def test_request_password_reset_rejects_incomplete_registration(self, mock_get_email):
+        u = _login_user_stub(
+            id=3,
+            username="u",
+            email="x@y.z",
+            status=UserStatusEnum.ENABLED.value,
+            password_hash=make_password("p"),
+            auth_status=0,
+        )
+        mock_get_email.return_value = u
+        with self.assertRaises(CheckedException) as ctx:
+            AuthService._request_password_reset(channel="email", target="x@y.z")
+        self.assertEqual(ctx.exception.ret_code, RET_REGISTRATION_INCOMPLETE)
+
     @patch("app_user.services.auth_service.create_verify_event_and_send_notice")
     @patch("app_user.services.auth_service.cancel_pending_events_by_notice")
     @patch("app_user.services.auth_service.get_user_by_email")
@@ -190,6 +206,7 @@ class TestAuthServiceRequestPasswordResetBranches(SimpleTestCase):
             email="x@y.z",
             status=UserStatusEnum.ENABLED.value,
             password_hash=make_password("p"),
+            auth_status=2,
         )
         mock_get_email.return_value = u
         mock_create.return_value = SimpleNamespace(id=100)
@@ -234,6 +251,7 @@ class TestAuthServiceVerifyPasswordReset(SimpleTestCase):
             username="u",
             status=UserStatusEnum.ENABLED.value,
             password_hash=make_password("old"),
+            auth_status=2,
         )
         mock_keys.return_value = ("vk", "nk")
         mock_post.return_value = {"errorCode": 0}
@@ -263,7 +281,7 @@ class TestAuthServiceRegister(SimpleTestCase):
     @patch("app_user.services.auth_service.get_user_by_phone")
     @patch("app_user.services.auth_service.get_user_by_email")
     @patch("app_user.services.auth_service.get_user_by_username")
-    @patch("app_user.services.auth_service.latest_incomplete_register_event_by_notice")
+    @patch("app_user.services.auth_service.get_latest_incomplete_event_by_notice")
     def test_register_request_success(
             self, mock_prior, mock_u, mock_e, mock_p, mock_av, mock_create,
     ):
@@ -291,7 +309,7 @@ class TestAuthServiceRegister(SimpleTestCase):
     @patch("app_user.services.auth_service.get_user_by_phone")
     @patch("app_user.services.auth_service.get_user_by_email")
     @patch("app_user.services.auth_service.get_user_by_username")
-    @patch("app_user.services.auth_service.latest_incomplete_register_event_by_notice")
+    @patch("app_user.services.auth_service.get_latest_incomplete_event_by_notice")
     @patch("app_user.services.auth_service.get_now_timestamp_ms")
     def test_register_request_rejects_duplicate_within_ttl(
             self, mock_now, mock_prior, mock_u, mock_e, mock_p, mock_av, mock_create,
@@ -357,6 +375,94 @@ class TestAuthServiceRegister(SimpleTestCase):
         user.save.assert_called_once()
         mock_ev.assert_called_once()
         mock_replace.assert_called_once()
+
+    @patch("app_user.services.auth_service.transaction.atomic")
+    @patch("app_user.services.auth_service.replace_session_tokens")
+    @patch("app_user.services.auth_service.create_user")
+    @patch("app_user.services.auth_service.upload_avatar")
+    @patch("app_user.services.auth_service.get_user_by_phone")
+    @patch("app_user.services.auth_service.get_user_by_email")
+    @patch("app_user.services.auth_service.get_user_by_username")
+    @patch("app_user.services.auth_service.get_latest_incomplete_event_by_notice")
+    def test_register_no_verify_returns_tokens(
+            self, mock_prior, mock_u, mock_e, mock_p, mock_av, mock_create, mock_rep, mock_atomic,
+    ):
+        mock_prior.return_value = None
+        mock_u.return_value = None
+        mock_e.return_value = None
+        mock_p.return_value = None
+        mock_av.return_value = ""
+        u = MagicMock()
+        u.id = 3
+        u.username = "nv"
+        u.auth_status = 0
+        mock_create.return_value = u
+        mock_atomic.side_effect = lambda **kwargs: nullcontext()
+        out = AuthService.register_request_by_payload(
+            {
+                "no_verify": 1,
+                "username": "nv",
+                "password": "secret12",
+                "email": "nv@x.com",
+                "phone": "",
+                "notice_channel": "email",
+                "notice_target": "nv@x.com",
+            },
+        )
+        self.assertIn("access_token", out)
+        mock_rep.assert_called_once()
+
+    @patch("app_user.services.auth_service.create_verify_event_and_send_notice")
+    @patch("app_user.services.auth_service.cancel_pending_events_by_notice")
+    @patch("app_user.services.auth_service.AuthService._register_pending_notice_guard")
+    @patch("app_user.services.auth_service.assert_register_resume_rate_limits")
+    @patch("app_user.services.auth_service.get_user_by_id")
+    def test_register_resume_request_returns_event_id(
+            self, mock_gu, mock_rate, mock_guard, mock_cancel, mock_create,
+    ):
+        user = MagicMock()
+        user.id = 5
+        user.auth_status = 0
+        user.email = "e@e.com"
+        user.phone = ""
+        user.username = "nu"
+        mock_gu.return_value = user
+        mock_create.return_value = SimpleNamespace(id=99)
+        out = AuthService.register_resume_request_by_payload(
+            user_id=5,
+            payload={"notice_channel": "email", "notice_target": "e@e.com"},
+            client_ip="127.0.0.1",
+        )
+        self.assertEqual(out["event_id"], 99)
+        mock_create.assert_called_once()
+
+    @patch("app_user.services.auth_service.transaction.atomic")
+    @patch("app_user.services.auth_service.replace_session_tokens")
+    @patch("app_user.services.auth_service.update_event_status")
+    @patch("app_user.services.auth_service.update_user_auth_status")
+    @patch("app_user.services.auth_service.get_user_by_id")
+    @patch("app_user.services.auth_service.verify_payload_code_for_pending_event")
+    def test_register_verify_resume_updates_auth(
+            self, mock_v, mock_get, mock_upd, mock_ev, mock_rep, mock_atomic,
+    ):
+        ev = SimpleNamespace(id=1, notice_channel=0, notice_target="a@b.c")
+        mock_v.return_value = (
+            ev,
+            {"user_id": 8, "username": "nu"},
+        )
+        user = MagicMock()
+        user.id = 8
+        user.auth_status = 0
+        user.email = "a@b.c"
+        user.phone = ""
+        user.username = "nu"
+        mock_get.return_value = user
+        mock_atomic.side_effect = lambda **kwargs: nullcontext()
+        mock_upd.return_value = user
+        out = AuthService.register_verify_by_payload({"event_id": 1, "code": "ok"})
+        self.assertIn("access_token", out)
+        mock_upd.assert_called_once()
+        mock_rep.assert_called_once()
 
 
 class TestAuthServiceVerifyPasswordResetPayload(SimpleTestCase):

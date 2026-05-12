@@ -1,11 +1,12 @@
 from rest_framework.views import APIView
 
 from app_user.services import AuthService
-from app_user.utils.auth_context import client_ip_from_request
+from app_user.utils.auth_context import bearer_user_id_from_request, client_ip_from_request
 from common.consts.response_const import (
     RET_INVALID_PARAM,
-    RET_UNAUTHORIZED,
+    RET_LOGIN_REQUIRED,
     RET_TOKEN_INVALID,
+    RET_UNAUTHORIZED,
 )
 from common.exceptions.base_exception import CheckedException
 from common.utils.http_util import resp_ok, resp_err
@@ -19,6 +20,34 @@ class RegisterView(APIView):
             if hasattr(request, "FILES") and request.FILES.get("avatar"):
                 payload["avatar"] = request.FILES.get("avatar")
             return resp_ok(AuthService.register_request_by_payload(payload))
+        except CheckedException as exc:
+            return resp_err(
+                data=exc.data,
+                code=exc.ret_code,
+                message=exc.message,
+                detail=exc.detail,
+                status=exc.http_status,
+            )
+        except ValueError as exc:
+            return resp_err(code=RET_INVALID_PARAM, message=str(exc))
+
+
+class RegisterResumeRequestView(APIView):
+    """补发注册验证码（``no_verify`` 注册后 ``auth_status==0``）。需 ``X-User-Access-Token``。"""
+
+    def post(self, request, *args, **kwargs):
+        data = request.data if hasattr(request, "data") else request.POST
+        user_id, code, message = bearer_user_id_from_request(request)
+        if not user_id:
+            return resp_err(code=code, message=message)
+        try:
+            return resp_ok(
+                AuthService.register_resume_request_by_payload(
+                    user_id=user_id,
+                    payload=dict(data),
+                    client_ip=client_ip_from_request(request),
+                ),
+            )
         except CheckedException as exc:
             return resp_err(
                 data=exc.data,
@@ -100,5 +129,13 @@ class PasswordResetVerifyView(APIView):
         data = request.data if hasattr(request, "data") else request.POST
         try:
             return resp_ok(AuthService.verify_password_reset_by_payload(data))
+        except CheckedException as exc:
+            return resp_err(
+                data=exc.data,
+                code=exc.ret_code,
+                message=exc.message,
+                detail=exc.detail,
+                status=exc.http_status,
+            )
         except ValueError as exc:
             return resp_err(code=RET_INVALID_PARAM, message=str(exc))

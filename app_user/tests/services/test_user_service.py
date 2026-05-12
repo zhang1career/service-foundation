@@ -59,9 +59,11 @@ class TestUserService(SimpleTestCase):
 
 
 class TestUserServiceUpdateMe(SimpleTestCase):
+    @patch("app_user.services.user_service.get_user_by_id")
     @patch("app_user.services.user_service.user_to_public_dict")
     @patch("app_user.services.user_service.update_user_profile")
-    def test_update_me_avatar_none_skips_upload(self, mock_prof, mock_pub):
+    def test_update_me_avatar_none_skips_upload(self, mock_prof, mock_pub, mock_gu):
+        mock_gu.return_value = MagicMock(auth_status=2)
         mock_prof.return_value = MagicMock()
         mock_pub.return_value = {"ok": True}
         UserService.update_me(1, None, None, None, None)
@@ -69,10 +71,12 @@ class TestUserServiceUpdateMe(SimpleTestCase):
         call_kw = mock_prof.call_args.kwargs
         self.assertIsNone(call_kw.get("avatar"))
 
+    @patch("app_user.services.user_service.get_user_by_id")
     @patch("app_user.services.user_service.upload_avatar")
     @patch("app_user.services.user_service.user_to_public_dict")
     @patch("app_user.services.user_service.update_user_profile")
-    def test_update_me_passes_avatar_url(self, mock_prof, mock_pub, mock_up):
+    def test_update_me_passes_avatar_url(self, mock_prof, mock_pub, mock_up, mock_gu):
+        mock_gu.return_value = MagicMock(auth_status=2)
         mock_up.return_value = "/api/oss/b/p.png"
         mock_prof.return_value = MagicMock()
         mock_pub.return_value = {}
@@ -82,22 +86,28 @@ class TestUserServiceUpdateMe(SimpleTestCase):
 
 
 class TestUserServiceUpdateMeRequest(SimpleTestCase):
-    def test_update_me_request_invalid_channel(self):
+    @patch("app_user.services.user_service.get_user_by_id")
+    def test_update_me_request_invalid_channel(self, mock_gu):
+        mock_gu.return_value = MagicMock(auth_status=2)
         with self.assertRaises(ValueError):
             UserService.update_me_request_by_payload(
                 1,
                 {"notice_channel": "fax", "notice_target": "t"},
             )
 
-    def test_update_me_request_missing_target(self):
+    @patch("app_user.services.user_service.get_user_by_id")
+    def test_update_me_request_missing_target(self, mock_gu):
+        mock_gu.return_value = MagicMock(auth_status=2)
         with self.assertRaises(ValueError):
             UserService.update_me_request_by_payload(
                 1,
                 {"notice_channel": "email", "notice_target": ""},
             )
 
+    @patch("app_user.services.user_service.get_user_by_id")
     @patch("app_user.services.user_service.create_verify_event_and_send_notice")
-    def test_update_me_request_success(self, mock_create):
+    def test_update_me_request_success(self, mock_create, mock_gu):
+        mock_gu.return_value = MagicMock(auth_status=2)
         mock_create.return_value = SimpleNamespace(id=77)
         out = UserService.update_me_request_by_payload(
             1,
@@ -112,13 +122,15 @@ class TestUserServiceUpdateMeRequest(SimpleTestCase):
 
 
 class TestUserServiceUpdateMeVerify(SimpleTestCase):
+    @patch("app_user.services.user_service.get_user_by_id")
     @patch("app_user.services.user_service.update_event_status")
     @patch("app_user.services.user_service.update_user_profile")
     @patch("app_user.services.user_service.verify_payload_code_for_pending_event")
     @patch("app_user.services.user_service.user_to_public_dict")
     def test_update_me_verify_success(
-            self, mock_pub, mock_verify, mock_prof, mock_ev,
+            self, mock_pub, mock_verify, mock_prof, mock_ev, mock_gu,
     ):
+        mock_gu.return_value = MagicMock(auth_status=2)
         ev = SimpleNamespace(id=3)
         mock_verify.return_value = (ev, {"email": "e@e.com", "phone": None, "avatar": None, "ext": None})
         u = MagicMock()

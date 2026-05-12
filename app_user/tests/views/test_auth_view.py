@@ -9,6 +9,7 @@ from app_user.views.auth_view import (
     LoginView,
     PasswordResetVerifyView,
     PasswordResetView,
+    RegisterResumeRequestView,
     RegisterVerifyView,
     RegisterView,
 )
@@ -74,6 +75,25 @@ class AuthViewsTest(SimpleTestCase):
         self.assertEqual(body["errorCode"], RET_DUPLICATE_REQUEST)
         self.assertEqual(body["message"], "dup msg")
         self.assertEqual(body["data"], {"event_id": 0})
+
+    @patch("app_user.views.auth_view.AuthService.register_resume_request_by_payload")
+    def test_register_resume_post_success(self, mock_resume):
+        mock_resume.return_value = {"event_id": 55}
+        request = self.factory.post(
+            "/api/user/register/request",
+            data={"notice_channel": "email", "notice_target": "a@b.c"},
+            format="json",
+            HTTP_X_USER_ACCESS_TOKEN="fake",
+        )
+        with patch(
+            "app_user.views.auth_view.bearer_user_id_from_request",
+            return_value=(3, 0, ""),
+        ):
+            response = RegisterResumeRequestView.as_view()(request)
+        body = _json_response(response)
+        self.assertEqual(body["errorCode"], RET_OK)
+        self.assertEqual(body["data"]["event_id"], 55)
+        mock_resume.assert_called_once()
 
     @patch("app_user.views.auth_view.AuthService.register_verify_by_payload")
     def test_register_verify_post_success(self, mock_verify):

@@ -23,6 +23,7 @@ from app_user.repos import (
     get_latest_incomplete_event_by_notice,
     update_event_status,
     update_user_password,
+    update_user_auth_status,
 )
 from app_user.repos.token_repo import (
     deprecate_all_tokens_for_user,
@@ -47,7 +48,10 @@ from app_user.services.user_disposition_service import (
     LOGIN_FORBIDDEN_PUBLIC_MESSAGE,
     error_for_user_disposition,
 )
-from app_user.utils.user_serialization import user_to_public_dict
+from app_user.services.registration_gate import (
+    assert_register_resume_rate_limits,
+    assert_registration_notice_verified,
+)
 from app_user.services.verify_notice_service import (
     create_verify_event_and_send_notice,
     load_verify_notice_access_keys,
@@ -63,6 +67,15 @@ from common.consts.response_const import (
     RET_TOKEN_REVOKED,
 )
 from common.exceptions.base_exception import CheckedException
+
+
+def _no_verify_flag(raw) -> bool:
+    if raw is None or raw is False:
+        return False
+    if raw is True:
+        return True
+    s = str(raw).strip().lower()
+    return s in ("1", "true", "yes", "on")
 
 
 class AuthService:
@@ -234,6 +247,8 @@ class AuthService:
         if not user or user.status != UserStatusEnum.ENABLED.value:
             return {"sent": True}
 
+        assert_registration_notice_verified(user)
+
         cancel_pending_events_by_notice(
             EventBizTypeEnum.PASSWORD_RESET.value,
             notice_channel,
@@ -297,6 +312,8 @@ class AuthService:
         if not user or user.status != UserStatusEnum.ENABLED.value:
             raise ValueError("user not found or inactive")
 
+        assert_registration_notice_verified(user)
+
         verify_access_key, _ = load_verify_notice_access_keys()
         verify_resp = post_verify_check(
             verify_access_key=verify_access_key,
@@ -317,7 +334,70 @@ class AuthService:
         return True
 
     @staticmethod
+    def _register_pending_notice_guard(notice_target: str) -> None:
+        ttl_ms = int(settings.VERIFY_CODE_TTL_SECONDS) * 1000
+        prior = get_latest_incomplete_event_by_notice(
+            EventBizTypeEnum.REGISTER.value,
+            notice_target,
+        )
+        if prior and get_now_timestamp_ms() - int(prior.ct) < ttl_ms:
+            raise CheckedException(
+                detail="register already pending for this notice target",
+                ret_code=RET_DUPLICATE_REQUEST,
+                message="该联系方式在验证码有效期内已发起过注册，请使用已发送的验证码或稍后再试。",
+                data={"event_id": int(prior.id)},
+                http_status=200,
+            )
+
+    @staticmethod
+    def register_resume_request_by_payload(*, user_id: int, payload: dict, client_ip: str) -> dict:
+        user = get_user_by_id(user_id)
+        if not user:
+            raise ValueError("user not found")
+        if int(user.auth_status) != 0:
+            raise ValueError("registration already verified")
+        notice_channel = (payload.get("notice_channel") or "").strip().lower()
+        notice_target = (payload.get("notice_target") or "").strip()
+        if not notice_target:
+            raise ValueError("notice_target is required")
+        if notice_channel not in {"email", "sms"}:
+            raise ValueError("notice_channel must be email or sms")
+        assert_register_resume_rate_limits(client_ip=client_ip, user_id=user_id)
+        ch_int = ChannelEnum.from_label(notice_channel)
+        if int(ch_int) == ChannelEnum.EMAIL.value:
+            if (user.email or "").strip() != notice_target:
+                raise ValueError("notice_target must match account email")
+        else:
+            if (user.phone or "").strip() != notice_target:
+                raise ValueError("notice_target must match account phone")
+
+        AuthService._register_pending_notice_guard(notice_target)
+
+        cancel_pending_events_by_notice(
+            EventBizTypeEnum.REGISTER.value,
+            ch_int,
+            notice_target,
+        )
+        pending_payload = {"user_id": user.id, "username": user.username}
+        event = create_verify_event_and_send_notice(
+            biz_type=EventBizTypeEnum.REGISTER,
+            level=VerifyLevelEnum.HIGH.value,
+            notice_channel=ch_int,
+            notice_target=notice_target,
+            payload_json=json.dumps(pending_payload, ensure_ascii=False),
+            subject="Register verify code",
+            content_template="Your register verify code is {code}. Event ID: {event_id}",
+        )
+        return {"event_id": event.id}
+
+    @staticmethod
     def register_request_by_payload(payload: dict) -> dict:
+        if _no_verify_flag(payload.get("no_verify")):
+            return AuthService._register_no_verify_by_payload(payload)
+        return AuthService._register_classic_request_by_payload(payload)
+
+    @staticmethod
+    def _register_classic_request_by_payload(payload: dict) -> dict:
         username = (payload.get("username") or "").strip()
         password = payload.get("password") or ""
         email = (payload.get("email") or "").strip()
@@ -339,19 +419,7 @@ class AuthService:
         if phone and get_user_by_phone(phone):
             raise ValueError("phone already exists")
 
-        ttl_ms = int(settings.VERIFY_CODE_TTL_SECONDS) * 1000
-        prior = get_latest_incomplete_event_by_notice(
-            EventBizTypeEnum.REGISTER.value,
-            notice_target,
-        )
-        if prior and get_now_timestamp_ms() - int(prior.ct) < ttl_ms:
-            raise CheckedException(
-                detail="register already pending for this notice target",
-                ret_code=RET_DUPLICATE_REQUEST,
-                message="该联系方式在验证码有效期内已发起过注册，请使用已发送的验证码或稍后再试。",
-                data={"event_id": int(prior.id)},
-                http_status=200,
-            )
+        AuthService._register_pending_notice_guard(notice_target)
 
         avatar_url = upload_avatar(avatar) if avatar else ""
         pending_payload = {
@@ -374,11 +442,57 @@ class AuthService:
         return {"event_id": event.id}
 
     @staticmethod
+    def _register_no_verify_by_payload(payload: dict) -> dict:
+        username = (payload.get("username") or "").strip()
+        password = payload.get("password") or ""
+        email = (payload.get("email") or "").strip()
+        phone = (payload.get("phone") or "").strip()
+        avatar = payload.get("avatar")
+        ext = payload.get("ext") if isinstance(payload.get("ext"), dict) else {}
+        notice_channel = (payload.get("notice_channel") or "").strip().lower()
+        notice_target = (payload.get("notice_target") or "").strip()
+        if not notice_target:
+            raise ValueError("notice_target is required")
+        if notice_channel not in {"email", "sms"}:
+            raise ValueError("notice_channel must be email or sms")
+        if not username or not password:
+            raise ValueError("username and password are required")
+        if get_user_by_username(username):
+            raise ValueError("username already exists")
+        if email and get_user_by_email(email):
+            raise ValueError("email already exists")
+        if phone and get_user_by_phone(phone):
+            raise ValueError("phone already exists")
+
+        AuthService._register_pending_notice_guard(notice_target)
+
+        avatar_url = upload_avatar(avatar) if avatar else ""
+        with transaction.atomic(using="user_rw"):
+            user = create_user(
+                username=username,
+                password_hash=make_password(password),
+                email=email,
+                phone=phone,
+                avatar=avatar_url,
+                ext=ext,
+            )
+            user.status = UserStatusEnum.ENABLED.value
+            user.save(using="user_rw", update_fields=["status"])
+            return AuthService._issue_session_tokens(user)
+
+    @staticmethod
     def register_verify_by_payload(payload: dict) -> dict:
         event, data = verify_payload_code_for_pending_event(
             payload=payload,
             expected_biz_type=EventBizTypeEnum.REGISTER,
         )
+        resume_uid = int(data.get("user_id") or 0)
+        if resume_uid > 0:
+            return AuthService._register_verify_resume(event, resume_uid)
+        return AuthService._register_verify_create_user(event, data)
+
+    @staticmethod
+    def _register_verify_create_user(event, data: dict) -> dict:
         with transaction.atomic(using="user_rw"):
             user = create_user(
                 username=(data.get("username") or "").strip(),
@@ -397,6 +511,31 @@ class AuthService:
                 message="completed",
             )
             return AuthService._issue_session_tokens(user)
+
+    @staticmethod
+    def _register_verify_resume(event, resume_uid: int) -> dict:
+        with transaction.atomic(using="user_rw"):
+            user = get_user_by_id(resume_uid)
+            if not user:
+                raise ValueError("user not found")
+            if int(user.auth_status) != 0:
+                raise ValueError("registration already verified")
+            if int(event.notice_channel) == ChannelEnum.EMAIL.value:
+                if (user.email or "").strip() != (event.notice_target or "").strip():
+                    raise ValueError("notice target mismatch for email")
+            else:
+                if (user.phone or "").strip() != (event.notice_target or "").strip():
+                    raise ValueError("notice target mismatch for phone")
+            reg_bit = registration_bit_for_notice_channel(event.notice_channel)
+            new_mask = int(user.auth_status) | reg_bit
+            updated = update_user_auth_status(user_id=user.id, auth_status=new_mask)
+            eff = updated or get_user_by_id(user.id)
+            update_event_status(
+                event.id,
+                status=EventStatusEnum.COMPLETED.value,
+                message="completed",
+            )
+            return AuthService._issue_session_tokens(eff)
 
     @staticmethod
     def _issue_session_tokens(user) -> dict:

@@ -1,5 +1,6 @@
 from app_user.views.auth_view import (
     RegisterView,
+    RegisterResumeRequestView,
     RegisterVerifyView,
     LoginView,
     PasswordResetView,
@@ -22,6 +23,7 @@ from app_user.views.user_view import (
 
 __all__ = [
     "RegisterView",
+    "RegisterResumeRequestView",
     "RegisterVerifyView",
     "LoginView",
     "PasswordResetView",

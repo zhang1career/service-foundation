@@ -12,7 +12,7 @@ from app_user.repos import (
     update_user_profile,
     update_user_status,
 )
-from app_user.services.avatar_storage_service import upload_avatar
+from app_user.services.registration_gate import assert_registration_notice_verified
 from app_user.utils.user_serialization import user_to_console_dict, user_to_public_dict
 from app_user.services.verify_notice_service import (
     create_verify_event_and_send_notice,
@@ -35,6 +35,10 @@ class UserService:
 
     @staticmethod
     def update_me(user_id: int, email: Optional[str], phone: Optional[str], avatar, ext: Optional[dict]) -> Optional[dict]:
+        u0 = get_user_by_id(user_id)
+        if not u0:
+            return None
+        assert_registration_notice_verified(u0)
         avatar_url = None
         if avatar is not None:
             avatar_url = upload_avatar(avatar) if avatar else ""
@@ -45,6 +49,10 @@ class UserService:
 
     @staticmethod
     def update_me_request_by_payload(user_id: int, payload: dict) -> dict:
+        u0 = get_user_by_id(user_id)
+        if not u0:
+            raise ValueError("user not found")
+        assert_registration_notice_verified(u0)
         notice_channel = (payload.get("notice_channel") or "").strip().lower()
         notice_target = (payload.get("notice_target") or "").strip()
         if notice_channel not in {"email", "sms"}:
@@ -70,6 +78,10 @@ class UserService:
 
     @staticmethod
     def update_me_verify_by_payload(user_id: int, payload: dict) -> Optional[dict]:
+        u0 = get_user_by_id(user_id)
+        if not u0:
+            raise ValueError("user not found")
+        assert_registration_notice_verified(u0)
         event, data = verify_payload_code_for_pending_event(
             payload=payload,
             expected_biz_type=EventBizTypeEnum.UPDATE_PROFILE,

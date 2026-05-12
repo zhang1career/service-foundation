@@ -13,6 +13,7 @@ from common.consts.response_const import (
     RET_TOKEN_EXPIRED,
     RET_TOKEN_INVALID,
 )
+from common.exceptions.base_exception import CheckedException
 from common.utils.http_util import resp_ok, resp_err, with_type
 
 
@@ -87,13 +88,22 @@ class UserMeView(APIView):
         avatar = data.get("avatar") if "avatar" in data else None
         if hasattr(request, "FILES") and request.FILES.get("avatar"):
             avatar = request.FILES.get("avatar")
-        user = UserService.update_me(
-            user_id=user_id,
-            email=data.get("email") if "email" in data else None,
-            phone=data.get("phone") if "phone" in data else None,
-            avatar=avatar,
-            ext=data.get("ext") if "ext" in data else None,
-        )
+        try:
+            user = UserService.update_me(
+                user_id=user_id,
+                email=data.get("email") if "email" in data else None,
+                phone=data.get("phone") if "phone" in data else None,
+                avatar=avatar,
+                ext=data.get("ext") if "ext" in data else None,
+            )
+        except CheckedException as exc:
+            return resp_err(
+                data=exc.data,
+                code=exc.ret_code,
+                message=exc.message,
+                detail=exc.detail,
+                status=exc.http_status,
+            )
         if not user:
             return resp_err(code=RET_RESOURCE_NOT_FOUND, message="user not found")
         return resp_ok(user)
@@ -107,6 +117,14 @@ class UserMeUpdateRequestView(APIView):
         data = request.data if hasattr(request, "data") else request.POST
         try:
             return resp_ok(UserService.update_me_request_by_payload(user_id=user_id, payload=data))
+        except CheckedException as exc:
+            return resp_err(
+                data=exc.data,
+                code=exc.ret_code,
+                message=exc.message,
+                detail=exc.detail,
+                status=exc.http_status,
+            )
         except ValueError as exc:
             return resp_err(code=RET_INVALID_PARAM, message=str(exc))
 
@@ -119,6 +137,14 @@ class UserMeUpdateVerifyView(APIView):
         data = request.data if hasattr(request, "data") else request.POST
         try:
             user = UserService.update_me_verify_by_payload(user_id=user_id, payload=data)
+        except CheckedException as exc:
+            return resp_err(
+                data=exc.data,
+                code=exc.ret_code,
+                message=exc.message,
+                detail=exc.detail,
+                status=exc.http_status,
+            )
         except ValueError as exc:
             return resp_err(code=RET_INVALID_PARAM, message=str(exc))
         if not user:
@@ -146,19 +172,14 @@ class UserDetailView(APIView):
 
 
 class UserConsoleListView(APIView):
-    """
-    控制台新建用户：
-    - 直接插入 user 记录（auth_status=0）
-    - 触发验证码下发（verify + notice）
-    """
+    """控制台新建用户：走公开注册发码流程（``POST /register`` 等价逻辑）。"""
 
     def post(self, request, *args, **kwargs):
         data = request.data if hasattr(request, "data") else request.POST
         payload = _extract_console_payload(data)
         if hasattr(request, "FILES") and request.FILES.get("avatar"):
             payload["avatar"] = request.FILES.get("avatar")
-        # Keep console create flow consistent with public register:
-        # create register event first, then create user after verify passed.
+        # 与公开注册一致：先事件，验码后建用户（非 no_verify）。
         email = (payload.get("email") or "").strip()
         phone = (payload.get("phone") or "").strip()
         if not payload.get("notice_target"):

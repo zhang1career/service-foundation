@@ -165,8 +165,8 @@
     "/register": {
       "post": {
         "tags": ["Auth"],
-        "summary": "注册（请求验证码）",
-        "description": "创建待注册事件并调用 verify/notice 服务下发验证码。支持 JSON 或 multipart（含 avatar 文件）。",
+        "summary": "注册（请求验证码或 no_verify 直接建号）",
+        "description": "默认：创建 REGISTER 事件并下发验证码，返回 event_id。`no_verify=1`（或 true）时：直接创建已启用用户（auth_status=0）、返回 access_token/refresh_token；后续用 `POST /register/request` 补发验证码，再 `POST /register/verify` 完成渠道验证。",
         "operationId": "userRegisterRequest",
         "requestBody": {
           "required": true,
@@ -180,6 +180,7 @@
                   "password": { "type": "string" },
                   "email": { "type": "string" },
                   "phone": { "type": "string" },
+                  "no_verify": { "type": "integer", "enum": [0, 1], "description": "1 时跳过发码、直接建号并发 token" },
                   "ext": { "type": "object", "additionalProperties": true },
                   "notice_channel": { "type": "string", "enum": ["email", "sms"] },
                   "notice_target": { "type": "string" }
@@ -206,7 +207,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功时 data 含 event_id；失败 errorCode=100 等",
+            "description": "成功时 data 为 event_id 或 LoginTokens（no_verify 时）",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/StdResponse" },
@@ -221,10 +222,44 @@
         }
       }
     },
+    "/register/request": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "注册补发验证码（no_verify 后续）",
+        "description": "需 `X-User-Access-Token`；当前用户 `auth_status==0`。`notice_target` 须与账号邮箱或手机号一致。返回 event_id，再调 `POST /register/verify`。",
+        "operationId": "userRegisterResumeRequest",
+        "security": [{ "UserAccessTokenHeader": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["notice_channel", "notice_target"],
+                "properties": {
+                  "notice_channel": { "type": "string", "enum": ["email", "sms"] },
+                  "notice_target": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/register/verify": {
       "post": {
         "tags": ["Auth"],
         "summary": "注册（提交验证码）",
+        "description": "事件 payload 无 user_id：创建用户并写注册渠道位；有 user_id：为 no_verify 续验证，更新 auth_status 并轮换会话令牌。",
         "operationId": "userRegisterVerify",
         "requestBody": {
           "required": true,
