@@ -51,7 +51,7 @@
 {% block extra_js %}
 <script>
 const USER_ID = {{ user_id }};
-const API_USER_DETAIL = '/api/user/users/' + USER_ID;
+const API_USER_DETAIL = '/api/user/console/users/' + USER_ID;
 const API_USER_UPDATE = '/api/user/console/users/' + USER_ID;
 
 async function loadUserForEdit() {

@@ -31,6 +31,31 @@ class ListOrderByFieldTest(SimpleTestCase):
 
 
 class ContentReadServiceDetailTest(SimpleTestCase):
+    def test_detail_by_pks_empty(self):
+        resolver = MagicMock()
+        svc = ContentReadService(resolver=resolver)
+        self.assertEqual(svc.detail_by_pks(MagicMock(), []), [])
+
+    def test_detail_by_pks_preserves_order_and_skips_missing(self):
+        resolver = MagicMock()
+        meta = MagicMock()
+        serializer = MagicMock()
+        serializer.detail.side_effect = lambda m, obj: {"id": obj.pk, "title": f"t{obj.pk}"}
+
+        o1 = MagicMock()
+        o1.pk = 10
+        o2 = MagicMock()
+        o2.pk = 20
+        dyn = MagicMock()
+        dyn.objects.filter.return_value = [o2, o1]
+        resolver.model_class.return_value = dyn
+        resolver.eager_select_related.return_value = []
+
+        svc = ContentReadService(resolver=resolver, serializer=serializer)
+        out = svc.detail_by_pks(meta, [20, 99, 10])
+        self.assertEqual(out, [{"id": 20, "title": "t20"}, {"id": 10, "title": "t10"}])
+        dyn.objects.filter.assert_called_once_with(pk__in=[20, 99, 10])
+
     def test_detail_by_pk_raises_404_when_row_missing(self):
         resolver = MagicMock()
         dyn = MagicMock()

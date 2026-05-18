@@ -3,9 +3,10 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
-from app_user.utils.jwt_util import create_access_token
+from app_user.utils.jwt_util import create_access_token, jwt_signing_secret
 from app_user.utils.auth_context import bearer_user_id_from_request
 from common.consts.response_const import RET_LOGIN_REQUIRED, RET_TOKEN_INVALID, RET_TOKEN_REVOKED
+from common.utils.jwt_codec import claims_with_expiry, encode_hs256_token
 
 
 class TestAuthContext(SimpleTestCase):
@@ -37,9 +38,23 @@ class TestAuthContext(SimpleTestCase):
         self.assertIsNone(user_id)
         self.assertEqual(code, RET_TOKEN_INVALID)
 
+    def test_access_token_missing_auth_status_returns_invalid(self):
+        claims = claims_with_expiry(
+            {"type": "access", "user_id": 1, "username": "x"},
+            300,
+        )
+        token = encode_hs256_token(claims, jwt_signing_secret())
+        request = self.factory.get(
+            "/api/x",
+            HTTP_X_USER_ACCESS_TOKEN=token,
+        )
+        user_id, code, _message = bearer_user_id_from_request(request)
+        self.assertIsNone(user_id)
+        self.assertEqual(code, RET_TOKEN_INVALID)
+
     @patch("app_user.utils.auth_context.access_token_in_use", return_value=True)
     def test_valid_access_token_returns_user_id(self, _mock_in_use):
-        token = create_access_token(user_id=8, username="u8")
+        token = create_access_token(user_id=8, username="u8", auth_status=0)
         request = self.factory.get(
             "/api/x",
             HTTP_X_USER_ACCESS_TOKEN=token,
@@ -51,7 +66,7 @@ class TestAuthContext(SimpleTestCase):
 
     @patch("app_user.utils.auth_context.access_token_in_use", return_value=False)
     def test_access_token_not_in_database_returns_revoked(self, _mock_in_use):
-        token = create_access_token(user_id=8, username="u8")
+        token = create_access_token(user_id=8, username="u8", auth_status=0)
         request = self.factory.get(
             "/api/x",
             HTTP_X_USER_ACCESS_TOKEN=token,

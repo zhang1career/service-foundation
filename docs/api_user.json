@@ -19,7 +19,7 @@
       "name": "Me",
       "description": "当前登录用户：资料、轻量 JWT 校验。鉴权使用请求头 `X-User-Access-Token`（登录/注册返回的 access_token 原始 JWT），不使用 `Authorization: Bearer`。"
     },
-    { "name": "Users", "description": "用户列表与按 ID 查询/改状态" },
+    { "name": "Users", "description": "用户列表与按 ID 查询" },
     { "name": "Console", "description": "控制台用户与事件管理（无额外网关鉴权，部署时需自行保护）" }
   ],
   "components": {
@@ -55,7 +55,14 @@
           "phone": { "type": "string" },
           "avatar": { "type": "string", "description": "头像 URL 或空串" },
           "status": { "type": "integer", "description": "0 禁用，1 启用（user_status）" },
-          "auth_status": { "type": "integer", "description": "位掩码，控制台验证码认证等" },
+          "auth_status": { "type": "integer", "description": "bit0 控制台 bit1 邮箱注册 bit2 短信注册" },
+          "auth_status_detail": {
+            "type": "object",
+            "properties": {
+              "console": { "type": "boolean" },
+              "email": { "type": "boolean" }
+            }
+          },
           "ext": { "type": "object", "additionalProperties": true },
           "ct": { "type": "integer", "format": "int64", "description": "创建时间 ms" },
           "ut": { "type": "integer", "format": "int64", "description": "更新时间 ms" }
@@ -112,7 +119,7 @@
       },
       "JwtValidateResult": {
         "type": "object",
-        "required": ["user_id", "permissions"],
+        "required": ["user_id", "permissions", "auth_status"],
         "properties": {
           "user_id": { "type": "integer", "description": "access JWT 内 user_id" },
           "username": { "type": "string", "description": "JWT 内 username，可能缺失" },
@@ -120,9 +127,10 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "权限占位，当前恒为空数组"
-          }
+          },
+          "auth_status": { "type": "integer", "description": "access JWT 内 auth_status（签发时写入）" }
         },
-        "description": "仅校验 JWT（验签、exp、type=access、user_id）；不查 token 表，不返回完整 User"
+        "description": "验签与 exp；access JWT 须含 user_id、auth_status（int）。不查 token 表。"
       }
     }
   },
@@ -157,8 +165,8 @@
     "/register": {
       "post": {
         "tags": ["Auth"],
-        "summary": "注册（请求验证码）",
-        "description": "创建待注册事件并调用 verify/notice 服务下发验证码。支持 JSON 或 multipart（含 avatar 文件）。",
+        "summary": "注册（请求验证码或 no_verify 直接建号）",
+        "description": "默认：创建 REGISTER 事件并下发验证码，返回 event_id。`no_verify=1`（或 true）时：直接创建已启用用户（auth_status=0）、返回 access_token/refresh_token；后续用 `POST /register/request` 补发验证码，再 `POST /register/verify` 完成渠道验证。",
         "operationId": "userRegisterRequest",
         "requestBody": {
           "required": true,
@@ -172,6 +180,7 @@
                   "password": { "type": "string" },
                   "email": { "type": "string" },
                   "phone": { "type": "string" },
+                  "no_verify": { "type": "integer", "enum": [0, 1], "description": "1 时跳过发码、直接建号并发 token" },
                   "ext": { "type": "object", "additionalProperties": true },
                   "notice_channel": { "type": "string", "enum": ["email", "sms"] },
                   "notice_target": { "type": "string" }
@@ -198,7 +207,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功时 data 含 event_id；失败 errorCode=100 等",
+            "description": "成功时 data 为 event_id 或 LoginTokens（no_verify 时）",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/StdResponse" },
@@ -213,10 +222,44 @@
         }
       }
     },
+    "/register/request": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "注册补发验证码（no_verify 后续）",
+        "description": "需 `X-User-Access-Token`；当前用户 `auth_status==0`。`notice_target` 须与账号邮箱或手机号一致。返回 event_id，再调 `POST /register/verify`。",
+        "operationId": "userRegisterResumeRequest",
+        "security": [{ "UserAccessTokenHeader": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["notice_channel", "notice_target"],
+                "properties": {
+                  "notice_channel": { "type": "string", "enum": ["email", "sms"] },
+                  "notice_target": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/register/verify": {
       "post": {
         "tags": ["Auth"],
         "summary": "注册（提交验证码）",
+        "description": "事件 payload 无 user_id：创建用户并写注册渠道位；有 user_id：为 no_verify 续验证，更新 auth_status 并轮换会话令牌。",
         "operationId": "userRegisterVerify",
         "requestBody": {
           "required": true,
@@ -375,7 +418,7 @@
       "get": {
         "tags": ["Me"],
         "summary": "当前用户资料",
-        "description": "需在请求头携带 `X-User-Access-Token`（有效 access JWT）；服务端会校验 JWT 并查询 `token` 表（吊销/过期见业务错误码）。",
+        "description": "需 `X-User-Access-Token`；校验 JWT 并查 token 表。`data` 含 `auth_status`、`auth_status_detail`（console/email）。",
         "operationId": "userMeGet",
         "security": [{ "UserAccessTokenHeader": [] }],
         "responses": {
@@ -436,7 +479,7 @@
       "get": {
         "tags": ["Me"],
         "summary": "轻量校验 access JWT",
-        "description": "请求头携带 `X-User-Access-Token`（access JWT）。仅本地校验 HS256 签名与 exp，并确认 claims 为 type=access 且含 user_id。**不**查询 `token` 表：登出/吊销后至 JWT 过期仍可能返回成功。需完整会话校验或用户资料请用 `GET /me`。`permissions` 预留，当前恒为 `[]`。错误码：未带头或值为空 202；非法 211；过期 212（见 response_const）。",
+        "description": "请求头携带 `X-User-Access-Token`（access JWT）。仅本地校验 HS256 与 exp；access 须含 `user_id`、`auth_status`（int）。不查 `token` 表。`permissions` 恒为 `[]`。错误码：未带头 202；非法 211；过期 212。",
         "operationId": "userMeJwtValidate",
         "security": [{ "UserAccessTokenHeader": [] }],
         "responses": {
@@ -450,7 +493,7 @@
                     "summary": "成功",
                     "value": {
                       "errorCode": 0,
-                      "data": { "user_id": 7, "username": "alice", "permissions": [] },
+                      "data": { "user_id": 7, "username": "alice", "permissions": [], "auth_status": 0 },
                       "message": ""
                     }
                   }
@@ -584,35 +627,6 @@
         "responses": {
           "200": {
             "description": "不存在 errorCode=301",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/StdResponse" }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": ["Users"],
-        "summary": "更新用户状态",
-        "description": "body 必须含 status（0 禁用 / 1 启用）。",
-        "operationId": "userSetStatus",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["status"],
-                "properties": {
-                  "status": { "type": "integer", "enum": [0, 1] }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/StdResponse" }

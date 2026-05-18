@@ -3,6 +3,7 @@ from django.urls import path
 from common.views.dict_codes_view import DictCodesView
 from app_user.views import (
     RegisterView,
+    RegisterResumeRequestView,
     RegisterVerifyView,
     LoginView,
     PasswordResetView,
@@ -27,6 +28,7 @@ urlpatterns = [
     path("dict", DictCodesView.as_view(), name="user-dict"),
     path("health", UserHealthView.as_view(), name="user-health"),
     path("register", RegisterView.as_view(), name="user-register"),
+    path("register/request", RegisterResumeRequestView.as_view(), name="user-register-resume"),
     path("register/verify", RegisterVerifyView.as_view(), name="user-register-verify"),
     path("login", LoginView.as_view(), name="user-login"),
     path("reset-password", PasswordResetView.as_view(), name="user-reset-request"),

@@ -48,3 +48,20 @@ class ContentReadService:
 
     def list_item_array(self, meta: CmsContentMeta, model) -> dict:
         return self._serializer.list_item(meta, model)
+
+    def detail_by_pks(self, meta: CmsContentMeta, record_ids: list[int]) -> list[dict]:
+        """Return detail payloads for existing rows, in the same order as ``record_ids`` (duplicates skipped on read)."""
+        if not record_ids:
+            return []
+        cls = self._resolver.model_class(meta)
+        rel = self._resolver.eager_select_related(meta)
+        qs = cls.objects.filter(pk__in=record_ids)
+        if rel:
+            qs = qs.select_related(*rel)
+        by_pk = {obj.pk: obj for obj in qs}
+        out: list[dict] = []
+        for rid in record_ids:
+            obj = by_pk.get(rid)
+            if obj is not None:
+                out.append(self._serializer.detail(meta, obj))
+        return out

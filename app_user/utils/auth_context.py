@@ -32,6 +32,8 @@ def bearer_user_id_from_request(request):
     user_id = payload.get("user_id")
     if not user_id:
         return None, RET_TOKEN_INVALID, "invalid token"
+    if not isinstance(payload.get("auth_status"), int):
+        return None, RET_TOKEN_INVALID, "invalid token"
     if not access_token_in_use(user_id=user_id, access_token=token):
         return None, RET_TOKEN_REVOKED, "token revoked or expired"
     return user_id, 0, ""

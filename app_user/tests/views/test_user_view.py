@@ -9,7 +9,6 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
-from app_user.enums import UserStatusEnum
 from app_user.utils.jwt_util import create_access_token, jwt_signing_secret
 from app_user.views.user_view import (
     EventConsoleDetailView,
@@ -45,7 +44,7 @@ def _json_response(response):
 class UserViewsTest(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.access_token = create_access_token(user_id=7, username="me")
+        self.access_token = create_access_token(user_id=7, username="me", auth_status=0)
         patcher = patch(
             "app_user.utils.auth_context.access_token_in_use",
             return_value=True,
@@ -71,7 +70,7 @@ class UserViewsTest(SimpleTestCase):
     def test_jwt_validate_get_expired(self):
         past = int(time.time()) - 20_000
         claims = claims_with_expiry(
-            {"type": "access", "user_id": 3, "username": "exp"},
+            {"type": "access", "user_id": 3, "username": "exp", "auth_status": 0},
             ttl_seconds=60,
             now=past,
         )
@@ -95,6 +94,7 @@ class UserViewsTest(SimpleTestCase):
         self.assertEqual(body["data"]["user_id"], 7)
         self.assertEqual(body["data"]["username"], "me")
         self.assertEqual(body["data"]["permissions"], [])
+        self.assertEqual(body["data"]["auth_status"], 0)
 
     def test_me_get_login_required(self):
         request = self.factory.get("/api/user/me")
@@ -298,37 +298,6 @@ class UserViewsTest(SimpleTestCase):
         self.assertEqual(body["errorCode"], RET_OK)
         self.assertEqual(body["data"]["id"], 5)
 
-    def test_user_detail_patch_missing_status(self):
-        request = self.factory.patch("/api/user/users/1", data={}, format="json")
-        response = UserDetailView.as_view()(request, user_id=1)
-        body = _json_response(response)
-        self.assertEqual(body["errorCode"], RET_INVALID_PARAM)
-
-    def test_user_detail_patch_invalid_status(self):
-        request = self.factory.patch(
-            "/api/user/users/1",
-            data={"status": 99},
-            format="json",
-        )
-        response = UserDetailView.as_view()(request, user_id=1)
-        body = _json_response(response)
-        self.assertEqual(body["errorCode"], RET_INVALID_PARAM)
-
-    @patch("app_user.views.user_view.UserService.set_status")
-    def test_user_detail_patch_success(self, mock_set):
-        disabled = UserStatusEnum.DISABLED.value
-        mock_set.return_value = {"id": 1, "status": disabled}
-        request = self.factory.patch(
-            "/api/user/users/1",
-            data={"status": disabled},
-            format="json",
-        )
-        response = UserDetailView.as_view()(request, user_id=1)
-        body = _json_response(response)
-        self.assertEqual(body["errorCode"], RET_OK)
-        mock_set.assert_called_once_with(user_id=1, status=disabled)
-
-    @patch("app_user.views.user_view.AuthService.register_request_by_payload")
     def test_console_user_create_forwards_to_register_flow(self, mock_reg):
         mock_reg.return_value = {"event_id": 1}
         request = self.factory.post(

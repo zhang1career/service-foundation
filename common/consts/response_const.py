@@ -48,6 +48,7 @@ RET_RESOURCE_EXISTS = 302        # resource already exists
 RET_INVALID_STATE = 303          # invalid state
 RET_DUPLICATE_REQUEST = 304      # duplicate request
 RET_OPERATION_NOT_ALLOWED = 305  # operation not allowed
+RET_REGISTRATION_INCOMPLETE = 306  # registration notice channel not verified (auth_status == 0)
 
 
 # =========================

@@ -534,6 +534,7 @@ DICT_HTTP_PRIME_CODES = env("DICT_HTTP_PRIME_CODES", default="aibroker_nested_pa
 CMS_PROFILE = env("CMS_PROFILE", default="commerce")
 CMS_LIST_PER_PAGE = env.int("CMS_LIST_PER_PAGE", default=15)
 CMS_LIST_PER_PAGE_MAX = env.int("CMS_LIST_PER_PAGE_MAX", default=50)
+CMS_BATCH_DETAIL_MAX_IDS = env.int("CMS_BATCH_DETAIL_MAX_IDS", default=200)
 CMS_EXPOSE_META = env.bool("CMS_EXPOSE_META", default=True)
 
 # app_user: login brute-force counters (separate limits for login key vs client IP).
@@ -823,6 +824,15 @@ NOTICE_BROKER_JIANG_SEND_KEY = (env("NOTICE_BROKER_JIANG_SEND_KEY", default="") 
 VERIFY_REQUEST_URL = env("VERIFY_REQUEST_URL", default="http://127.0.0.1:8000/api/verify/request")
 VERIFY_CHECK_URL = env("VERIFY_CHECK_URL", default="http://127.0.0.1:8000/api/verify/check")
 VERIFY_CODE_TTL_SECONDS = env.int("VERIFY_CODE_TTL_SECONDS", default=300)
+
+USER_REGISTER_RESUME_IP_WINDOW_SECONDS = env.int(
+    "USER_REGISTER_RESUME_IP_WINDOW_SECONDS", default=3600,
+)
+USER_REGISTER_RESUME_IP_MAX = env.int("USER_REGISTER_RESUME_IP_MAX", default=40)
+USER_REGISTER_RESUME_USER_WINDOW_SECONDS = env.int(
+    "USER_REGISTER_RESUME_USER_WINDOW_SECONDS", default=86400,
+)
+USER_REGISTER_RESUME_USER_MAX = env.int("USER_REGISTER_RESUME_USER_MAX", default=10)
 
 KNOW_AIBROKER_ACCESS_KEY = env("KNOW_AIBROKER_ACCESS_KEY", default="")
 KNOW_SIMILARITY_REUSE_THRESHOLD = env.float("KNOW_SIMILARITY_REUSE_THRESHOLD", default=0.99)

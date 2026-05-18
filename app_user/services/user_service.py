@@ -1,6 +1,7 @@
 import json
 from typing import Optional, Sequence
 
+from app_user.auth_status_bits import AUTH_BIT_CONSOLE
 from app_user.enums import EventBizTypeEnum, EventStatusEnum
 from app_user.repos import (
     clear_user_disposition,
@@ -11,7 +12,7 @@ from app_user.repos import (
     update_user_profile,
     update_user_status,
 )
-from app_user.services.avatar_storage_service import upload_avatar
+from app_user.services.registration_gate import assert_registration_notice_verified
 from app_user.utils.user_serialization import user_to_console_dict, user_to_public_dict
 from app_user.services.verify_notice_service import (
     create_verify_event_and_send_notice,
@@ -24,9 +25,6 @@ from common.consts.query_const import LIMIT_LIST, LIMIT_PAGE
 from common.utils.page_util import build_page
 
 
-AUTH_BIT_VERIFY_CODE = 1 << 0
-
-
 class UserService:
     @staticmethod
     def get_me(user_id: int) -> Optional[dict]:
@@ -37,6 +35,10 @@ class UserService:
 
     @staticmethod
     def update_me(user_id: int, email: Optional[str], phone: Optional[str], avatar, ext: Optional[dict]) -> Optional[dict]:
+        u0 = get_user_by_id(user_id)
+        if not u0:
+            return None
+        assert_registration_notice_verified(u0)
         avatar_url = None
         if avatar is not None:
             avatar_url = upload_avatar(avatar) if avatar else ""
@@ -47,6 +49,10 @@ class UserService:
 
     @staticmethod
     def update_me_request_by_payload(user_id: int, payload: dict) -> dict:
+        u0 = get_user_by_id(user_id)
+        if not u0:
+            raise ValueError("user not found")
+        assert_registration_notice_verified(u0)
         notice_channel = (payload.get("notice_channel") or "").strip().lower()
         notice_target = (payload.get("notice_target") or "").strip()
         if notice_channel not in {"email", "sms"}:
@@ -72,6 +78,10 @@ class UserService:
 
     @staticmethod
     def update_me_verify_by_payload(user_id: int, payload: dict) -> Optional[dict]:
+        u0 = get_user_by_id(user_id)
+        if not u0:
+            raise ValueError("user not found")
+        assert_registration_notice_verified(u0)
         event, data = verify_payload_code_for_pending_event(
             payload=payload,
             expected_biz_type=EventBizTypeEnum.UPDATE_PROFILE,
@@ -160,7 +170,7 @@ class UserService:
             )
             raise ValueError("验证码无效或已过期")
 
-        new_mask = (getattr(user, "auth_status", 0) or 0) | AUTH_BIT_VERIFY_CODE
+        new_mask = int(user.auth_status) | AUTH_BIT_CONSOLE
         updated = update_user_auth_status(user_id=user.id, auth_status=new_mask)
         update_event_status(event.id, status=EventStatusEnum.COMPLETED.value, message="completed")
         return {"user": user_to_console_dict(updated or user), "auth_status": new_mask}
