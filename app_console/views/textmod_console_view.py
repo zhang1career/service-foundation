@@ -27,8 +27,10 @@ from app_textmod.repos.lexicon_repo import (
     list_entries_for_lexicon_page,
     list_lexicons,
     update_entry,
+    update_entry_enabled,
 )
 from app_textmod.services.lexicon_publish_service import LexiconPublishService
+from common.dict_catalog import get_dict_by_codes
 
 _ENTRY_PAGE_SIZE = 50
 _ENTRY_MAX_PAGE = 200
@@ -89,6 +91,20 @@ def _parse_optional_int(raw: object) -> int | None:
         return int(s, 10)
     except ValueError:
         return None
+
+
+def _build_dict_value_label_map(dict_code: str) -> dict[int, str]:
+    raw = get_dict_by_codes(dict_code).get(dict_code) or []
+    out: dict[int, str] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        try:
+            value = int(item.get("v"))
+        except (TypeError, ValueError):
+            continue
+        out[value] = str(item.get("k", value))
+    return out
 
 
 def _sanitize_entry_query(raw_query: str) -> str:
@@ -202,11 +218,8 @@ class TextmodLexiconDetailView(_TextmodConsoleMixin, TemplateView):
         if lex is None:
             raise Http404()
         ctx["lexicon"] = lex
-        suggestion_labels = {
-            int(TextmodSuggestionEnum.PASS): "pass",
-            int(TextmodSuggestionEnum.REVIEW): "review",
-            int(TextmodSuggestionEnum.BLOCK): "block",
-        }
+        label_labels = _build_dict_value_label_map("textmod_label")
+        suggestion_labels = _build_dict_value_label_map("textmod_suggestion")
         ctx["suggestion_labels"] = suggestion_labels
         ctx["import_suggestion_choices"] = _import_suggestion_choices_for_template()
         ctx["batch_max"] = _batch_max()
@@ -243,6 +256,7 @@ class TextmodLexiconDetailView(_TextmodConsoleMixin, TemplateView):
                 "id": int(e.id),
                 "word": e.word,
                 "label_id": int(e.label_id),
+                "label_id_label": label_labels.get(int(e.label_id), str(int(e.label_id))),
                 "suggestion": int(e.suggestion),
                 "suggestion_label": suggestion_labels.get(int(e.suggestion), str(int(e.suggestion))),
                 "priority": int(e.priority),
@@ -337,6 +351,17 @@ class TextmodLexiconDetailView(_TextmodConsoleMixin, TemplateView):
             if action == "entry_delete":
                 entry_id = int((request.POST.get("entry_id") or "").strip(), 10)
                 delete_entry(lexicon_id=lid, entry_id=entry_id)
+                return _entry_detail_redirect(lexicon_id=lid, base_query=next_query, changed=1)
+            if action == "entry_toggle_enabled":
+                entry_id = int((request.POST.get("entry_id") or "").strip(), 10)
+                enabled_raw = (request.POST.get("enabled") or "").strip()
+                if enabled_raw not in {"0", "1"}:
+                    raise ValueError("enabled 需为 0 或 1")
+                update_entry_enabled(
+                    lexicon_id=lid,
+                    entry_id=entry_id,
+                    enabled=int(enabled_raw),
+                )
                 return _entry_detail_redirect(lexicon_id=lid, base_query=next_query, changed=1)
         except ValueError as exc:
             ctx["form_error"] = str(exc)

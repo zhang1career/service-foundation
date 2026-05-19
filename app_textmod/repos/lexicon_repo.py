@@ -181,6 +181,18 @@ def update_entry(
     return entry
 
 
+def update_entry_enabled(*, lexicon_id: int, entry_id: int, enabled: int) -> LexiconEntry:
+    entry = get_lexicon_entry(lexicon_id=int(lexicon_id), entry_id=int(entry_id))
+    if entry is None:
+        raise ValueError("entry not found")
+    now = get_now_timestamp_ms()
+    with transaction.atomic(using="textmod_rw"):
+        entry.enabled = 1 if int(enabled) else 0
+        entry.save(using="textmod_rw", update_fields=["enabled"])
+        Lexicon.objects.using("textmod_rw").filter(id=int(lexicon_id)).update(ut=now)
+    return entry
+
+
 def delete_entry(*, lexicon_id: int, entry_id: int) -> bool:
     now = get_now_timestamp_ms()
     with transaction.atomic(using="textmod_rw"):

@@ -160,10 +160,28 @@
                                 <a href="{% url 'console:textmod-entry-detail' lexicon_id=lexicon.id entry_id=e.id %}?next_query={{ entry_current_query|urlencode }}" class="text-blue-600 hover:underline">{{ e.id }}</a>
                             </td>
                             <td class="p-2 max-w-xs truncate" title="{{ e.word }}">{{ e.word }}</td>
-                            <td class="p-2">{{ e.label_id }}</td>
-                            <td class="p-2">{{ e.suggestion }} <span class="text-gray-500">({{ e.suggestion_label }})</span></td>
+                            <td class="p-2">{{ e.label_id_label }}</td>
+                            <td class="p-2">{{ e.suggestion_label }}</td>
                             <td class="p-2">{{ e.priority }}</td>
-                            <td class="p-2">{{ e.enabled }}</td>
+                            <td class="p-2">
+                                <form method="post" class="inline-flex items-center">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="entry_toggle_enabled">
+                                    <input type="hidden" name="entry_id" value="{{ e.id }}">
+                                    <input type="hidden" name="next_query" value="{{ entry_current_query }}">
+                                    <input type="hidden" name="enabled" value="{% if e.enabled == 1 %}1{% else %}0{% endif %}">
+                                    <label class="relative inline-flex items-center cursor-pointer" title="切换启用状态">
+                                        <input
+                                            type="checkbox"
+                                            class="sr-only peer"
+                                            {% if e.enabled == 1 %}checked{% endif %}
+                                            onchange="submitEntryEnabledToggle(this)"
+                                        >
+                                        <span class="w-16 h-8 bg-gray-300 rounded-full peer peer-checked:bg-green-500 transition-colors"></span>
+                                        <span class="absolute left-0.5 top-0.5 w-7 h-7 bg-white rounded-full transition-transform peer-checked:translate-x-8"></span>
+                                    </label>
+                                </form>
+                            </td>
                             <td class="p-2 text-gray-600">{{ e.ct_fmt }}</td>
                             <td class="p-2">
                                 <div class="flex gap-1 items-center">
@@ -340,6 +358,13 @@ function closeEntryEditModal() {
     const modal = document.getElementById('entry-edit-modal');
     if (!modal) return;
     modal.classList.add('hidden');
+}
+function submitEntryEnabledToggle(checkbox) {
+    if (!checkbox || !checkbox.form) return;
+    const enabledField = checkbox.form.querySelector('input[name="enabled"]');
+    if (!enabledField) return;
+    enabledField.value = checkbox.checked ? '1' : '0';
+    checkbox.form.submit();
 }
 document.addEventListener('DOMContentLoaded', function() {
     const createModal = document.getElementById('entry-create-modal');
