@@ -1,0 +1,104 @@
+{% extends 'console/base.html' %}
+
+{% block title %}文本风控-词库 {{ lexicon.id }}{% endblock %}
+{% block page_title %}文本风控 · {{ lexicon.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/textmod_subnav.html' with active='lexicons' %}
+</div>
+
+<div class="space-y-4">
+    {% if form_error %}
+    <div class="card border-red-300">
+        <div class="card-body text-sm text-red-700">{{ form_error }}</div>
+    </div>
+    {% endif %}
+    {% if flash_published %}
+    <div class="card border-green-300 bg-green-50">
+        <div class="card-body text-sm text-green-800">已发布新快照，可在「API 调试」中执行 scan。</div>
+    </div>
+    {% endif %}
+    {% if flash_imported %}
+    <div class="card border-green-300 bg-green-50">
+        <div class="card-body text-sm text-green-800">词条已导入。若需生效请再次「发布」。</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800">词库信息</h2>
+            <dl class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div><span class="text-gray-500">ID</span> <span class="font-mono">{{ lexicon.id }}</span></div>
+                <div><span class="text-gray-500">名称</span> <span class="font-medium">{{ lexicon.name }}</span></div>
+                <div><span class="text-gray-500">biz_type</span> {{ lexicon.biz_type }} <span class="text-gray-500">({{ lexicon_biz_type_label }})</span></div>
+                <div><span class="text-gray-500">词典说明</span> suggestion: 0=pass · 1=review · 2=block（dict <code>textmod_suggestion</code>）；biz_type（dict <code>textmod_lexicon_biz_type</code>）</div>
+            </dl>
+            <p class="mt-2 text-xs text-gray-500">
+                <a href="{% url 'console:textmod-lexicons' %}" class="text-blue-600 hover:underline">← 返回列表</a>
+            </p>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800">发布快照</h2>
+            <p class="text-sm text-gray-600 mt-1">将当前<strong>已启用</strong>词条编译为 Aho–Corasick 快照；仅「已发布」版本可被 /api/textmod/scan 使用。</p>
+            <form method="post" class="mt-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="publish">
+                <button type="submit" class="btn btn-primary">发布当前词库</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800">批量导入词条</h2>
+            <p class="text-sm text-gray-600 mt-1">JSON 数组；单批最多 {{ batch_max }} 条。字段：word, label_id, suggestion, priority, enabled（可选）。</p>
+            <form method="post" class="mt-3 space-y-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_entries">
+                <textarea name="entries_json" class="w-full h-48 p-2 border rounded font-mono text-xs" spellcheck="false">{% if entries_json_body %}{{ entries_json_body|safe }}{% else %}{{ entries_example_json|safe }}{% endif %}</textarea>
+                <button type="submit" class="btn btn-primary btn-sm">导入</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">最近词条（最多 400 条）</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full data-table text-sm">
+                    <thead>
+                        <tr>
+                            <th class="text-left p-2">id</th>
+                            <th class="text-left p-2">word</th>
+                            <th class="text-left p-2">label_id</th>
+                            <th class="text-left p-2">suggestion</th>
+                            <th class="text-left p-2">priority</th>
+                            <th class="text-left p-2">enabled</th>
+                            <th class="text-left p-2">ct</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for e in entry_rows %}
+                        <tr>
+                            <td class="p-2 font-mono">{{ e.id }}</td>
+                            <td class="p-2 max-w-xs truncate" title="{{ e.word }}">{{ e.word }}</td>
+                            <td class="p-2">{{ e.label_id }}</td>
+                            <td class="p-2">{{ e.suggestion }} <span class="text-gray-500">({{ e.suggestion_label }})</span></td>
+                            <td class="p-2">{{ e.priority }}</td>
+                            <td class="p-2">{{ e.enabled }}</td>
+                            <td class="p-2 text-gray-600">{{ e.ct_fmt }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="p-4 text-gray-500">暂无词条。</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

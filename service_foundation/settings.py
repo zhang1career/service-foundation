@@ -84,19 +84,20 @@ GMT = env("GMT", default="+00:00")
 APP_AIBROKER_ENABLED = env.bool("APP_AIBROKER_ENABLED", default=True)
 APP_CDN_ENABLED = env.bool("APP_CDN_ENABLED", default=True)
 APP_CMS_ENABLED = env.bool("APP_CMS_ENABLED", default=True)
+APP_CONFIG_ENABLED = env.bool("APP_CONFIG_ENABLED", default=True)
 APP_CONSOLE_ENABLED = env.bool("APP_CONSOLE_ENABLED", default=True)
+APP_KEEPCON_ENABLED = env.bool("APP_KEEPCON_ENABLED", default=False)
 APP_KNOW_ENABLED = env.bool("APP_KNOW_ENABLED", default=True)
 APP_MAILSERVER_ENABLED = env.bool("APP_MAILSERVER_ENABLED", default=False)
 APP_NOTICE_ENABLED = env.bool("APP_NOTICE_ENABLED", default=True)
 APP_OSS_ENABLED = env.bool("APP_OSS_ENABLED", default=True)
+APP_SAGA_ENABLED = env.bool("APP_SAGA_ENABLED", default=False)
 APP_SEARCHREC_ENABLED = env.bool("APP_SEARCHREC_ENABLED", default=True)
 APP_SNOWFLAKE_ENABLED = env.bool("APP_SNOWFLAKE_ENABLED", default=True)
+APP_TCC_ENABLED = env.bool("APP_TCC_ENABLED", default=False)
+APP_TEXTMOD_ENABLED = env.bool("APP_TEXTMOD_ENABLED", default=True)
 APP_USER_ENABLED = env.bool("APP_USER_ENABLED", default=True)
 APP_VERIFY_ENABLED = env.bool("APP_VERIFY_ENABLED", default=True)
-APP_CONFIG_ENABLED = env.bool("APP_CONFIG_ENABLED", default=True)
-APP_KEEPCON_ENABLED = env.bool("APP_KEEPCON_ENABLED", default=False)
-APP_TCC_ENABLED = env.bool("APP_TCC_ENABLED", default=False)
-APP_SAGA_ENABLED = env.bool("APP_SAGA_ENABLED", default=False)
 
 # Application definition
 INSTALLED_APPS = [
@@ -119,8 +120,14 @@ if APP_CDN_ENABLED:
     INSTALLED_APPS.append("app_cdn.apps.CdnConfig")
 if APP_CMS_ENABLED:
     INSTALLED_APPS.append("app_cms.apps.CmsConfig")
+if APP_CONFIG_ENABLED:
+    INSTALLED_APPS.append("app_config.apps.ConfigAppConfig")
 if APP_CONSOLE_ENABLED:
     INSTALLED_APPS.append("app_console")
+if APP_KEEPCON_ENABLED:
+    INSTALLED_APPS.insert(0, "daphne")
+    INSTALLED_APPS.append("channels")
+    INSTALLED_APPS.append("app_keepcon.apps.KeepconConfig")
 if APP_KNOW_ENABLED:
     INSTALLED_APPS.append("app_know.apps.KnowConfig")
 if APP_MAILSERVER_ENABLED:
@@ -129,24 +136,20 @@ if APP_NOTICE_ENABLED:
     INSTALLED_APPS.append("app_notice.apps.AppNoticeConfig")
 if APP_OSS_ENABLED:
     INSTALLED_APPS.append("app_oss.apps.OssConfig")
+if APP_SAGA_ENABLED:
+    INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 if APP_SEARCHREC_ENABLED:
     INSTALLED_APPS.append("app_searchrec.apps.AppSearchRecConfig")
 if APP_SNOWFLAKE_ENABLED:
     INSTALLED_APPS.append("app_snowflake.apps.SnowflakeConfig")
+if APP_TCC_ENABLED:
+    INSTALLED_APPS.append("app_tcc.apps.AppTccConfig")
+if APP_TEXTMOD_ENABLED:
+    INSTALLED_APPS.append("app_textmod.apps.TextmodConfig")
 if APP_USER_ENABLED:
     INSTALLED_APPS.append("app_user.apps.AppUserConfig")
 if APP_VERIFY_ENABLED:
     INSTALLED_APPS.append("app_verify.apps.AppVerifyConfig")
-if APP_CONFIG_ENABLED:
-    INSTALLED_APPS.append("app_config.apps.ConfigAppConfig")
-if APP_KEEPCON_ENABLED:
-    INSTALLED_APPS.insert(0, "daphne")
-    INSTALLED_APPS.append("channels")
-    INSTALLED_APPS.append("app_keepcon.apps.KeepconConfig")
-if APP_TCC_ENABLED:
-    INSTALLED_APPS.append("app_tcc.apps.AppTccConfig")
-if APP_SAGA_ENABLED:
-    INSTALLED_APPS.append("app_saga.apps.AppSagaConfig")
 
 # HttpRequestLogMiddleware: URL not in URLconf, or view under django.* / rest_framework.*.
 HTTP_REQUEST_LOG_FALLBACK_LOGGER = env("HTTP_REQUEST_LOG_FALLBACK_LOGGER", default="service_foundation")
@@ -269,6 +272,34 @@ DATABASES = {
             "NAME": env("DB_CMS_TEST_NAME", default="sf_cms_test"),
         },
     },
+    "config_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_CONFIG_NAME", default="sf_config"),
+        "USER": env("DB_CONFIG_USER", default="zhang"),
+        "PASSWORD": env("DB_CONFIG_PASS", default=""),
+        "HOST": env("DB_CONFIG_HOST", default="127.0.0.1"),
+        "PORT": env("DB_CONFIG_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_CONFIG_TEST_NAME", default="sf_config_test"),
+        },
+    },
+    "keepcon_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_KEEPCON_NAME", default="sf_keepcon"),
+        "USER": env("DB_KEEPCON_USER", default="zhang"),
+        "PASSWORD": env("DB_KEEPCON_PASS", default=""),
+        "HOST": env("DB_KEEPCON_HOST", default="127.0.0.1"),
+        "PORT": env("DB_KEEPCON_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_KEEPCON_TEST_NAME", default="sf_keepcon_test"),
+        },
+    },
     "know_rw": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": env("DB_KNOW_NAME", default="sf_know"),
@@ -325,6 +356,20 @@ DATABASES = {
             "NAME": env("DB_OSS_TEST_NAME", default="sf_oss_test"),
         },
     },
+    "saga_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_SAGA_NAME", default="sf_saga"),
+        "USER": env("DB_SAGA_USER", default="zhang"),
+        "PASSWORD": env("DB_SAGA_PASS", default=""),
+        "HOST": env("DB_SAGA_HOST", default="127.0.0.1"),
+        "PORT": env("DB_SAGA_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_SAGA_TEST_NAME", default="sf_saga_test"),
+        },
+    },
     "searchrec_rw": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": env("DB_SEARCHREC_NAME", default="sf_searchrec"),
@@ -352,6 +397,34 @@ DATABASES = {
         "TEST": {
             # Tests use the default test DB for this alias (no separate sf_snowflake_test schema).
             "MIRROR": "default",
+        },
+    },
+    "tcc_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_TCC_NAME", default="sf_tcc"),
+        "USER": env("DB_TCC_USER", default="zhang"),
+        "PASSWORD": env("DB_TCC_PASS", default=""),
+        "HOST": env("DB_TCC_HOST", default="127.0.0.1"),
+        "PORT": env("DB_TCC_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_TCC_TEST_NAME", default="sf_tcc_test"),
+        },
+    },
+    "textmod_rw": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("DB_TEXTMOD_NAME", default="sf_textmod"),
+        "USER": env("DB_TEXTMOD_USER", default="zhang"),
+        "PASSWORD": env("DB_TEXTMOD_PASS", default=""),
+        "HOST": env("DB_TEXTMOD_HOST", default="127.0.0.1"),
+        "PORT": env("DB_TEXTMOD_PORT", default=3306),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+        },
+        "TEST": {
+            "NAME": env("DB_TEXTMOD_TEST_NAME", default="sf_textmod_test"),
         },
     },
     "user_rw": {
@@ -382,62 +455,6 @@ DATABASES = {
             "NAME": env("DB_VERIFY_TEST_NAME", default="sf_verify_test"),
         },
     },
-    "config_rw": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": env("DB_CONFIG_NAME", default="sf_config"),
-        "USER": env("DB_CONFIG_USER", default="zhang"),
-        "PASSWORD": env("DB_CONFIG_PASS", default=""),
-        "HOST": env("DB_CONFIG_HOST", default="127.0.0.1"),
-        "PORT": env("DB_CONFIG_PORT", default=3306),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-        },
-        "TEST": {
-            "NAME": env("DB_CONFIG_TEST_NAME", default="sf_config_test"),
-        },
-    },
-    "keepcon_rw": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": env("DB_KEEPCON_NAME", default="sf_keepcon"),
-        "USER": env("DB_KEEPCON_USER", default="zhang"),
-        "PASSWORD": env("DB_KEEPCON_PASS", default=""),
-        "HOST": env("DB_KEEPCON_HOST", default="127.0.0.1"),
-        "PORT": env("DB_KEEPCON_PORT", default=3306),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-        },
-        "TEST": {
-            "NAME": env("DB_KEEPCON_TEST_NAME", default="sf_keepcon_test"),
-        },
-    },
-    "tcc_rw": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": env("DB_TCC_NAME", default="sf_tcc"),
-        "USER": env("DB_TCC_USER", default="zhang"),
-        "PASSWORD": env("DB_TCC_PASS", default=""),
-        "HOST": env("DB_TCC_HOST", default="127.0.0.1"),
-        "PORT": env("DB_TCC_PORT", default=3306),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-        },
-        "TEST": {
-            "NAME": env("DB_TCC_TEST_NAME", default="sf_tcc_test"),
-        },
-    },
-    "saga_rw": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": env("DB_SAGA_NAME", default="sf_saga"),
-        "USER": env("DB_SAGA_USER", default="zhang"),
-        "PASSWORD": env("DB_SAGA_PASS", default=""),
-        "HOST": env("DB_SAGA_HOST", default="127.0.0.1"),
-        "PORT": env("DB_SAGA_PORT", default=3306),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-        },
-        "TEST": {
-            "NAME": env("DB_SAGA_TEST_NAME", default="sf_saga_test"),
-        },
-    },
 }
 
 # Dynamically configure database routers based on enabled apps
@@ -448,30 +465,32 @@ if APP_CDN_ENABLED:
     DATABASE_ROUTERS.append("app_cdn.db_routers.ReadWriteRouter")
 if APP_CMS_ENABLED:
     DATABASE_ROUTERS.append("app_cms.db_routers.ReadWriteRouter")
-if APP_KNOW_ENABLED:
-    DATABASE_ROUTERS.append("app_know.db_routers.ReadWriteRouter")
-if APP_NOTICE_ENABLED:
-    DATABASE_ROUTERS.append("app_notice.db_routers.ReadWriteRouter")
-if APP_OSS_ENABLED:
-    DATABASE_ROUTERS.append("app_oss.db_routers.ReadWriteRouter")
-if APP_SEARCHREC_ENABLED:
-    DATABASE_ROUTERS.append("app_searchrec.db_routers.ReadWriteRouter")
-if APP_SNOWFLAKE_ENABLED:
-    DATABASE_ROUTERS.append("app_snowflake.db_routers.ReadWriteRouter")
-if APP_USER_ENABLED:
-    DATABASE_ROUTERS.append("app_user.db_routers.ReadWriteRouter")
-if APP_VERIFY_ENABLED:
-    DATABASE_ROUTERS.append("app_verify.db_routers.ReadWriteRouter")
 if APP_CONFIG_ENABLED:
     DATABASE_ROUTERS.append("app_config.db_routers.ReadWriteRouter")
 if APP_KEEPCON_ENABLED:
     DATABASE_ROUTERS.append("app_keepcon.db_routers.ReadWriteRouter")
-if APP_TCC_ENABLED:
-    DATABASE_ROUTERS.append("app_tcc.db_routers.ReadWriteRouter")
-if APP_SAGA_ENABLED:
-    DATABASE_ROUTERS.append("app_saga.db_routers.ReadWriteRouter")
+if APP_KNOW_ENABLED:
+    DATABASE_ROUTERS.append("app_know.db_routers.ReadWriteRouter")
 if APP_MAILSERVER_ENABLED:
     DATABASE_ROUTERS.append("app_mailserver.db_routers.ReadWriteRouter")
+if APP_NOTICE_ENABLED:
+    DATABASE_ROUTERS.append("app_notice.db_routers.ReadWriteRouter")
+if APP_OSS_ENABLED:
+    DATABASE_ROUTERS.append("app_oss.db_routers.ReadWriteRouter")
+if APP_SAGA_ENABLED:
+    DATABASE_ROUTERS.append("app_saga.db_routers.ReadWriteRouter")
+if APP_SEARCHREC_ENABLED:
+    DATABASE_ROUTERS.append("app_searchrec.db_routers.ReadWriteRouter")
+if APP_SNOWFLAKE_ENABLED:
+    DATABASE_ROUTERS.append("app_snowflake.db_routers.ReadWriteRouter")
+if APP_TCC_ENABLED:
+    DATABASE_ROUTERS.append("app_tcc.db_routers.ReadWriteRouter")
+if APP_TEXTMOD_ENABLED:
+    DATABASE_ROUTERS.append("app_textmod.db_routers.ReadWriteRouter")
+if APP_USER_ENABLED:
+    DATABASE_ROUTERS.append("app_user.db_routers.ReadWriteRouter")
+if APP_VERIFY_ENABLED:
+    DATABASE_ROUTERS.append("app_verify.db_routers.ReadWriteRouter")
 
 # Cache — base URL without /db; each app that uses Django cache sets its own DB + key segment.
 REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379")
@@ -626,12 +645,13 @@ if _log_handler == "logfile":
             "app_mailserver",
             "app_notice",
             "app_oss",
+            "app_saga",
             "app_searchrec",
             "app_snowflake",
             "app_tcc",
+            "app_textmod",
             "app_user",
             "app_verify",
-            "app_saga",
             "common",
     ):
         _stem = "django" if _name.startswith("django.") else _name
@@ -657,7 +677,6 @@ def _logger_handlers(logger_name: str) -> list[str]:
     if _log_handler != "logfile":
         return ["console"]
     return [_logger_handler_keys[logger_name]]
-
 
 LOGGING = {
     "version": 1,
@@ -731,6 +750,10 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_OSS", default="INFO"),
             "handlers": _logger_handlers("app_oss"),
         },
+        "app_saga": {
+            "level": env("LOG_LEVEL_APP_SAGA", default="INFO"),
+            "handlers": _logger_handlers("app_saga"),
+        },
         "app_searchrec": {
             "level": env("LOG_LEVEL_APP_SEARCHREC", default="INFO"),
             "handlers": _logger_handlers("app_searchrec"),
@@ -743,6 +766,10 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_TCC", default="INFO"),
             "handlers": _logger_handlers("app_tcc"),
         },
+        "app_textmod": {
+            "level": env("LOG_LEVEL_APP_TEXTMOD", default="INFO"),
+            "handlers": _logger_handlers("app_textmod"),
+        },
         "app_user": {
             "level": env("LOG_LEVEL_APP_USER", default="INFO"),
             "handlers": _logger_handlers("app_user"),
@@ -751,16 +778,13 @@ LOGGING = {
             "level": env("LOG_LEVEL_APP_VERIFY", default="INFO"),
             "handlers": _logger_handlers("app_verify"),
         },
-        "app_saga": {
-            "level": env("LOG_LEVEL_APP_SAGA", default="INFO"),
-            "handlers": _logger_handlers("app_saga"),
-        },
         "common": {
             "level": env("LOG_LEVEL_COMMON", default="INFO"),
             "handlers": _logger_handlers("common"),
         },
     },
 }
+
 
 # traceid (Django META key; optional client header X-Trace-Id is copied in TraceIdHeaderNormalizeMiddleware)
 LOG_REQUEST_ID_HEADER = "HTTP_X_REQUEST_ID"
@@ -782,16 +806,7 @@ NOTICE_CONSOLE_MANUAL_EVENT_ID = env.int("NOTICE_CONSOLE_MANUAL_EVENT_ID", defau
 # Console SearchRec「API 调试」页示例 JSON 中的 access_key；未设置环境变量时为空字符串
 CONSOLE_SEARCHREC_ACCESS_KEY = env("CONSOLE_SEARCHREC_ACCESS_KEY", default="")
 CONSOLE_SNOWFLAKE_ACCESS_KEY = env("CONSOLE_SNOWFLAKE_ACCESS_KEY", default="")
-TCC_OUTBOUND_TIMEOUT_SEC = env.float("TCC_OUTBOUND_TIMEOUT_SEC", default=30.0)
-TCC_PHASE_TRY_TIMEOUT_SECONDS = env.int("TCC_PHASE_TRY_TIMEOUT_SECONDS", default=120)
-TCC_PHASE_CONFIRM_TIMEOUT_SECONDS = env.int("TCC_PHASE_CONFIRM_TIMEOUT_SECONDS", default=120)
-TCC_PHASE_CANCEL_TIMEOUT_SECONDS = env.int("TCC_PHASE_CANCEL_TIMEOUT_SECONDS", default=120)
-TCC_AWAIT_CONFIRM_TIMEOUT_SECONDS = env.int("TCC_AWAIT_CONFIRM_TIMEOUT_SECONDS", default=300)
-TCC_MAX_AUTO_RETRIES = env.int("TCC_MAX_AUTO_RETRIES", default=10)
-TCC_DEFAULT_AUTO_CONFIRM = env.bool("TCC_DEFAULT_AUTO_CONFIRM", default=True)
-# app_tcc scan: when phase_deadline_at is missing, next_retry cap (see scan_service.process_one)
-TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS = env.int("TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS", default=60000)
-TCC_SCAN_NEXT_RETRY_CAP_MS = env.int("TCC_SCAN_NEXT_RETRY_CAP_MS", default=15000)
+
 SAGA_OUTBOUND_TIMEOUT_SEC = env.float("SAGA_OUTBOUND_TIMEOUT_SEC", default=30.0)
 SAGA_START_SYNC_STEP_BUDGET = env.int("SAGA_START_SYNC_STEP_BUDGET", default=32)
 SAGA_SCAN_NEXT_RETRY_CAP_MS = env.int("SAGA_SCAN_NEXT_RETRY_CAP_MS", default=15000)
@@ -802,6 +817,30 @@ SAGA_SCAN_BACKOFF_CAP_MS = env.int("SAGA_SCAN_BACKOFF_CAP_MS", default=60000)
 SAGA_CONFIRMING_TIMEOUT_MS = env.int("SAGA_CONFIRMING_TIMEOUT_MS", default=900000)
 # Root JSON `cancel_reason` on outbound POST to compensate_url (aligns with TCC CancelReason int).
 SAGA_COMPENSATE_CANCEL_REASON_DEFAULT = env.int("SAGA_COMPENSATE_CANCEL_REASON_DEFAULT", default=0)
+
+TCC_OUTBOUND_TIMEOUT_SEC = env.float("TCC_OUTBOUND_TIMEOUT_SEC", default=30.0)
+TCC_PHASE_TRY_TIMEOUT_SECONDS = env.int("TCC_PHASE_TRY_TIMEOUT_SECONDS", default=120)
+TCC_PHASE_CONFIRM_TIMEOUT_SECONDS = env.int("TCC_PHASE_CONFIRM_TIMEOUT_SECONDS", default=120)
+TCC_PHASE_CANCEL_TIMEOUT_SECONDS = env.int("TCC_PHASE_CANCEL_TIMEOUT_SECONDS", default=120)
+TCC_AWAIT_CONFIRM_TIMEOUT_SECONDS = env.int("TCC_AWAIT_CONFIRM_TIMEOUT_SECONDS", default=300)
+TCC_MAX_AUTO_RETRIES = env.int("TCC_MAX_AUTO_RETRIES", default=10)
+TCC_DEFAULT_AUTO_CONFIRM = env.bool("TCC_DEFAULT_AUTO_CONFIRM", default=True)
+# app_tcc scan: when phase_deadline_at is missing, next_retry cap (see scan_service.process_one)
+TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS = env.int("TCC_SCAN_PHASE_DEADLINE_FALLBACK_MS", default=60000)
+TCC_SCAN_NEXT_RETRY_CAP_MS = env.int("TCC_SCAN_NEXT_RETRY_CAP_MS", default=15000)
+
+# Local text moderation (Aho–Corasick + normalization snapshots)
+TEXTMOD_AUTOMATON_DIR = env("TEXTMOD_AUTOMATON_DIR", default=str(BASE_DIR / "storage" / "textmod"))
+TEXTMOD_MAX_TEXT_CHARS = env.int("TEXTMOD_MAX_TEXT_CHARS", default=100_000)
+TEXTMOD_ENTRY_BATCH_MAX = env.int("TEXTMOD_ENTRY_BATCH_MAX", default=500)
+TEXTMOD_NORM_STRIP_EDGES = env.bool("TEXTMOD_NORM_STRIP_EDGES", default=True)
+TEXTMOD_NORM_FOLD_CASE_ASCII = env.bool("TEXTMOD_NORM_FOLD_CASE_ASCII", default=True)
+TEXTMOD_NORM_FULLWIDTH_TO_HALFWIDTH_ASCII = env.bool(
+    "TEXTMOD_NORM_FULLWIDTH_TO_HALFWIDTH_ASCII",
+    default=True,
+)
+TEXTMOD_NORM_DROP_ZERO_WIDTH = env.bool("TEXTMOD_NORM_DROP_ZERO_WIDTH", default=True)
+
 # XXL-JOB
 XXL_JOB_TOKEN = env("XXL_JOB_TOKEN", default="").strip()
 # Admin base URL (no trailing slash), e.g. http://host:8080/xxl-job-admin — required for executor → admin /api/callback.

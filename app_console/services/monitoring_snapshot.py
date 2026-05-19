@@ -35,6 +35,7 @@ _APP_TO_DB_ALIAS: dict[str, str] = {
     "saga": "saga_rw",
     "user": "user_rw",
     "verify": "verify_rw",
+    "textmod": "textmod_rw",
 }
 
 _MAIL_TCP_HOST = "127.0.0.1"
@@ -240,6 +241,11 @@ def collect_monitoring_snapshot() -> dict[str, Any]:
         from app_verify.views.health_view import VerifyHealthView
 
         out["http_probes"]["verify_health"] = _probe_drf_view(VerifyHealthView, "/api/verify/health")
+
+    if getattr(settings, "APP_TEXTMOD_ENABLED", False):
+        from app_textmod.views.health_view import TextmodHealthView
+
+        out["http_probes"]["textmod_health"] = _probe_drf_view(TextmodHealthView, "/api/textmod/health")
 
     if getattr(settings, "APP_CMS_ENABLED", False):
         from app_cms.views.cms_health_view import CmsHealthView

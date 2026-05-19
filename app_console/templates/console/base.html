@@ -303,6 +303,24 @@
                         </span>
                         {% endif %}
                     </li>
+
+                    <li>
+                        {% if apps.textmod.console_href %}
+                        <a href="{{ apps.textmod.console_href }}"
+                           class="flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors sidebar-link {% if '/console/textmod/' in request.path %}bg-gray-700{% endif %}" title="文本风控">
+                        {% else %}
+                        <span class="flex items-center px-4 py-3 rounded-lg opacity-50 cursor-not-allowed sidebar-link text-gray-400" title="本机未注册该应用的控制台路由（分布式部署时可在运行监控查看各服务）">
+                        {% endif %}
+                            <svg class="w-5 h-5 flex-shrink-0 sidebar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span class="sidebar-text ml-3 whitespace-nowrap">文本风控</span>
+                        {% if apps.textmod.console_href %}
+                        </a>
+                        {% else %}
+                        </span>
+                        {% endif %}
+                    </li>
                 </ul>
             </nav>
 

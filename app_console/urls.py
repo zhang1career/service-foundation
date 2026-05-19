@@ -100,6 +100,25 @@ urlpatterns = [
     path('searchrec/api/', SearchRecConsoleView.as_view(), name='searchrec-api'),
 ]
 
+if getattr(settings, "APP_TEXTMOD_ENABLED", False):
+    from app_console.views.textmod_console_view import (
+        TextmodApiConsoleView,
+        TextmodLexiconDetailView,
+        TextmodLexiconListView,
+    )
+
+    urlpatterns.extend(
+        [
+            path("textmod/", TextmodLexiconListView.as_view(), name="textmod-lexicons"),
+            path(
+                "textmod/lexicons/<int:lexicon_id>/",
+                TextmodLexiconDetailView.as_view(),
+                name="textmod-lexicon-detail",
+            ),
+            path("textmod/api/", TextmodApiConsoleView.as_view(), name="textmod-api"),
+        ]
+    )
+
 if getattr(settings, 'APP_CMS_ENABLED', False):
     from app_console.views.cms_view import (
         CmsContentItemCreateView,

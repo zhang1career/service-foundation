@@ -89,10 +89,13 @@ if getattr(settings, "APP_KEEPCON_ENABLED", False):
 
     urlpatterns.append(path("api/keepcon/", include(app_keepcon_urls)))
 
-if getattr(settings, "APP_TCC_ENABLED", False):
+if settings.APP_TCC_ENABLED:
     from app_tcc import urls as app_tcc_urls
-
     urlpatterns.append(path("api/tcc/", include(app_tcc_urls)))
+
+if settings.APP_TEXTMOD_ENABLED:
+    from app_textmod import urls as app_textmod_urls
+    urlpatterns.append(path("api/textmod/", include(app_textmod_urls)))
 
 if getattr(settings, "APP_SAGA_ENABLED", False):
     from app_saga import urls as app_saga_urls

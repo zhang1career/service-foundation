@@ -1,0 +1,72 @@
+{% extends 'console/base.html' %}
+
+{% block title %}文本风控-词库{% endblock %}
+{% block page_title %}文本风控{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    {% include 'console/includes/textmod_subnav.html' with active='lexicons' %}
+</div>
+
+<div class="space-y-4">
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800">新建词库</h2>
+            <p class="text-sm text-gray-600 mt-1">创建后在详情页批量导入词条并执行「发布」生成可扫描快照。</p>
+            <form method="post" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">名称（唯一）</label>
+                    <input name="name" type="text" class="w-full border rounded px-2 py-1" placeholder="例如 default_lexicon" required maxlength="128">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">业务类型 biz_type（枚举 id）</label>
+                    <select name="biz_type" class="w-full border rounded px-2 py-1 bg-white">
+                        {% for opt in lexicon_biz_type_choices %}
+                        <option value="{{ opt.value }}">{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">词库列表</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full data-table text-sm">
+                    <thead>
+                        <tr>
+                            <th class="text-left p-2">ID</th>
+                            <th class="text-left p-2">名称</th>
+                            <th class="text-left p-2">biz_type</th>
+                            <th class="text-left p-2">ut</th>
+                            <th class="text-left p-2">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in lexicon_rows %}
+                        <tr>
+                            <td class="p-2">{{ row.id }}</td>
+                            <td class="p-2 font-medium">{{ row.name }}</td>
+                            <td class="p-2">{{ row.biz_type }} <span class="text-gray-500">({{ row.biz_type_label }})</span></td>
+                            <td class="p-2 text-gray-600">{{ row.ut_fmt }}</td>
+                            <td class="p-2">
+                                <a href="{% url 'console:textmod-lexicon-detail' lexicon_id=row.id %}" class="text-blue-600 hover:underline">管理</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="p-4 text-gray-500">暂无词库，请先创建。</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
