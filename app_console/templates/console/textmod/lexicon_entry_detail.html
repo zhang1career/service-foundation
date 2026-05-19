@@ -1,0 +1,28 @@
+{% extends 'console/base.html' %}
+
+{% block title %}文本风控-词条 {{ entry.id }}{% endblock %}
+{% block page_title %}文本风控 · 词条 {{ entry.id }}{% endblock %}
+
+{% block content %}
+{% include 'console/includes/detail_back_link.html' with back_url=back_url back_label="返回词库详情" %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="text-lg font-semibold">词条详情</h2>
+    </div>
+    <div class="card-body">
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div><span class="text-gray-500">词库 ID</span> <span class="font-mono">{{ lexicon.id }}</span></div>
+            <div><span class="text-gray-500">词库名称</span> <span class="font-medium">{{ lexicon.name }}</span></div>
+            <div><span class="text-gray-500">biz_type</span> {{ lexicon_biz_type_label }}</div>
+            <div><span class="text-gray-500">词条 ID</span> <span class="font-mono">{{ entry.id }}</span></div>
+            <div class="sm:col-span-2"><span class="text-gray-500">word</span> <span class="font-medium break-all">{{ entry.word }}</span></div>
+            <div><span class="text-gray-500">label_id</span> {{ entry.label_id }}</div>
+            <div><span class="text-gray-500">suggestion</span> {{ entry.suggestion }} ({{ entry_suggestion_label }})</div>
+            <div><span class="text-gray-500">priority</span> {{ entry.priority }}</div>
+            <div><span class="text-gray-500">enabled</span> {{ entry.enabled }}</div>
+            <div><span class="text-gray-500">ct</span> {{ entry_ct_fmt }}</div>
+        </dl>
+    </div>
+</div>
+{% endblock %}

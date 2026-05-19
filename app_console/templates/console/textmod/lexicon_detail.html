@@ -4,20 +4,27 @@
 {% block page_title %}文本风控 · {{ lexicon.name }}{% endblock %}
 
 {% block content %}
+{% url 'console:textmod-lexicons' as lexicon_list_url %}
+{% include 'console/includes/detail_back_link.html' with back_url=lexicon_list_url back_label="返回词库列表" %}
 <div class="space-y-4">
     {% if form_error %}
     <div class="card border-red-300">
         <div class="card-body text-sm text-red-700">{{ form_error }}</div>
     </div>
     {% endif %}
-    {% if flash_published %}
-    <div class="card border-green-300 bg-green-50">
-        <div class="card-body text-sm text-green-800">已发布新快照，扫描接口可使用当前词库版本。</div>
-    </div>
-    {% endif %}
     {% if flash_imported %}
     <div class="card border-green-300 bg-green-50">
-        <div class="card-body text-sm text-green-800">词条已导入。若需生效请再次「发布」。</div>
+        <div class="card-body text-sm text-green-800">词条已导入。需在词库列表页点击发布图标后生效。</div>
+    </div>
+    {% endif %}
+    {% if flash_need_publish %}
+    <div class="card border-yellow-300 bg-yellow-50">
+        <div class="card-body text-sm text-yellow-800">词条发生变更（新增/编辑/删除/导入）后，需在词库列表页点击发布图标，扫描接口才会使用最新词条。</div>
+    </div>
+    {% endif %}
+    {% if page_cap_reached %}
+    <div class="card border-yellow-300 bg-yellow-50">
+        <div class="card-body text-sm text-yellow-800">为避免深度分页影响性能，当前最多支持访问第 200 页。</div>
     </div>
     {% endif %}
 
@@ -27,24 +34,9 @@
             <dl class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div><span class="text-gray-500">ID</span> <span class="font-mono">{{ lexicon.id }}</span></div>
                 <div><span class="text-gray-500">名称</span> <span class="font-medium">{{ lexicon.name }}</span></div>
-                <div><span class="text-gray-500">biz_type</span> {{ lexicon.biz_type }} <span class="text-gray-500">({{ lexicon_biz_type_label }})</span></div>
+                <div><span class="text-gray-500">biz_type</span> {{ lexicon_biz_type_label }}</div>
                 <div><span class="text-gray-500">词典说明</span> suggestion: 0=pass · 1=review · 2=block（dict <code>textmod_suggestion</code>）；biz_type（dict <code>textmod_lexicon_biz_type</code>）</div>
             </dl>
-            <p class="mt-2 text-xs text-gray-500">
-                <a href="{% url 'console:textmod-lexicons' %}" class="text-blue-600 hover:underline">← 返回列表</a>
-            </p>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-body">
-            <h2 class="text-lg font-semibold text-gray-800">发布快照</h2>
-            <p class="text-sm text-gray-600 mt-1">将当前<strong>已启用</strong>词条编译为 Aho–Corasick 快照；仅「已发布」版本可被 /api/textmod/scan 使用。</p>
-            <form method="post" class="mt-3">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="publish">
-                <button type="submit" class="btn btn-primary">发布当前词库</button>
-            </form>
         </div>
     </div>
 
@@ -52,8 +44,9 @@
         <div class="card-body">
             <h2 class="text-lg font-semibold text-gray-800">批量导入词条</h2>
             <p class="text-sm text-gray-600 mt-1">
-                <strong>UTF-8 .txt</strong> 每行一词，或 <strong>.csv</strong>（表头含 <code class="text-xs">word</code> 等）。
-                与列表页规则一致；单批 {{ batch_max }} 条，大文件自动分批写入。
+                <strong>UTF-8 .txt</strong> 每行一词，或 <strong>.csv</strong>（表头可含
+                <code class="text-xs">word,label_id,suggestion,priority,enabled</code>；无表头时支持单列词或五列按序）。
+                单批 {{ batch_max }} 条，大文件自动分批写入。
             </p>
             <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3">
                 {% csrf_token %}
@@ -65,7 +58,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">默认 label_id</label>
-                        <input name="default_label_id" type="number" value="1" class="w-full border rounded px-2 py-1">
+                        <input name="default_label_id" type="number" value="0" class="w-full border rounded px-2 py-1">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">默认 suggestion</label>
@@ -77,7 +70,7 @@
                     </div>
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">默认 priority</label>
-                        <input name="default_priority" type="number" value="10" class="w-full border rounded px-2 py-1">
+                        <input name="default_priority" type="number" value="100" class="w-full border rounded px-2 py-1">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-600 mb-1">默认 enabled</label>
@@ -87,14 +80,65 @@
                         </select>
                     </div>
                 </div>
+                <input type="hidden" name="next_query" value="{{ entry_current_query }}">
                 <button type="submit" class="btn btn-primary btn-sm">导入</button>
             </form>
         </div>
     </div>
 
     <div class="card">
+        <div class="card-header">
+            <h2 class="text-lg font-semibold text-gray-800">词条列表</h2>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openEntryCreateModal()">新建</button>
+        </div>
         <div class="card-body">
-            <h2 class="text-lg font-semibold text-gray-800 mb-2">最近词条（最多 400 条）</h2>
+            <form method="get" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">word（精确匹配）</label>
+                    <input name="word" type="text" value="{{ filter_word }}" class="w-full border rounded px-2 py-1" placeholder="例如 bad_word">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">label_id</label>
+                    <input name="label_id" type="number" value="{{ filter_label_id|default:'' }}" class="w-full border rounded px-2 py-1">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">suggestion</label>
+                    <select name="suggestion" class="w-full border rounded px-2 py-1 bg-white">
+                        <option value="">全部</option>
+                        {% for opt in import_suggestion_choices %}
+                        <option value="{{ opt.value }}" {% if filter_suggestion == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">enabled</label>
+                    <select name="enabled" class="w-full border rounded px-2 py-1 bg-white">
+                        <option value="">全部</option>
+                        <option value="1" {% if filter_enabled == 1 %}selected{% endif %}>启用</option>
+                        <option value="0" {% if filter_enabled == 0 %}selected{% endif %}>停用</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">排序字段</label>
+                    <select name="sort_by" class="w-full border rounded px-2 py-1 bg-white">
+                        <option value="ct" {% if sort_by == 'ct' %}selected{% endif %}>ct</option>
+                        <option value="priority" {% if sort_by == 'priority' %}selected{% endif %}>priority</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">排序方向</label>
+                    <select name="sort_dir" class="w-full border rounded px-2 py-1 bg-white">
+                        <option value="desc" {% if sort_dir == 'desc' %}selected{% endif %}>降序</option>
+                        <option value="asc" {% if sort_dir == 'asc' %}selected{% endif %}>升序</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">查询</button>
+                    <a href="{% url 'console:textmod-lexicon-detail' lexicon_id=lexicon.id %}" class="btn btn-outline btn-sm">重置</a>
+                </div>
+                <div class="text-sm text-gray-600 lg:text-right">共 {{ entry_total }} 条</div>
+            </form>
+
             <div class="overflow-x-auto">
                 <table class="min-w-full data-table text-sm">
                     <thead>
@@ -106,26 +150,211 @@
                             <th class="text-left p-2">priority</th>
                             <th class="text-left p-2">enabled</th>
                             <th class="text-left p-2">ct</th>
+                            <th class="text-left p-2">操作</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for e in entry_rows %}
                         <tr>
-                            <td class="p-2 font-mono">{{ e.id }}</td>
+                            <td class="p-2 font-mono">
+                                <a href="{% url 'console:textmod-entry-detail' lexicon_id=lexicon.id entry_id=e.id %}?next_query={{ entry_current_query|urlencode }}" class="text-blue-600 hover:underline">{{ e.id }}</a>
+                            </td>
                             <td class="p-2 max-w-xs truncate" title="{{ e.word }}">{{ e.word }}</td>
                             <td class="p-2">{{ e.label_id }}</td>
                             <td class="p-2">{{ e.suggestion }} <span class="text-gray-500">({{ e.suggestion_label }})</span></td>
                             <td class="p-2">{{ e.priority }}</td>
                             <td class="p-2">{{ e.enabled }}</td>
                             <td class="p-2 text-gray-600">{{ e.ct_fmt }}</td>
+                            <td class="p-2">
+                                <div class="flex gap-1 items-center">
+                                    <button type="button" class="btn btn-outline btn-icon" title="编辑"
+                                            data-entry-id="{{ e.id }}"
+                                            data-entry-word="{{ e.word }}"
+                                            data-entry-label-id="{{ e.label_id }}"
+                                            data-entry-suggestion="{{ e.suggestion }}"
+                                            data-entry-priority="{{ e.priority }}"
+                                            data-entry-enabled="{{ e.enabled }}"
+                                            onclick="openEntryEditModal(this)">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                        </svg>
+                                    </button>
+                                    <form method="post" class="inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="entry_delete">
+                                        <input type="hidden" name="entry_id" value="{{ e.id }}">
+                                        <input type="hidden" name="next_query" value="{{ entry_current_query }}">
+                                        <button type="submit" class="btn btn-danger btn-icon" title="删除" onclick="return confirmAction('确认删除该词条？');">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="7" class="p-4 text-gray-500">暂无词条。</td></tr>
+                        <tr><td colspan="8" class="p-4 text-gray-500">暂无词条。</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            {% if entry_total_pages > 1 %}
+            <div class="mt-4 flex items-center gap-2 text-sm">
+                {% if entry_page > 1 %}
+                <a href="?{% if entry_query_base %}{{ entry_query_base }}&{% endif %}page={{ entry_page|add:'-1' }}" class="btn btn-outline btn-sm">上一页</a>
+                {% endif %}
+                <span>第 {{ entry_page }} / {{ entry_total_pages }} 页</span>
+                {% if entry_page < entry_total_pages %}
+                <a href="?{% if entry_query_base %}{{ entry_query_base }}&{% endif %}page={{ entry_page|add:1 }}" class="btn btn-outline btn-sm">下一页</a>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
+
+<div id="entry-create-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold text-gray-800">新建词条</h3>
+        </div>
+        <form method="post">
+            <div class="modal-body space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="entry_create">
+                <input type="hidden" name="next_query" value="{{ entry_current_query }}">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">word</label>
+                    <input name="word" type="text" class="w-full border rounded px-2 py-1" required maxlength="512">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">label_id</label>
+                        <input name="label_id" type="number" value="0" class="w-full border rounded px-2 py-1" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">suggestion</label>
+                        <select name="suggestion" class="w-full border rounded px-2 py-1 bg-white">
+                            {% for opt in import_suggestion_choices %}
+                            <option value="{{ opt.value }}" {% if opt.value == 2 %}selected{% endif %}>{{ opt.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">priority</label>
+                        <input name="priority" type="number" value="100" class="w-full border rounded px-2 py-1" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">enabled</label>
+                        <select name="enabled" class="w-full border rounded px-2 py-1 bg-white">
+                            <option value="1" selected>启用</option>
+                            <option value="0">停用</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeEntryCreateModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="entry-edit-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold text-gray-800">编辑词条</h3>
+        </div>
+        <form method="post">
+            <div class="modal-body space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="entry_update">
+                <input type="hidden" name="entry_id" id="edit-entry-id" value="">
+                <input type="hidden" name="next_query" value="{{ entry_current_query }}">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">word</label>
+                    <input name="word" id="edit-entry-word" type="text" class="w-full border rounded px-2 py-1" required maxlength="512">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">label_id</label>
+                        <input name="label_id" id="edit-entry-label-id" type="number" class="w-full border rounded px-2 py-1" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">suggestion</label>
+                        <select name="suggestion" id="edit-entry-suggestion" class="w-full border rounded px-2 py-1 bg-white">
+                            {% for opt in import_suggestion_choices %}
+                            <option value="{{ opt.value }}">{{ opt.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">priority</label>
+                        <input name="priority" id="edit-entry-priority" type="number" class="w-full border rounded px-2 py-1" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">enabled</label>
+                        <select name="enabled" id="edit-entry-enabled" class="w-full border rounded px-2 py-1 bg-white">
+                            <option value="1">启用</option>
+                            <option value="0">停用</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeEntryEditModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openEntryCreateModal() {
+    const modal = document.getElementById('entry-create-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+}
+function closeEntryCreateModal() {
+    const modal = document.getElementById('entry-create-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+}
+function openEntryEditModal(btn) {
+    if (!btn) return;
+    const modal = document.getElementById('entry-edit-modal');
+    if (!modal) return;
+    document.getElementById('edit-entry-id').value = btn.dataset.entryId || '';
+    document.getElementById('edit-entry-word').value = btn.dataset.entryWord || '';
+    document.getElementById('edit-entry-label-id').value = btn.dataset.entryLabelId || '';
+    document.getElementById('edit-entry-suggestion').value = btn.dataset.entrySuggestion || '0';
+    document.getElementById('edit-entry-priority').value = btn.dataset.entryPriority || '0';
+    document.getElementById('edit-entry-enabled').value = btn.dataset.entryEnabled || '1';
+    modal.classList.remove('hidden');
+}
+function closeEntryEditModal() {
+    const modal = document.getElementById('entry-edit-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+}
+document.addEventListener('DOMContentLoaded', function() {
+    const createModal = document.getElementById('entry-create-modal');
+    const editModal = document.getElementById('entry-edit-modal');
+    if (createModal && typeof attachModalBackdropClose === 'function') {
+        attachModalBackdropClose(createModal, closeEntryCreateModal);
+    }
+    if (editModal && typeof attachModalBackdropClose === 'function') {
+        attachModalBackdropClose(editModal, closeEntryEditModal);
+    }
+    {% if flash_need_publish %}
+    if (typeof showToast === 'function') {
+        showToast('词条已变更，请在词库列表发布后生效。', 'warning');
+    }
+    {% endif %}
+});
+</script>
 {% endblock %}

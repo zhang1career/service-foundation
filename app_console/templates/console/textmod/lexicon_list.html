@@ -5,103 +5,23 @@
 
 {% block content %}
 <div class="space-y-4">
-    {% if form_error %}
-    <div class="card border-red-300">
-        <div class="card-body text-sm text-red-700">{{ form_error }}</div>
-    </div>
-    {% endif %}
-    {% if flash_imported %}
+    {% if flash_created %}
     <div class="card border-green-300 bg-green-50">
-        <div class="card-body text-sm text-green-800">词条已导入到所选词库。若需生效请在词库详情页执行「发布」。</div>
+        <div class="card-body text-sm text-green-800">词库已创建。</div>
+    </div>
+    {% endif %}
+    {% if flash_published %}
+    <div class="card border-green-300 bg-green-50">
+        <div class="card-body text-sm text-green-800">已发布词库快照，扫描接口将使用最新发布版本。</div>
     </div>
     {% endif %}
 
     <div class="card">
-        <div class="card-body">
-            <h2 class="text-lg font-semibold text-gray-800">新建词库</h2>
-            <p class="text-sm text-gray-600 mt-1">创建后在下方或详情页批量导入词条并执行「发布」生成可扫描快照。</p>
-            <form method="post" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="create">
-                <div>
-                    <label class="block text-xs text-gray-600 mb-1">名称（唯一）</label>
-                    <input name="name" type="text" class="w-full border rounded px-2 py-1" placeholder="例如 default_lexicon" required maxlength="128">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-600 mb-1">业务类型 biz_type（枚举 id）</label>
-                    <select name="biz_type" class="w-full border rounded px-2 py-1 bg-white">
-                        {% for opt in lexicon_biz_type_choices %}
-                        <option value="{{ opt.value }}">{{ opt.label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <button type="submit" class="btn btn-primary">创建</button>
-                </div>
-            </form>
+        <div class="card-header">
+            <h2 class="text-lg font-semibold text-gray-800">词库列表</h2>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openCreateLexiconModal()">新建</button>
         </div>
-    </div>
-
-    <div class="card">
         <div class="card-body">
-            <h2 class="text-lg font-semibold text-gray-800">批量导入词条</h2>
-            <p class="text-sm text-gray-600 mt-1">
-                与常见云厂商控制台一致：<strong>UTF-8 的 .txt</strong>（每行一词，可与腾讯云等「换行分隔」批量导入一致）或
-                <strong>.csv</strong>（首行可为表头 <code class="text-xs">word,label_id,suggestion,priority,enabled</code>；无表头时支持单列词或五列按序填写）。
-                单批入库上限 {{ batch_max }} 条，超大文件会按该大小自动分批写入。
-            </p>
-            <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="file_import">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">目标词库</label>
-                        <select name="lexicon_id" class="w-full border rounded px-2 py-1 bg-white" required>
-                            {% for row in lexicon_rows %}
-                            <option value="{{ row.id }}">#{{ row.id }} · {{ row.name }}</option>
-                            {% empty %}
-                            <option value="" disabled selected>暂无词库，请先创建</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">上传文件（.txt / .csv）</label>
-                        <input name="import_file" type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-sm" required>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">默认 label_id（.txt 或未填列时）</label>
-                        <input name="default_label_id" type="number" value="1" class="w-full border rounded px-2 py-1">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">默认 suggestion</label>
-                        <select name="default_suggestion" class="w-full border rounded px-2 py-1 bg-white">
-                            {% for opt in import_suggestion_choices %}
-                            <option value="{{ opt.value }}" {% if opt.value == 2 %}selected{% endif %}>{{ opt.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">默认 priority</label>
-                        <input name="default_priority" type="number" value="10" class="w-full border rounded px-2 py-1">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">默认 enabled</label>
-                        <select name="default_enabled" class="w-full border rounded px-2 py-1 bg-white">
-                            <option value="1" selected>启用</option>
-                            <option value="0">停用</option>
-                        </select>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-sm" {% if not lexicon_rows %}disabled{% endif %}>导入</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-body">
-            <h2 class="text-lg font-semibold text-gray-800 mb-2">词库列表</h2>
             <div class="overflow-x-auto">
                 <table class="min-w-full data-table text-sm">
                     <thead>
@@ -116,12 +36,21 @@
                     <tbody>
                         {% for row in lexicon_rows %}
                         <tr>
-                            <td class="p-2">{{ row.id }}</td>
+                            <td class="p-2 font-mono"><a href="{% url 'console:textmod-lexicon-detail' lexicon_id=row.id %}" class="text-blue-600 hover:underline">{{ row.id }}</a></td>
                             <td class="p-2 font-medium">{{ row.name }}</td>
-                            <td class="p-2">{{ row.biz_type }} <span class="text-gray-500">({{ row.biz_type_label }})</span></td>
+                            <td class="p-2">{{ row.biz_type_label }}</td>
                             <td class="p-2 text-gray-600">{{ row.ut_fmt }}</td>
                             <td class="p-2">
-                                <a href="{% url 'console:textmod-lexicon-detail' lexicon_id=row.id %}" class="text-blue-600 hover:underline">管理</a>
+                                <form method="post" class="inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="publish">
+                                    <input type="hidden" name="lexicon_id" value="{{ row.id }}">
+                                    <button type="submit" class="btn btn-outline btn-icon" title="发布快照" onclick="return confirmAction('确认发布该词库的快照？');">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12l7-7 7 7M12 5v14M5 19h14"></path>
+                                        </svg>
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                         {% empty %}
@@ -133,4 +62,55 @@
         </div>
     </div>
 </div>
+
+<div id="create-lexicon-modal" class="modal-backdrop hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="text-lg font-semibold text-gray-800">新建词库</h3>
+        </div>
+        <form method="post">
+            <div class="modal-body space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">名称（唯一）</label>
+                    <input name="name" type="text" class="w-full border rounded px-2 py-1" placeholder="例如 default_lexicon" required maxlength="128">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">业务类型 biz_type（字典 textmod_lexicon_biz_type）</label>
+                    <select name="biz_type" class="w-full border rounded px-2 py-1 bg-white">
+                        {% for opt in lexicon_biz_type_choices %}
+                        <option value="{{ opt.value }}">{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeCreateLexiconModal()">取消</button>
+                <button type="submit" class="btn btn-primary">创建</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openCreateLexiconModal() {
+    const modal = document.getElementById('create-lexicon-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+}
+function closeCreateLexiconModal() {
+    const modal = document.getElementById('create-lexicon-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+}
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('create-lexicon-modal');
+    if (modal && typeof attachModalBackdropClose === 'function') {
+        attachModalBackdropClose(modal, closeCreateLexiconModal);
+    }
+});
+</script>
 {% endblock %}

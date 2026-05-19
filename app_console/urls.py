@@ -101,7 +101,11 @@ urlpatterns = [
 ]
 
 if getattr(settings, "APP_TEXTMOD_ENABLED", False):
-    from app_console.views.textmod_console_view import TextmodLexiconDetailView, TextmodLexiconListView
+    from app_console.views.textmod_console_view import (
+        TextmodLexiconDetailView,
+        TextmodLexiconEntryDetailView,
+        TextmodLexiconListView,
+    )
 
     urlpatterns.extend(
         [
@@ -110,6 +114,11 @@ if getattr(settings, "APP_TEXTMOD_ENABLED", False):
                 "textmod/lexicons/<int:lexicon_id>/",
                 TextmodLexiconDetailView.as_view(),
                 name="textmod-lexicon-detail",
+            ),
+            path(
+                "textmod/lexicons/<int:lexicon_id>/entries/<int:entry_id>/",
+                TextmodLexiconEntryDetailView.as_view(),
+                name="textmod-entry-detail",
             ),
         ]
     )
