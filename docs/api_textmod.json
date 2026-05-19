@@ -1,0 +1,388 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "文本审核词库与扫描 API (app_textmod)",
+    "description": "枚举字典（`GET .../dict`）、词库列表/创建、批量词条、发布走 **`/admin/textmod/`**；文本扫描与健康检查走 **`/api/textmod/`**。与 Django Admin 共用 `/admin` 前缀时由更具体的 `admin/textmod/` 优先匹配。均需 `APP_TEXTMOD_ENABLED`。\n\n成功与业务错误多数情况下 HTTP 状态码均为 200，以响应体 `errorCode` 为准：`0`（`RET_OK`）成功；`100`（`RET_INVALID_PARAM`）参数错误；`101`（`RET_MISSING_PARAM`）缺少参数；`301`（`RET_RESOURCE_NOT_FOUND`）资源不存在等（见 `common.consts.response_const`）。\n\n部分接口通过 `response_with_request_id` 在响应头写入 `X-Request-Id`（配置键 `REQUEST_ID_RESPONSE_HEADER`，默认 `X-Request-Id`）。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "站点根路径；下列 paths 已为完整路径（`/api/textmod/...` 与 `/admin/textmod/...`）"
+    }
+  ],
+  "tags": [
+    { "name": "Dict", "description": "枚举元数据（与其它应用共用的 `DictCodesView`，`/admin/textmod/dict`）" },
+    { "name": "Health", "description": "服务存活探测" },
+    { "name": "Scan", "description": "基于已发布词库版本的 AC 自动机扫描" },
+    { "name": "Lexicon", "description": "词库与词条、发布版本（`/admin/textmod/`）" }
+  ],
+  "paths": {
+    "/api/textmod/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "健康检查",
+        "operationId": "textmodHealthGet",
+        "responses": {
+          "200": {
+            "description": "成功时 `data` 含 `status`、`service`",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthEnvelope" },
+                "example": {
+                  "errorCode": 0,
+                  "message": "",
+                  "data": { "status": "ok", "service": "textmod" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/textmod/scan": {
+      "post": {
+        "tags": ["Scan"],
+        "summary": "扫描文本",
+        "description": "对 `text` 做与发布时一致的标准化匹配，在已发布词库版本上运行 AC 自动机。可选 `include_normalized=true` 时在 `data` 中带 `normalized` 字段。\n\n无已发布版本时 `errorCode` 为 `301`，`message` 为 `no published lexicon version`。文本超长时 `errorCode` 为 `100`（上限 `TEXTMOD_MAX_TEXT_CHARS`）。",
+        "operationId": "textmodScanPost",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TextmodScanRequest" },
+              "example": {
+                "text": "待检测内容",
+                "lexicon_id": 1,
+                "include_normalized": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功或参数/业务错误（均为 200，看 `errorCode`）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/textmod/lexicons": {
+      "get": {
+        "tags": ["Lexicon"],
+        "summary": "词库列表",
+        "operationId": "textmodLexiconList",
+        "responses": {
+          "200": {
+            "description": "`data.items` 为词库数组，每项含 `id`, `name`, `biz_type`, `ct`, `ut`（时间戳毫秒）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LexiconListEnvelope" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Lexicon"],
+        "summary": "创建词库",
+        "description": "`biz_type` 须为已定义的 `LexiconBizTypeEnum` 整型 id（见字典 `textmod_lexicon_biz_type`）；缺省或空可按实现归一为 `0`（DEFAULT）。`name` 必填、去空格后非空，且在表内唯一。",
+        "operationId": "textmodLexiconCreate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LexiconCreateRequest" },
+              "example": { "name": "default_ugc", "biz_type": 2 }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 `data` 含 `id`, `name`, `biz_type`；校验失败 `errorCode` 为 `100`",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/textmod/lexicons/{lexicon_id}/entries": {
+      "post": {
+        "tags": ["Lexicon"],
+        "summary": "批量新增词条",
+        "description": "`entries` 为对象数组。单批条数上限 `TEXTMOD_ENTRY_BATCH_MAX`。`word` 去空格后非空才会写入；全批无有效词条时报错。\n\n存储层 `suggestion` 为整型枚举 id（见 `TextmodSuggestionEnum` / 字典 `textmod_suggestion`）；`label_id` 见 `textmod_label`。",
+        "operationId": "textmodLexiconEntriesCreate",
+        "parameters": [
+          {
+            "name": "lexicon_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "词库主键"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LexiconEntriesBatchRequest" },
+              "example": {
+                "entries": [
+                  {
+                    "word": "敏感词",
+                    "label_id": 1,
+                    "suggestion": 2,
+                    "priority": 10,
+                    "enabled": true
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功时 `data.inserted` 为实际插入条数；词库不存在 `301`；参数错误 `100`",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/textmod/lexicons/{lexicon_id}/publish": {
+      "post": {
+        "tags": ["Lexicon"],
+        "summary": "发布词库版本",
+        "description": "将当前 `enabled=1` 的词条编译为二进制 blob 并落盘，新建一条 `LexiconVersion`（`seq` 递增），原 `PUBLISHED` 版本标记为 `ARCHIVED`。成功返回新版本 id、序号、词条计数与 `blob_checksum`（SHA-256 十六进制）。无有效词条等场景可能 `errorCode` 为 `100`。",
+        "operationId": "textmodLexiconPublish",
+        "parameters": [
+          {
+            "name": "lexicon_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "词库主键"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功或错误（HTTP 200，`errorCode` 区分）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/textmod/dict": {
+      "get": {
+        "tags": ["Dict"],
+        "summary": "按 code 批量查询枚举字典",
+        "description": "查询参数 `codes` 为逗号分隔的注册名；返回 `data` 为映射：每个 code 对应 `[{ \"k\": 展示名, \"v\": 值字符串 }, ...]`。\n\n本应用注册的 code：`textmod_lexicon_biz_type`、`textmod_suggestion`、`textmod_label`（见 `app_textmod.dict_registration`）。",
+        "operationId": "textmodDictGet",
+        "parameters": [
+          {
+            "name": "codes",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "example": "textmod_suggestion,textmod_label" },
+            "description": "逗号分隔的字典 code（不能为空）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`errorCode`=0 时 `data` 为字典；`101` 表示缺少 `codes`；`1` 等为其它错误（`message` 说明）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StdEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "StdEnvelope": {
+        "type": "object",
+        "description": "统一响应外壳；具体 `data` 形状随接口变化",
+        "properties": {
+          "errorCode": {
+            "type": "integer",
+            "description": "0 成功；非 0 为错误码（见 `common.consts.response_const`）"
+          },
+          "data": { "description": "业务数据，成功或部分错误时可能为空" },
+          "message": { "type": "string", "description": "错误或提示文案" },
+          "detail": {
+            "type": "string",
+            "description": "补充说明（部分错误响应存在）"
+          }
+        },
+        "required": ["errorCode", "message"]
+      },
+      "HealthEnvelope": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StdEnvelope" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "status": { "type": "string", "example": "ok" },
+                  "service": { "type": "string", "example": "textmod" }
+                },
+                "required": ["status", "service"]
+              }
+            }
+          }
+        ]
+      },
+      "LexiconListEnvelope": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StdEnvelope" },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/LexiconSummary" }
+                  }
+                },
+                "required": ["items"]
+              }
+            }
+          }
+        ]
+      },
+      "LexiconSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "name": { "type": "string" },
+          "biz_type": { "type": "integer" },
+          "ct": { "type": "integer", "format": "int64", "description": "创建时间，毫秒时间戳" },
+          "ut": { "type": "integer", "format": "int64", "description": "更新时间，毫秒时间戳" }
+        },
+        "required": ["id", "name", "biz_type", "ct", "ut"]
+      },
+      "TextmodScanRequest": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string", "description": "待扫描文本（必填；`null` 不允许）" },
+          "lexicon_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "目标词库 id（必填）"
+          },
+          "include_normalized": {
+            "type": "boolean",
+            "default": false,
+            "description": "为 true 时在响应 `data` 中包含标准化后的 `normalized` 字符串"
+          }
+        },
+        "required": ["text", "lexicon_id"]
+      },
+      "ScanHit": {
+        "type": "object",
+        "properties": {
+          "start_pos": { "type": "integer", "minimum": 0, "description": "原文中的起始偏移（字符）" },
+          "end_pos": { "type": "integer", "minimum": 0, "description": "原文中的结束偏移（不含）" },
+          "word": { "type": "string", "description": "词库中的原词" },
+          "entry_id": { "type": "integer", "format": "int64" },
+          "label_id": { "type": "integer" },
+          "suggestion": {
+            "type": "string",
+            "enum": ["pass", "review", "block"],
+            "description": "API 层字符串 suggestion"
+          },
+          "priority": { "type": "integer", "description": "词条优先级" }
+        },
+        "required": ["start_pos", "end_pos", "word", "entry_id", "label_id", "suggestion", "priority"]
+      },
+      "TextmodScanData": {
+        "type": "object",
+        "properties": {
+          "lexicon_id": { "type": "integer" },
+          "lexicon_version_id": { "type": "integer", "format": "int64" },
+          "lexicon_version_seq": { "type": "integer" },
+          "normalized": {
+            "type": "string",
+            "description": "仅当请求 `include_normalized` 为 true 时存在"
+          },
+          "suggestion": {
+            "type": "string",
+            "enum": ["pass", "review", "block"],
+            "description": "整体建议（按命中项 severity 聚合）"
+          },
+          "label_id": { "type": "integer", "description": "与整体 suggestion 对应的主 label_id" },
+          "hits": { "type": "array", "items": { "$ref": "#/components/schemas/ScanHit" } }
+        },
+        "required": [
+          "lexicon_id",
+          "lexicon_version_id",
+          "lexicon_version_seq",
+          "suggestion",
+          "label_id",
+          "hits"
+        ]
+      },
+      "LexiconCreateRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "词库名称（必填，唯一）" },
+          "biz_type": {
+            "type": "integer",
+            "description": "`LexiconBizTypeEnum` id；可省略或空串按实现视为 DEFAULT(0)"
+          }
+        },
+        "required": ["name"]
+      },
+      "LexiconEntryInput": {
+        "type": "object",
+        "properties": {
+          "word": { "type": "string", "description": "词条文本（去空格后非空，最大 512）" },
+          "label_id": { "type": "integer", "default": 0 },
+          "suggestion": {
+            "type": "integer",
+            "default": 0,
+            "description": "`TextmodSuggestionEnum` 数值：0 pass，1 review，2 block"
+          },
+          "priority": { "type": "integer", "default": 0 },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "为 false 时存 `enabled=0`，发布时跳过"
+          }
+        }
+      },
+      "LexiconEntriesBatchRequest": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/LexiconEntryInput" },
+            "minItems": 1
+          }
+        },
+        "required": ["entries"]
+      }
+    }
+  }
+}

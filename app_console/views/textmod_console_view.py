@@ -1,4 +1,9 @@
-"""文本风控（app_textmod）：控制台词库与词条管理。"""
+"""文本风控（app_textmod）：控制台词库与词条管理。
+
+页面路由在 ``console/textmod/``；枚举字典与词库 JSON API（含 ``GET .../dict``、lexicons 等）
+挂载在 ``/admin/textmod/``（见 ``app_textmod.urls_lexicon_admin``）。公开能力仅为
+``/api/textmod/`` 下的 health 与 scan。
+"""
 from __future__ import annotations
 
 import math

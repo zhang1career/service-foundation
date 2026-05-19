@@ -18,7 +18,15 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
 
-urlpatterns = [
+urlpatterns = []
+
+# 必须排在 ``admin/`` 之前，否则 ``admin.site`` 会 consume ``admin/textmod/...``
+if settings.APP_TEXTMOD_ENABLED:
+    from app_textmod import urls_admin as app_textmod_lexicon_admin_urls
+
+    urlpatterns.append(path("admin/textmod/", include(app_textmod_lexicon_admin_urls)))
+
+urlpatterns += [
     path("admin/", admin.site.urls),
     path('api-auth/', include('rest_framework.urls')),
 ]

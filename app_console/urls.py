@@ -101,6 +101,7 @@ urlpatterns = [
 ]
 
 if getattr(settings, "APP_TEXTMOD_ENABLED", False):
+    # 页面：console/textmod/… ；JSON API：GET /admin/textmod/dict，词库列表/词条/发布等同前缀
     from app_console.views.textmod_console_view import (
         TextmodLexiconDetailView,
         TextmodLexiconEntryDetailView,
