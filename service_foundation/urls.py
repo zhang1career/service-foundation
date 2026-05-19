@@ -22,9 +22,9 @@ urlpatterns = []
 
 # 必须排在 ``admin/`` 之前，否则 ``admin.site`` 会 consume ``admin/textmod/...``
 if settings.APP_TEXTMOD_ENABLED:
-    from app_textmod import urls_admin as app_textmod_lexicon_admin_urls
+    from app_textmod import urls_textmod_admin as app_textmod_admin_urls
 
-    urlpatterns.append(path("admin/textmod/", include(app_textmod_lexicon_admin_urls)))
+    urlpatterns.append(path("admin/textmod/", include(app_textmod_admin_urls)))
 
 urlpatterns += [
     path("admin/", admin.site.urls),
