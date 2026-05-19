@@ -1,12 +1,11 @@
-"""文本风控（app_textmod）：词库管理、词条导入、发布与 API 试调。"""
+"""文本风控（app_textmod）：控制台词库管理与文件批量导入。"""
 from __future__ import annotations
-
-import json
 
 from django.conf import settings
 from django.http import Http404, HttpResponseRedirect
 from django.views.generic import TemplateView
 
+from app_console.textmod_import_parse import normalize_entries, parse_lexicon_import_bytes
 from app_console.utils import format_epoch_ms_for_display
 from app_textmod.enums.lexicon_biz_type_enum import (
     coerce_lexicon_biz_type_id,
@@ -31,8 +30,47 @@ class _TextmodConsoleMixin:
         return super().dispatch(request, *args, **kwargs)
 
 
+def _batch_max() -> int:
+    return int(settings.TEXTMOD_ENTRY_BATCH_MAX)
+
+
+def _import_suggestion_choices_for_template():
+    return [
+        {"value": int(TextmodSuggestionEnum.BLOCK), "label": "block（拦截）"},
+        {"value": int(TextmodSuggestionEnum.REVIEW), "label": "review（审核）"},
+        {"value": int(TextmodSuggestionEnum.PASS), "label": "pass（放行）"},
+    ]
+
+
+def _read_import_defaults(request) -> tuple[int, int, int, bool]:
+    try:
+        label_id = int((request.POST.get("default_label_id") or "1").strip(), 10)
+    except ValueError as exc:
+        raise ValueError("label_id 默认值为无效整数") from exc
+    try:
+        suggestion = int((request.POST.get("default_suggestion") or "").strip(), 10)
+    except ValueError as exc:
+        raise ValueError("suggestion 默认值为无效整数") from exc
+    if suggestion not in (int(TextmodSuggestionEnum.PASS), int(TextmodSuggestionEnum.REVIEW), int(TextmodSuggestionEnum.BLOCK)):
+        raise ValueError("suggestion 需为 0(pass)、1(review) 或 2(block)")
+    try:
+        priority = int((request.POST.get("default_priority") or "10").strip(), 10)
+    except ValueError as exc:
+        raise ValueError("priority 默认值为无效整数") from exc
+    enabled_raw = (request.POST.get("default_enabled") or "1").strip().lower()
+    default_enabled = enabled_raw in ("1", "true", "yes", "on")
+    return label_id, suggestion, priority, default_enabled
+
+
+def _import_entries_with_chunking(*, lexicon_id: int, entries: list[dict]) -> None:
+    batch = _batch_max()
+    for i in range(0, len(entries), batch):
+        chunk = entries[i : i + batch]
+        add_entries(lexicon_id=lexicon_id, entries=chunk, batch_max=batch)
+
+
 class TextmodLexiconListView(_TextmodConsoleMixin, TemplateView):
-    """词库列表与创建。"""
+    """词库列表、创建与批量导入。"""
 
     template_name = "console/textmod/lexicon_list.html"
 
@@ -40,6 +78,8 @@ class TextmodLexiconListView(_TextmodConsoleMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         rows = list_lexicons()
         ctx["lexicon_biz_type_choices"] = lexicon_biz_type_choices_for_template()
+        ctx["import_suggestion_choices"] = _import_suggestion_choices_for_template()
+        ctx["batch_max"] = _batch_max()
         ctx["lexicon_rows"] = [
             {
                 "id": int(r.id),
@@ -50,23 +90,56 @@ class TextmodLexiconListView(_TextmodConsoleMixin, TemplateView):
             }
             for r in rows
         ]
+        ctx["flash_imported"] = self.request.GET.get("imported") == "1"
         return ctx
 
     def post(self, request, *args, **kwargs):
-        if (request.POST.get("action") or "").strip() != "create":
+        action = (request.POST.get("action") or "").strip()
+        if action == "create":
+            try:
+                create_lexicon(
+                    name=str(request.POST.get("name", "")),
+                    biz_type=coerce_lexicon_biz_type_id(request.POST.get("biz_type")),
+                )
+            except ValueError:
+                pass
             return HttpResponseRedirect(request.path)
-        try:
-            create_lexicon(
-                name=str(request.POST.get("name", "")),
-                biz_type=coerce_lexicon_biz_type_id(request.POST.get("biz_type")),
-            )
-        except ValueError:
-            pass
+        if action == "file_import":
+            ctx = self.get_context_data(**kwargs)
+            lid_raw = (request.POST.get("lexicon_id") or "").strip()
+            try:
+                lid = int(lid_raw, 10)
+            except ValueError:
+                ctx["form_error"] = "请选择目标词库"
+                return self.render_to_response(ctx)
+            if get_lexicon(lid) is None:
+                ctx["form_error"] = "词库不存在"
+                return self.render_to_response(ctx)
+            up = request.FILES.get("import_file")
+            if not up:
+                ctx["form_error"] = "请选择要上传的 .txt 或 .csv 文件"
+                return self.render_to_response(ctx)
+            try:
+                raw = up.read()
+                defaults = _read_import_defaults(request)
+                parsed = parse_lexicon_import_bytes(raw=raw, filename=getattr(up, "name", "") or "")
+                entries = normalize_entries(
+                    parsed,
+                    default_label_id=defaults[0],
+                    default_suggestion=defaults[1],
+                    default_priority=defaults[2],
+                    default_enabled=defaults[3],
+                )
+                _import_entries_with_chunking(lexicon_id=lid, entries=entries)
+            except ValueError as exc:
+                ctx["form_error"] = str(exc)
+                return self.render_to_response(ctx)
+            return HttpResponseRedirect(request.path + "?imported=1")
         return HttpResponseRedirect(request.path)
 
 
 class TextmodLexiconDetailView(_TextmodConsoleMixin, TemplateView):
-    """词库详情：词条列表、批量导入、发布快照。"""
+    """词库详情：词条列表、文件批量导入、发布快照。"""
 
     template_name = "console/textmod/lexicon_detail.html"
 
@@ -83,6 +156,8 @@ class TextmodLexiconDetailView(_TextmodConsoleMixin, TemplateView):
             int(TextmodSuggestionEnum.BLOCK): "block",
         }
         ctx["suggestion_labels"] = suggestion_labels
+        ctx["import_suggestion_choices"] = _import_suggestion_choices_for_template()
+        ctx["batch_max"] = _batch_max()
         entries = list_entries_for_lexicon(lid, limit=400)
         ctx["entry_rows"] = [
             {
@@ -99,21 +174,8 @@ class TextmodLexiconDetailView(_TextmodConsoleMixin, TemplateView):
         ]
         ctx["lexicon_biz_type_label"] = lexicon_biz_type_label_zh(int(lex.biz_type))
         req = self.request
-        ctx["flash_published"] = (req.GET.get("published") == "1")
-        ctx["flash_imported"] = (req.GET.get("imported") == "1")
-        ctx["entries_example_json"] = json.dumps(
-            [
-                {
-                    "word": "示例敏感词",
-                    "label_id": 1,
-                    "suggestion": int(TextmodSuggestionEnum.BLOCK),
-                    "priority": 10,
-                    "enabled": True,
-                }
-            ],
-            ensure_ascii=False,
-            indent=2,
-        )
+        ctx["flash_published"] = req.GET.get("published") == "1"
+        ctx["flash_imported"] = req.GET.get("imported") == "1"
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -126,42 +188,24 @@ class TextmodLexiconDetailView(_TextmodConsoleMixin, TemplateView):
             if action == "publish":
                 LexiconPublishService.publish(lid)
                 return HttpResponseRedirect(request.path + "?published=1")
-            if action == "add_entries":
-                raw = (request.POST.get("entries_json") or "").strip()
-                rows = json.loads(raw)
-                if not isinstance(rows, list):
-                    raise ValueError("entries_json 必须是 JSON 数组")
-                add_entries(
-                    lexicon_id=lid,
-                    entries=rows,
-                    batch_max=int(settings.TEXTMOD_ENTRY_BATCH_MAX),
+            if action == "file_import":
+                up = request.FILES.get("import_file")
+                if not up:
+                    ctx["form_error"] = "请选择要上传的 .txt 或 .csv 文件"
+                    return self.render_to_response(ctx)
+                raw = up.read()
+                defaults = _read_import_defaults(request)
+                parsed = parse_lexicon_import_bytes(raw=raw, filename=getattr(up, "name", "") or "")
+                entries = normalize_entries(
+                    parsed,
+                    default_label_id=defaults[0],
+                    default_suggestion=defaults[1],
+                    default_priority=defaults[2],
+                    default_enabled=defaults[3],
                 )
+                _import_entries_with_chunking(lexicon_id=lid, entries=entries)
                 return HttpResponseRedirect(request.path + "?imported=1")
-        except json.JSONDecodeError as exc:
-            ctx["entries_json_body"] = (request.POST.get("entries_json") or "").strip()
-            ctx["form_error"] = f"JSON 解析失败: {exc}"
-            return self.render_to_response(ctx)
-        except (TypeError, ValueError) as exc:
-            ctx["entries_json_body"] = (request.POST.get("entries_json") or "").strip()
+        except ValueError as exc:
             ctx["form_error"] = str(exc)
             return self.render_to_response(ctx)
         return HttpResponseRedirect(request.path)
-
-
-class TextmodApiConsoleView(_TextmodConsoleMixin, TemplateView):
-    """调用 /api/textmod 的浏览器调试页。"""
-
-    template_name = "console/textmod/api_debug.html"
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx["textmod_api_base"] = "/api/textmod"
-        ctx["textmod_enabled"] = bool(getattr(settings, "APP_TEXTMOD_ENABLED", False))
-        lexicons = list_lexicons()
-        default_id = int(lexicons[0].id) if lexicons else 1
-        ctx["scan_example"] = json.dumps(
-            {"text": "待检测文本", "lexicon_id": default_id, "include_normalized": False},
-            ensure_ascii=False,
-            indent=2,
-        )
-        return ctx

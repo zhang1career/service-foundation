@@ -39,8 +39,14 @@ class LexiconVersion(models.Model):
     class Meta:
         db_table = "lex_ver"
         indexes = [
-            models.Index(fields=["lex_id", "status"]),
-            models.Index(fields=["lex_id", "seq"]),
+            models.Index(
+                fields=["lex_id", "status"],
+                name="lex_ver_lex_status_idx",
+            ),
+            models.Index(
+                fields=["lex_id", "seq"],
+                name="lex_ver_lex_seq_idx",
+            ),
         ]
 
 
@@ -57,5 +63,8 @@ class LexiconEntry(models.Model):
     class Meta:
         db_table = "lex_entry"
         indexes = [
-            models.Index(fields=["lex_id", "enabled"]),
+            models.Index(
+                fields=["lex_id", "enabled"],
+                name="lex_entry_lex_enabled_idx",
+            ),
         ]

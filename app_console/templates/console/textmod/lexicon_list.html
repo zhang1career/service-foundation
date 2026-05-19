@@ -4,15 +4,22 @@
 {% block page_title %}文本风控{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    {% include 'console/includes/textmod_subnav.html' with active='lexicons' %}
-</div>
-
 <div class="space-y-4">
+    {% if form_error %}
+    <div class="card border-red-300">
+        <div class="card-body text-sm text-red-700">{{ form_error }}</div>
+    </div>
+    {% endif %}
+    {% if flash_imported %}
+    <div class="card border-green-300 bg-green-50">
+        <div class="card-body text-sm text-green-800">词条已导入到所选词库。若需生效请在词库详情页执行「发布」。</div>
+    </div>
+    {% endif %}
+
     <div class="card">
         <div class="card-body">
             <h2 class="text-lg font-semibold text-gray-800">新建词库</h2>
-            <p class="text-sm text-gray-600 mt-1">创建后在详情页批量导入词条并执行「发布」生成可扫描快照。</p>
+            <p class="text-sm text-gray-600 mt-1">创建后在下方或详情页批量导入词条并执行「发布」生成可扫描快照。</p>
             <form method="post" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="create">
@@ -31,6 +38,63 @@
                 <div>
                     <button type="submit" class="btn btn-primary">创建</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h2 class="text-lg font-semibold text-gray-800">批量导入词条</h2>
+            <p class="text-sm text-gray-600 mt-1">
+                与常见云厂商控制台一致：<strong>UTF-8 的 .txt</strong>（每行一词，可与腾讯云等「换行分隔」批量导入一致）或
+                <strong>.csv</strong>（首行可为表头 <code class="text-xs">word,label_id,suggestion,priority,enabled</code>；无表头时支持单列词或五列按序填写）。
+                单批入库上限 {{ batch_max }} 条，超大文件会按该大小自动分批写入。
+            </p>
+            <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="file_import">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">目标词库</label>
+                        <select name="lexicon_id" class="w-full border rounded px-2 py-1 bg-white" required>
+                            {% for row in lexicon_rows %}
+                            <option value="{{ row.id }}">#{{ row.id }} · {{ row.name }}</option>
+                            {% empty %}
+                            <option value="" disabled selected>暂无词库，请先创建</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">上传文件（.txt / .csv）</label>
+                        <input name="import_file" type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-sm" required>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 label_id（.txt 或未填列时）</label>
+                        <input name="default_label_id" type="number" value="1" class="w-full border rounded px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 suggestion</label>
+                        <select name="default_suggestion" class="w-full border rounded px-2 py-1 bg-white">
+                            {% for opt in import_suggestion_choices %}
+                            <option value="{{ opt.value }}" {% if opt.value == 2 %}selected{% endif %}>{{ opt.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 priority</label>
+                        <input name="default_priority" type="number" value="10" class="w-full border rounded px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 enabled</label>
+                        <select name="default_enabled" class="w-full border rounded px-2 py-1 bg-white">
+                            <option value="1" selected>启用</option>
+                            <option value="0">停用</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm" {% if not lexicon_rows %}disabled{% endif %}>导入</button>
             </form>
         </div>
     </div>

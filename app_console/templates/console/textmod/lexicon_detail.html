@@ -4,10 +4,6 @@
 {% block page_title %}文本风控 · {{ lexicon.name }}{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    {% include 'console/includes/textmod_subnav.html' with active='lexicons' %}
-</div>
-
 <div class="space-y-4">
     {% if form_error %}
     <div class="card border-red-300">
@@ -16,7 +12,7 @@
     {% endif %}
     {% if flash_published %}
     <div class="card border-green-300 bg-green-50">
-        <div class="card-body text-sm text-green-800">已发布新快照，可在「API 调试」中执行 scan。</div>
+        <div class="card-body text-sm text-green-800">已发布新快照，扫描接口可使用当前词库版本。</div>
     </div>
     {% endif %}
     {% if flash_imported %}
@@ -55,11 +51,42 @@
     <div class="card">
         <div class="card-body">
             <h2 class="text-lg font-semibold text-gray-800">批量导入词条</h2>
-            <p class="text-sm text-gray-600 mt-1">JSON 数组；单批最多 {{ batch_max }} 条。字段：word, label_id, suggestion, priority, enabled（可选）。</p>
-            <form method="post" class="mt-3 space-y-2">
+            <p class="text-sm text-gray-600 mt-1">
+                <strong>UTF-8 .txt</strong> 每行一词，或 <strong>.csv</strong>（表头含 <code class="text-xs">word</code> 等）。
+                与列表页规则一致；单批 {{ batch_max }} 条，大文件自动分批写入。
+            </p>
+            <form method="post" enctype="multipart/form-data" class="mt-3 space-y-3">
                 {% csrf_token %}
-                <input type="hidden" name="action" value="add_entries">
-                <textarea name="entries_json" class="w-full h-48 p-2 border rounded font-mono text-xs" spellcheck="false">{% if entries_json_body %}{{ entries_json_body|safe }}{% else %}{{ entries_example_json|safe }}{% endif %}</textarea>
+                <input type="hidden" name="action" value="file_import">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">上传文件（.txt / .csv）</label>
+                    <input name="import_file" type="file" accept=".txt,.csv,text/plain,text/csv" class="w-full text-sm" required>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 label_id</label>
+                        <input name="default_label_id" type="number" value="1" class="w-full border rounded px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 suggestion</label>
+                        <select name="default_suggestion" class="w-full border rounded px-2 py-1 bg-white">
+                            {% for opt in import_suggestion_choices %}
+                            <option value="{{ opt.value }}" {% if opt.value == 2 %}selected{% endif %}>{{ opt.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 priority</label>
+                        <input name="default_priority" type="number" value="10" class="w-full border rounded px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">默认 enabled</label>
+                        <select name="default_enabled" class="w-full border rounded px-2 py-1 bg-white">
+                            <option value="1" selected>启用</option>
+                            <option value="0">停用</option>
+                        </select>
+                    </div>
+                </div>
                 <button type="submit" class="btn btn-primary btn-sm">导入</button>
             </form>
         </div>
