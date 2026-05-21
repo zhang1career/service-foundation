@@ -384,6 +384,42 @@ class TestAuthServiceRegister(SimpleTestCase):
     @patch("app_user.services.auth_service.get_user_by_email")
     @patch("app_user.services.auth_service.get_user_by_username")
     @patch("app_user.services.auth_service.get_latest_incomplete_event_by_notice")
+    def test_register_no_verify_fills_email_from_notice_target(
+            self, mock_prior, mock_u, mock_e, mock_p, mock_av, mock_create, mock_rep, mock_atomic,
+    ):
+        mock_prior.return_value = None
+        mock_u.return_value = None
+        mock_e.return_value = None
+        mock_p.return_value = None
+        mock_av.return_value = ""
+        u = MagicMock()
+        u.id = 4
+        u.username = "nv2"
+        u.auth_status = 0
+        mock_create.return_value = u
+        mock_atomic.side_effect = lambda **kwargs: nullcontext()
+        AuthService.register_request_by_payload(
+            {
+                "no_verify": 1,
+                "username": "nv2",
+                "password": "secret12",
+                "notice_channel": "email",
+                "notice_target": "nv2@x.com",
+            },
+        )
+        mock_create.assert_called_once()
+        kwargs = mock_create.call_args.kwargs
+        self.assertEqual(kwargs["email"], "nv2@x.com")
+        self.assertIsNone(kwargs["phone"])
+
+    @patch("app_user.services.auth_service.transaction.atomic")
+    @patch("app_user.services.auth_service.replace_session_tokens")
+    @patch("app_user.services.auth_service.create_user")
+    @patch("app_user.services.auth_service.upload_avatar")
+    @patch("app_user.services.auth_service.get_user_by_phone")
+    @patch("app_user.services.auth_service.get_user_by_email")
+    @patch("app_user.services.auth_service.get_user_by_username")
+    @patch("app_user.services.auth_service.get_latest_incomplete_event_by_notice")
     def test_register_no_verify_returns_tokens(
             self, mock_prior, mock_u, mock_e, mock_p, mock_av, mock_create, mock_rep, mock_atomic,
     ):

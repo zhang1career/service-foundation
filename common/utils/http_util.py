@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 
 from django.conf import settings
+from django.db import IntegrityError
 from django.http import HttpRequest, HttpResponse, HttpResponseBase, JsonResponse
 from rest_framework import status as http_status
 from rest_framework.response import Response as DRFResponse
@@ -19,6 +20,7 @@ from common.exceptions.checked.upstream_http_error import UpstreamHttpError
 from common.pojo.response import Response
 from common.services.http import HttpCallError, HttpClientPool, request_sync
 from common.utils.date_util import get_date_str_of_datetime
+from common.utils.db_exception_util import integrity_error_to_client
 from common.utils.json_util import API_JSON_DUMPS_PARAMS
 from common.utils.url_util import url_decode
 
@@ -267,6 +269,21 @@ def drf_unified_exception_handler(exc, context):
             status=http_status.HTTP_400_BAD_REQUEST,
         )
 
+    if isinstance(exc, IntegrityError):
+        code, message = integrity_error_to_client(exc)
+        logger.warning(
+            "integrity_error: %s",
+            exc,
+            extra={"request_id": request_id},
+        )
+        return resp_err(
+            code=code,
+            message=message,
+            detail=repr(exc) if settings.DEBUG else "",
+            req_id=request_id,
+            status=http_status.HTTP_200_OK,
+        )
+
     response = drf_exception_handler(exc, context)
     if response is not None:
         if request:
@@ -353,6 +370,25 @@ class UnifiedExceptionMiddleware:
                     detail=detail_out,
                     req_id=request_id,
                     status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+                ),
+                request_id,
+            )
+
+        if isinstance(exception, IntegrityError):
+            code, message = integrity_error_to_client(exception)
+            logger.warning(
+                "integrity_error: %s",
+                exception,
+                extra={"request_id": request_id},
+            )
+            return self._respond(
+                request,
+                resp_err(
+                    code=code,
+                    message=message,
+                    detail=repr(exception) if settings.DEBUG else "",
+                    req_id=request_id,
+                    status=http_status.HTTP_200_OK,
                 ),
                 request_id,
             )

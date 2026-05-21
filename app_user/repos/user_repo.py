@@ -4,6 +4,7 @@ from typing import Optional, Sequence
 from app_user.enums import UserDispositionEnum, UserStatusEnum
 from app_user.models import User
 from common.utils.date_util import get_now_timestamp_ms
+from common.utils.db_exception_util import normalize_optional_contact
 
 
 def get_user_by_id(user_id: int) -> Optional[User]:
@@ -35,8 +36,8 @@ def get_user_by_login(login_key: str) -> Optional[User]:
 def create_user(
     username: str,
     password_hash: str,
-    email: str = "",
-    phone: str = "",
+    email: str | None = None,
+    phone: str | None = None,
     avatar: str = "",
     ext: Optional[dict] = None,
 ) -> User:
@@ -45,8 +46,8 @@ def create_user(
     return User.objects.using("user_rw").create(
         username=username,
         password_hash=password_hash,
-        email=email or "",
-        phone=phone or "",
+        email=normalize_optional_contact(email),
+        phone=normalize_optional_contact(phone),
         avatar=avatar,
         status=UserStatusEnum.DISABLED.value,
         auth_status=0,
@@ -62,10 +63,10 @@ def update_user_profile(user_id: int, email: Optional[str], phone: Optional[str]
         return None
     update_fields = []
     if email is not None:
-        user.email = email or ""
+        user.email = normalize_optional_contact(email)
         update_fields.append("email")
     if phone is not None:
-        user.phone = phone or ""
+        user.phone = normalize_optional_contact(phone)
         update_fields.append("phone")
     if avatar is not None:
         user.avatar = avatar

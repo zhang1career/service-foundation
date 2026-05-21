@@ -61,6 +61,7 @@ from app_user.services.verify_notice_service import (
 )
 from app_verify.enums import ChannelEnum, VerifyLevelEnum
 from common.utils.date_util import get_now_timestamp_ms
+from common.utils.db_exception_util import normalize_optional_contact
 from common.consts.response_const import (
     RET_ACCOUNT_RESTRICTED,
     RET_DUPLICATE_REQUEST,
@@ -77,6 +78,19 @@ def _no_verify_flag(raw) -> bool:
         return True
     s = str(raw).strip().lower()
     return s in ("1", "true", "yes", "on")
+
+
+def _register_contact_fields(payload: dict) -> tuple[str | None, str | None]:
+    """Resolve email/phone for registration; blank values become None (NULL in DB)."""
+    notice_channel = (payload.get("notice_channel") or "").strip().lower()
+    notice_target = (payload.get("notice_target") or "").strip()
+    email = normalize_optional_contact(payload.get("email"))
+    phone = normalize_optional_contact(payload.get("phone"))
+    if email is None and notice_channel == "email" and notice_target:
+        email = notice_target
+    if phone is None and notice_channel == "sms" and notice_target:
+        phone = notice_target
+    return email, phone
 
 
 class AuthService:
@@ -401,8 +415,7 @@ class AuthService:
     def _register_classic_request_by_payload(payload: dict) -> dict:
         username = (payload.get("username") or "").strip()
         password = payload.get("password") or ""
-        email = (payload.get("email") or "").strip()
-        phone = (payload.get("phone") or "").strip()
+        email, phone = _register_contact_fields(payload)
         avatar = payload.get("avatar")
         ext = payload.get("ext") if isinstance(payload.get("ext"), dict) else {}
         notice_channel = (payload.get("notice_channel") or "").strip().lower()
@@ -446,8 +459,7 @@ class AuthService:
     def _register_no_verify_by_payload(payload: dict) -> dict:
         username = (payload.get("username") or "").strip()
         password = payload.get("password") or ""
-        email = (payload.get("email") or "").strip()
-        phone = (payload.get("phone") or "").strip()
+        email, phone = _register_contact_fields(payload)
         avatar = payload.get("avatar")
         ext = payload.get("ext") if isinstance(payload.get("ext"), dict) else {}
         notice_channel = (payload.get("notice_channel") or "").strip().lower()
@@ -498,8 +510,8 @@ class AuthService:
             user = create_user(
                 username=(data.get("username") or "").strip(),
                 password_hash=data.get("password_hash") or "",
-                email=(data.get("email") or "").strip(),
-                phone=(data.get("phone") or "").strip(),
+                email=normalize_optional_contact(data.get("email")),
+                phone=normalize_optional_contact(data.get("phone")),
                 avatar=data.get("avatar") or "",
                 ext=data.get("ext") if isinstance(data.get("ext"), dict) else {},
             )

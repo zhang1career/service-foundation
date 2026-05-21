@@ -7,8 +7,8 @@ class User(models.Model):
     id = models.BigAutoField(primary_key=True)
     username = models.CharField(max_length=64, unique=True, db_index=True, db_column="name")
     password_hash = models.CharField(max_length=255, db_column="pw_hash")
-    email = models.CharField(max_length=255, unique=True, default="", blank=True, db_index=True)
-    phone = models.CharField(max_length=32, unique=True, default="", blank=True, db_index=True)
+    email = models.CharField(max_length=255, unique=True, null=True, blank=True, db_index=True)
+    phone = models.CharField(max_length=32, unique=True, null=True, blank=True, db_index=True)
     avatar = models.CharField(max_length=512, default="", blank=True)
     status = models.SmallIntegerField(
         choices=UserStatusEnum.choices(),

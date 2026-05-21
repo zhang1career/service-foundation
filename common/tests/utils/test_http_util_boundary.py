@@ -1,10 +1,11 @@
 from unittest import TestCase
 from unittest.mock import patch
 
+from django.db import IntegrityError
 from django.test import override_settings
 from rest_framework import status as http_status
 
-from common.consts.response_const import RET_INVALID_PARAM, RET_UNKNOWN
+from common.consts.response_const import RET_INVALID_PARAM, RET_RESOURCE_EXISTS, RET_UNKNOWN
 from common.exceptions.base_exception import UncheckedException
 from common.utils.http_util import drf_unified_exception_handler, resolve_request_id, with_type
 
@@ -45,6 +46,16 @@ class HttpUtilBoundaryTest(TestCase):
         resp = drf_unified_exception_handler(RuntimeError("oops"), {"request": req})
         self.assertEqual(resp.status_code, http_status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertEqual(resp.data["errorCode"], RET_UNKNOWN)
+
+    @override_settings(DEBUG=False)
+    def test_drf_handler_integrity_error_returns_structured_body(self):
+        req = DummyRequest()
+        exc = IntegrityError("Duplicate entry '' for key 'user.email'")
+        resp = drf_unified_exception_handler(exc, {"request": req})
+        self.assertEqual(resp.status_code, http_status.HTTP_200_OK)
+        self.assertEqual(resp.data["errorCode"], RET_RESOURCE_EXISTS)
+        self.assertEqual(resp.data["message"], "email already exists")
+        self.assertNotIn("detail", resp.data)
 
     @override_settings(DEBUG=False)
     def test_drf_handler_unchecked_exception_hides_detail(self):
