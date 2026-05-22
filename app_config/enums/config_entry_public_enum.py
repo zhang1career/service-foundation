@@ -20,11 +20,11 @@ class ConfigEntryPublic(IntEnum):
     def to_dict_list(cls) -> list[dict]:
         return [
             {
-                "k": "按条件（private，参与 /ai/config/pri，按 condition 匹配）",
+                "k": "按条件（private，参与 /api/config/pri，按 condition 匹配）",
                 "v": str(cls.PRIVATE.value),
             },
             {
-                "k": "公开（public，无条件；仅 /api/config/pub 与 /ai/config/pri，condition 固定为空）",
+                "k": "公开（public，无条件；仅 /api/config/pub 与 /api/config/pri，condition 固定为空）",
                 "v": str(cls.PUBLIC.value),
             },
         ]

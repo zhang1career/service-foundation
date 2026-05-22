@@ -2,8 +2,6 @@
 
 import json
 
-from rest_framework.authentication import BasicAuthentication, SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from app_config.repos.reg_repo import get_reg_by_access_key_and_status
@@ -156,11 +154,11 @@ class ConfigPriQueryView(APIView):
       `X-Config-Access-Key` header required.
       `key`,
       optional `conditions`.
-      Login required;
+      Merges public=1 and public=0 rows; no login required.
     """
 
-    authentication_classes = (SessionAuthentication, BasicAuthentication)
-    permission_classes = (IsAuthenticated,)
+    authentication_classes = ()
+    permission_classes = ()
 
     def post(self, request, *args, **kwargs):
         return _execute_config_post(request, "pri")

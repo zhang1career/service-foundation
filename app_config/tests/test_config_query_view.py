@@ -114,13 +114,6 @@ class ConfigPriQueryViewTests(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
 
-    def _without_auth(self):
-        return patch.multiple(
-            ConfigPriQueryView,
-            permission_classes=[],
-            authentication_classes=[],
-        )
-
     @patch("app_config.views.config_query_view.query_cache_set")
     @patch("app_config.views.config_query_view.merge_config_query_result")
     @patch("app_config.views.config_query_view.query_cache_get", return_value=None)
@@ -134,14 +127,13 @@ class ConfigPriQueryViewTests(SimpleTestCase):
             "_ids": "",
             "_explain": {"conditions_received": {}, "matched_layers": []},
         }
-        with self._without_auth():
-            request = self.factory.post(
-                "/api/config/pri",
-                data={"key": "app.k"},
-                format="json",
-                HTTP_X_CONFIG_ACCESS_KEY="ak_pri",
-            )
-            response = ConfigPriQueryView.as_view()(request)
+        request = self.factory.post(
+            "/api/config/pri",
+            data={"key": "app.k"},
+            format="json",
+            HTTP_X_CONFIG_ACCESS_KEY="ak_pri",
+        )
+        response = ConfigPriQueryView.as_view()(request)
         response.render()
         payload = json.loads(response.content)
         self.assertEqual(response.status_code, 200)
@@ -151,7 +143,7 @@ class ConfigPriQueryViewTests(SimpleTestCase):
     @patch("app_config.views.config_query_view.get_reg_by_access_key_and_status")
     def test_post_pri_body_access_key_ignored(self, mock_get_reg):
         mock_get_reg.return_value = _FakeReg(1)
-        with self._without_auth(), patch(
+        with patch(
             "app_config.views.config_query_view.query_cache_get", return_value=None
         ), patch(
             "app_config.views.config_query_view.merge_config_query_result",
@@ -172,13 +164,12 @@ class ConfigPriQueryViewTests(SimpleTestCase):
         self.assertEqual(args[0], "from_header")
 
     def test_post_pri_missing_access_key_header(self):
-        with self._without_auth():
-            request = self.factory.post(
-                "/api/config/pri",
-                data={"key": "app.k"},
-                format="json",
-            )
-            response = ConfigPriQueryView.as_view()(request)
+        request = self.factory.post(
+            "/api/config/pri",
+            data={"key": "app.k"},
+            format="json",
+        )
+        response = ConfigPriQueryView.as_view()(request)
         response.render()
         payload = json.loads(response.content)
         self.assertEqual(payload["errorCode"], RET_INVALID_PARAM)
