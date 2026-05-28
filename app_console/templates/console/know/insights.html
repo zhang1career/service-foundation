@@ -18,32 +18,28 @@
     <div class="card-body">
         <div class="insights-approximate-row">
             <input type="text" id="approximate-query-input" class="form-input" placeholder="输入文本进行近似查询">
-            <select id="approximate-relation-type" class="form-input insights-relation-select">
-                <option value="active">主动关系</option>
-                <option value="passive">被动关系</option>
-            </select>
+            <input type="number" id="approximate-batch-id" class="form-input insights-relation-select" placeholder="批次号（可选）">
             <button type="button" id="btn-approximate-query" class="btn btn-primary btn-sm">近似查询</button>
         </div>
         <div id="approximate-result-table-wrap" class="overflow-x-auto">
-            <div id="approximate-result-placeholder" class="console-readonly-block rounded-lg p-4 text-center text-gray-500 text-sm">点击「近似查询」后显示 Mongo _id 与 knowledge 映射表格</div>
-            <table id="approximate-result-table" class="data-table hidden"><thead><tr><th>Mongo _id</th><th>知识 ID</th><th>g_brief</th><th>content</th></tr></thead><tbody></tbody></table>
+            <div id="approximate-result-placeholder" class="console-readonly-block rounded-lg p-4 text-center text-gray-500 text-sm">点击「近似查询」后显示 Graphiti 语义检索结果</div>
+            <table id="approximate-result-table" class="data-table hidden"><thead><tr><th>ID</th><th>Group</th><th>Score</th><th>Content</th></tr></thead><tbody></tbody></table>
         </div>
     </div>
 </div>
 
 <!-- 关联关系 -->
 <div class="card mb-6">
-    <div class="card-header flex items-center justify-between">
+    <div class="card-header">
         <h2 class="text-lg font-semibold">关联关系</h2>
-        <button type="button" id="btn-relation-query" class="btn btn-outline btn-sm">关系查询</button>
     </div>
     <div class="card-body">
         <div class="flex flex-wrap items-center gap-2 mb-2">
-            <input type="text" id="neo4j-cypher-input" class="form-input flex-1 font-mono text-sm min-w-[280px]" placeholder="MATCH (s:svo_sub)-[r]-(o:svo_obj) RETURN s, r, o">
-            <button type="button" id="btn-graph-query" class="btn btn-primary btn-sm">图查询</button>
-            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="neo4j-export-mode" class="form-input">导出</label>
+            <input type="number" id="memory-batch-id" class="form-input text-sm" placeholder="批次号">
+            <input type="text" id="memory-query-input" class="form-input flex-1 font-mono text-sm min-w-[280px]" placeholder="输入问题，查看 Graphiti 记忆图">
+            <button type="button" id="btn-memory-query" class="btn btn-primary btn-sm">记忆图查询</button>
         </div>
-        <div id="neo4j-graph-container" class="w-full rounded-lg components-graph-neo4j mb-2" style="height: 840px; min-height: 600px; background: #1e1e1e;"></div>
+        <div id="memory-graph-container" class="w-full rounded-lg components-graph-neo4j mb-2" style="height: 840px; min-height: 600px; background: #1e1e1e;"></div>
     </div>
 </div>
 
@@ -53,7 +49,7 @@
         <h2 class="text-lg font-semibold">关联知识</h2>
     </div>
     <div class="card-body">
-        <textarea id="path-expressions-input" class="form-input w-full font-mono text-sm mb-3" rows="4" placeholder="路径表达式（每行一个，与 g_brief 一致；导出模式下在图中选择点/边后生成）"></textarea>
+        <textarea id="path-expressions-input" class="form-input w-full font-mono text-sm mb-3" rows="4" placeholder="查询短语（每行一个）"></textarea>
         <button type="button" id="btn-query-knowledge" class="btn btn-primary btn-sm mb-3">查询知识</button>
         <div id="viewpoint-display" class="console-readonly-block rounded-lg p-4 min-h-[80px] text-sm whitespace-pre-wrap break-words">点击「查询知识」后，结果将填充到下方「观点」JSON 编辑器中</div>
     </div>
@@ -79,13 +75,15 @@
     function getCsrf() { return document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''; }
     function escapeHtml(s) { if (!s) return ''; const div = document.createElement('div'); div.textContent = s; return div.innerHTML; }
 
-    // ---- 思路：近似查询 ----
     var approximateResultRows = [];
     document.getElementById('btn-approximate-query').addEventListener('click', async function() {
         var input = document.getElementById('approximate-query-input');
-        var relationType = document.getElementById('approximate-relation-type').value;
+        var batchInput = document.getElementById('approximate-batch-id');
         var text = (input && input.value || '').trim();
         if (!text) { alert('请输入查询文本'); return; }
+        var batchVal = (batchInput && batchInput.value || '').trim();
+        var payload = { text: text };
+        if (batchVal) payload.batch_id = parseInt(batchVal, 10);
         var btn = document.getElementById('btn-approximate-query');
         btn.disabled = true;
         try {
@@ -93,7 +91,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ text: text, relation_type: relationType })
+                body: JSON.stringify(payload)
             });
             var result = await res.json();
             if (result.errorCode === 0 && result.data) {
@@ -123,64 +121,16 @@
         placeholder.classList.add('hidden');
         table.classList.remove('hidden');
         tbody.innerHTML = rows.map(function(r) {
-            var gb = (r.g_brief || '').substring(0, 80) + ((r.g_brief || '').length > 80 ? '...' : '');
-            var contentShort = (r.content || '').substring(0, 60) + ((r.content || '').length > 60 ? '...' : '');
-            return '<tr><td>' + escapeHtml(r.mongo_id || '') + '</td><td>' + (r.knowledge_id != null ? r.knowledge_id : '-') + '</td><td title="' + escapeHtml(r.g_brief || '') + '">' + escapeHtml(gb) + '</td><td title="' + escapeHtml(r.content || '') + '">' + escapeHtml(contentShort) + '</td></tr>';
+            var contentShort = (r.content || '').substring(0, 80) + ((r.content || '').length > 80 ? '...' : '');
+            return '<tr><td>' + escapeHtml(r.id || '') + '</td><td>' + escapeHtml(r.group_id || '-') + '</td><td>' + escapeHtml(String(r.score || 0)) + '</td><td title="' + escapeHtml(r.content || '') + '">' + escapeHtml(contentShort) + '</td></tr>';
         }).join('');
     }
 
-    // ---- 关联关系：关系查询、图查询、NVL 图、导出 ----
     var insightsGraphNvl = null;
     var insightsGraphHandlers = [];
-    var insightsGraphNodes = [];  // 当前图原始节点 [{id, label, nodeType}]
-    var insightsGraphEdges = [];  // 当前图原始边 [{from, to, label}]
-    var NODE_TYPE_COLORS = { svo_sub: '#68BDF6', svo_obj: '#6DCE9E', svo_attr: '#F79767', svo_comp: '#B388FF' };
+    var NODE_TYPE_COLORS = { query: '#68BDF6', memory: '#F79767', fact: '#6DCE9E' };
     var DEFAULT_NODE_COLOR = '#A5ABB6';
     var EDGE_COLOR = '#A5ABB6';
-
-    document.getElementById('btn-relation-query').addEventListener('click', function() {
-        if (approximateResultRows.length === 0) { alert('请先执行「近似查询」并得到结果'); return; }
-        var gBriefs = approximateResultRows.map(function(r) { return r.g_brief || ''; }).filter(Boolean);
-        if (gBriefs.length === 0) { alert('思路表格中无 g_brief'); return; }
-        fetch('/api/know/console/g_brief_to_cypher', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ g_brief_list: gBriefs })
-        }).then(function(res) { return res.json(); }).then(function(result) {
-            if (result.errorCode === 0 && result.data && result.data.cypher) {
-                document.getElementById('neo4j-cypher-input').value = result.data.cypher;
-                triggerGraphQuery();
-            } else { alert(result.message || '生成 Cypher 失败'); }
-        }).catch(function(e) { alert('请求失败: ' + (e.message || '')); });
-    });
-
-    function triggerGraphQuery() {
-        var cypherEl = document.getElementById('neo4j-cypher-input');
-        var cypher = (cypherEl && cypherEl.value || '').trim();
-        if (!cypher) { alert('请输入 Cypher'); return; }
-        fetch('/api/know/neo4j_cypher', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ cypher: cypher, params: {} })
-        }).then(function(res) { return res.json(); }).then(function(data) {
-            if (data.errorCode === 0 && data.data) { renderInsightsGraph(data.data.nodes || [], data.data.edges || []); }
-            else { alert(data.msg || '图查询失败'); }
-        }).catch(function(e) { alert('请求失败'); });
-    }
-
-    document.getElementById('btn-graph-query').addEventListener('click', triggerGraphQuery);
-
-    function mergeGraphData(existingNodes, existingEdges, newNodes, newEdges) {
-        var nodeMap = {};
-        (existingNodes || []).forEach(function(n) { nodeMap[String(n.id)] = n; });
-        (newNodes || []).forEach(function(n) { nodeMap[String(n.id)] = n; });
-        var edgeSet = {};
-        (existingEdges || []).forEach(function(e) { edgeSet[e.from + '\t' + e.to + '\t' + (e.label || '')] = e; });
-        (newEdges || []).forEach(function(e) { edgeSet[String(e.from) + '\t' + String(e.to) + '\t' + (e.label || '')] = e; });
-        return { nodes: Object.values(nodeMap), edges: Object.values(edgeSet) };
-    }
 
     function rawNodeToNvl(n) {
         var nodeType = n.nodeType || '';
@@ -191,70 +141,10 @@
         var id = 'rel_' + idx + '\t' + String(e.from) + '\t' + String(e.to);
         return { id: id, from: String(e.from), to: String(e.to), caption: e.label || '', type: e.label || undefined, color: EDGE_COLOR };
     }
-    var insightsRelIdToEdge = {};
-    function edgeToExportExpression(edge) {
-        var fromNode = insightsGraphNodes.find(function(n) { return String(n.id) === String(edge.from); });
-        var toNode = insightsGraphNodes.find(function(n) { return String(n.id) === String(edge.to); });
-        var fromCaption = (fromNode && fromNode.label != null) ? String(fromNode.label).replace(/\\/g, '\\\\').replace(/'/g, "\\'") : String(edge.from);
-        var toCaption = (toNode && toNode.label != null) ? String(toNode.label).replace(/\\/g, '\\\\').replace(/'/g, "\\'") : String(edge.to);
-        var type = (edge.label || '').trim();
-        if (type === 'ATTR') {
-            return 'ATTR:(attr:svo_attr {name: \'' + fromCaption + '\'})-[:ATTR]->(c:svo_core {name: \'' + toCaption + '\'})';
-        }
-        var pred = (type || 'related_to').replace(/\\/g, '\\\\').replace(/`/g, '\\`');
-        return 'PRED:(s:svo_core {name: \'' + fromCaption + '\'})-[r:`' + pred + '`]-(o:svo_core {name: \'' + toCaption + '\'})';
-    }
-    function appendPathLines(lines) {
-        var ta = document.getElementById('path-expressions-input');
-        if (!ta) return;
-        var cur = (ta.value || '').trim();
-        var existing = cur ? cur.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean) : [];
-        var toAdd = (lines || []).filter(Boolean).filter(function(l) { return existing.indexOf(l) === -1; });
-        if (toAdd.length === 0) return;
-        var add = toAdd.join('\n');
-        ta.value = cur ? cur + '\n' + add : add;
-    }
-
-    function expandNodeAndRefresh(nodeId) {
-        var nodeIdStr = String(nodeId);
-        var nodeIdNum = parseInt(nodeIdStr, 10);
-        if (isNaN(nodeIdNum) && nodeIdStr) { nodeIdNum = nodeIdStr; }
-        var cypher = 'MATCH (n) WHERE id(n) = $nodeId OPTIONAL MATCH (n)-[r]-(m) RETURN n, r, m';
-        fetch('/api/know/neo4j_cypher', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ cypher: cypher, params: { nodeId: nodeIdNum } })
-        }).then(function(res) { return res.json(); }).then(function(data) {
-            if (data.errorCode !== 0 || !data.data) { alert(data.msg || data.message || '查询关联关系失败'); return; }
-            var merged = mergeGraphData(insightsGraphNodes, insightsGraphEdges, data.data.nodes || [], data.data.edges || []);
-            var oldNodeIds = {};
-            insightsGraphNodes.forEach(function(n) { oldNodeIds[String(n.id)] = true; });
-            var oldEdgeKeys = {};
-            insightsGraphEdges.forEach(function(e) { oldEdgeKeys[String(e.from) + '\t' + String(e.to) + '\t' + (e.label || '')] = true; });
-            var newNodes = merged.nodes.filter(function(n) { return !oldNodeIds[String(n.id)]; });
-            var newEdges = merged.edges.filter(function(e) { return !oldEdgeKeys[String(e.from) + '\t' + String(e.to) + '\t' + (e.label || '')]; });
-            insightsGraphNodes = merged.nodes;
-            insightsGraphEdges = merged.edges;
-            if (!insightsGraphNvl) { renderInsightsGraph(insightsGraphNodes, insightsGraphEdges); return; }
-            if (newNodes.length === 0 && newEdges.length === 0) { return; }
-            var nvlNodes = newNodes.map(rawNodeToNvl);
-            var nvlRels = newEdges.map(function(e, i) { return rawEdgeToNvl(e, 'add_' + i); });
-            nvlRels.forEach(function(r, i) { insightsRelIdToEdge[r.id] = { from: newEdges[i].from, to: newEdges[i].to, label: newEdges[i].label }; });
-            try {
-                insightsGraphNvl.addAndUpdateElementsInGraph(nvlNodes, nvlRels);
-                if (insightsGraphNvl.fit && nvlNodes.length) { insightsGraphNvl.fit(nvlNodes.map(function(n) { return n.id; })); }
-            } catch (err) {
-                renderInsightsGraph(insightsGraphNodes, insightsGraphEdges);
-            }
-        }).catch(function(e) { alert('请求失败: ' + (e.message || '')); });
-    }
 
     function renderInsightsGraph(nodes, edges) {
-        var container = document.getElementById('neo4j-graph-container');
+        var container = document.getElementById('memory-graph-container');
         if (!container) return;
-        insightsGraphNodes = nodes || [];
-        insightsGraphEdges = edges || [];
         if (insightsGraphNvl) {
             insightsGraphHandlers.forEach(function(h) { try { if (h.destroy) h.destroy(); } catch (e) {} });
             insightsGraphHandlers = [];
@@ -267,8 +157,6 @@
             return { id: String(n.id), caption: n.label || n.id || '?', nodeType: nodeType, color: color };
         });
         var nvlRels = (edges || []).map(function(e, i) { return rawEdgeToNvl(e, i); });
-        insightsRelIdToEdge = {};
-        nvlRels.forEach(function(r, i) { insightsRelIdToEdge[r.id] = { from: (edges || [])[i].from, to: (edges || [])[i].to, label: (edges || [])[i].label }; });
         if (nvlNodes.length === 0 && nvlRels.length === 0) {
             container.innerHTML = '<p class="text-gray-400 p-4 text-center text-sm">执行图查询后显示</p>';
             return;
@@ -278,43 +166,40 @@
             var opts = { layout: 'forceDirected', initialZoom: 1.2, disableTelemetry: true, disableWebWorkers: true, renderer: 'canvas', bgColor: '#1e1e1e' };
             var themeConfig = { defaultNodeColor: DEFAULT_NODE_COLOR, defaultRelationshipColor: EDGE_COLOR };
             insightsGraphNvl = new nvlMod.NVL(container, nvlNodes, nvlRels, opts, themeConfig);
-            var ZoomInteraction = nvlMod.ZoomInteraction, PanInteraction = nvlMod.PanInteraction, ClickInteraction = nvlMod.ClickInteraction;
+            var ZoomInteraction = nvlMod.ZoomInteraction, PanInteraction = nvlMod.PanInteraction;
             var dragHandler = new nvlMod.DragNodeInteraction(insightsGraphNvl);
             var panHandler = new PanInteraction(insightsGraphNvl);
             var zoomHandler = new ZoomInteraction(insightsGraphNvl);
-            var clickHandler = new ClickInteraction(insightsGraphNvl);
-            clickHandler.updateCallback('onNodeClick', function(node) {
-                if (!node) return;
-                var nodeId = node.id != null ? node.id : (node.data && node.data.id);
-                if (nodeId == null) return;
-                nodeId = String(nodeId);
-                if (document.getElementById('neo4j-export-mode').checked) { return; }
-                expandNodeAndRefresh(nodeId);
-            });
-            clickHandler.updateCallback('onRelationshipClick', function(rel) {
-                if (!rel) return;
-                var relId = rel.id != null ? rel.id : (rel.data && rel.data.id);
-                if (relId && document.getElementById('neo4j-export-mode').checked) {
-                    var edge = insightsRelIdToEdge[relId];
-                    if (edge) { appendPathLines([edgeToExportExpression(edge)]); }
-                }
-            });
-            clickHandler.updateCallback('onSceneClick', function() { if (insightsGraphNvl) insightsGraphNvl.deselectAll(); });
-            insightsGraphHandlers = [dragHandler, panHandler, zoomHandler, clickHandler];
+            insightsGraphHandlers = [dragHandler, panHandler, zoomHandler];
         }).catch(function() { container.innerHTML = '<p class="text-gray-400 p-4 text-center text-sm">加载图谱组件失败</p>'; });
     }
 
-    // 导出模式：选择点/边后生成路径表达式到多行框（简化：当前仅占位，路径格式与 g_brief 一致时可在此扩展）
-    document.getElementById('neo4j-export-mode').addEventListener('change', function() {
-        if (this.checked) { document.getElementById('path-expressions-input').placeholder = '导出模式下点击图中的边，路径表达式将生成于此（每行 ATTR: 或 PRED: 前缀）'; }
-        else { document.getElementById('path-expressions-input').placeholder = '路径表达式（每行一个；导出模式下点击边后生成）'; }
+    document.getElementById('btn-memory-query').addEventListener('click', async function() {
+        var batchVal = (document.getElementById('memory-batch-id').value || '').trim();
+        var query = (document.getElementById('memory-query-input').value || '').trim();
+        if (!batchVal) { alert('请输入批次号'); return; }
+        if (!query) { alert('请输入查询内容'); return; }
+        var res = await fetch('/api/know/console/memory_graph', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ batch_id: parseInt(batchVal, 10), query: query })
+        });
+        var data = await res.json().catch(function() { return {}; });
+        if (data.errorCode === 0 && data.data) {
+            renderInsightsGraph(data.data.nodes || [], data.data.edges || []);
+        } else {
+            alert(data.msg || '记忆图查询失败');
+        }
     });
 
-    // ---- 关联知识：查询知识（结果填入下方「观点」JSON 编辑器） ----
     document.getElementById('btn-query-knowledge').addEventListener('click', async function() {
         var ta = document.getElementById('path-expressions-input');
         var lines = (ta && ta.value || '').split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
-        if (lines.length === 0) { alert('请先输入路径表达式（每行一个）'); return; }
+        if (lines.length === 0) { alert('请先输入查询短语（每行一个）'); return; }
+        var batchVal = (document.getElementById('memory-batch-id').value || '').trim();
+        var payload = { lines: lines, integrate_ai: false };
+        if (batchVal) payload.batch_id = parseInt(batchVal, 10);
         var btn = document.getElementById('btn-query-knowledge');
         btn.disabled = true;
         document.getElementById('viewpoint-display').textContent = '查询中...';
@@ -323,7 +208,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
-                body: JSON.stringify({ lines: lines, integrate_ai: false })
+                body: JSON.stringify(payload)
             });
             var result = await res.json();
             if (result.errorCode === 0 && result.data) {

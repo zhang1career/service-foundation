@@ -1,6 +1,5 @@
 """
-Parser Agent: split text into sentences, classify, write MySQL + sentence_raw.
-Stage 0 (创建): sentence creation with optional classification.
+Parser Agent: split text into sentences, classify, write MySQL.
 """
 import logging
 import re
@@ -9,7 +8,6 @@ from typing import List
 from app_know.consts import CLASS_CHOICES, CLASS_FACT
 from app_know.enums.classification_enum import ClassificationEnum
 from app_know.repos import knowledge_point_repo
-from app_know.repos.sentence_raw_repo import delete_by_sentence_ids, save_sentence_raw
 from common.consts.string_const import EMPTY_STRING
 
 logger = logging.getLogger(__name__)
@@ -70,10 +68,9 @@ def parse_and_store(
         batch_id: int,
         content: str,
         use_ai_classify: bool = True,
-        write_sentence_raw: bool = True,
 ) -> List[dict]:
     """
-    Parse content into sentences, optionally classify, store in MySQL + sentence_raw.
+    Parse content into sentences, optionally classify, store in MySQL.
     Returns list of dicts with id, content, classification, seq for each sentence.
     """
     if batch_id is None or not isinstance(batch_id, int) or batch_id <= 0:
@@ -93,13 +90,7 @@ def parse_and_store(
         cls = classify_sentence(s) if use_ai_classify else CLASS_FACT
         classified.append((s, cls))
 
-    # Delete existing knowledge points (and sentence_raw) for this batch
-    existing_ids = knowledge_point_repo.get_ids_by_batch(batch_id)
-    if existing_ids:
-        try:
-            delete_by_sentence_ids(existing_ids)
-        except Exception as e:
-            logger.warning("[parser_agent] delete_by_sentence_ids failed: %s", e)
+    # Delete existing knowledge points for this batch
     knowledge_point_repo.delete_by_batch(batch_id)
 
     # Batch create in MySQL（classification 存为 int）
@@ -113,11 +104,6 @@ def parse_and_store(
     results = []
     for i, s in enumerate(created):
         cls_id = classifications[i] if i < len(classifications) else ClassificationEnum.FACT
-        if write_sentence_raw:
-            try:
-                save_sentence_raw(sentence_id=s.id, content=s.content)
-            except Exception as e:
-                logger.warning("[parser_agent] save_sentence_raw failed for id=%s: %s", s.id, e)
         results.append({
             "id": s.id,
             "content": s.content,

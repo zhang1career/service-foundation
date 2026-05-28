@@ -15,7 +15,6 @@ from app_know.repos.knowledge_point_repo import (
     delete_by_batch,
     delete_by_id as delete_knowledge_point_by_id,
 )
-from app_know.repos.sentence_raw_repo import delete_by_sentence_ids
 from app_know.utils.knowledge_point_dict import knowledge_point_to_dict
 from common.consts.response_const import RET_RESOURCE_NOT_FOUND, RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception, with_type
@@ -196,10 +195,6 @@ class KnowledgePointDetailView(APIView):
             k = get_by_id(kid)
             if not k:
                 raise ValueError(f"Knowledge point {kid} not found")
-            try:
-                delete_by_sentence_ids([kid])
-            except Exception as e:
-                logger.warning("[KnowledgePointDetailView.delete] delete_by_sentence_ids failed: %s", e)
             deleted = delete_knowledge_point_by_id(kid)
             if not deleted:
                 return resp_err(code=RET_INVALID_PARAM, message="Delete failed")

@@ -5,8 +5,10 @@ import logging
 from typing import Dict, Any, Optional
 
 from app_know.consts import SOURCE_TYPE_FILE, SOURCE_TYPE_INSTANT
+from app_know.enums.stage_enum import StageEnum
 from app_know.repos.batch_repo import create_batch, delete_batch
-from app_know.repos.knowledge_point_repo import delete_by_batch
+from app_know.repos.knowledge_point_repo import delete_by_batch, update as update_knowledge_point
+from app_know.services.graphiti_knowledge_service import GraphitiKnowledgeService
 from app_know.services.parser_agent import parse_and_store
 
 logger = logging.getLogger(__name__)
@@ -65,9 +67,8 @@ def analyze_batch(
         batch_id: int,
         content: str,
         use_ai_classify: bool = True,
-        write_sentence_raw: bool = True,
 ) -> Dict[str, Any]:
-    """Split content into sentences, save to knowledge table. Returns sentence count and list."""
+    """Split content into sentences, save to knowledge table, then ingest to Graphiti."""
     content = (content or "").strip()
     if not content:
         raise ValueError("content is required in body")
@@ -76,11 +77,21 @@ def analyze_batch(
         batch_id=batch_id,
         content=content,
         use_ai_classify=use_ai_classify,
-        write_sentence_raw=write_sentence_raw,
     )
+    for s in sentences:
+        sid = s.get("id")
+        if isinstance(sid, int) and sid > 0:
+            update_knowledge_point(sid, stage=StageEnum.PARSED)
+    ingest_result = {"ingested_count": 0}
+    if sentences:
+        try:
+            ingest_result = GraphitiKnowledgeService().ingest_batch(batch_id=batch_id)
+        except Exception as e:
+            logger.warning("[analyze_batch] graphiti ingest failed for batch=%s: %s", batch_id, e)
 
     return {
         "kid": batch_id,
         "sentence_count": len(sentences),
         "sentences": sentences,
+        "graphiti": ingest_result,
     }

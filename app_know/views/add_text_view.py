@@ -43,7 +43,6 @@ class AddTextKnowledgeView(APIView):
                 batch_id=batch_id,
                 content=content,
                 use_ai_classify=True,
-                write_sentence_raw=True,
             )
 
             return resp_ok({

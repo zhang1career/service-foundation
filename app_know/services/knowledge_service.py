@@ -7,13 +7,11 @@ from typing import Any, Dict, List, Optional
 
 from app_know.repos import (
     get_knowledge_by_id,
-    get_knowledge_by_ids,
     list_knowledge,
     create_knowledge,
     update_knowledge,
     delete_knowledge,
 )
-from app_know.repos.summary_repo import search_summaries_by_vector_filtered
 from common.components.singleton import Singleton
 from common.utils.date_util import get_now_timestamp_ms
 from common.consts.query_const import LIMIT_LIST
@@ -65,8 +63,7 @@ class KnowledgeService(Singleton):
         """
         List knowledge entities with pagination.
         When title is provided: left-aligned prefix match on title field (title takes priority over summary).
-        When summary is provided (and title is not): semantic search via Atlas knowledge_summaries,
-        return top 5 with similarity.
+        Summary-based semantic filtering has been removed after Graphiti cutover.
         Otherwise: standard list with offset/limit/source_type.
         Returns dict with data, total_num, next_offset, filtered_by_summary (bool).
         """
@@ -85,42 +82,12 @@ class KnowledgeService(Singleton):
                 "filtered_by_summary": False,
             }
         if summary is not None and str(summary).strip():
-            # Filter by summary: vector search -> get kid list -> fetch from MySQL
-            q = str(summary).strip()
-            logger.debug("[list_knowledge] summary filter path: query=%r", q[:80])
-            try:
-                vector_results = search_summaries_by_vector_filtered(query=q, app_id=0, top_k=5)
-                logger.debug("[list_knowledge] vector_results count=%s, kids=%s", len(vector_results),
-                             [r.get("kid") for r in vector_results[:5]])
-            except Exception as e:
-                logger.warning("[list_knowledge] summary vector search failed: %s", e)
-                return {
-                    "data": [],
-                    "total_num": 0,
-                    "next_offset": None,
-                    "filtered_by_summary": True,
-                }
-            if not vector_results:
-                return {
-                    "data": [],
-                    "total_num": 0,
-                    "next_offset": None,
-                    "filtered_by_summary": True,
-                }
-            kid_to_score = {r["kid"]: r.get("score", 0.0) for r in vector_results}
-            kids = [r["kid"] for r in vector_results]
-            entities = get_knowledge_by_ids(kids)
-            logger.debug("[list_knowledge] get_knowledge_by_ids: requested=%s, got=%s", kids, [e.id for e in entities])
-            items_with_sim = [
-                _entity_to_dict(e, similarity=kid_to_score.get(e.id))
-                for e in entities
-                if e.id in kid_to_score
-            ]
+            logger.info("[list_knowledge] summary filter removed; returning empty result")
             return {
-                "data": items_with_sim,
-                "total_num": len(items_with_sim),
+                "data": [],
+                "total_num": 0,
                 "next_offset": None,
-                "filtered_by_summary": True,
+                "filtered_by_summary": False,
             }
         if offset < 0:
             raise ValueError("offset must be >= 0")
@@ -144,21 +111,8 @@ class KnowledgeService(Singleton):
         q = (str(summary) or "").strip()
         if not q:
             return []
-        try:
-            vector_results = search_summaries_by_vector_filtered(query=q, app_id=0, top_k=5)
-        except Exception as e:
-            logger.warning("[query_knowledge_some_like] vector search failed: %s", e)
-            return []
-        if not vector_results:
-            return []
-        kid_to_score = {r["kid"]: r.get("score", 0.0) for r in vector_results}
-        kids = [r["kid"] for r in vector_results]
-        entities = get_knowledge_by_ids(kids)
-        return [
-            _entity_to_dict(e, similarity=kid_to_score.get(e.id))
-            for e in entities
-            if e.id in kid_to_score
-        ]
+        logger.info("[query_knowledge_some_like] removed after Graphiti cutover")
+        return []
 
     def get_knowledge(self, entity_id: int) -> Dict[str, Any]:
         """Get one entity by id. Raises ValueError if invalid id or not found."""
@@ -237,14 +191,8 @@ class KnowledgeService(Singleton):
         return _entity_to_dict(entity)
 
     def delete_knowledge(self, entity_id: int) -> None:
-        """Delete entity and sync: remove summaries for this knowledge_id. Raises ValueError if invalid id or not found."""
+        """Delete entity. Raises ValueError if invalid id or not found."""
         _validate_entity_id(entity_id)
         deleted = delete_knowledge(entity_id)
         if not deleted:
             raise ValueError(f"Knowledge entity with id {entity_id} not found")
-        # Keep summaries in sync: remove MongoDB summaries for this knowledge_id
-        try:
-            from app_know.services.summary_service import SummaryService
-            SummaryService().delete_summaries_for_knowledge(knowledge_id=entity_id)
-        except Exception as e:
-            logger.warning("[delete_knowledge] Failed to delete summaries for knowledge_id=%s: %s", entity_id, e)

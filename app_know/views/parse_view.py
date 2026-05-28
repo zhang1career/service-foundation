@@ -1,5 +1,5 @@
 """
-Parse view: delegates to batch_service.analyze_batch. Kept for backward compat (knowledge detail page).
+Parse view: delegates to batch_service.analyze_batch.
 """
 import logging
 
@@ -30,13 +30,10 @@ class KnowledgeParseView(APIView):
                 return resp_err(code=RET_INVALID_PARAM, message="content is required in body")
 
             use_ai_classify = data.get("use_ai_classify", True)
-            write_sentence_raw = data.get("write_sentence_raw", True)
-
             result = analyze_batch(
                 batch_id=batch_id,
                 content=content,
                 use_ai_classify=use_ai_classify,
-                write_sentence_raw=write_sentence_raw,
             )
             return resp_ok(result)
         except ValueError as e:

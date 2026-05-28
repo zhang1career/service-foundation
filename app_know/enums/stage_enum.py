@@ -10,15 +10,13 @@ class StageEnum:
     """阶段枚举：k 为展示名，v 为 id 字符串；数值常量供代码引用。"""
 
     CREATE = 0
-    CLEAN = 1
-    PARSE = 2
-    VECTORIZE = 3
+    PARSED = 1
+    INGESTED = 2
 
     ITEMS = [
         (CREATE, "创建"),
-        (CLEAN, "清洗"),
-        (PARSE, "解析"),
-        (VECTORIZE, "向量化"),
+        (PARSED, "已解析"),
+        (INGESTED, "已入图"),
     ]
 
     @classmethod

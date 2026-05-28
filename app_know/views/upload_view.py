@@ -89,7 +89,6 @@ class KnowledgeUploadView(APIView):
                         batch_id=batch_id,
                         content=content,
                         use_ai_classify=True,
-                        write_sentence_raw=True,
                     )
                     result["sentences"] = sentences
                     result["sentence_count"] = len(sentences)

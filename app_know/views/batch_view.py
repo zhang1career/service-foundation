@@ -229,7 +229,7 @@ class BatchAnalyzeView(APIView):
     """POST: split content into sentences, save to knowledge table."""
 
     def post(self, request, entity_id, *args, **kwargs):
-        """Body: { content: string (required), use_ai_classify?, write_sentence_raw? }"""
+        """Body: { content: string (required), use_ai_classify? }"""
         try:
             batch_id = _parse_entity_id(entity_id)
             if not get_by_id(batch_id):
@@ -246,13 +246,11 @@ class BatchAnalyzeView(APIView):
                     return resp_err(code=RET_MISSING_PARAM, message="content is required in body")
 
             use_ai_classify = data.get("use_ai_classify", True)
-            write_sentence_raw = data.get("write_sentence_raw", True)
 
             result = analyze_batch(
                 batch_id=batch_id,
                 content=content,
                 use_ai_classify=use_ai_classify,
-                write_sentence_raw=write_sentence_raw,
             )
             return resp_ok(result)
         except ValueError as e:

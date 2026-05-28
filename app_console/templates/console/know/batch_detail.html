@@ -98,7 +98,7 @@ async function runAnalyze() {
                 'X-Requested-With': 'XMLHttpRequest'
             },
             credentials: 'same-origin',
-            body: JSON.stringify({ content: content.trim(), use_ai_classify: true, write_sentence_raw: true })
+            body: JSON.stringify({ content: content.trim(), use_ai_classify: true })
         });
         const result = await response.json();
         if (result.errorCode === 0 && result.data) {

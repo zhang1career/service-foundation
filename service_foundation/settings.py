@@ -793,6 +793,7 @@ REQUEST_ID_RESPONSE_HEADER = "X-Request-Id"
 
 # Internal HTTP integration
 AIBROKER_SERVICE_URL = env("AIBROKER_SERVICE_URL", default="http://127.0.0.1:8000/api/ai")
+GRAPHITI_SERVICE_URL = env("GRAPHITI_SERVICE_URL", default="http://127.0.0.1:7800")
 # Console「调试」调用写入 call_log 时使用的 reg 主键；须在 aibroker 库中存在对应调用方
 AIBROKER_REG_ID_TEST = env.int("AIBROKER_REG_ID_TEST", default=0)
 AI_PROVIDER_ID_GET_VIDEO = env.int("AI_PROVIDER_ID_GET_VIDEO", default=0)

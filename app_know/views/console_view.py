@@ -1,11 +1,15 @@
 """
-Console-level APIs for the 观点 (insights) page: approximate query, g_brief to Cypher, knowledge by brief.
+Console-level APIs for Graphiti-driven insights workflow.
 """
 import json
 import logging
+from typing import Any, Dict, List
 
 from rest_framework.views import APIView
 
+from app_know.enums.classification_enum import ClassificationEnum
+from app_know.services.graphiti_knowledge_service import GraphitiKnowledgeService
+from app_know.services.viewpoint_query_service import integrate_viewpoint_from_items
 from common.consts.response_const import RET_INVALID_PARAM
 from common.utils.http_util import resp_ok, resp_err, resp_exception
 
@@ -13,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def _get_request_data(request) -> dict:
-    """Get POST body as dict; parse JSON from request.body when data not already parsed."""
     data = getattr(request, "data", None)
     if data is not None and isinstance(data, dict):
         return data
@@ -29,106 +32,109 @@ def _get_request_data(request) -> dict:
     return {}
 
 
-from app_know.repos.deco_repo import (
-    COLLECTION_SUB_DECO,
-    COLLECTION_OBJ_DECO,
-    vector_search_deco,
-)
-from app_know.repos.knowledge_point_repo import list_by_vec_deco_ids
-from app_know.services.graph_builder_agent import build_cypher_union_from_g_brief_list
-
-
 class ApproximateQueryView(APIView):
-    """POST: 思路近似查询。body: { text, relation_type: 'active'|'passive' }. 返回 Mongo _id 与 knowledge 映射表."""
+    """POST: Graphiti semantic retrieval. body: { text, batch_id? }."""
 
     def post(self, request, *args, **kwargs):
         try:
             data = _get_request_data(request)
             text = (data.get("text") or "").strip()
-            relation_type = (data.get("relation_type") or "active").strip().lower()
             if not text:
                 return resp_err(code=RET_INVALID_PARAM, message="text 必填")
-            if relation_type not in ("active", "passive"):
-                return resp_err(code=RET_INVALID_PARAM, message="relation_type 须为 active 或 passive")
-
-            coll_name = COLLECTION_SUB_DECO if relation_type == "active" else COLLECTION_OBJ_DECO
-            field_name = "vec_sub_deco_id" if relation_type == "active" else "vec_obj_deco_id"
-
-            docs = vector_search_deco(coll_name, text, limit=5)
-            mongo_ids = [str(d.get("_id", "")) for d in docs if d.get("_id")]
-            if not mongo_ids:
-                return resp_ok({"rows": []})
-
-            points = list_by_vec_deco_ids(field_name, mongo_ids)
-            rows = []
-            for k in points:
-                deco_id = getattr(k, field_name) or ""
-                rows.append({
-                    "mongo_id": str(deco_id),
-                    "knowledge_id": k.id,
-                    "g_brief": (k.graph_brief or "").strip(),
-                    "content": (k.content or "").strip(),
-                })
+            raw_batch = data.get("batch_id")
+            batch_id = None
+            if raw_batch not in (None, ""):
+                try:
+                    v = int(raw_batch)
+                    if v > 0:
+                        batch_id = v
+                except (TypeError, ValueError):
+                    batch_id = None
+            rows = GraphitiKnowledgeService().search(query=text, batch_id=batch_id, limit=10)
             return resp_ok({"rows": rows})
         except Exception as e:
             logger.exception("[ApproximateQueryView] %s", e)
             return resp_exception(e)
 
 
-class GBriefToCypherView(APIView):
-    """POST: 从 g_brief 列表生成一条 Cypher（MATCH UNION）. body: { g_brief_list: string[] }."""
+class MemoryGraphView(APIView):
+    """POST: build memory graph from Graphiti. body: { query, batch_id }."""
 
     def post(self, request, *args, **kwargs):
         try:
             data = _get_request_data(request)
-            g_brief_list = data.get("g_brief_list")
-            if not isinstance(g_brief_list, list):
-                g_brief_list = [g_brief_list] if g_brief_list else []
-            cypher = build_cypher_union_from_g_brief_list(g_brief_list)
-            if not cypher:
-                return resp_err(code=RET_INVALID_PARAM, message="无法从 g_brief 解析出有效三元组")
-            return resp_ok({"cypher": cypher})
+            query = (data.get("query") or "").strip()
+            raw_batch = data.get("batch_id")
+            if not query:
+                return resp_err(code=RET_INVALID_PARAM, message="query 必填")
+            try:
+                batch_id = int(raw_batch)
+            except (TypeError, ValueError):
+                return resp_err(code=RET_INVALID_PARAM, message="batch_id 必须为正整数")
+            if batch_id <= 0:
+                return resp_err(code=RET_INVALID_PARAM, message="batch_id 必须为正整数")
+            graph = GraphitiKnowledgeService().memory_graph(query=query, batch_id=batch_id, limit=20)
+            return resp_ok({"nodes": graph.get("nodes", []), "edges": graph.get("edges", [])})
         except Exception as e:
-            logger.exception("[GBriefToCypherView] %s", e)
+            logger.exception("[MemoryGraphView] %s", e)
             return resp_exception(e)
 
 
 class KnowledgeByBriefView(APIView):
-    """POST: 按路径表达式查 knowledge，去重排序；可选 integrate_ai 是否返回 AI 整合文本. body: { lines: string[], integrate_ai?: bool }."""
+    """POST: query knowledge by text lines. body: { lines: string[] }."""
 
     def post(self, request, *args, **kwargs):
         try:
-            from app_know.services.viewpoint_query_service import query_knowledge_by_path_expressions
-        except ImportError as e:
-            logger.exception("[KnowledgeByBriefView] import: %s", e)
+            data = _get_request_data(request)
+            lines = data.get("lines")
+            if not isinstance(lines, list):
+                lines = [lines] if lines else []
+            lines = [str(x).strip() for x in lines if x and str(x).strip()]
+            if not lines:
+                return resp_err(code=RET_INVALID_PARAM, message="lines 必填且非空")
+            raw_batch = data.get("batch_id")
+            batch_id = None
+            if raw_batch not in (None, ""):
+                try:
+                    batch_id = int(raw_batch)
+                except (TypeError, ValueError):
+                    batch_id = None
+            all_rows: List[Dict[str, Any]] = []
+            seen: set[str] = set()
+            for line in lines:
+                rows = GraphitiKnowledgeService().search(query=line, batch_id=batch_id, limit=5)
+                for r in rows:
+                    key = str(r.get("id") or "") + "|" + str(r.get("content") or "")
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    all_rows.append(
+                        {
+                            "id": r.get("id"),
+                            "content": r.get("content", ""),
+                            "classification": ClassificationEnum.FACT,
+                            "classification_label": "fact",
+                            "score": r.get("score", 0.0),
+                            "group_id": r.get("group_id", ""),
+                        }
+                    )
+            return resp_ok({"rows": all_rows, "viewpoint_text": ""})
+        except Exception as e:
+            logger.exception("[KnowledgeByBriefView] %s", e)
             return resp_exception(e)
-
-        data = _get_request_data(request)
-        lines = data.get("lines")
-        if not isinstance(lines, list):
-            lines = [lines] if lines else []
-        lines = [str(x).strip() for x in lines if x and str(x).strip()]
-        if not lines:
-            return resp_err(code=RET_INVALID_PARAM, message="lines 必填且非空")
-
-        integrate_ai = data.get("integrate_ai", False)
-        result = query_knowledge_by_path_expressions(lines, integrate_ai=integrate_ai)
-        return resp_ok({"rows": result["rows"], "viewpoint_text": result["viewpoint_text"]})
 
 
 class IntegrateViewpointView(APIView):
-    """POST: 将 JSON 编辑器的列表 [{ content, classification }] 发送给 AI 合成观点. body: { items: [{ content, classification }] }."""
+    """POST: integrate viewpoint from JSON items."""
 
     def post(self, request, *args, **kwargs):
         try:
-            from app_know.services.viewpoint_query_service import integrate_viewpoint_from_items
-        except ImportError as e:
-            logger.exception("[IntegrateViewpointView] import: %s", e)
+            data = _get_request_data(request)
+            items = data.get("items")
+            if not isinstance(items, list):
+                items = []
+            viewpoint_text = integrate_viewpoint_from_items(items)
+            return resp_ok({"viewpoint_text": viewpoint_text})
+        except Exception as e:
+            logger.exception("[IntegrateViewpointView] %s", e)
             return resp_exception(e)
-
-        data = _get_request_data(request)
-        items = data.get("items")
-        if not isinstance(items, list):
-            items = []
-        viewpoint_text = integrate_viewpoint_from_items(items)
-        return resp_ok({"viewpoint_text": viewpoint_text})

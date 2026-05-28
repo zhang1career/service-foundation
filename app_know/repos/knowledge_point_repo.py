@@ -259,7 +259,7 @@ def list_by_g_sub_or_g_obj_exact(expressions: List[str]) -> List[KnowledgePoint]
     Uses graph_subject_hash / graph_object_hash for pre-filter, then exact match on g_sub / g_obj.
     Returns deduplicated list by id.
     """
-    from app_know.services.graph_builder_agent import graph_string_to_hash
+    import zlib
 
     if not expressions:
         return []
@@ -269,7 +269,7 @@ def list_by_g_sub_or_g_obj_exact(expressions: List[str]) -> List[KnowledgePoint]
     seen_ids: set = set()
     result: List[KnowledgePoint] = []
     for expr in exprs:
-        h = graph_string_to_hash(expr)
+        h = zlib.crc32(expr.encode("utf-8"))
         qs = KnowledgePoint.objects.using(_DB).filter(
             Q(graph_subject_hash=h, graph_subject=expr) | Q(graph_object_hash=h, graph_object=expr)
         ).order_by("id")

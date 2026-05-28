@@ -36,8 +36,6 @@ def _validate_app_id(app_id) -> Any:
     Normalize app_id for relationship APIs: non-negative int, or non-empty string slug (Neo4j scope).
     Rejects empty string; enforces max length on strings.
     """
-    from app_know.services.summary_service import _validate_app_id as _summary_validate
-
     if isinstance(app_id, str):
         s = app_id.strip()
         if not s:
@@ -55,7 +53,9 @@ def _validate_app_id(app_id) -> Any:
         if app_id < 0:
             raise ValueError("app_id must be a non-negative integer")
         return app_id
-    return _summary_validate(app_id)
+    if app_id is None:
+        raise ValueError("app_id is required")
+    raise ValueError("app_id must be a non-negative integer or non-empty string")
 
 
 def _validate_positive_int(value: Any, name: str) -> int:
